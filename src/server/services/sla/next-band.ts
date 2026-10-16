@@ -1,4 +1,4 @@
-import { bandOf, chooseRule, resolveApprover, type DelegationSnapshot, type DoaDocumentType, type DoaRuleSnapshot, type DoaVersionSnapshot, type OrgSnapshot } from '@/core/doa'
+import { bandOf, chooseRule, isCommitteeStep, resolveApprover, stepApprovers, type DelegationSnapshot, type DoaDocumentType, type DoaRuleSnapshot, type DoaVersionSnapshot, type OrgSnapshot } from '@/core/doa'
 import { higherBandLowers } from '@/core/doa/band'
 import { delegateFor } from '@/core/delegation'
 
@@ -54,7 +54,7 @@ export type NextBand =
       /** The holder's delegate conflicts with the document, so the holder keeps it and ORG_ADMIN is told (BR-DLG-05) */
       readonly notifyOrgAdmin: boolean
     }
-  | { readonly kind: 'NONE'; readonly reason: 'NO_HIGHER_BAND' | 'APPROVER_NOT_FOUND' | 'DOA_AMBIGUOUS'; readonly ruleCode: string | null }
+  | { readonly kind: 'NONE'; readonly reason: 'NO_HIGHER_BAND' | 'APPROVER_NOT_FOUND' | 'DOA_AMBIGUOUS' | 'SLOTTED_STEP'; readonly ruleCode: string | null }
 
 /** The rule of the band right above `rule`, or why there is none */
 function nextRule(version: DoaVersionSnapshot, documentType: DoaDocumentType, rule: DoaRuleSnapshot): DoaRuleSnapshot | 'NONE' | 'AMBIGUOUS' {
@@ -74,11 +74,11 @@ function nextRule(version: DoaVersionSnapshot, documentType: DoaDocumentType, ru
  */
 function routeHolders(rule: DoaRuleSnapshot, input: NextBandInput, org: OrgSnapshot, delegations: readonly DelegationSnapshot[], active: (memberId: string) => boolean): string[] {
   const ids: string[] = []
-  for (const step of rule.steps) {
+  for (const approver of rule.steps.flatMap(stepApprovers)) {
     // A position of the charged department needs one; the policy rules name organization-wide positions
-    if (step.approver.kind === 'POSITION_OF_DEPARTMENT' && input.chargedDepartmentId === null) continue
+    if (approver.kind === 'POSITION_OF_DEPARTMENT' && input.chargedDepartmentId === null) continue
     for (const at of [input.routeCreatedAt, input.at]) {
-      const found = resolveApprover(step.approver, input.chargedDepartmentId ?? '', org, at)
+      const found = resolveApprover(approver, input.chargedDepartmentId ?? '', org, at)
       if (!found.found) continue
       const holder = delegateFor(
         { memberId: found.memberId, viaPosition: found.viaPosition },
@@ -106,7 +106,8 @@ export function nextBandApprover(input: NextBandInput, org: OrgSnapshot, delegat
     if (next === 'NONE') return { kind: 'NONE', reason: 'NO_HIGHER_BAND', ruleCode: null }
     rule = next
     const step = rule.steps[rule.steps.length - 1]
-    if (!step || input.chargedDepartmentId === null) return { kind: 'NONE', reason: 'APPROVER_NOT_FOUND', ruleCode: rule.code }
+    // A committee has no one approver to add in its place (BR-WF-15: no co-assignee stands for a slot)
+    if (!step || isCommitteeStep(step) || input.chargedDepartmentId === null) return { kind: 'NONE', reason: 'APPROVER_NOT_FOUND', ruleCode: rule.code }
     const found = resolveApprover(step.approver, input.chargedDepartmentId, org, input.at)
     if (!found.found) return { kind: 'NONE', reason: 'APPROVER_NOT_FOUND', ruleCode: rule.code }
     if (input.conflictMemberIds.includes(found.memberId) || taken.has(found.memberId)) continue

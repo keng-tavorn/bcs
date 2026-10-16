@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl'
 import { Notice } from '../form/notice'
+import { lineAgreement } from './catalog-lines'
 import { describedBy, inputClass, Labelled } from './controls'
 import type { StepProps } from './details-items'
 import { droppedChoice } from './model'
@@ -56,6 +57,9 @@ export function DeliverySiteField({ data, values, update }: StepProps) {
 
 export function SuggestedSupplierField({ data, values, update }: StepProps) {
   const t = useTranslations('requestForm.supplier')
+  const tc = useTranslations('requestForm.catalog')
+  // S6-10 (BR-PRC-06): catalogue lines whose agreed prices are with other suppliers than the one suggested
+  const off = values.lines.filter((l) => lineAgreement(l, values).kind === 'OFF').length
   const suppliers = data.suppliers ?? []
   const dropped = !values.suggestedSupplierId && droppedChoice(data.draft?.suggestedSupplierId, suppliers)
   return (
@@ -85,6 +89,7 @@ export function SuggestedSupplierField({ data, values, update }: StepProps) {
         </Labelled>
       )}
       {dropped ? <Notice tone="warning">{t('dropped')}</Notice> : null}
+      {off ? <Notice tone="warning">{tc('supplierOff', { count: off })}</Notice> : null}
     </section>
   )
 }

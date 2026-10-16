@@ -23,7 +23,9 @@
   "DOA_NOT_CONFIGURED": "ยังไม่มี DOA ที่มีผลสำหรับเอกสารนี้ กรุณาติดต่อผู้ดูแลระบบ",
   "DOA_AMBIGUOUS": "DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ",
   "DOA_LINT_FAILED": "DOA ฉบับนี้ยังไม่ผ่านการตรวจ: {codes}",
+  "WORKFLOW_LINT_FAILED": "workflow ฉบับนี้ยังไม่ผ่านการตรวจ: {codes}",
   "APPROVER_NOT_FOUND": "ไม่พบผู้ดำรงตำแหน่ง {position} ของ {department} กรุณาติดต่อผู้ดูแลระบบ",
+  "REVIEWER_NOT_FOUND": "ไม่พบผู้ตรวจ {position} ของ {department} ตามข้อ {rule} กรุณาติดต่อผู้ดูแลระบบ",
   "NO_HIGHER_AUTHORITY": "DOA ไม่มีผู้มีอำนาจสูงกว่าผู้ขอสำหรับยอดนี้",
   "BUDGET_INSUFFICIENT": "งบไม่พอ คงเหลือ {available} บาท ขาด {shortfall} บาท",
   "BUDGET_LINE_CLOSED": "บรรทัดงบนี้ถูกระงับหรือปิดแล้ว",
@@ -41,5 +43,6 @@
   "STEP_UP_REQUIRED": "รายการนี้ต้องยืนยันด้วย PIN",
   "RATE_LIMITED": "ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง",
   "EXTERNAL_SERVICE_ERROR": "ระบบภายนอกไม่ตอบสนอง ({service})",
-  "INTERNAL": "เกิดข้อผิดพลาด (รหัสอ้างอิง {requestId})"
+  "INTERNAL": "เกิดข้อผิดพลาด (รหัสอ้างอิง {requestId})",
+  "CONFIG_PACKAGE_INVALID": "ไฟล์ชุดค่าตั้งไม่ถูกต้องหรือถูกแก้ไข ({reason})"
 }

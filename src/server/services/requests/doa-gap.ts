@@ -15,7 +15,8 @@ import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from 
 // replays the report instead of reporting twice, and each administrator hears about one gap of one request once
 // (Notification.dedupeKey). The request's history keeps every refused attempt (request.doa_gap_reported).
 
-export const DOA_GAP_CODES = ['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY'] as const
+// REVIEWER_NOT_FOUND (S6 · BR-WF-08): a rule of the workflow in effect has neither its reviewer nor its fallback
+export const DOA_GAP_CODES = ['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'REVIEWER_NOT_FOUND'] as const
 export type DoaGapCode = (typeof DOA_GAP_CODES)[number]
 
 export function isDoaGap(code: string): code is DoaGapCode {
@@ -81,7 +82,8 @@ export async function reportDoaGap(ctx: Ctx, requestId: unknown, error: AppError
   const reported = await runCommand(
     ctx,
     reportDoaGapCommand,
-    { requestId, code: error.code, ruleCode: text(details.ruleCode), position: text(details.position), departments },
+    // A reviewer rule names its code `rule` and its one department (REVIEWER_NOT_FOUND)
+    { requestId, code: error.code, ruleCode: text(details.ruleCode) ?? text(details.rule), position: text(details.position), departments: departments.length ? departments : [text(details.department)].filter((d): d is string => d !== null) },
     { ...options, idempotencyKey: `${options.idempotencyKey}:doa-gap` },
   )
   return reported.ok ? reported.data.admins : null

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { evaluateCondition, evaluateForm } from '@/core/forms'
 import { formDataSchema } from '@/core/forms/fields'
 import { FORM_TEXTAREA_MAX_LENGTH, FORM_TEXT_MAX_LENGTH } from '@/core/money/constants'
+import { chargedDepartmentOf } from '@/core/budget'
 import { documentTotals, lineNet, lineNetsBeforeVat } from '@/core/money/math'
 import { REQUEST_MACHINE, SUPPLIER_REQUEST_MACHINE, transition, type RequestCommand, type RequestState, type SupplierRequestState } from '@/core/state-machines'
 import type { AppError, Result } from '@/core/result'
@@ -16,11 +17,16 @@ import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { requestReviewFacts } from '@/server/workflow/policy'
 import { closeRoute, startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { formDefinition, type FormDefinition } from '@/server/forms/schema'
+import { checkCatalogLines } from './catalog-lines'
+import { flagRequest } from './duplicates'
 import { checkQuotations, MAX_QUOTATIONS, QuotationInput, writeQuotations } from './quotations'
-import { releaseForRequest, reserveForRequest, resolveBudgetLine } from './budget'
+import { largestLine, releaseForRequest, requestBudgetLines, reserveForRequest } from './budget'
+import { overrunPending, settleOverrunsOfCancelledRequest } from '../budget/overrun-use'
+import { issueDocumentVerification } from '../documents/verification'
 import { reportDoaGap } from './doa-gap'
 import { aiAssisted, aiReviewed } from './ai-assist'
 import { AiAssistInput } from '../ai/assist-contract'
@@ -66,6 +72,13 @@ const LineInput = z.strictObject({
   vatable: z.boolean().default(true),
   categoryCode: z.string().trim().max(50).optional(),
   serviceEndDate: z.iso.date().optional(),
+  /** S6-10: the catalogue item the line is; its agreed price is checked on every save and at submit (BR-PRC-06) */
+  catalogItemId: z.uuid().nullable().optional(),
+  /**
+   * S6-17 (BR-BUD-16): the line's own budget line, checked at submit like the request's; null uses the request's, and a
+   * save that leaves it out keeps what the line had
+   */
+  budgetLineId: z.uuid().nullable().optional(),
 })
 type LineRow = z.output<typeof LineInput>
 
@@ -102,6 +115,8 @@ const DraftInput = z.strictObject({
   deliverySiteId: z.uuid().nullable().optional(),
   /** The supplier the requester suggests; PROCUREMENT chooses per line in the pool (FR-P2P-001 AC2) */
   suggestedSupplierId: z.uuid().nullable().optional(),
+  /** S6-10 (BR-PRC-06): why a catalogue item with an agreed price goes to another supplier */
+  offAgreementReason: z.string().trim().max(REASON_MAX_LENGTH).optional(),
   /** Values an AI action filled in and the person confirmed (BR-AI-17 of S13 · assist-contract.ts) */
   aiAssist: AiAssistInput.optional(),
 })
@@ -128,6 +143,23 @@ const amountToSatang = (baht: string) => {
   return BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'))
 }
 
+/** The edit changes what an over-budget approval waiting for the request was asked for: its amounts or budget line */
+async function amountOrLineChanges(
+  tx: TenantTx,
+  request: LoadedRequest,
+  lines: ReadonlyArray<{ quantity: string; unitPriceSatang: bigint; vatable: boolean }>,
+  priceIncludesVat: boolean,
+  budgetLineId: string | null | undefined,
+  lineBudgetLineIds: ReadonlyArray<string | null | undefined>,
+): Promise<boolean> {
+  if (!(await tx.budgetOverrun.count({ where: { requestId: request.id, status: 'PENDING_APPROVAL' } }))) return false
+  // S6-17: a line moved to another budget line changes what the overrun was asked for too
+  if (lineBudgetLineIds.some((id, i) => id !== undefined && id !== (request.lines[i]?.budgetLineId ?? null))) return true
+  const before = request.lines.map((l) => [Number(l.quantity.toString()), l.unitPriceSatang.toString(), l.vatable].join('|'))
+  const after = lines.map((l) => [Number(l.quantity), l.unitPriceSatang.toString(), l.vatable].join('|'))
+  return priceIncludesVat !== request.priceIncludesVat || (budgetLineId !== undefined && budgetLineId !== request.budgetLineId) || before.join('/') !== after.join('/')
+}
+
 function requesterOf(ctx: Ctx): string | null {
   return ctx.actor.type === 'USER' ? ctx.actor.memberId : null
 }
@@ -144,7 +176,7 @@ function move(from: RequestState, command: RequestCommand) {
  * goes (docs/sub-specs/S3.md). Lines are matched by the ids the save names; a save that names no id matches them by
  * their order. Returns the id of every line, in the order given.
  */
-async function writeLines(tx: TenantTx, ctx: Ctx, requestId: string, lines: readonly LineRow[]): Promise<{ ok: true; events: EventDraft[]; lineIds: string[] } | { ok: false; error: AppError }> {
+async function writeLines(tx: TenantTx, ctx: Ctx, requestId: string, lines: readonly LineRow[], agreementIds: ReadonlyArray<string | null>): Promise<{ ok: true; events: EventDraft[]; lineIds: string[] } | { ok: false; error: AppError }> {
   const existing = await tx.requestLine.findMany({ where: { requestId }, orderBy: { lineNo: 'asc' }, select: { id: true, lineNo: true } })
   let targets: Array<string | null>
   if (lines.some((l) => l.id !== undefined)) {
@@ -181,14 +213,16 @@ async function writeLines(tx: TenantTx, ctx: Ctx, requestId: string, lines: read
       vatable: line.vatable,
       categoryCode: line.categoryCode ?? null,
       serviceEndDate: line.serviceEndDate ? new Date(`${line.serviceEndDate}T00:00:00Z`) : null,
+      catalogItemId: line.catalogItemId ?? null,
+      priceAgreementId: agreementIds[i] ?? null,
     }
     const target = targets[i]
     if (target) {
-      await tx.requestLine.update({ where: { id: target }, data })
+      await tx.requestLine.update({ where: { id: target }, data: { ...data, ...(line.budgetLineId !== undefined ? { budgetLineId: line.budgetLineId } : {}) } })
       lineIds.push(target)
     } else {
       const id = newId()
-      await tx.requestLine.create({ data: { id, organizationId: ctx.organizationId, requestId, ...data } })
+      await tx.requestLine.create({ data: { id, organizationId: ctx.organizationId, requestId, ...data, budgetLineId: line.budgetLineId ?? null } })
       lineIds.push(id)
     }
   }
@@ -215,6 +249,7 @@ function answersToKeep(
 
 const unknownField = (field: string) => fail('VALIDATION_FAILED', 'the answer is not a field of this form', { field: `formData.${field}`, reason: 'FORM_FIELD_UNKNOWN' })
 
+const catalogFacts = (lines: readonly LineRow[]) => lines.map((l) => ({ catalogItemId: l.catalogItemId ?? null, unitPriceSatang: amountToSatang(l.unitPrice) }))
 const amountsOf = (lines: readonly LineRow[]) => lines.map((l) => ({ quantity: l.quantity, unitPriceSatang: amountToSatang(l.unitPrice), vatable: l.vatable }))
 
 // ---------- draft ----------
@@ -226,66 +261,92 @@ export const createDraftCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ requestId: string; version: number; lineIds: string[] }>> {
     const allowed = await authorize(tx, ctx, 'request.create')
     if (!allowed.ok) return { ok: false, error: allowed.error }
-    const requesterId = requesterOf(ctx)
-    if (!requesterId) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member can request' } }
-    // The catalog, the form and this command agree: an active type whose current form version is published (FR-INT-001)
-    const type = await tx.requestType.findFirst({ where: { code: input.requestTypeCode, active: true }, include: { currentFormVersion: { select: { id: true, status: true, schema: true } } } })
-    if (!type) return fail('VALIDATION_FAILED', 'unknown request type', { field: 'requestTypeCode' })
-    const form = type.currentFormVersion
-    if (!form || form.status !== 'PUBLISHED') return fail('VALIDATION_FAILED', 'the request type has no published form', { field: 'requestTypeCode', reason: 'NO_PUBLISHED_FORM' })
-    const member = await tx.member.findUniqueOrThrow({ where: { id: requesterId }, select: { primaryDepartmentId: true } })
-    if (!member.primaryDepartmentId) return fail('VALIDATION_FAILED', 'the requester has no main department', { field: 'chargedDepartmentId', reason: 'NO_DEPARTMENT' })
-    const chargedDepartmentId = input.chargedDepartmentId ?? member.primaryDepartmentId
-    if (!(await tx.department.findFirst({ where: { id: chargedDepartmentId, active: true }, select: { id: true } }))) {
-      return fail('VALIDATION_FAILED', 'unknown department', { field: 'chargedDepartmentId' })
-    }
-    const place = await checkSiteAndSupplier(tx, input)
-    if (place) return place
-    // A new draft has no saved lines yet: a line naming an id belongs to another request
-    const named = input.lines.findIndex((l) => l.id)
-    if (named >= 0) return fail('VALIDATION_FAILED', 'the line is not one of this request', { field: `lines.${named}.id`, reason: 'LINE_ID' })
-    const rateBp = await todaysRate(ctx)
-    const answers = answersToKeep(formDefinition(form.schema), input.formData, { lines: amountsOf(input.lines), priceIncludesVat: input.priceIncludesVat, rateBp, requestTypeCode: type.code })
-    if (!answers.ok) return unknownField(answers.field)
-    const id = newId()
-    await tx.request.create({
-      data: {
-        id,
-        organizationId: ctx.organizationId,
-        requestTypeId: type.id,
-        formVersionId: form.id,
-        documentType: type.documentType,
-        title: input.title,
-        requesterMemberId: requesterId,
-        requesterDepartmentId: member.primaryDepartmentId,
-        chargedDepartmentId,
-        urgency: input.urgency,
-        ...(input.neededBy ? { neededBy: new Date(`${input.neededBy}T00:00:00Z`) } : {}),
-        priceIncludesVat: input.priceIncludesVat,
-        formData: answers.fields as object,
-        nonLowestQuoteReason: input.nonLowestQuoteReason || null,
-        ...(input.budgetLineId ? { budgetLineId: input.budgetLineId } : {}),
-        ...(input.deliverySiteId ? { deliverySiteId: input.deliverySiteId } : {}),
-        ...(input.suggestedSupplierId ? { suggestedSupplierId: input.suggestedSupplierId } : {}),
-      },
-    })
-    const written = await writeLines(tx, ctx, id, input.lines)
-    if (!written.ok) return written
-    const quotes = await writeQuotations(tx, ctx, { id, requesterMemberId: requesterId }, input.quotations, rateBp)
-    if (quotes) return quotes
-    const ai = await aiAssisted(tx, ctx, id, input.aiAssist)
-    if (!ai.ok) return ai
-    return {
-      ok: true,
-      // A new request starts at version 0 (§6.1); every later save names the version it was based on and the lines' ids
-      result: { requestId: id, version: 0, lineIds: written.lineIds },
-      events: [
-        { type: 'request.drafted', aggregateType: 'Request', aggregateId: id, data: { requestTypeCode: type.code, lines: input.lines.length, ...(input.aiAssist ? { agentActionId: input.aiAssist.agentActionId } : {}) } },
-        ...ai.data,
-      ],
-    }
+    return draftIn(tx, ctx, input)
   },
 })
+
+/** Where a draft that is not typed in by hand comes from (S6-12, BR-FORM-07 BR-FORM-08 · request.drafted source) */
+export interface DraftOrigin {
+  readonly source: 'REORDER' | 'RENEWAL'
+  readonly sourceRequestId: string
+  readonly renewalOfRequestLineId?: string
+}
+
+/**
+ * The draft of request.create for the acting member, once its caller has checked the right: the form typed in, a reorder
+ * or a renewal (`origin`). The checks and the writes are the same whatever made it.
+ */
+export async function draftIn(tx: TenantTx, ctx: Ctx, input: z.output<typeof DraftInput>, origin?: DraftOrigin): Promise<CommandOutcome<{ requestId: string; version: number; lineIds: string[] }>> {
+  const requesterId = requesterOf(ctx)
+  if (!requesterId) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member can request' } }
+  // The catalog, the form and this command agree: an active type whose current form version is published (FR-INT-001)
+  const type = await tx.requestType.findFirst({ where: { code: input.requestTypeCode, active: true }, include: { currentFormVersion: { select: { id: true, status: true, schema: true } } } })
+  if (!type) return fail('VALIDATION_FAILED', 'unknown request type', { field: 'requestTypeCode' })
+  const form = type.currentFormVersion
+  if (!form || form.status !== 'PUBLISHED') return fail('VALIDATION_FAILED', 'the request type has no published form', { field: 'requestTypeCode', reason: 'NO_PUBLISHED_FORM' })
+  const member = await tx.member.findUniqueOrThrow({ where: { id: requesterId }, select: { primaryDepartmentId: true } })
+  if (!member.primaryDepartmentId) return fail('VALIDATION_FAILED', 'the requester has no main department', { field: 'chargedDepartmentId', reason: 'NO_DEPARTMENT' })
+  const chargedDepartmentId = input.chargedDepartmentId ?? member.primaryDepartmentId
+  if (!(await tx.department.findFirst({ where: { id: chargedDepartmentId, active: true }, select: { id: true } }))) {
+    return fail('VALIDATION_FAILED', 'unknown department', { field: 'chargedDepartmentId' })
+  }
+  const place = await checkSiteAndSupplier(tx, input)
+  if (place) return place
+  const agreed = await checkCatalogLines(tx, ctx, { lines: catalogFacts(input.lines), supplierId: input.suggestedSupplierId ?? null, priceIncludesVat: input.priceIncludesVat, offAgreementReason: input.offAgreementReason ?? null, submit: false })
+  if (!agreed.ok) return agreed
+  // A new draft has no saved lines yet: a line naming an id belongs to another request
+  const named = input.lines.findIndex((l) => l.id)
+  if (named >= 0) return fail('VALIDATION_FAILED', 'the line is not one of this request', { field: `lines.${named}.id`, reason: 'LINE_ID' })
+  const rateBp = await todaysRate(ctx)
+  const answers = answersToKeep(formDefinition(form.schema), input.formData, { lines: amountsOf(input.lines), priceIncludesVat: input.priceIncludesVat, rateBp, requestTypeCode: type.code })
+  if (!answers.ok) return unknownField(answers.field)
+  const id = newId()
+  await tx.request.create({
+    data: {
+      id,
+      organizationId: ctx.organizationId,
+      requestTypeId: type.id,
+      formVersionId: form.id,
+      documentType: type.documentType,
+      title: input.title,
+      requesterMemberId: requesterId,
+      requesterDepartmentId: member.primaryDepartmentId,
+      chargedDepartmentId,
+      urgency: input.urgency,
+      ...(input.neededBy ? { neededBy: new Date(`${input.neededBy}T00:00:00Z`) } : {}),
+      priceIncludesVat: input.priceIncludesVat,
+      formData: answers.fields as object,
+      nonLowestQuoteReason: input.nonLowestQuoteReason || null,
+      ...(input.budgetLineId ? { budgetLineId: input.budgetLineId } : {}),
+      ...(input.deliverySiteId ? { deliverySiteId: input.deliverySiteId } : {}),
+      ...(input.suggestedSupplierId ? { suggestedSupplierId: input.suggestedSupplierId } : {}),
+      ...(input.offAgreementReason ? { offAgreementReason: input.offAgreementReason } : {}),
+      ...(origin ? { sourceRequestId: origin.sourceRequestId, ...(origin.renewalOfRequestLineId ? { renewalOfRequestLineId: origin.renewalOfRequestLineId } : {}) } : {}),
+    },
+  })
+  const written = await writeLines(tx, ctx, id, input.lines, agreed.agreementIds)
+  if (!written.ok) return written
+  const quotes = await writeQuotations(tx, ctx, { id, requesterMemberId: requesterId }, input.quotations, rateBp)
+  if (quotes) return quotes
+  const ai = await aiAssisted(tx, ctx, id, input.aiAssist)
+  if (!ai.ok) return ai
+  return {
+    ok: true,
+    // A new request starts at version 0 (§6.1); every later save names the version it was based on and the lines' ids
+    result: { requestId: id, version: 0, lineIds: written.lineIds },
+    events: [
+      {
+        type: 'request.drafted',
+        aggregateType: 'Request',
+        aggregateId: id,
+        data: { requestTypeCode: type.code, lines: input.lines.length, ...(origin ? { source: origin.source } : {}), ...(input.aiAssist ? { agentActionId: input.aiAssist.agentActionId } : {}) },
+      },
+      ...ai.data,
+    ],
+  }
+}
+
+export type DraftFields = z.output<typeof DraftInput>
 
 export function createDraft(ctx: Ctx, input: z.input<typeof DraftInput>, options: RunOptions) {
   return runCommand(ctx, createDraftCommand, input, options)
@@ -293,7 +354,13 @@ export function createDraft(ctx: Ctx, input: z.input<typeof DraftInput>, options
 
 // ---------- submit and resubmit ----------
 
-const SubmitInput = z.strictObject({ requestId: z.uuid(), expectedVersion: ExpectedVersion.optional(), aiAssist: AiAssistInput.optional() })
+const SubmitInput = z.strictObject({
+  requestId: z.uuid(),
+  expectedVersion: ExpectedVersion.optional(),
+  aiAssist: AiAssistInput.optional(),
+  /** S6-13 (BR-DUP-05): why a request that looks like one sent before is sent anyway */
+  duplicateReason: z.string().trim().max(REASON_MAX_LENGTH).optional(),
+})
 
 /** Loads the request locked, with what the requester (OWN) owns, for submit, resubmit and cancel. */
 async function lockedRequest(tx: TenantTx, ctx: Ctx, requestId: string) {
@@ -305,10 +372,16 @@ async function lockedRequest(tx: TenantTx, ctx: Ctx, requestId: string) {
 type LoadedRequest = NonNullable<Awaited<ReturnType<typeof lockedRequest>>>
 
 /** Form check, totals and route: the shared part of submit and resubmit. */
-async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest) {
+async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest, duplicateReason: string | null) {
   // BR-FORM-01 and BR-FORM-03: hidden fields are dropped, visible ones checked, attachment rules met
   const form = formDefinition(request.formVersion.schema)
   if (request.lines.length === 0) return fail('VALIDATION_FAILED', 'a request needs at least one line', { field: 'lines', reason: 'NO_LINES' })
+  // BR-PRC-06 (S6-10): the agreed prices in effect today, the reason for another supplier, and each line's agreement
+  const agreed = await checkCatalogLines(tx, ctx, { lines: request.lines, supplierId: request.suggestedSupplierId, priceIncludesVat: request.priceIncludesVat, offAgreementReason: request.offAgreementReason, submit: true })
+  if (!agreed.ok) return agreed
+  for (const [i, line] of request.lines.entries()) {
+    if (line.priceAgreementId !== agreed.agreementIds[i]) await tx.requestLine.update({ where: { id: line.id }, data: { priceAgreementId: agreed.agreementIds[i] ?? null } })
+  }
   const rates = await listTaxRates()
   const taxDate = taxDateOf(ctx.now)
   const rate = rateFor(taxDate, rates)
@@ -343,18 +416,35 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest) {
   // BR-FORM-06: quotations compared before VAT with the rate of the tax date
   const quotes = await checkQuotations(tx, request, rate.rateBp)
   if (quotes) return quotes
-  // BR-BUD-02 to BR-BUD-04: the budget line, then all lines reserved before VAT against its total, or nothing at all.
-  // The department that owns the budget pays, so its approvers decide (BR-DOA-05, FR-BUD-004 AC3)
-  const budgetLine = await resolveBudgetLine(tx, ctx, request, taxDate)
-  if (!budgetLine.ok) return budgetLine
+  // BR-BUD-02 to BR-BUD-04: the budget lines, then all lines reserved before VAT against each line's total, or nothing
+  // at all. The department that owns the budget pays, so its approvers decide (BR-DOA-05, FR-BUD-004 AC3); a request
+  // split over budget lines (S6-17 · BR-BUD-16) is charged to the department with the most, the DOA on its total
+  const lines = await requestBudgetLines(tx, ctx, request, taxDate)
+  if (!lines.ok) return lines
   const nets = lineNetsBeforeVat(
     request.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
     rate.rateBp,
     request.priceIncludesVat,
   )
-  const reserved = await reserveForRequest(tx, ctx, request.id, budgetLine.line.id, request.lines.map((l, i) => ({ requestLineId: l.id, netSatang: nets[i]! })))
+  const groups = [...new Set(lines.byLine.map((l) => l.id))].map((budgetLineId) => ({
+    budgetLineId,
+    lines: request.lines.flatMap((l, i) => (lines.byLine[i]!.id === budgetLineId ? [{ requestLineId: l.id, netSatang: nets[i]! }] : [])),
+  }))
+  const reserved = await reserveForRequest(tx, ctx, request.id, groups)
   if (!reserved.ok) return reserved
-  const chargedDepartmentId = budgetLine.line.departmentId
+  const chargedDepartmentId = chargedDepartmentOf(request.lines.map((l, i) => ({ lineNo: l.lineNo, departmentId: lines.byLine[i]!.departmentId, netSatang: nets[i]! })))
+  // The request's own budget line: the one it names or resolves; with every line on its own, the one with the most
+  const budgetLine = { line: lines.request ?? largestLine(groups, lines.byLine) }
+  const budget = { events: reserved.events, check: reserved.checks.find((c) => c.budgetLineId === budgetLine.line.id)!, checks: reserved.checks, overrunIds: reserved.overrunIds }
+  // BR-WF-06: the reviewers of the workflow version in effect read the request as it is sent (S6)
+  const review = await requestReviewFacts(tx, {
+    requestTypeCode: request.requestType.code,
+    grossSatang: totals.gross,
+    netSatang: totals.net,
+    formData: checked.data,
+    budgetLineId: budgetLine.line.id,
+    lines: request.lines,
+  })
   const route = await startRoute(
     tx,
     ctx,
@@ -367,9 +457,13 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest) {
       conflictMemberIds: [request.requesterMemberId],
       at: ctx.now,
     },
+    review,
   )
   if (!route.ok) return { ok: false as const, error: route.error }
-  return { ok: true as const, totals, rateBp: rate.rateBp, taxDate, route: route.data, formData: checked.data, budget: reserved, budgetLineId: budgetLine.line.id, chargedDepartmentId }
+  // BR-DUP-05 (S6-13): duplicates and splits under the DOA version of this route; never blocking, never rerouting
+  const flagged = await flagRequest(tx, ctx, { ...request, chargedDepartmentId }, totals, { routeId: route.data.routeId, doaVersionId: route.data.route.doaVersionId }, duplicateReason)
+  if (!flagged.ok) return flagged
+  return { ok: true as const, totals, rateBp: rate.rateBp, taxDate, route: route.data, formData: checked.data, budget, budgetLineId: budgetLine.line.id, chargedDepartmentId, flagged }
 }
 
 export const submitCommand = defineCommand({
@@ -393,7 +487,7 @@ export const submitCommand = defineCommand({
     // The number comes first so the approver's task names it; a refusal below rolls it back with everything else
     const department = await tx.department.findUniqueOrThrow({ where: { id: request.chargedDepartmentId }, select: { code: true } })
     const number = await issueDocumentNumber(tx, ctx, { document: 'PR', department: department.code })
-    const prepared = await prepareRoute(tx, ctx, { ...request, number })
+    const prepared = await prepareRoute(tx, ctx, { ...request, number }, input.duplicateReason ?? null)
     if (!prepared.ok) return prepared
     const { totals, route } = prepared
     await tx.request.update({
@@ -414,7 +508,10 @@ export const submitCommand = defineCommand({
         version: { increment: 1 },
       },
     })
+    // S6-19 (BR-QR-01): the QR of the printed request names this content
+    const verification = await issueDocumentVerification(tx, ctx, { subjectType: 'REQUEST', subjectId: request.id })
     const events: EventDraft[] = [
+      ...verification.events,
       {
         type: 'request.submitted',
         aggregateType: 'Request',
@@ -431,13 +528,17 @@ export const submitCommand = defineCommand({
           escalatedFromRuleCode: route.route.escalatedFromRuleCode,
           // FR-BUD-003 AC3: the budget check of this submit, for the KPI of G-4
           budgetCheck: prepared.budget.check,
+          // S6-17: every budget line of a split request (BR-BUD-16, FR-BUD-102 AC3)
+          ...(prepared.budget.checks.length > 1 ? { budgetChecks: prepared.budget.checks } : {}),
+          ...(prepared.budget.overrunIds.length ? { overrunIds: prepared.budget.overrunIds } : {}),
         },
       },
       ...prepared.budget.events,
       ...route.events,
+      ...prepared.flagged.events,
       ...ai.data,
     ]
-    return { ok: true, result: { number, routeId: route.routeId, assigneeMemberId: route.firstTask.assigneeMemberId }, events, notifications: route.notifications }
+    return { ok: true, result: { number, routeId: route.routeId, assigneeMemberId: route.firstTask.assigneeMemberId }, events, notifications: [...route.notifications, ...prepared.flagged.notifications] }
   },
 })
 
@@ -514,7 +615,7 @@ export const resubmitCommand = defineCommand({
     if (!moved.ok) return moved
     // BR-DOA-09: a new route with the version in effect now; earlier approvals do not count
     const replaced = await closeRoute(tx, { type: 'REQUEST', id: request.id }, 'CANCELLED', 'ROUTE_REPLACED')
-    const prepared = await prepareRoute(tx, ctx, request)
+    const prepared = await prepareRoute(tx, ctx, request, input.duplicateReason ?? null)
     if (!prepared.ok) return prepared
     const { totals, route } = prepared
     await tx.request.update({
@@ -534,11 +635,14 @@ export const resubmitCommand = defineCommand({
         version: { increment: 1 },
       },
     })
+    // S6-19 (BR-QR-01): a new QR only when what the request prints changed
+    const verification = await issueDocumentVerification(tx, ctx, { subjectType: 'REQUEST', subjectId: request.id })
     return {
       ok: true,
       result: { routeId: route.routeId, assigneeMemberId: route.firstTask.assigneeMemberId },
       events: [
         ...replaced,
+        ...verification.events,
         {
           type: 'request.resubmitted',
           aggregateType: 'Request',
@@ -551,13 +655,16 @@ export const resubmitCommand = defineCommand({
             doaVersionId: route.route.doaVersionId,
             doaRuleCode: route.route.ruleCode,
             budgetCheck: prepared.budget.check,
+            ...(prepared.budget.checks.length > 1 ? { budgetChecks: prepared.budget.checks } : {}),
+            ...(prepared.budget.overrunIds.length ? { overrunIds: prepared.budget.overrunIds } : {}),
           },
         },
         ...prepared.budget.events,
         ...route.events,
+        ...prepared.flagged.events,
         ...ai.data,
       ],
-      notifications: route.notifications,
+      notifications: [...route.notifications, ...prepared.flagged.notifications],
     }
   },
 })
@@ -589,6 +696,8 @@ const EditInput = z.strictObject({
   /** null clears */
   deliverySiteId: z.uuid().nullable().optional(),
   suggestedSupplierId: z.uuid().nullable().optional(),
+  /** S6-10 (BR-PRC-06): null clears */
+  offAgreementReason: z.string().trim().max(REASON_MAX_LENGTH).nullable().optional(),
   /** Values an AI action filled in and the person confirmed (BR-AI-17 of S13 · assist-contract.ts) */
   aiAssist: AiAssistInput.optional(),
 })
@@ -611,7 +720,13 @@ export const editCommand = defineCommand({
     const rateBp = await todaysRate(ctx)
     const form = formDefinition(request.formVersion.schema)
     const priceIncludesVat = input.priceIncludesVat ?? request.priceIncludesVat
+    const supplierId = input.suggestedSupplierId !== undefined ? input.suggestedSupplierId : request.suggestedSupplierId
+    const offAgreementReason = input.offAgreementReason !== undefined ? input.offAgreementReason : request.offAgreementReason
+    const agreed = input.lines ? await checkCatalogLines(tx, ctx, { lines: catalogFacts(input.lines), supplierId, priceIncludesVat, offAgreementReason, submit: false }) : null
+    if (agreed && !agreed.ok) return agreed
     const lines = input.lines ? amountsOf(input.lines) : request.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable }))
+    // S6-16 (§6.4): while an over-budget approval waits, the amount and the budget line it was asked for stay as they are
+    if (await amountOrLineChanges(tx, request, lines, priceIncludesVat, input.budgetLineId, (input.lines ?? []).map((l) => l.budgetLineId))) return overrunPending()
     // Answers sent now must be fields of the form; answers kept from an earlier save are only checked again
     const fieldIds = new Set(form.fields.map((f) => f.id))
     const stored = Object.fromEntries(Object.entries((request.formData ?? {}) as Record<string, unknown>).filter(([key]) => fieldIds.has(key)))
@@ -630,13 +745,14 @@ export const editCommand = defineCommand({
         ...(input.budgetLineId !== undefined ? { budgetLineId: input.budgetLineId } : {}),
         ...(input.deliverySiteId !== undefined ? { deliverySiteId: input.deliverySiteId } : {}),
         ...(input.suggestedSupplierId !== undefined ? { suggestedSupplierId: input.suggestedSupplierId } : {}),
+        ...(input.offAgreementReason !== undefined ? { offAgreementReason: input.offAgreementReason || null } : {}),
         version: { increment: 1 },
       },
     })
     let lineIds = request.lines.map((l) => l.id)
     const events: EventDraft[] = []
     if (input.lines) {
-      const written = await writeLines(tx, ctx, request.id, input.lines)
+      const written = await writeLines(tx, ctx, request.id, input.lines, agreed?.ok ? agreed.agreementIds : [])
       if (!written.ok) return written
       lineIds = written.lineIds
       events.push(...written.events)
@@ -697,6 +813,9 @@ export const cancelCommand = defineCommand({
       return fail('INVALID_STATE_TRANSITION', 'a line of the request is on a purchase order', { from: request.status, command: 'request.cancel', reason: 'ON_PO' })
     }
     const closed = await closeRoute(tx, { type: 'REQUEST', id: request.id }, 'CANCELLED', 'REQUEST_CANCELLED')
+    // S6-16 (BR-BUD-15): an over-budget approval waiting is cancelled, one approved and not used goes back
+    const overruns = await settleOverrunsOfCancelledRequest(tx, ctx, request.id)
+    if (!overruns.ok) return overruns
     // FR-INT-009 AC1: the budget the request reserved goes back at once (§6.4)
     const released = await releaseForRequest(tx, ctx, request.id, request.lines.map((l) => l.id))
     if (!released.ok) return released
@@ -709,7 +828,7 @@ export const cancelCommand = defineCommand({
     return {
       ok: true,
       result: { requestId: request.id },
-      events: [...closed, { type: 'request.cancelled', aggregateType: 'Request', aggregateId: request.id, data: { from: request.status, reasonCommentId } }, ...released.events],
+      events: [...closed, { type: 'request.cancelled', aggregateType: 'Request', aggregateId: request.id, data: { from: request.status, reasonCommentId } }, ...overruns.events, ...released.events],
     }
   },
 })

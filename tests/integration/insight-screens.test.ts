@@ -18,7 +18,7 @@ import { createReportSchedule, exportReport, kpiMeasureTh, scheduledReportComman
 import { reportFileReadable } from '@/server/services/reports/access'
 import { computeKpis } from '@/server/services/reports/kpi'
 import { kpiDetail, kpiView, reportCatalog, scheduleReport } from '@/server/services/reports/screens'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // Unit i (S4-10, S4-11, S5-12): what the board, audit, report and KPI screens read beyond the services of S4 — the
@@ -262,7 +262,9 @@ describe('[FR-VIS-002/AC1] the report catalogue offers the KPI report with its f
     const now = at(WED, '12:00')
     const catalog = ok(await reportCatalog(org.ctxOf('fin_officer', now)))
     expect(catalog).toMatchObject({ scope: 'ORG', canSchedule: true, timezone: 'Asia/Bangkok' })
-    expect(catalog.reports).toEqual([expect.objectContaining({ code: 'KPI', params: [{ key: 'from', kind: 'date' }, { key: 'to', kind: 'date' }] })])
+    // The KPI view, then the four workflow reports of S6-20 (FR-VIS-101), each over a period
+    expect(catalog.reports.map((r) => r.code)).toEqual(['KPI', 'WF_CYCLE', 'WF_BOTTLENECKS', 'WF_WRONG_DOA', 'WF_HEATMAP'])
+    expect(catalog.reports[0]).toEqual(expect.objectContaining({ code: 'KPI', params: [{ key: 'from', kind: 'date' }, { key: 'to', kind: 'date' }] }))
     expect(catalog.reports[0]!.columns.map((c) => c.key)).toEqual(['kpi', 'name', 'value', 'unit', 'numerator', 'denominator', 'measure'])
     // the unit and the code are the file's: the screen says them in its own words
     expect(catalog.reports[0]!.columns.filter((c) => c.fileOnly).map((c) => c.key)).toEqual(['unit', 'measure'])

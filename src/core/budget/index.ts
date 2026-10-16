@@ -1,4 +1,5 @@
-import type { Satang } from '../money/math'
+import { lineNet, parseQuantity, roundHalfUpDiv, type Satang } from '../money/math'
+import { BP_PER_WHOLE, QUANTITY_SCALE } from '../money/constants'
 
 // Budget ledger engine (spec §7.7, ADR-021): the budget of one line sits in buckets, and every movement moves money
 // from one bucket to another — fund, reserve, hold, actualize, release. The engine is pure: each operation takes the
@@ -8,7 +9,8 @@ import type { Satang } from '../money/math'
 
 export const BUCKETS = ['OUTSIDE', 'AVAILABLE', 'RESERVED', 'COMMITTED', 'ACTUAL'] as const
 export type Bucket = (typeof BUCKETS)[number]
-export type SourceType = 'REQUEST_LINE' | 'PO_LINE' | 'IMPORT'
+// BUDGET_TRANSFER and BUDGET_OVERRUN (S6): the reservation of a transfer's source line and the earmark of an overrun
+export type SourceType = 'REQUEST_LINE' | 'PO_LINE' | 'IMPORT' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN'
 export type BudgetLineStatus = 'OPEN' | 'FROZEN' | 'CLOSED'
 
 export interface Buckets {
@@ -36,8 +38,11 @@ export interface LineState {
 
 export interface Movement {
   readonly from: Bucket
-  /** Money only leaves the line by being spent (ACTUAL); nothing goes back OUTSIDE */
-  readonly to: Exclude<Bucket, 'OUTSIDE'>
+  /**
+   * Money leaves the line by being spent (ACTUAL), and goes back OUTSIDE only by a transfer out or a decrease
+   * (BUDGET_TRANSFER) or what an overrun did not use (BUDGET_OVERRUN) — BR-BUD-09 (S6)
+   */
+  readonly to: Bucket
   readonly amount: Satang
   readonly sourceType: SourceType
   readonly sourceId: string
@@ -51,7 +56,7 @@ export type BudgetError =
   /** An invoice above what the PO line still holds (GC-BUD-06) */
   | { readonly code: 'INVOICE_EXCEEDS_COMMITTED'; readonly remaining: Satang }
   /** A request that contradicts the state: an amount not above zero, or releasing more than a request line holds */
-  | { readonly code: 'VALIDATION_FAILED'; readonly reason: 'AMOUNT_NOT_POSITIVE' | 'RELEASABLE_EXCEEDS_RESERVED' | 'PO_INVOICED' }
+  | { readonly code: 'VALIDATION_FAILED'; readonly reason: 'AMOUNT_NOT_POSITIVE' | 'RELEASABLE_EXCEEDS_RESERVED' | 'PO_INVOICED' | 'NOTHING_RESERVED' | 'NOT_OVER_BUDGET' }
 
 export type BudgetResult = { readonly ok: true; readonly state: LineState; readonly movements: readonly Movement[] } | { readonly ok: false; readonly error: BudgetError }
 
@@ -80,7 +85,8 @@ function applyMovements(state: LineState, movements: readonly Movement[]): LineS
   for (const m of movements) {
     if (m.from === 'OUTSIDE') funded += m.amount
     else buckets[BUCKET_FIELD[m.from]] -= m.amount
-    buckets[BUCKET_FIELD[m.to]] += m.amount
+    if (m.to === 'OUTSIDE') funded -= m.amount
+    else buckets[BUCKET_FIELD[m.to]] += m.amount
     if (m.sourceType === 'IMPORT') continue
     const key = allocationKey(m.sourceType, m.sourceId)
     const current: Record<keyof Allocation, Satang> = { ...(allocations[key] ?? EMPTY_ALLOCATION) }
@@ -237,4 +243,228 @@ export function closePo(state: LineState, poLineId: string, keep: Satang = 0n): 
   const kept = keep <= 0n ? 0n : keep < held ? keep : held
   const back = held - kept
   return ok(state, back > 0n ? [{ from: 'COMMITTED', to: 'AVAILABLE', amount: back, sourceType: 'PO_LINE', sourceId: poLineId }] : [])
+}
+
+// ---------- transfers and adjustments (S6-15 · BR-BUD-09 to BR-BUD-11 · ADR-104) ----------
+
+/**
+ * BR-BUD-10 at submit: the source line of a transfer or a decrease reserves the amount for it (AVAILABLE → RESERVED,
+ * BUDGET_TRANSFER) — all of it or BUDGET_INSUFFICIENT; an OPEN line only (BR-BUD-08)
+ */
+export function reserveTransfer(state: LineState, transferId: string, amount: Satang): BudgetResult {
+  if (state.status !== 'OPEN') return fail({ code: 'BUDGET_LINE_CLOSED', status: state.status })
+  if (amount <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'AMOUNT_NOT_POSITIVE' })
+  if (amount > state.buckets.available) return insufficient(state.buckets.available, amount)
+  return ok(state, [{ from: 'AVAILABLE', to: 'RESERVED', amount, sourceType: 'BUDGET_TRANSFER', sourceId: transferId }])
+}
+
+/** A transfer rejected, returned or cancelled gives its reservation back (RESERVED → AVAILABLE); nothing reserved, nothing moves */
+export function releaseTransfer(state: LineState, transferId: string): BudgetResult {
+  const held = allocationOf(state, 'BUDGET_TRANSFER', transferId).reserved
+  return ok(state, held > 0n ? [{ from: 'RESERVED', to: 'AVAILABLE', amount: held, sourceType: 'BUDGET_TRANSFER', sourceId: transferId }] : [])
+}
+
+/** BR-BUD-09 at approval, source line: the reservation comes back and leaves the line (AVAILABLE → OUTSIDE): its funded goes down */
+export function transferOut(state: LineState, transferId: string): BudgetResult {
+  const held = allocationOf(state, 'BUDGET_TRANSFER', transferId).reserved
+  if (held <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'NOTHING_RESERVED' })
+  return ok(state, [
+    { from: 'RESERVED', to: 'AVAILABLE', amount: held, sourceType: 'BUDGET_TRANSFER', sourceId: transferId },
+    { from: 'AVAILABLE', to: 'OUTSIDE', amount: held, sourceType: 'BUDGET_TRANSFER', sourceId: transferId },
+  ])
+}
+
+/** BR-BUD-09 at approval, destination line of a transfer or an increase: OUTSIDE → AVAILABLE, its funded goes up; an OPEN line only */
+export function transferIn(state: LineState, transferId: string, amount: Satang): BudgetResult {
+  if (state.status !== 'OPEN') return fail({ code: 'BUDGET_LINE_CLOSED', status: state.status })
+  if (amount <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'AMOUNT_NOT_POSITIVE' })
+  return ok(state, [{ from: 'OUTSIDE', to: 'AVAILABLE', amount, sourceType: 'BUDGET_TRANSFER', sourceId: transferId }])
+}
+
+export type TransferKind = 'TRANSFER' | 'INCREASE' | 'DECREASE'
+
+/**
+ * BR-BUD-11: the DOA input of a BUDGET_TRANSFER — the amount moved as net with no VAT, the department of the source
+ * line (TRANSFER, DECREASE) or of the destination (INCREASE), and the one who sent it as the conflict
+ */
+export function transferDoaInput(input: {
+  readonly kind: TransferKind
+  readonly fromDepartmentId: string | null
+  readonly toDepartmentId: string | null
+  readonly amountSatang: Satang
+  readonly submitterMemberId: string
+}): { documentType: 'BUDGET_TRANSFER'; amount: { netSatang: Satang; vatSatang: Satang }; chargedDepartmentId: string; conflictMemberIds: string[] } {
+  const department = input.kind === 'INCREASE' ? input.toDepartmentId : input.fromDepartmentId
+  if (!department) throw new RangeError(`a ${input.kind} names the line it ${input.kind === 'INCREASE' ? 'adds to' : 'takes from'}`)
+  return { documentType: 'BUDGET_TRANSFER', amount: { netSatang: input.amountSatang, vatSatang: 0n }, chargedDepartmentId: department, conflictMemberIds: [input.submitterMemberId] }
+}
+
+// ---------- over-budget approval (S6-16 · BR-BUD-12 to BR-BUD-15, BR-BUD-18 · ADR-105 · OQ-104) ----------
+
+/**
+ * BR-BUD-12: the DOA input of an OVER_BUDGET approval. `needSatang` (M) is what the request still has to reserve on the
+ * line — its amount on the line less what it already reserves there — and X = M − available is the amount approved to
+ * fund, as net with no VAT, under the department that owns the line, the requester as the conflict. X ≤ 0: the line
+ * has enough, NOT_OVER_BUDGET.
+ */
+export function overrunDoaInput(input: {
+  readonly needSatang: Satang
+  readonly availableSatang: Satang
+  readonly lineDepartmentId: string
+  readonly requesterMemberId: string
+}):
+  | { readonly ok: true; readonly input: { documentType: 'OVER_BUDGET'; amount: { netSatang: Satang; vatSatang: Satang }; chargedDepartmentId: string; conflictMemberIds: string[] } }
+  | { readonly ok: false; readonly error: BudgetError } {
+  const shortfall = input.needSatang - input.availableSatang
+  if (shortfall <= 0n) return { ok: false, error: { code: 'VALIDATION_FAILED', reason: 'NOT_OVER_BUDGET' } }
+  return { ok: true, input: { documentType: 'OVER_BUDGET', amount: { netSatang: shortfall, vatSatang: 0n }, chargedDepartmentId: input.lineDepartmentId, conflictMemberIds: [input.requesterMemberId] } }
+}
+
+/** What an overrun earmarks on the line (its BUDGET_OVERRUN allocation) */
+export const earmarkOf = (state: LineState, overrunId: string): Satang => allocationOf(state, 'BUDGET_OVERRUN', overrunId).reserved
+
+/**
+ * BR-BUD-13 at approval: X enters the line (OUTSIDE → AVAILABLE) and is earmarked for the request at once (AVAILABLE →
+ * RESERVED, BUDGET_OVERRUN), so it is never anyone else's available budget; an OPEN line only (BR-BUD-08)
+ */
+export function earmarkOverrun(state: LineState, overrunId: string, amount: Satang): BudgetResult {
+  if (state.status !== 'OPEN') return fail({ code: 'BUDGET_LINE_CLOSED', status: state.status })
+  if (amount <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'AMOUNT_NOT_POSITIVE' })
+  return ok(state, [
+    { from: 'OUTSIDE', to: 'AVAILABLE', amount, sourceType: 'BUDGET_OVERRUN', sourceId: overrunId },
+    { from: 'AVAILABLE', to: 'RESERVED', amount, sourceType: 'BUDGET_OVERRUN', sourceId: overrunId },
+  ])
+}
+
+/** An overrun's result also tells what of X the request used and what went back OUTSIDE */
+export type OverrunResult = (Extract<BudgetResult, { ok: true }> & { readonly used: Satang; readonly returned: Satang }) | Extract<BudgetResult, { ok: false }>
+
+/**
+ * BR-BUD-14 when the request is sent: needed = max(0, M − available) with M the total of its lines. More than the
+ * earmark X → BUDGET_INSUFFICIENT and nothing moves. Otherwise the earmark comes back, what the request does not need
+ * (X − needed) leaves the line, and the request's lines reserve M — all or nothing, an OPEN line only.
+ */
+export function consumeOverrun(state: LineState, overrunId: string, lines: readonly { readonly requestLineId: string; readonly amount: Satang }[]): OverrunResult {
+  if (state.status !== 'OPEN') return fail({ code: 'BUDGET_LINE_CLOSED', status: state.status }) as OverrunResult
+  if (lines.some((l) => l.amount <= 0n)) return fail({ code: 'VALIDATION_FAILED', reason: 'AMOUNT_NOT_POSITIVE' }) as OverrunResult
+  const earmark = earmarkOf(state, overrunId)
+  if (earmark <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'NOTHING_RESERVED' }) as OverrunResult
+  const total = sum(lines.map((l) => l.amount))
+  const available = state.buckets.available
+  const needed = total > available ? total - available : 0n
+  if (needed > earmark) return insufficient(available + earmark, total) as OverrunResult
+  const returned = earmark - needed
+  const movements: Movement[] = [{ from: 'RESERVED', to: 'AVAILABLE', amount: earmark, sourceType: 'BUDGET_OVERRUN', sourceId: overrunId }]
+  if (returned > 0n) movements.push({ from: 'AVAILABLE', to: 'OUTSIDE', amount: returned, sourceType: 'BUDGET_OVERRUN', sourceId: overrunId })
+  for (const l of lines) movements.push({ from: 'AVAILABLE', to: 'RESERVED', amount: l.amount, sourceType: 'REQUEST_LINE', sourceId: l.requestLineId })
+  return { ok: true, state: applyMovements(state, movements), movements, used: needed, returned }
+}
+
+/** BR-BUD-15: an approved overrun not used (cancelled, its request cancelled, or past lapsesAt) gives its earmark back and X leaves the line */
+export function lapseOverrun(state: LineState, overrunId: string): Extract<OverrunResult, { ok: true }> {
+  const earmark = earmarkOf(state, overrunId)
+  if (earmark <= 0n) return { ok: true, state, movements: [], used: 0n, returned: 0n }
+  const movements: Movement[] = [
+    { from: 'RESERVED', to: 'AVAILABLE', amount: earmark, sourceType: 'BUDGET_OVERRUN', sourceId: overrunId },
+    { from: 'AVAILABLE', to: 'OUTSIDE', amount: earmark, sourceType: 'BUDGET_OVERRUN', sourceId: overrunId },
+  ]
+  return { ok: true, state: applyMovements(state, movements), movements, used: 0n, returned: earmark }
+}
+
+/**
+ * BR-BUD-18: what one command gave back of a request on a line — Σ (RESERVED or COMMITTED → AVAILABLE) − Σ (AVAILABLE →
+ * RESERVED or COMMITTED) over the movements of the allocations in `keys` (its request lines and the PO lines ordered
+ * from them), never below zero
+ */
+export function netReturned(movements: readonly Movement[], keys: ReadonlySet<string>): Satang {
+  let net = 0n
+  for (const m of movements) {
+    if (!keys.has(allocationKey(m.sourceType, m.sourceId))) continue
+    if (m.to === 'AVAILABLE' && (m.from === 'RESERVED' || m.from === 'COMMITTED')) net += m.amount
+    if (m.from === 'AVAILABLE' && (m.to === 'RESERVED' || m.to === 'COMMITTED')) net -= m.amount
+  }
+  return net > 0n ? net : 0n
+}
+
+/**
+ * BR-BUD-18 after use: of what a command gave back (`given`, from netReturned), s = min(outstanding, given) leaves the
+ * line (AVAILABLE → OUTSIDE, BUDGET_OVERRUN), to the overrun used last first, so the amount funded for the request never
+ * becomes another document's available budget. Never more than the line has available.
+ */
+export function returnAfterUse(
+  state: LineState,
+  given: Satang,
+  overruns: readonly { readonly id: string; readonly outstanding: Satang }[],
+): { readonly ok: true; readonly state: LineState; readonly movements: readonly Movement[]; readonly returned: ReadonlyMap<string, Satang> } {
+  let left = given < state.buckets.available ? given : state.buckets.available
+  const movements: Movement[] = []
+  const returned = new Map<string, Satang>()
+  for (const o of overruns) {
+    const s = o.outstanding < left ? o.outstanding : left
+    if (s <= 0n) continue
+    movements.push({ from: 'AVAILABLE', to: 'OUTSIDE', amount: s, sourceType: 'BUDGET_OVERRUN', sourceId: o.id })
+    returned.set(o.id, s)
+    left -= s
+  }
+  return { ok: true, state: applyMovements(state, movements), movements, returned }
+}
+
+// ---------- split cost (S6-17 · BR-BUD-16 · ADR-106 · OQ-106) ----------
+
+/**
+ * The "แบ่งบรรทัด" button: one line becomes one line per part, each the part's quantity at the same unit price, its
+ * amount rounded once (BR-MONEY-02 (1)). The parts' amounts may add up to more or less than the line's by up to
+ * (parts − 1) satang; the screen shows `total` against `original` before the split is saved.
+ */
+export function splitLine(unitPriceSatang: Satang, parts: readonly string[]): { nets: Satang[]; total: Satang; original: Satang } {
+  if (parts.length < 2 || parts.some((p) => parseQuantity(p) <= 0n)) throw new RangeError('a split has two parts or more, each above zero')
+  const nets = parts.map((p) => lineNet(p, unitPriceSatang))
+  const quantity = parts.reduce((s, p) => s + parseQuantity(p), 0n)
+  return { nets, total: sum(nets), original: roundHalfUpDiv(quantity * unitPriceSatang, QUANTITY_SCALE) }
+}
+
+/**
+ * BR-BUD-16: the department a request split over budget lines charges — the one whose lines add up to the most before
+ * VAT; on a tie, the department of the tied line with the lowest lineNo
+ */
+export function chargedDepartmentOf(lines: readonly { readonly lineNo: number; readonly departmentId: string; readonly netSatang: Satang }[]): string {
+  if (lines.length === 0) throw new RangeError('a request has lines')
+  const totals = new Map<string, { net: Satang; first: number }>()
+  for (const l of lines) {
+    const t = totals.get(l.departmentId)
+    totals.set(l.departmentId, { net: (t?.net ?? 0n) + l.netSatang, first: Math.min(t?.first ?? l.lineNo, l.lineNo) })
+  }
+  return [...totals].sort(([, a], [, b]) => (a.net === b.net ? a.first - b.first : a.net > b.net ? -1 : 1))[0]![0]
+}
+
+// ---------- burn rate and forecast (S6-18 · BR-BUD-17 · OQ-113) ----------
+
+export type BurnAlert = `USED_${number}` | 'FORECAST_OVER'
+
+/**
+ * BR-BUD-17: how much of a line's current budget (funded, after transfers and adjustments) is used — committed and
+ * actual — in basis points, floor((committed + actual) × 10000 ÷ funded); and the forecast for the whole fiscal year at
+ * the pace so far, floor((committed + actual) × yearDays × 10000 ÷ (funded × elapsedDays)), once elapsedDays reaches
+ * forecastMinElapsedDays. A line with nothing funded has neither. Alerts: USED_t for each threshold t the use reached,
+ * FORECAST_OVER when the forecast is above the budget. Indicators, not money: no rounding point of BR-MONEY-02.
+ */
+export function budgetBurn(input: {
+  readonly fundedSatang: Satang
+  readonly committedSatang: Satang
+  readonly actualSatang: Satang
+  readonly elapsedDays: number
+  readonly yearDays: number
+  readonly thresholdsBp: readonly number[]
+  readonly forecastMinElapsedDays: number
+}): { usedBp: number | null; forecastBp: number | null; alerts: BurnAlert[] } {
+  if (input.fundedSatang <= 0n) return { usedBp: null, forecastBp: null, alerts: [] }
+  const used = input.committedSatang + input.actualSatang
+  const usedBp = Number((used * BP_PER_WHOLE) / input.fundedSatang)
+  const forecastBp =
+    input.elapsedDays >= input.forecastMinElapsedDays && input.elapsedDays > 0
+      ? Number((used * BigInt(input.yearDays) * BP_PER_WHOLE) / (input.fundedSatang * BigInt(input.elapsedDays)))
+      : null
+  const alerts: BurnAlert[] = [...input.thresholdsBp].sort((a, b) => a - b).filter((t) => usedBp >= t).map((t): BurnAlert => `USED_${t}`)
+  if (forecastBp !== null && forecastBp > Number(BP_PER_WHOLE)) alerts.push('FORECAST_OVER')
+  return { usedBp, forecastBp, alerts }
 }

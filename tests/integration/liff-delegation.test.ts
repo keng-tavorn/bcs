@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { createDelegation, revokeDelegation } from '@/server/services/delegations'
 import { createDelegationForDays, getMyDelegations } from '@/server/services/delegations/view'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { endDelegationWindow } from '@/server/services/sla/delegation-window'
 import { createDoaOrg } from '../support/doa-org'
 

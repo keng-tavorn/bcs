@@ -9,7 +9,7 @@ import { decideTask } from '@/server/services/approvals/decide'
 import { importDoaDraft, submitDoaVersion } from '@/server/services/doa'
 import { completeUpload, requestUpload } from '@/server/services/files'
 import { proposeOrgChange } from '@/server/services/org-authority'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { attachFile } from '@/server/services/requests/attachments'
 import { amountToSatang } from '@/core/money/dto'
 import { E2E_DB } from '../support/e2e-env'
@@ -90,7 +90,7 @@ async function request(requesterCode: string, gross: string, title: string, with
   await makeRoom(line.code, amountToSatang(gross))
   const draft = await createDraft(
     ctxOf(m),
-    { requestTypeCode: 'BUY_GOODS', title, priceIncludesVat: true, budgetLineId: line.id, lines: [{ description: 'วัสดุและอุปกรณ์', quantity: '1', uom: 'ชุด', unitPrice: gross }] },
+    { requestTypeCode: 'BUY_GOODS', title, priceIncludesVat: true, budgetLineId: line.id, lines: [{ description: `วัสดุและอุปกรณ์: ${title} ${randomUUID().slice(0, 6)}`, quantity: '1', uom: 'ชุด', unitPrice: gross }] },
     key(),
   )
   if (!draft.ok) throw new Error(`draft failed: ${JSON.stringify(draft.error)}`)

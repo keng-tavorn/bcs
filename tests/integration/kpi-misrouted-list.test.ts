@@ -6,7 +6,7 @@ import { forTenant } from '@/server/db/tenant'
 import { appendEvents } from '@/server/events/append'
 import { decideTask } from '@/server/services/approvals/decide'
 import { kpiDetail } from '@/server/services/reports/screens'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S5-12 · FR-VIS-003 AC2 (spec §9.9 every number opens its list, §11.4 G-2 (a)): the list behind "การอนุมัติที่ผิด DOA"

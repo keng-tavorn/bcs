@@ -1,0 +1,19 @@
+{
+  "brand": "BCS",
+  "latest": "This is the latest version of the document",
+  "metaTitle": "Verify a document",
+  "notFoundBody": "No document matches this QR code or link. Check that it was scanned from the original document, or ask whoever issued it",
+  "notFoundTitle": "Document not found",
+  "number": "Number",
+  "open": "Open the document",
+  "organization": "Company",
+  "privacy": "This page shows only what confirms the document: no amounts and no names of people",
+  "status": "Current status",
+  "statusAt": "Date",
+  "superseded": "A newer version exists: the document was changed after this copy was printed. Ask whoever issued it for the latest one",
+  "tagline": "Check a document is genuine and see its current status",
+  "titlePurchaseOrder": "This purchase order was issued by the system",
+  "titleRequest": "This purchase request was issued by the system",
+  "tooManyBody": "This page was opened too often from your address. Please try again in a minute",
+  "tooManyTitle": "Please try again later"
+}

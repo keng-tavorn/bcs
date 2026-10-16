@@ -15,7 +15,7 @@ import { decideTask } from '@/server/services/approvals/decide'
 import { consolidateNow, listPool, runScheduledConsolidation } from '@/server/services/procurement'
 import { previewPoSubmit } from '@/server/services/purchase-orders'
 import { postGoodsReceipt, requestCloseShort } from '@/server/services/receiving'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // The screens of unit e (S4-03, S4-04, S4-06): the procurement pool, the purchase-order pages and the decision page of

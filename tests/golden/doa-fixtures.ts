@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { parse } from 'yaml'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
-import type { ApproverSpec, DelegationSnapshot, DoaRuleSnapshot, DoaVersionSnapshot, OrgSnapshot } from '@/core/doa'
+import type { ApproverSpec, CommitteeQuorum, DelegationSnapshot, DoaRuleSnapshot, DoaStepSpec, DoaVersionSnapshot, OrgSnapshot } from '@/core/doa'
 
 // Golden adapter for the DOA suites (spec §7.4): turns tests/golden/fixtures/*.yaml into engine snapshots. It only
 // changes shapes (codes become ids, baht strings become satang); it never changes an expected value.
@@ -24,9 +24,15 @@ export interface RuleFixture {
   documentType: DoaRuleSnapshot['documentType']
   priority: number
   when: { amount?: { gt?: string; gte?: string; lte?: string } }
-  approver: { kind: ApproverSpec['kind']; position?: string; member?: string }
+  /** One approver, or `step` with a committee (S6 · fixtures/doa-committee.yaml) */
+  approver?: ApproverFixture
+  step?: { mode: 'PARALLEL'; quorum: CommitteeQuorum; quorumCount?: number; approvers: ApproverFixture[] }
   slaBusinessHours: number
 }
+
+type ApproverFixture = { kind: ApproverSpec['kind']; position?: string; member?: string }
+
+export const approverOf = (a: ApproverFixture): ApproverSpec => (a.kind === 'MEMBER' ? { kind: 'MEMBER', memberId: a.member! } : { kind: a.kind, position: a.position! })
 
 interface VersionFixture {
   code: string
@@ -62,8 +68,10 @@ export function orgSnapshot(vacate: readonly string[] = [], file: string = DEMO_
 
 export function ruleSnapshot(r: RuleFixture): DoaRuleSnapshot {
   const amount = r.when.amount
-  const approver: ApproverSpec =
-    r.approver.kind === 'MEMBER' ? { kind: 'MEMBER', memberId: r.approver.member! } : { kind: r.approver.kind, position: r.approver.position! }
+  const minutes = r.slaBusinessHours * 60
+  const step: DoaStepSpec = r.step
+    ? { approvers: r.step.approvers.map(approverOf), slaBusinessMinutes: minutes, mode: 'PARALLEL', quorum: r.step.quorum, ...(r.step.quorumCount !== undefined ? { quorumCount: r.step.quorumCount } : {}) }
+    : { approver: approverOf(r.approver!), slaBusinessMinutes: minutes, mode: 'SEQUENTIAL' }
   return {
     code: r.code,
     documentType: r.documentType,
@@ -77,7 +85,7 @@ export function ruleSnapshot(r: RuleFixture): DoaRuleSnapshot {
           },
         }
       : {},
-    steps: [{ approver, slaBusinessMinutes: r.slaBusinessHours * 60, mode: 'SEQUENTIAL' }],
+    steps: [step],
   }
 }
 

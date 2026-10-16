@@ -36,7 +36,7 @@ export function TotalsList({ totals, rateBp }: { totals: Totals | null; rateBp: 
  * request not sent yet — the info icon in --info beside words in ink, as the route's explanation — never the approved
  * mark of --primary (§9.9 tokens); not enough is --danger, the token of งบไม่พอ. Both an icon and words, never colour alone.
  */
-export function BudgetStatus({ lineChosen, budget, need, loading }: { lineChosen: boolean; budget: BudgetView | null; need: Satang | null; loading: boolean }) {
+export function BudgetStatus({ lineChosen, budget, need, others = 0, loading }: { lineChosen: boolean; budget: BudgetView | null; need: Satang | null; /** S6-17: lines on budget lines of their own, left out of `need` */ others?: number; loading: boolean }) {
   const t = useTranslations('requestForm.budget')
   if (!lineChosen) return <p className="text-ink-muted">{t('noLine')}</p>
   if (budget?.kind === 'NOT_USABLE') return <Notice tone="danger">{t('notUsable')}</Notice>
@@ -49,7 +49,7 @@ export function BudgetStatus({ lineChosen, budget, need, loading }: { lineChosen
       <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-1">
         <dt>{t('available')}</dt>
         <dd className="money">{t('baht', { amount: showMoney(budget.available) })}</dd>
-        <dt>{t('need')}</dt>
+        <dt>{others ? t('needSplit') : t('need')}</dt>
         <dd className="money">{t('baht', { amount: showSatang(amount) })}</dd>
       </dl>
       {enough ? (
@@ -63,6 +63,7 @@ export function BudgetStatus({ lineChosen, budget, need, loading }: { lineChosen
           <span>{t('short', { shortfall: showSatang(amount - available) })}</span>
         </p>
       )}
+      {others ? <p className="text-base text-ink-muted md:text-sm">{t('othersAtSubmit', { count: others })}</p> : null}
     </div>
   )
 }

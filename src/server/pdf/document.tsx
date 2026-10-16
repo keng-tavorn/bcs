@@ -1,13 +1,15 @@
-import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
+import { Document, Page, Path, StyleSheet, Svg, Text, View } from '@react-pdf/renderer'
 import type { ComponentProps } from 'react'
 import { PDF_KEEP_WITH_TOTALS_PT } from '@/lib/constants'
 import type { PrintableDocument } from './printable'
+import { qrPath } from './qr'
 
 // The printed PR and PO page (spec FR-PLT-009 AC1 AC2; OQ-25 default: approvals as data, no signatures; ADR-044).
 // Plain A4 in Sarabun (§9.9): black text, grey labels, thin rules, one light-grey header row — no colour, no images.
 // Lines never split across pages and the table header repeats; the totals, the amount in words, the approvals and the
 // note stay together after the last line; pages after the first carry a running header; every page has the footer
-// and "หน้า x/y". Thai labels with small English, as on Thai business documents.
+// and "หน้า x/y". Thai labels with small English, as on Thai business documents. A document that was sent carries the
+// QR of its verification page (S6-19 · BR-QR-01), drawn as a vector path in the document box.
 
 type ViewStyle = ComponentProps<typeof View>['style']
 
@@ -25,6 +27,8 @@ const s = StyleSheet.create({
   page: { fontFamily: FONT_FAMILY, fontSize: 10, color: INK, paddingTop: 40, paddingBottom: 54, paddingHorizontal: 40 },
   body: { fontSize: 10, lineHeight: 1.45 },
   running: { position: 'absolute', top: 18, left: 40, right: 40, fontSize: 8.5, color: MUTED },
+  qr: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  qrText: { marginLeft: 6, fontSize: 7.5, color: MUTED, width: 110 },
   footer: { position: 'absolute', bottom: 22, left: 40, right: 40, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 0.5, borderTopColor: RULE, paddingTop: 4, fontSize: 8.5, color: MUTED },
 
   head: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: INK, paddingBottom: 8, marginBottom: 10 },
@@ -102,6 +106,22 @@ function HeadCell({ th, en, style }: { th: string; en: string; style: ViewStyle 
   )
 }
 
+/** The verification QR and what it is for (S6-19): the page says whether this printing is the latest and its status */
+function VerifyQr({ url }: { url: string }) {
+  const qr = qrPath(url)
+  return (
+    <View style={s.qr}>
+      <Svg width={QR_PT} height={QR_PT} viewBox={`0 0 ${qr.size} ${qr.size}`}>
+        <Path d={qr.path} fill={INK} />
+      </Svg>
+      <Text style={s.qrText}>สแกนเพื่อตรวจสอบเอกสารและสถานะล่าสุด · Scan to verify this document</Text>
+    </View>
+  )
+}
+
+/** The printed side of the QR: about 2 cm, enough for a phone camera */
+const QR_PT = 64
+
 export function PrintablePdf({ doc }: { doc: PrintableDocument }) {
   const o = doc.organization
   const last = doc.lines.length - 1
@@ -139,6 +159,7 @@ export function PrintablePdf({ doc }: { doc: PrintableDocument }) {
               {doc.meta.map((m, i) => (
                 <Kv key={i} label={m.label} value={m.value} />
               ))}
+              {doc.verifyUrl ? <VerifyQr url={doc.verifyUrl} /> : null}
             </View>
           </View>
 

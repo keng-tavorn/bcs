@@ -89,13 +89,11 @@
     "newest": "กลับไปรายการล่าสุด"
   },
   "groups": {
-    "account_code": "รหัสบัญชี",
-    "agent_action": "ผู้ช่วย AI",
-    "ai_agent": "ตั้งค่าผู้ช่วย AI",
-    "ai_credit": "credits ของ AI",
+    "approval_step": "ขั้นอนุมัติ",
     "approval_task": "งานอนุมัติ",
     "audit": "บันทึกการตรวจสอบ",
     "auth": "การเข้าระบบ",
+    "backtest": "ย้อนทดสอบ",
     "budget": "งบประมาณ",
     "budget_grant": "สิทธิ์ใช้งบข้ามฝ่าย",
     "consolidation_run": "รวมคำขอเป็นใบสั่งซื้อ",
@@ -108,37 +106,46 @@
     "form_version": "ฟอร์ม",
     "gr": "ตรวจรับ",
     "holiday": "วันหยุด",
-    "inbound_email": "กล่องอีเมลใบแจ้งหนี้",
     "invoice": "ใบแจ้งหนี้",
     "invoice_confirmation": "ใบกำกับ",
     "line": "บัญชี LINE",
-    "match_exception": "รายการไม่ตรงของใบแจ้งหนี้",
     "member": "สมาชิก",
     "notification": "การแจ้งเตือน",
     "org_authority_change": "โครงสร้างอำนาจ",
     "organization": "องค์กร",
     "po": "ใบสั่งซื้อ",
-    "po_change": "ใบแก้ไขใบสั่งซื้อ",
     "position": "ตำแหน่ง",
     "report_schedule": "รายงาน",
     "request": "คำขอ",
     "request_type": "ประเภทคำขอ",
-    "retention": "เงินประกันผลงาน",
     "security": "ความปลอดภัย",
     "supplier": "ผู้ขาย",
-    "supplier_notice": "อีเมลถึงผู้ขาย",
     "variance": "ผลต่างจากการตรวจรับ",
+    "workflow_version": "ผู้ตรวจคู่ขนาน",
+    "agent_action": "ผู้ช่วย AI",
+    "ai_agent": "ตั้งค่าผู้ช่วย AI",
+    "ai_credit": "credits ของ AI",
+    "catalog_item": "แคตตาล็อก",
+    "price_agreement": "ราคาตกลง",
+    "budget_transfer": "โอนและปรับงบ",
+    "budget_overrun": "ขออนุมัติเกินงบ",
+    "document_verification": "ตรวจสอบเอกสาร",
+    "config_package": "ชุดค่าตั้ง",
+    "account_code": "รหัสบัญชี",
+    "inbound_email": "กล่องอีเมลใบแจ้งหนี้",
+    "match_exception": "รายการไม่ตรงของใบแจ้งหนี้",
+    "po_change": "ใบแก้ไขใบสั่งซื้อ",
+    "retention": "เงินประกันผลงาน",
+    "supplier_notice": "อีเมลถึงผู้ขาย",
     "wht_certificate": "50 ทวิ",
     "wht_income_type": "ประเภทเงินได้",
     "withholding_tax": "ภาษีหัก ณ ที่จ่าย"
   },
   "aggregate": {
-    "AccountCode": "รหัสบัญชี",
-    "AgentAction": "งานของผู้ช่วย AI",
-    "AiAgentSetting": "ตั้งค่าผู้ช่วย AI",
-    "AiCredit": "credits ของ AI",
+    "ApprovalStep": "ขั้นอนุมัติ",
     "ApprovalTask": "งานอนุมัติ",
     "Auth": "การเข้าระบบ",
+    "BacktestRun": "การย้อนทดสอบ",
     "BudgetGrant": "สิทธิ์ใช้งบข้ามฝ่าย",
     "BudgetLine": "บรรทัดงบ",
     "ChannelIdentity": "บัญชี LINE",
@@ -151,54 +158,42 @@
     "File": "ไฟล์",
     "FormVersion": "ฟอร์มของประเภทคำขอ",
     "GoodsReceipt": "ใบตรวจรับ",
-    "InboundEmail": "กล่องอีเมลใบแจ้งหนี้",
     "Invoice": "ใบแจ้งหนี้",
     "InvoiceConfirmation": "ใบกำกับ",
     "Member": "สมาชิก",
     "Notification": "การแจ้งเตือน",
     "OrgAuthorityChange": "การเปลี่ยนโครงสร้างอำนาจ",
     "Organization": "องค์กร",
-    "PoChange": "ใบแก้ไขใบสั่งซื้อ",
     "PositionAssignment": "การดำรงตำแหน่ง",
     "PurchaseOrder": "ใบสั่งซื้อ",
     "ReportSchedule": "รอบส่งรายงาน",
     "Request": "คำขอ",
     "RequestType": "ประเภทคำขอ",
-    "Retention": "เงินประกันผลงาน",
     "Security": "ความปลอดภัย",
     "Supplier": "ผู้ขาย",
-    "SupplierNotice": "อีเมลถึงผู้ขาย",
     "Variance": "ผลต่างจากการตรวจรับ",
+    "WorkflowVersion": "ฉบับผู้ตรวจคู่ขนาน",
+    "AgentAction": "งานของผู้ช่วย AI",
+    "AiAgentSetting": "ตั้งค่าผู้ช่วย AI",
+    "AiCredit": "credits ของ AI",
+    "CatalogItem": "สินค้าในแคตตาล็อก",
+    "PriceAgreement": "ราคาตกลง",
+    "BudgetTransfer": "การโอนและปรับงบ",
+    "BudgetOverrun": "การขออนุมัติเกินงบ",
+    "DocumentVerification": "QR ตรวจสอบเอกสาร",
+    "ConfigPackage": "ชุดค่าตั้ง",
+    "AccountCode": "รหัสบัญชี",
+    "InboundEmail": "กล่องอีเมลใบแจ้งหนี้",
+    "PoChange": "ใบแก้ไขใบสั่งซื้อ",
+    "Retention": "เงินประกันผลงาน",
+    "SupplierNotice": "อีเมลถึงผู้ขาย",
     "WhtCertificate": "หนังสือรับรองการหักภาษี (50 ทวิ)",
     "WhtIncomeType": "ประเภทเงินได้",
     "WithholdingTax": "ภาษีหัก ณ ที่จ่าย"
   },
   "events": {
-    "account_code": {
-      "updated": "แก้รหัสบัญชี"
-    },
-    "agent_action": {
-      "requested": "เรียกผู้ช่วย AI",
-      "drafted": "ผู้ช่วย AI ร่างผลแล้ว",
-      "failed": "ผู้ช่วย AI ทำไม่สำเร็จ",
-      "applied": "นำค่าจาก AI เข้าเอกสาร",
-      "accepted": "ยืนยันค่าจาก AI ครบ",
-      "edited": "ยืนยันค่าจาก AI พร้อมแก้ไข",
-      "rejected": "ทิ้งผลของ AI",
-      "expired": "ผลของ AI หมดอายุ",
-      "feedback_given": "ให้ความเห็นต่อผลของ AI",
-      "content_purged": "ล้างเนื้อหาของผลจาก AI"
-    },
-    "ai_agent": {
-      "enabled": "เปิดผู้ช่วย AI",
-      "disabled": "ปิดผู้ช่วย AI",
-      "updated": "แก้การตั้งค่าผู้ช่วย AI"
-    },
-    "ai_credit": {
-      "granted": "ให้ credits ของ AI",
-      "monthly_set": "ตั้ง credits ต่อเดือนของ AI",
-      "threshold_reached": "ใช้ credits ของ AI ถึงเกณฑ์แจ้ง",
-      "exhausted": "credits ของ AI หมด"
+    "approval_step": {
+      "completed": "ขั้นอนุมัติแบบหลายคนได้ผลแล้ว"
     },
     "approval_task": {
       "assigned": "มอบงานอนุมัติ",
@@ -220,13 +215,22 @@
       "login_succeeded": "เข้าระบบสำเร็จ",
       "pin_set": "ตั้งหรือเปลี่ยน PIN ยืนยันธุรกรรม"
     },
+    "backtest": {
+      "completed": "ย้อนทดสอบ 90 วันเสร็จ",
+      "requested": "ขอย้อนทดสอบ 90 วันเป็นงานเบื้องหลัง"
+    },
     "budget": {
       "actualized": "ตัดงบเป็นจ่ายจริง",
+      "alert_raised": "เตือนอัตราใช้งบหรือพยากรณ์เกินงบ",
       "commitment_released": "คืนงบที่ถือไว้",
       "committed": "ถืองบให้ใบสั่งซื้อ",
       "imported": "นำเข้างบ",
+      "overrun_funded": "เติมงบจากการอนุมัติเกินงบ",
+      "overrun_returned": "คืนยอดเกินงบออกจากบรรทัด",
       "reservation_released": "คืนงบที่จองไว้",
-      "reserved": "จองงบ"
+      "reserved": "จองงบ",
+      "transferred_in": "โอนงบเข้าบรรทัด",
+      "transferred_out": "โอนงบออกจากบรรทัด"
     },
     "budget_grant": {
       "created": "ให้สิทธิ์ใช้งบข้ามฝ่าย",
@@ -254,7 +258,11 @@
       "published": "เผยแพร่ DOA",
       "rejected": "ไม่อนุมัติ DOA ฉบับนี้",
       "submitted": "ส่ง DOA ขออนุมัติ",
-      "superseded": "DOA ฉบับนี้ถูกแทนที่"
+      "superseded": "DOA ฉบับนี้ถูกแทนที่",
+      "withdrawal_cancelled": "ยกเลิกการถอน DOA เพราะมีผลแล้ว",
+      "withdrawal_rejected": "ไม่อนุมัติการถอน DOA",
+      "withdrawal_requested": "ขอถอน DOA",
+      "withdrawn": "ถอน DOA"
     },
     "export": {
       "generated": "สร้างไฟล์ส่งออก"
@@ -264,7 +272,10 @@
       "uploaded": "อัปโหลดไฟล์"
     },
     "form_version": {
-      "published": "เผยแพร่ฟอร์มของประเภทคำขอ"
+      "drafted": "สร้างร่างฟอร์มฉบับใหม่",
+      "published": "เผยแพร่ฟอร์มของประเภทคำขอ",
+      "retired": "ปลดฟอร์มฉบับเดิม",
+      "updated": "แก้ร่างฟอร์ม"
     },
     "gr": {
       "posted": "บันทึกการตรวจรับ",
@@ -273,27 +284,21 @@
     "holiday": {
       "imported": "นำเข้าวันหยุด"
     },
-    "inbound_email": {
-      "failed": "อ่านอีเมลในกล่องใบแจ้งหนี้ไม่สำเร็จ",
-      "ignored": "ข้ามอีเมลในกล่องใบแจ้งหนี้",
-      "processed": "สร้างร่างจากอีเมลในกล่องใบแจ้งหนี้",
-      "received": "รับอีเมลเข้ากล่องใบแจ้งหนี้"
-    },
     "invoice": {
       "cancelled": "ทิ้งร่างใบแจ้งหนี้",
       "coding_confirmed": "ยืนยันรหัสบัญชีของใบแจ้งหนี้",
       "drafted": "ร่างใบแจ้งหนี้",
       "exception_raised": "ใบแจ้งหนี้มีรายการไม่ตรง",
       "matched": "ใบแจ้งหนี้จับคู่ตรง",
+      "ready": "ใบแจ้งหนี้พร้อมจ่าย",
+      "submitted": "ส่งใบแจ้งหนี้",
+      "updated": "แก้ร่างใบแจ้งหนี้",
       "paid": "จ่ายใบแจ้งหนี้แล้ว",
       "payment_held": "ใบแจ้งหนี้เข้ารอบจ่าย",
       "payment_released": "ใบแจ้งหนี้ออกจากรอบจ่าย",
-      "ready": "ใบแจ้งหนี้พร้อมจ่าย",
       "rechecked": "ตรวจใบแจ้งหนี้ซ้ำ",
       "rejected": "ปฏิเสธใบแจ้งหนี้",
       "reopened": "เปิดใบแจ้งหนี้กลับเป็นร่าง",
-      "submitted": "ส่งใบแจ้งหนี้",
-      "updated": "แก้ร่างใบแจ้งหนี้",
       "variance_approved": "อนุมัติส่วนต่างราคาของใบแจ้งหนี้",
       "variance_rejected": "ไม่อนุมัติหรือตีกลับส่วนต่างราคาของใบแจ้งหนี้",
       "variance_submitted": "ขออนุมัติส่วนต่างราคาของใบแจ้งหนี้"
@@ -304,9 +309,6 @@
     "line": {
       "linked": "ผูกบัญชี LINE",
       "unlinked": "ยกเลิกการผูกบัญชี LINE"
-    },
-    "match_exception": {
-      "dismissed": "ปัดตกคำเตือนใบแจ้งหนี้น่าจะซ้ำ"
     },
     "member": {
       "activated": "เปิดใช้งานสมาชิก",
@@ -332,31 +334,24 @@
       "created": "สร้างองค์กร",
       "module_disabled": "ปิดโมดูล",
       "module_enabled": "เปิดโมดูล",
-      "settings_updated": "แก้ไขการตั้งค่าองค์กร"
+      "settings_updated": "แก้ไขการตั้งค่าองค์กร",
+      "sandbox_created": "สร้างระบบทดลอง (UAT sandbox)"
     },
     "po": {
       "approved": "อนุมัติใบสั่งซื้อ",
       "cancelled": "ยกเลิกใบสั่งซื้อ",
       "closed": "ปิดใบสั่งซื้อ",
       "drafted": "ร่างใบสั่งซื้อ",
-      "milestones_set": "แบ่งงวดงานของใบสั่งซื้อ",
       "rejected": "ไม่อนุมัติใบสั่งซื้อ",
-      "retention_set": "ตั้งเงินประกันผลงานของใบสั่งซื้อ",
       "returned": "ตีกลับใบสั่งซื้อ",
-      "revised": "ใบสั่งซื้อเป็นฉบับแก้ไขใหม่",
-      "revision_sent": "ส่งใบสั่งซื้อฉบับแก้ไขให้ผู้ขาย",
       "send_bounced": "อีเมลใบสั่งซื้อถูกตีกลับ",
       "sent": "ส่งใบสั่งซื้อให้ผู้ขาย",
       "submitted": "ส่งใบสั่งซื้อขออนุมัติ",
-      "updated": "แก้ไขร่างใบสั่งซื้อ"
-    },
-    "po_change": {
-      "approved": "อนุมัติใบแก้ไขใบสั่งซื้อ",
-      "cancelled": "ยกเลิกใบแก้ไขใบสั่งซื้อ",
-      "drafted": "ร่างใบแก้ไขใบสั่งซื้อ",
-      "rejected": "ไม่อนุมัติใบแก้ไขใบสั่งซื้อ",
-      "returned": "ส่งกลับใบแก้ไขใบสั่งซื้อ",
-      "submitted": "ส่งใบแก้ไขใบสั่งซื้อ"
+      "updated": "แก้ไขร่างใบสั่งซื้อ",
+      "milestones_set": "แบ่งงวดงานของใบสั่งซื้อ",
+      "retention_set": "ตั้งเงินประกันผลงานของใบสั่งซื้อ",
+      "revised": "ใบสั่งซื้อเป็นฉบับแก้ไขใหม่",
+      "revision_sent": "ส่งใบสั่งซื้อฉบับแก้ไขให้ผู้ขาย"
     },
     "position": {
       "assigned": "แต่งตั้งผู้ดำรงตำแหน่ง",
@@ -372,11 +367,13 @@
       "doa_gap_reported": "แจ้งว่า DOA ไม่มีข้อสำหรับคำขอนี้",
       "draft_expiry_notified": "เตือนร่างคำขอที่ใกล้หมดอายุ",
       "drafted": "สร้างร่างคำขอ",
+      "flagged": "ตรวจพบคำขอซ้ำหรือแตกยอด",
       "follower_added": "เพิ่มผู้ติดตามคำขอ",
       "follower_removed": "เอาผู้ติดตามคำขอออก",
       "info_provided": "ผู้ขอตอบคำถาม",
       "info_requested": "ขอข้อมูลเพิ่มจากผู้ขอ",
       "rejected": "ไม่อนุมัติคำขอ",
+      "renewal_reminded": "เตือนต่ออายุบริการ",
       "resubmitted": "ส่งคำขออีกครั้ง",
       "returned": "ตีกลับคำขอให้แก้ไข",
       "submitted": "ส่งคำขอ",
@@ -384,14 +381,6 @@
     },
     "request_type": {
       "updated": "แก้ไขประเภทคำขอ"
-    },
-    "retention": {
-      "held": "ถือเงินประกันผลงาน",
-      "paid": "จ่ายคืนเงินประกันผลงาน",
-      "payment_held": "เงินประกันเข้ารอบจ่าย",
-      "payment_released": "เงินประกันออกจากรอบจ่าย",
-      "release_due": "เงินประกันครบกำหนดคืน",
-      "released": "อนุมัติคืนเงินประกันผลงาน"
     },
     "security": {
       "pin_locked": "ล็อก PIN ยืนยันธุรกรรมชั่วคราว",
@@ -402,17 +391,116 @@
       "created": "เพิ่มผู้ขาย",
       "registry_checked": "ตรวจผู้ขายกับทะเบียนของรัฐ",
       "registry_status_changed": "สถานะผู้ขายในทะเบียนเปลี่ยน",
-      "tax_profile_updated": "แก้ข้อมูลภาษีของผู้ขาย",
-      "updated": "แก้ไขข้อมูลผู้ขาย"
-    },
-    "supplier_notice": {
-      "failed": "ส่งอีเมลถึงผู้ขายไม่สำเร็จ",
-      "sent": "ส่งอีเมลถึงผู้ขาย"
+      "updated": "แก้ไขข้อมูลผู้ขาย",
+      "tax_profile_updated": "แก้ข้อมูลภาษีของผู้ขาย"
     },
     "variance": {
       "approved": "อนุมัติผลต่างจากการตรวจรับ",
       "recorded": "บันทึกผลต่างจากการตรวจรับ",
       "rejected": "ไม่อนุมัติผลต่างจากการตรวจรับ"
+    },
+    "workflow_version": {
+      "approved": "อนุมัติผู้ตรวจคู่ขนาน",
+      "drafted": "สร้างร่างผู้ตรวจคู่ขนาน",
+      "dry_run": "ทดลองส่งกับร่างผู้ตรวจคู่ขนาน",
+      "published": "เผยแพร่ผู้ตรวจคู่ขนาน",
+      "rejected": "ไม่อนุมัติผู้ตรวจคู่ขนาน",
+      "submitted": "ส่งผู้ตรวจคู่ขนานขออนุมัติ",
+      "superseded": "ผู้ตรวจคู่ขนานฉบับเดิมสิ้นผล",
+      "updated": "แก้ร่างผู้ตรวจคู่ขนาน",
+      "withdrawal_cancelled": "ยกเลิกการถอนผู้ตรวจคู่ขนานเพราะมีผลแล้ว",
+      "withdrawal_rejected": "ไม่อนุมัติการถอนผู้ตรวจคู่ขนาน",
+      "withdrawal_requested": "ขอถอนผู้ตรวจคู่ขนาน",
+      "withdrawn": "ถอนผู้ตรวจคู่ขนาน"
+    },
+    "agent_action": {
+      "requested": "เรียกผู้ช่วย AI",
+      "drafted": "ผู้ช่วย AI ร่างผลแล้ว",
+      "failed": "ผู้ช่วย AI ทำไม่สำเร็จ",
+      "applied": "นำค่าจาก AI เข้าเอกสาร",
+      "accepted": "ยืนยันค่าจาก AI ครบ",
+      "edited": "ยืนยันค่าจาก AI พร้อมแก้ไข",
+      "rejected": "ทิ้งผลของ AI",
+      "expired": "ผลของ AI หมดอายุ",
+      "feedback_given": "ให้ความเห็นต่อผลของ AI",
+      "content_purged": "ล้างเนื้อหาของผลจาก AI"
+    },
+    "ai_agent": {
+      "enabled": "เปิดผู้ช่วย AI",
+      "disabled": "ปิดผู้ช่วย AI",
+      "updated": "แก้การตั้งค่าผู้ช่วย AI"
+    },
+    "ai_credit": {
+      "granted": "ให้ credits ของ AI",
+      "monthly_set": "ตั้ง credits ต่อเดือนของ AI",
+      "threshold_reached": "ใช้ credits ของ AI ถึงเกณฑ์แจ้ง",
+      "exhausted": "credits ของ AI หมด"
+    },
+    "catalog_item": {
+      "created": "เพิ่มสินค้าในแคตตาล็อก",
+      "updated": "แก้สินค้าในแคตตาล็อก"
+    },
+    "price_agreement": {
+      "created": "ตั้งราคาตกลง",
+      "ended": "สิ้นสุดราคาตกลง"
+    },
+    "budget_transfer": {
+      "approved": "อนุมัติการโอนงบ",
+      "cancelled": "ยกเลิกการโอนงบ",
+      "drafted": "ร่างการโอนงบ",
+      "rejected": "ไม่อนุมัติการโอนงบ",
+      "returned": "ตีกลับการโอนงบ",
+      "submitted": "ส่งขออนุมัติโอนงบ"
+    },
+    "budget_overrun": {
+      "approved": "อนุมัติเกินงบ",
+      "cancelled": "ยกเลิกการขอเกินงบ",
+      "consumed": "ใช้ยอดเกินงบตอนส่งคำขอ",
+      "lapse_reminded": "เตือนว่ายอดเกินงบใกล้หมดอายุ",
+      "lapsed": "ยอดเกินงบหมดอายุหรือไม่ได้ใช้",
+      "rejected": "ไม่อนุมัติเกินงบ",
+      "returned": "ตีกลับการขอเกินงบ",
+      "submitted": "ส่งขออนุมัติเกินงบ",
+      "unused_returned": "คืนยอดเกินงบที่ไม่ได้ใช้หลังใช้"
+    },
+    "document_verification": {
+      "issued": "ออก QR ตรวจสอบเอกสาร"
+    },
+    "config_package": {
+      "exported": "ส่งออกชุดค่าตั้ง",
+      "imported": "นำเข้าชุดค่าตั้งเป็นร่าง"
+    },
+    "account_code": {
+      "updated": "แก้รหัสบัญชี"
+    },
+    "inbound_email": {
+      "failed": "อ่านอีเมลในกล่องใบแจ้งหนี้ไม่สำเร็จ",
+      "ignored": "ข้ามอีเมลในกล่องใบแจ้งหนี้",
+      "processed": "สร้างร่างจากอีเมลในกล่องใบแจ้งหนี้",
+      "received": "รับอีเมลเข้ากล่องใบแจ้งหนี้"
+    },
+    "match_exception": {
+      "dismissed": "ปัดตกคำเตือนใบแจ้งหนี้น่าจะซ้ำ"
+    },
+    "po_change": {
+      "approved": "อนุมัติใบแก้ไขใบสั่งซื้อ",
+      "cancelled": "ยกเลิกใบแก้ไขใบสั่งซื้อ",
+      "drafted": "ร่างใบแก้ไขใบสั่งซื้อ",
+      "rejected": "ไม่อนุมัติใบแก้ไขใบสั่งซื้อ",
+      "returned": "ส่งกลับใบแก้ไขใบสั่งซื้อ",
+      "submitted": "ส่งใบแก้ไขใบสั่งซื้อ"
+    },
+    "retention": {
+      "held": "ถือเงินประกันผลงาน",
+      "paid": "จ่ายคืนเงินประกันผลงาน",
+      "payment_held": "เงินประกันเข้ารอบจ่าย",
+      "payment_released": "เงินประกันออกจากรอบจ่าย",
+      "release_due": "เงินประกันครบกำหนดคืน",
+      "released": "อนุมัติคืนเงินประกันผลงาน"
+    },
+    "supplier_notice": {
+      "failed": "ส่งอีเมลถึงผู้ขายไม่สำเร็จ",
+      "sent": "ส่งอีเมลถึงผู้ขาย"
     },
     "wht_certificate": {
       "issued": "ออกหนังสือรับรองการหักภาษี (50 ทวิ)"

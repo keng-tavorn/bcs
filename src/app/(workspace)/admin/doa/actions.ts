@@ -9,14 +9,16 @@ import { importDoaDraft, submitDoaVersion } from '@/server/services/doa'
 import { draftDoaCopy, type DraftCopyInput } from '@/server/services/doa/editor'
 import { submitInitialPackage } from '@/server/services/doa/initial-package'
 import { getDoaOverviewForAdmin } from '@/server/services/doa/view'
+import { requestWithdrawal } from '@/server/services/policy-withdrawal'
 import type { SaveDoaDraftResult } from '@/ui/admin-doa/editor'
 import type { ImportDoaResult } from '@/ui/admin-doa/import-form'
 import type { PackageHolder } from '@/ui/admin-doa/initial-package-form'
 import type { SubmitDoaResult } from '@/ui/admin-doa/submit-panel'
+import type { RequestWithdrawalResult } from '@/ui/policy-withdrawal/request-withdrawal'
 import { toActionFailure, type ActionFailure } from '@/ui/admin-org/outcome'
 import { getSession } from '../../../_lib/session'
 
-// Browser-facing adapters for /admin/doa (FR-DOA-001 AC1–AC2, FR-DOA-002 AC1 and AC3, FR-DOA-009 AC3). Each checks the
+// Browser-facing adapters for /admin/doa (FR-DOA-001 AC1–AC2, FR-DOA-002 AC1 and AC3, FR-DOA-009 AC3, FR-DOA-104 AC1). Each checks the
 // session; the services check admin.doa.draft or admin.doa.submitForPublish, run the full lint and every rule of
 // BR-DOA-08/12/19 and record the events (BR-AUTH-05). The idempotencyKey comes from the form (spec §4.3).
 
@@ -105,4 +107,17 @@ export async function submitInitialPackageAction(
   revalidatePath('/admin/doa', 'layout')
   revalidatePath('/admin/org-authority', 'layout')
   return { ok: true, assigneeMemberId: result.data.assigneeMemberId }
+}
+
+/** Asks to withdraw a version approved but not yet in effect (FR-DOA-104 AC1); the service checks every rule of BR-DOA-18 */
+export async function requestDoaWithdrawalAction(input: { versionId: string; reason: string }, idempotencyKey: string): Promise<RequestWithdrawalResult> {
+  const ctx = await currentCtx()
+  if (!ctx) return NO_SESSION
+  if (!submissionKey.safeParse(idempotencyKey).success) return BAD_KEY
+  const shape = z.object({ versionId: Text, reason: Text }).safeParse(input)
+  if (!shape.success) return BAD_INPUT
+  const result = await requestWithdrawal(ctx, 'DOA_VERSION', shape.data, { idempotencyKey })
+  if (!result.ok) return toActionFailure(result.error)
+  revalidatePath('/admin/doa', 'layout')
+  return { ok: true }
 }

@@ -1,13 +1,17 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { lintDoaVersion } from '@/core/doa'
+import { lintWorkflowVersion } from '@/core/workflow'
 import { forTenant } from '@/server/db/tenant'
 import { loadOrgSnapshot } from '@/server/doa/policy'
 import { versionSnapshotFromRows } from '@/server/doa/snapshot'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
 import { P1_SEED_MODULES, seedP1Modules } from '@/server/seed/p1-modules'
+import { parseWorkflowReviewers, seedWorkflow } from '@/server/seed/workflow'
 import { INPUT_WORKBOOKS, loadInputWorkbook, type InputProfile } from '@/server/seed/workbook'
+import { loadRequestTypeFields } from '@/server/workflow/policy'
+import { workflowVersionFromRows } from '@/server/workflow/snapshot'
 
 // FR-PLT-007 AC4 AC5 (P1-07, ADR-070): the seed of the phase-1 workbook gives DOA-SIMEC version 1 with the 22 rules of
 // sheet DOA — the 14 of the six new document types among them — and switches PAY AI BCS_GO on once, after the DOA, with
@@ -72,5 +76,25 @@ describe('[FR-PLT-007/AC5] seeding again adds no rule and no module', () => {
     expect(await db.doaRule.count()).toBe(22)
     expect(await db.orgModule.count()).toBe(4)
     expect(await db.event.count({ where: { type: 'organization.module_enabled' } })).toBe(4)
+  })
+})
+
+describe('[FR-WF-103/AC4] the phase-1 seed: workflow version 1 with the 7 reviewer rules of sheet Workflow_Reviewers', () => {
+  it('publishes them from the start of DOA version 1, they pass the lint, and a second run adds nothing; the demo has none', async () => {
+    const p1 = await seededOrg('p1')
+    const workbook = await loadInputWorkbook(INPUT_WORKBOOKS.p1)
+    const code = (await forTenant(p1.organizationId).organization.findFirstOrThrow({ select: { code: true } })).code
+    const input = parseWorkflowReviewers(workbook, code)!
+    expect(await seedWorkflow(p1.organizationId, input, NOW)).toEqual({ created: true, rules: 7 })
+    expect(await seedWorkflow(p1.organizationId, input, NOW)).toEqual({ created: false, rules: 7 })
+    const db = forTenant(p1.organizationId)
+    const version = await db.workflowVersion.findFirstOrThrow({ include: { rules: { orderBy: { sortOrder: 'asc' } } } })
+    const doa = await db.doaVersion.findFirstOrThrow({ where: { versionNo: 1 } })
+    expect([version.code, version.versionNo, version.status, version.effectiveFrom]).toEqual([`WF-${code}`, 1, 'PUBLISHED', doa.effectiveFrom])
+    expect(version.rules.map((r) => r.code)).toEqual(['RV-01', 'RV-02', 'RV-03', 'RV-04', 'RV-05', 'RV-06', 'RV-07'])
+    const lint = await db.$transaction(async (tx) => lintWorkflowVersion(workflowVersionFromRows(version, version.rules), await loadOrgSnapshot(tx), await loadRequestTypeFields(tx), NOW))
+    expect(lint.errors).toEqual([])
+    expect(await db.event.count({ where: { type: 'workflow_version.published', aggregateId: version.id } })).toBe(1)
+    expect(parseWorkflowReviewers(await loadInputWorkbook(INPUT_WORKBOOKS.demo), 'DEMO')).toBeNull()
   })
 })

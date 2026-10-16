@@ -9,7 +9,7 @@ import { appendEvents } from '@/server/events/append'
 import { decideTask, requestInfo } from '@/server/services/approvals/decide'
 import { assignSupplier, consolidateNow, listPool } from '@/server/services/procurement'
 import { cancelPurchaseOrder, editDraftPo, priceHistory, submitPo } from '@/server/services/purchase-orders'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { stepUpForTask } from '../support/pin'
 

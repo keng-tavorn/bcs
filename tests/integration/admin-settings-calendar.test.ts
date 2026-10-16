@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { makeCtx, type Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { checkHolidayImport, getCalendarAdminView, holidayImportTemplate, importHolidayRows, saveBusinessHours } from '@/server/services/calendar'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S2-13 · FR-ADM-003 (BR-SLA-01..03): ORG_ADMIN sets the work days and hours (saved through organization.save_settings)

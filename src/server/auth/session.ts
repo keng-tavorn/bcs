@@ -19,6 +19,8 @@ export interface SessionMember {
   readonly id: string
   readonly organizationId: string
   readonly organizationName: string
+  /** S6-21 (BR-UAT-01): a SANDBOX organization shows the trial-system banner on every page */
+  readonly organizationKind: 'PRODUCTION' | 'SANDBOX'
   readonly displayNameTh: string
   readonly displayNameEn: string | null
   readonly email: string
@@ -136,7 +138,7 @@ export async function resolveSession(headers: Headers, opts: ResolveSessionOptio
   const { userId, sessionId } = validated
   let members = await systemDb.member.findMany({
     where: { userId, status: 'ACTIVE', organization: { status: 'ACTIVE' } },
-    include: { organization: { select: { legalNameTh: true, displayName: true } } },
+    include: { organization: { select: { legalNameTh: true, displayName: true, kind: true } } },
     orderBy: { createdAt: 'asc' },
   })
   if (validated.liffToken !== null) {
@@ -169,6 +171,7 @@ export async function resolveSession(headers: Headers, opts: ResolveSessionOptio
       id: member.id,
       organizationId: member.organizationId,
       organizationName: member.organization.displayName ?? member.organization.legalNameTh,
+      organizationKind: member.organization.kind,
       displayNameTh: member.displayNameTh,
       displayNameEn: member.displayNameEn,
       email: member.email,

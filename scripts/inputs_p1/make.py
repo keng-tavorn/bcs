@@ -121,7 +121,8 @@ def main():
     kv_sheet(sheet('DOA_Policy'), DEFAULT, DOA_POLICY if not blank else [(k, None, l, r) for k, _, l, r in DOA_POLICY])
     table(sheet('Workflow_Reviewers'), REAL, [('ruleCode', 'รหัสข้อ'), ('requestType', 'ประเภทคำขอ'), ('conditionTh', 'เงื่อนไข'),
           ('reviewerPosition', 'ตำแหน่งผู้ตรวจ'), ('reviewerDepartment', 'ฝ่ายของผู้ตรวจ'), ('mode', 'ALL = ต้องครบ · ANY = คนใดคนหนึ่ง'),
-          ('slaBusinessHours', 'SLA ชั่วโมงทำการ'), ('descriptionTh', 'คำอธิบาย (ร่าง)'), ('ref', 'FR')], none(WORKFLOW_REVIEWERS))
+          ('slaBusinessHours', 'SLA ชั่วโมงทำการ'), ('descriptionTh', 'คำอธิบาย (ร่าง)'), ('ref', 'FR'),
+          ('whenJson', 'เงื่อนไขแบบเครื่องอ่าน (JSON · {} = ทุกคำขอ)'), ('fallbackPosition', 'ตำแหน่งผู้สำรอง'), ('fallbackDepartment', 'ฝ่ายของผู้สำรอง')], none(WORKFLOW_REVIEWERS))
     table(sheet('Budget'), REAL, [('fiscalYear', 'ปีงบ'), ('code', 'รหัสบรรทัดงบ (budgetKey-ปี พ.ศ.)'), ('budgetKey', 'กุญแจงบที่ไม่มีปี (คำขอใน Request_History อ้างคอลัมน์นี้)'),
           ('nameTh', 'ชื่อ'), ('department', 'แผนกเจ้าของงบ'), ('costCenter', 'cost center'), ('accountCode', 'รหัสบัญชี'),
           ('planned', 'งบตั้งต้น (บาท ก่อน VAT)'), ('note', 'หมายเหตุ')], none(budget_rows()))

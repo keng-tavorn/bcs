@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { DOA_DOCUMENT_TYPES, type DoaRuleSnapshot } from '@/core/doa'
+import { DOA_DOCUMENT_TYPES, stepApprovers, type DoaRuleSnapshot, type DoaStepSpec } from '@/core/doa'
 import type { ApprovalSubject } from '@/core/sod'
 import { stepUpNeeded } from '@/core/pin'
 import type { Ctx } from '@/server/context'
@@ -41,6 +41,36 @@ export type OrgChangeKind = 'POSITION_ASSIGN' | 'POSITION_END' | 'DEPARTMENT_REP
 
 /** BR-DOA-15: DOA versions and authority changes are approved or rejected with a step-up, on the web or LIFF only */
 export const POLICY_SUBJECTS: readonly TaskSubjectType[] = ['DOA_VERSION', 'ORG_AUTHORITY_CHANGE']
+/**
+ * The subjects decided on the policy decision panel: approved or rejected, every time with the PIN — the policies and a
+ * workflow version to publish (S6 · BR-WF-12, decided on the web only)
+ */
+export const PIN_DECISION_SUBJECTS: readonly TaskSubjectType[] = [...POLICY_SUBJECTS, 'WORKFLOW_VERSION']
+
+/** A workflow version sent to be published, as its approver reads it on the task (FR-WF-103 AC3) */
+export interface WorkflowTaskDto {
+  readonly versionId: string
+  readonly code: string
+  readonly versionNo: number
+  readonly status: string
+  readonly effectiveFrom: Date
+  readonly changeReason: string | null
+  readonly submittedBy: MemberRefDto | null
+  readonly rules: number
+  /** The task decides a withdrawal of the version rather than its publishing (FR-WF-103 · FR-DOA-104); null otherwise */
+  readonly withdrawal: WithdrawalTaskDto | null
+}
+
+/**
+ * A task on the route of a withdrawal (FR-DOA-104 · BR-DOA-18): approving withdraws the version, rejecting keeps it. Who
+ * asked, when and why while it waits or once it is withdrawn (a rejected withdrawal clears them: null then)
+ */
+export interface WithdrawalTaskDto {
+  readonly requestedBy: MemberRefDto | null
+  readonly requestedAt: Date | null
+  readonly reason: string | null
+  readonly withdrawnAt: Date | null
+}
 const OPEN = ['OPEN', 'INFO_REQUESTED'] as const
 
 /** What a task's route says about the step-up its decision needs: the amount the DOA counted and the version's threshold */
@@ -65,6 +95,12 @@ export type InboxSubjectDto =
       readonly netSatang: bigint
     }
   | { readonly kind: 'DOA_VERSION'; readonly code: string; readonly versionNo: number; readonly effectiveFrom: Date }
+  /** A workflow version sent to be published (S6 · FR-WF-103 AC3) */
+  | { readonly kind: 'WORKFLOW_VERSION'; readonly code: string; readonly versionNo: number; readonly effectiveFrom: Date }
+  /** S6-15: a budget transfer, increase or decrease and the amount it moves */
+  | { readonly kind: 'BUDGET_TRANSFER'; readonly number: string | null; readonly transferKind: 'TRANSFER' | 'INCREASE' | 'DECREASE'; readonly amountSatang: bigint }
+  /** S6-16: an over-budget approval, the request it is for and the shortfall asked */
+  | { readonly kind: 'BUDGET_OVERRUN'; readonly number: string; readonly requestNumber: string | null; readonly requestTitle: string; readonly amountSatang: bigint }
   | { readonly kind: 'ORG_AUTHORITY_CHANGE'; readonly changeKind: OrgChangeKind; readonly effectiveFrom: Date }
   /** A purchase order sent for approval (FR-P2P-004): its number, supplier, who sent it and its total with VAT */
   | {
@@ -106,6 +142,8 @@ export interface InboxTaskDto {
   readonly holding: { readonly kind: 'FOR'; readonly member: MemberRefDto } | { readonly kind: 'BY'; readonly member: MemberRefDto } | null
   /** Deciding it needs the PIN (FR-AUTH-005 AC2): a policy task, or an amount at or above the version's stepUpThreshold */
   readonly stepUp: boolean
+  /** A reviewer's task of a REVIEW step (S6): pass, return or ask — no rejection, no PIN */
+  readonly review: boolean
   /** The amount the DOA counted for the route (its basis, BR-DOA-02); null for a route without one, such as a policy */
   readonly amountSatang: bigint | null
   /**
@@ -160,12 +198,15 @@ const INBOX_TASK = {
   principalMemberId: true,
   assignedAt: true,
   dueAt: true,
-  step: { select: { route: { select: STEP_UP_ROUTE } } },
+  step: { select: { kind: true, route: { select: STEP_UP_ROUTE } } },
 } as const
+
+/** A reviewer's task (S6 · BR-WF-09) needs no step-up, whatever the amount; every other as its route says */
+const stepUpOf = (step: { readonly kind: string; readonly route: Parameters<typeof needsStepUp>[0] }) => step.kind !== 'REVIEW' && needsStepUp(step.route)
 
 async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { subjectType: string; subjectId: string } } }>): Promise<(type: string, id: string) => InboxSubjectDto> {
   const ids = (type: string) => [...new Set(tasks.filter((t) => t.step.route.subjectType === type).map((t) => t.step.route.subjectId))]
-  const [requests, versions, changes, departments, pos, variances, invoices, poChanges] = await Promise.all([
+  const [requests, versions, changes, departments, pos, variances, workflows, transfers, overruns, invoices, poChanges] = await Promise.all([
     ids('REQUEST').length
       ? db.request.findMany({
           where: { id: { in: ids('REQUEST') } },
@@ -184,6 +225,11 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
     ids('VARIANCE').length
       ? db.variance.findMany({ where: { id: { in: ids('VARIANCE') } }, select: { id: true, type: true, amountSatang: true, po: { select: { number: true } }, poLine: { select: { description: true } } } })
       : Promise.resolve([]),
+    ids('WORKFLOW_VERSION').length ? db.workflowVersion.findMany({ where: { id: { in: ids('WORKFLOW_VERSION') } }, select: { id: true, code: true, versionNo: true, effectiveFrom: true } }) : Promise.resolve([]),
+    ids('BUDGET_TRANSFER').length ? db.budgetTransfer.findMany({ where: { id: { in: ids('BUDGET_TRANSFER') } }, select: { id: true, number: true, kind: true, amountSatang: true } }) : Promise.resolve([]),
+    ids('BUDGET_OVERRUN').length
+      ? db.budgetOverrun.findMany({ where: { id: { in: ids('BUDGET_OVERRUN') } }, select: { id: true, number: true, shortfallSatang: true, request: { select: { number: true, title: true } } } })
+      : Promise.resolve([]),
     ids('INVOICE').length
       ? db.invoice.findMany({ where: { id: { in: ids('INVOICE') } }, select: { id: true, number: true, po: { select: { number: true } }, supplier: { select: { nameTh: true, payeeType: true } } } })
       : Promise.resolve([]),
@@ -191,6 +237,9 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
       ? db.poChange.findMany({ where: { id: { in: ids('PO_CHANGE') } }, select: { id: true, changeNo: true, newGrossSatang: true, po: { select: { number: true, supplier: { select: { nameTh: true } } } } } })
       : Promise.resolve([]),
   ])
+  const overrun = new Map(overruns.map((o) => [o.id, o]))
+  const transfer = new Map(transfers.map((t) => [t.id, t]))
+  const workflow = new Map(workflows.map((w) => [w.id, w]))
   const request = new Map(requests.map((r) => [r.id, r]))
   const version = new Map(versions.map((v) => [v.id, v]))
   const change = new Map(changes.map((c) => [c.id, c]))
@@ -248,6 +297,18 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
     if (type === 'ORG_AUTHORITY_CHANGE' && change.has(id)) {
       const c = change.get(id)!
       return { kind: 'ORG_AUTHORITY_CHANGE', changeKind: c.kind, effectiveFrom: c.effectiveFrom }
+    }
+    if (type === 'BUDGET_TRANSFER' && transfer.has(id)) {
+      const b = transfer.get(id)!
+      return { kind: 'BUDGET_TRANSFER', number: b.number, transferKind: b.kind, amountSatang: b.amountSatang }
+    }
+    if (type === 'BUDGET_OVERRUN' && overrun.has(id)) {
+      const o = overrun.get(id)!
+      return { kind: 'BUDGET_OVERRUN', number: o.number, requestNumber: o.request.number, requestTitle: o.request.title, amountSatang: o.shortfallSatang }
+    }
+    if (type === 'WORKFLOW_VERSION' && workflow.has(id)) {
+      const w = workflow.get(id)!
+      return { kind: 'WORKFLOW_VERSION', code: w.code, versionNo: w.versionNo, effectiveFrom: w.effectiveFrom }
     }
     return { kind: 'OTHER' }
   }
@@ -317,7 +378,8 @@ export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number; 
         waitingMinutes: businessMinutesWaited(calendar, t.assignedAt, ctx.now, pauses.get(t.id) ?? []),
         overdue: t.status === 'OPEN' && t.dueAt !== null && t.dueAt.getTime() < ctx.now.getTime(),
         holding,
-        stepUp: needsStepUp(t.step.route),
+        stepUp: stepUpOf(t.step),
+        review: t.step.kind === 'REVIEW',
         amountSatang: t.step.route.amountSatang,
         question: asked ? { askedAt: asked, waitingMinutes: businessMinutesSince(calendar, asked, ctx.now) } : null,
       }
@@ -345,7 +407,7 @@ export async function getTaskAccess(ctx: Ctx, taskId: string): Promise<TaskAcces
   const db = forTenant(ctx.organizationId)
   const task = await db.approvalTask.findUnique({
     where: { id: taskId },
-    select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, decidedByMemberId: true, step: { select: { route: { select: STEP_UP_ROUTE } } } },
+    select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, decidedByMemberId: true, step: { select: { kind: true, route: { select: STEP_UP_ROUTE } } } },
   })
   if (!task) return null
   return {
@@ -356,7 +418,7 @@ export async function getTaskAccess(ctx: Ctx, taskId: string): Promise<TaskAcces
     assigneeMemberId: task.assigneeMemberId,
     principalMemberId: task.principalMemberId,
     decidedByMemberId: task.decidedByMemberId,
-    stepUp: needsStepUp(task.step.route),
+    stepUp: stepUpOf(task.step),
   }
 }
 
@@ -393,7 +455,7 @@ export interface DoaVersionContentDto {
   readonly selfApprovalPolicy: 'ESCALATE_NEXT_BAND' | 'BLOCK'
   readonly collapseDuplicateApprovers: boolean
   readonly stepUpThresholdSatang: bigint | null
-  readonly sodPolicy: { readonly approverMayReceive: boolean; readonly requesterMayReceive: boolean }
+  readonly sodPolicy: { readonly approverMayReceive: boolean; readonly requesterMayReceive: boolean; readonly doaAdminSeparated?: boolean }
   readonly rules: readonly DoaRuleSnapshot[]
 }
 
@@ -425,6 +487,8 @@ export type PolicySubjectDto =
       /** The version in effect now, and its open tasks that keep its route to the end (BR-DOA-13) */
       readonly current: { readonly versionId: string; readonly code: string; readonly versionNo: number } | null
       readonly openTasksUnderCurrent: number
+      /** The task decides a withdrawal of the version rather than its publishing (FR-DOA-104); null otherwise */
+      readonly withdrawal: WithdrawalTaskDto | null
       /** The holders approved together with an organization's first version (BR-DOA-19) */
       readonly holders: ReadonlyArray<{ readonly position: PositionNameDto; readonly department: DepartmentRefDto | null; readonly member: MemberRefDto | null }>
       /** The rules and policy the approver is asked to publish; null when a stored rule cannot be read */
@@ -489,8 +553,12 @@ export interface TaskViewDto {
   readonly openQuestion: { readonly id: string; readonly question: string; readonly askedAt: Date } | null
   /** Deciding it needs the PIN (FR-AUTH-005 AC2): a policy task, or an amount at or above the version's stepUpThreshold */
   readonly stepUp: boolean
+  /** A reviewer's task of a REVIEW step (S6): pass, return or ask — no rejection, no PIN */
+  readonly review: boolean
   readonly route: RouteDto | null
   readonly policy: PolicySubjectDto | null
+  /** WORKFLOW_VERSION tasks: the version to publish */
+  readonly workflow: WorkflowTaskDto | null
   /** The timeline of a policy document (a request's comes with getRequestView) */
   readonly track: readonly TrackEntryDto[]
 }
@@ -562,27 +630,29 @@ async function orgChangeOf(db: TenantDb, changeId: string, departments: { byId: 
 }
 
 const SatangText = z.string().regex(/^\d{1,18}$/).transform((v) => BigInt(v))
+const StoredApprover = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('POSITION_OF_DEPARTMENT'), position: z.string().min(1) }),
+  z.object({ kind: z.literal('POSITION_OF_ORG'), position: z.string().min(1) }),
+  z.object({ kind: z.literal('MEMBER'), memberId: z.string().min(1) }),
+])
+const SlaMinutes = z.number().int().positive()
+const StoredCommittee = z.object({
+  approvers: z.array(StoredApprover).min(1),
+  slaBusinessMinutes: SlaMinutes,
+  mode: z.literal('PARALLEL'),
+  quorum: z.enum(['ALL', 'ANY', 'COUNT', 'MAJORITY']),
+  quorumCount: z.number().int().positive().optional(),
+})
 /** DoaRule as stored (when and steps are JSON with satang as text), read as the engine reads it */
 const StoredRule = z.object({
   code: z.string().min(1),
   documentType: z.enum(DOA_DOCUMENT_TYPES),
   priority: z.number().int(),
   when: z.object({ amount: z.object({ gt: SatangText.optional(), gte: SatangText.optional(), lte: SatangText.optional() }).optional() }),
-  steps: z
-    .array(
-      z.object({
-        approver: z.discriminatedUnion('kind', [
-          z.object({ kind: z.literal('POSITION_OF_DEPARTMENT'), position: z.string().min(1) }),
-          z.object({ kind: z.literal('POSITION_OF_ORG'), position: z.string().min(1) }),
-          z.object({ kind: z.literal('MEMBER'), memberId: z.string().min(1) }),
-        ]),
-        slaBusinessMinutes: z.number().int().positive(),
-        mode: z.enum(['SEQUENTIAL', 'PARALLEL']),
-      }),
-    )
-    .min(1),
+  // One approver or a committee (S6 · FR-WF-102), as src/server/doa/snapshot.ts reads them (queries do not import it)
+  steps: z.array(z.union([z.object({ approver: StoredApprover, slaBusinessMinutes: SlaMinutes, mode: z.enum(['SEQUENTIAL', 'PARALLEL']) }), StoredCommittee])).min(1),
 })
-const StoredSodPolicy = z.object({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean() })
+const StoredSodPolicy = z.object({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean(), doaAdminSeparated: z.boolean().optional() })
 
 /** A version's policy and rules in the order they were written; null when the version or one of its rules cannot be read */
 async function doaContentOf(db: TenantDb, versionId: string): Promise<DoaVersionContentDto | null> {
@@ -620,7 +690,7 @@ async function doaContentOf(db: TenantDb, versionId: string): Promise<DoaVersion
             },
           }
         : {},
-      steps: parsed.data.steps.map((s) => ({ approver: s.approver, slaBusinessMinutes: s.slaBusinessMinutes, mode: s.mode })),
+      steps: parsed.data.steps.map((s): DoaStepSpec => ('approvers' in s ? { ...s, approvers: s.approvers.map((a) => ({ ...a })) } : { ...s, approver: { ...s.approver } })),
     })
   }
   return {
@@ -656,6 +726,30 @@ async function baselineOf(db: TenantDb, version: { readonly id: string; readonly
   return { versionId: row.id, code: row.code, versionNo: row.versionNo, effectiveFrom: row.effectiveFrom, relation }
 }
 
+interface WithdrawableRow {
+  readonly status: string
+  readonly approvedAt: Date | null
+  readonly publishedAt: Date | null
+  readonly withdrawalRequestedAt: Date | null
+  readonly withdrawalRequestedById: string | null
+  readonly withdrawalReason: string | null
+  readonly withdrawnAt: Date | null
+}
+
+/**
+ * Whether a route of a version is its withdrawal's: made after the version was approved (its publishing route was made
+ * before), and what the approver reads of it — who asked, when and why, kept while it waits and once it is withdrawn
+ */
+async function withdrawalOf(db: TenantDb, version: WithdrawableRow, routeId: string): Promise<WithdrawalTaskDto | null> {
+  const approved = version.approvedAt ?? version.publishedAt
+  if (!approved) return null
+  const route = await db.approvalRoute.findUnique({ where: { id: routeId }, select: { createdAt: true } })
+  if (!route || route.createdAt.getTime() <= approved.getTime()) return null
+  const asked = (version.status === 'PUBLISHED' && version.withdrawalRequestedAt !== null) || version.status === 'WITHDRAWN'
+  const by = asked && version.withdrawalRequestedById ? (await membersById(db, [version.withdrawalRequestedById])).get(version.withdrawalRequestedById) ?? null : null
+  return { requestedBy: by, requestedAt: asked ? version.withdrawalRequestedAt : null, reason: asked ? version.withdrawalReason : null, withdrawnAt: version.status === 'WITHDRAWN' ? version.withdrawnAt : null }
+}
+
 async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: string, departments: { byId: Map<string, DepartmentRefDto> }): Promise<PolicySubjectDto | null> {
   const version = await db.doaVersion.findUnique({ where: { id: versionId }, include: { _count: { select: { rules: true } } } })
   if (!version) return null
@@ -668,7 +762,7 @@ async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: 
   // What the approver publishes, and the version it is compared with (FR-DOA-002 AC2, FR-DOA-009 AC1, AC3)
   const baseline = await baselineOf(db, version, now)
   const [content, baselineContent] = await Promise.all([doaContentOf(db, version.id), baseline ? doaContentOf(db, baseline.versionId) : Promise.resolve(null)])
-  const approvers = [...(content?.rules ?? []), ...(baselineContent?.rules ?? [])].flatMap((r) => r.steps.map((s) => s.approver))
+  const approvers = [...(content?.rules ?? []), ...(baselineContent?.rules ?? [])].flatMap((r) => r.steps.flatMap(stepApprovers))
   const positionCodes = [...new Set(approvers.flatMap((a) => (a.kind === 'MEMBER' ? [] : [a.position])))]
   const [positionRows, memberNames] = await Promise.all([
     positionCodes.length ? db.position.findMany({ where: { code: { in: positionCodes } }, select: { code: true, nameTh: true, nameEn: true } }) : Promise.resolve([]),
@@ -697,6 +791,7 @@ async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: 
     ruleCount: version._count.rules,
     current: current && current.id !== version.id ? { versionId: current.id, code: current.code, versionNo: current.versionNo } : null,
     openTasksUnderCurrent: current && current.id !== version.id ? openTasksUnderCurrent : 0,
+    withdrawal: await withdrawalOf(db, version, routeId),
     holders: payloads.map((p) => {
       const code = text(p.positionCode) ?? ''
       const position = positions.find((x) => x.code === code)
@@ -781,7 +876,7 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
   const task = await db.approvalTask.findUnique({
     where: { id: taskId },
     include: {
-      step: { select: { routeId: true, route: { select: STEP_UP_ROUTE } } },
+      step: { select: { routeId: true, kind: true, route: { select: STEP_UP_ROUTE } } },
       reassignedTo: { select: { assigneeMemberId: true }, orderBy: { assignedAt: 'desc' }, take: 1 },
       // Every question of the task: the open one waits for the requester, and all of them paused its SLA (BR-SLA-03)
       infoRequests: { orderBy: { askedAt: 'desc' }, select: { id: true, question: true, askedAt: true, answeredAt: true } },
@@ -810,6 +905,25 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
     track = await historyOf(db, events, new Map(tasks.map((t) => [t.id, t.resolvedFrom])), roleOf)
   }
 
+  let workflow: WorkflowTaskDto | null = null
+  if (subjectType === 'WORKFLOW_VERSION') {
+    const v = await db.workflowVersion.findFirst({ where: { id: subjectId }, include: { _count: { select: { rules: true } } } })
+    if (v) {
+      const by = await membersById(db, [v.submittedById])
+      workflow = {
+        versionId: v.id,
+        code: v.code,
+        versionNo: v.versionNo,
+        status: v.status,
+        effectiveFrom: v.effectiveFrom,
+        changeReason: v.changeReason,
+        submittedBy: v.submittedById ? (by.get(v.submittedById) ?? null) : null,
+        rules: v._count.rules,
+        withdrawal: await withdrawalOf(db, v, task.step.routeId),
+      }
+    }
+  }
+
   const open = task.status === 'OPEN' || task.status === 'INFO_REQUESTED'
   const unanswered = task.infoRequests.find((i) => i.answeredAt === null)
   return {
@@ -833,9 +947,11 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
     cancelledWhy: why && (CANCELLED_WHY as readonly string[]).includes(why) ? (why as (typeof CANCELLED_WHY)[number]) : null,
     stepDecision,
     openQuestion: task.status === 'INFO_REQUESTED' && unanswered ? { id: unanswered.id, question: unanswered.question, askedAt: unanswered.askedAt } : null,
-    stepUp: needsStepUp(task.step.route),
+    stepUp: stepUpOf(task.step),
+    review: task.step.kind === 'REVIEW',
     route,
     policy,
+    workflow,
     track,
   }
 }

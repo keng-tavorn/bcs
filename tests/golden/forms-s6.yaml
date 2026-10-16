@@ -1,0 +1,24 @@
+# tests/golden/forms-s6.yaml
+suite: forms-s6
+settings: { milestoneDays: [60, 30] }
+# formLint: ฟอร์ม HIRE_SERVICE (prisma/seed/forms.yaml) · กฎเอกสารแนบ และกฎ workflow (fixtures/workflow-versions.yaml) ที่อ่าน field
+formLint: { fields: [processesPersonalData, accessesSystems, accessesPremises], rules: { ATT-DPA: [processesPersonalData] }, workflowRules: { RV-02: [processesPersonalData] } }
+cases:
+  # S6-12 · เตือนต่ออายุ (BR-FORM-08)
+  - { id: GC-FORM-12, fn: renewalMilestoneDue, input: { daysLeft: 61, sent: [] }, expect: null }
+  - { id: GC-FORM-13, fn: renewalMilestoneDue, input: { daysLeft: 60, sent: [] }, expect: 60 }
+  - { id: GC-FORM-14, title: job พลาดวัน ยังส่งของ 60, fn: renewalMilestoneDue, input: { daysLeft: 45, sent: [] }, expect: 60 }
+  - { id: GC-FORM-15, fn: renewalMilestoneDue, input: { daysLeft: 30, sent: [60] }, expect: 30 }
+  - { id: GC-FORM-16, title: เหลือน้อยกว่า 30 ส่งเฉพาะ 30, fn: renewalMilestoneDue, input: { daysLeft: 25, sent: [] }, expect: 30 }
+  - { id: GC-FORM-17, fn: renewalMilestoneDue, input: { daysLeft: 30, sent: [60, 30] }, expect: null }
+  - { id: GC-FORM-18, title: หมดอายุแล้วไม่ส่ง, fn: renewalMilestoneDue, input: { daysLeft: -1, sent: [] }, expect: null }
+  - { id: GC-FORM-19, title: วันตามเวลาไทย, fn: daysLeft, input: { at: "2026-10-11T17:00:00Z", serviceEndDate: "2026-12-11" }, expect: 60 }
+  # S6-12 · ขอซ้ำ (BR-FORM-07)
+  - id: GC-FORM-20
+    title: ขอซ้ำคัดลอกเฉพาะที่ยังมีในฟอร์มปัจจุบัน
+    fn: reorderDraft
+    input: { currentFields: [processesPersonalData, accessesSystems, accessesPremises], source: { fields: { processesPersonalData: "Y", legacyField: "x" }, lines: [{ d: ค่ารักษาความปลอดภัย, uom: คน-เดือน, qty: "24", unitPrice: "18500.00", serviceEndDate: "2026-11-10" }], attachments: { DPA: 1, QUOTATION: 3 }, quotations: 3, budgetLine: HRA-GA-OPEX-2569 } }
+    expect: { fields: { processesPersonalData: "Y" }, droppedFields: [legacyField], lines: [{ qty: "24", unitPrice: "18500.00", serviceEndDate: null, priceSource: SOURCE_REQUEST }], attachments: {}, quotations: 0, budgetLine: null }
+  - { id: GC-FORM-21, title: ขอซ้ำใช้ราคาตกลงที่มีผล, fn: reorderDraft, input: { currentFields: [], source: { fields: {}, lines: [{ item: MAT-004, supplier: S1, qty: "100", unitPrice: "185.00" }] }, agreements: [{ item: MAT-004, supplier: S1, unitPrice: "177.00" }] }, expect: { lines: [{ qty: "100", unitPrice: "177.00", priceSource: AGREEMENT }] } }
+  # S6-14 · lint ฟอร์ม (BR-FORM-09) · ฉบับที่ใช้อยู่และสิ่งที่อ่านแต่ละ field อยู่ใน formLint ด้านบน · input บอกว่า field ไหนถูกลบ และกฎใดยังอยู่
+  - { id: GC-FORM-22, fn: lintFormVersion, input: { removeFields: [processesPersonalData], rules: [ATT-DPA], workflowRules: [RV-02] }, expect: { errors: [{ code: FORM_LINT_REFERENCED_FIELD, field: processesPersonalData, by: [ATT-DPA, RV-02] }] } }

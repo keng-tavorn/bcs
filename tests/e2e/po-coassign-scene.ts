@@ -9,7 +9,7 @@ import { decideTask } from '@/server/services/approvals/decide'
 import { markNotificationsRead } from '@/server/services/notifications'
 import { assignSupplier } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { escalateTask, markTaskOverdue, planTaskSla } from '@/server/services/sla'
 import { E2E_DB } from '../support/e2e-env'
 

@@ -32,10 +32,12 @@ export interface WorkspaceShellProps {
   readonly newRequest?: { readonly href: string; readonly label: string; readonly types: readonly CatalogEntry[]; readonly countDrafts: () => Promise<number> }
   /** The ⌘K search (FR-PLT-014): rendered once, as its keyboard shortcut listens on the whole page */
   readonly search?: ReactNode
+  /** Over every page, the full-screen request form included: the UAT sandbox's trial-system banner (S6-21, BR-UAT-01) */
+  readonly banner?: ReactNode
   readonly children: ReactNode
 }
 
-export function WorkspaceShell({ brand, orgName, labels, nav, pages = [], sidebarOpen, user, account, bell, newRequest, search, children }: WorkspaceShellProps) {
+export function WorkspaceShell({ brand, orgName, labels, nav, pages = [], sidebarOpen, user, account, bell, newRequest, search, banner, children }: WorkspaceShellProps) {
   return (
     <ShellFrame defaultOpen={sidebarOpen}>
       <a
@@ -72,6 +74,7 @@ export function WorkspaceShell({ brand, orgName, labels, nav, pages = [], sideba
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {banner}
         <header className={`sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-line bg-bg px-3 sm:gap-2 sm:px-4 lg:px-6 ${SHELL_HIDDEN}`}>
           <SidebarTrigger className="size-11 shrink-0 lg:size-10" />
           <ShellBreadcrumb entries={pages} />

@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { createDelegation } from '@/server/services/delegations'
 import { deactivateMember } from '@/server/services/members'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
 

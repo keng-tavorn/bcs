@@ -10,7 +10,7 @@ import { getDownloadUrl } from '@/server/services/files'
 import { computeKpis } from '@/server/services/reports/kpi'
 import { createReportSchedule, exportReport, runDueReportSchedules, runReport } from '@/server/services/reports'
 import { kpiDetail } from '@/server/services/reports/screens'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S4-11 (spec §11.3, §11.4, FR-VIS-002 AC1 AC3, FR-VIS-003 AC1): the KPI view G-1 to G-5 from events, checked on data

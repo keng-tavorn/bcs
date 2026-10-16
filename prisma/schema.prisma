@@ -19,6 +19,12 @@ enum OrganizationStatus {
   SUSPENDED
 }
 
+/// S6 (FR-PLT-101): a SANDBOX is a UAT tenant of a production organization in the same deployment (ADR-110)
+enum OrganizationKind {
+  PRODUCTION
+  SANDBOX
+}
+
 model Organization {
   id                          String             @id @default(uuid(7)) @db.Uuid
   code                        String             @unique
@@ -103,6 +109,23 @@ model Organization {
   lineWebhookEvents      LineWebhookEvent[]
 
   // --- S6 ---
+  /// Set by PLATFORM_ADMIN when the tenant is created, never changed (BR-UAT-01, OQ-108)
+  kind                    OrganizationKind       @default(PRODUCTION)
+  /// The production organization a SANDBOX belongs to; nothing is copied from it (BR-UAT-04)
+  sandboxOfOrganizationId String?                @db.Uuid
+  sandboxOf               Organization?          @relation("OrganizationSandbox", fields: [sandboxOfOrganizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sandboxes               Organization[]         @relation("OrganizationSandbox")
+  backtestRuns            BacktestRun[]
+  workflowVersions        WorkflowVersion[]
+  workflowRules           WorkflowRule[]
+  workflowTestCases       WorkflowTestCase[]
+  budgetTransfers         BudgetTransfer[]
+  budgetOverruns          BudgetOverrun[]
+  requestFlags            RequestFlag[]
+  catalogItems            CatalogItem[]
+  priceAgreements         PriceAgreement[]
+  documentVerifications   DocumentVerification[]
+  configPackages          ConfigPackage[]
 
   // --- S8 S9 ---
   invoices            Invoice[]
@@ -238,6 +261,16 @@ model Member {
   channelLinkCodes      ChannelLinkCode[]     @relation("ChannelLinkCodeMember")
 
   // --- S6 ---
+  workflowVersionsSubmitted WorkflowVersion[] @relation("WorkflowVersionSubmittedBy")
+  workflowVersionsApproved  WorkflowVersion[] @relation("WorkflowVersionApprovedBy")
+  workflowWithdrawalsAsked  WorkflowVersion[] @relation("WorkflowVersionWithdrawalRequestedBy")
+  doaWithdrawalsAsked       DoaVersion[]      @relation("DoaVersionWithdrawalRequestedBy")
+  backtestRuns              BacktestRun[]     @relation("BacktestRunRequestedBy")
+  budgetTransfersSubmitted  BudgetTransfer[]  @relation("BudgetTransferSubmittedBy")
+  budgetOverrunsSubmitted   BudgetOverrun[]   @relation("BudgetOverrunSubmittedBy")
+  requestFlagsAcknowledged  RequestFlag[]     @relation("RequestFlagAcknowledgedBy")
+  priceAgreementsCreated    PriceAgreement[]  @relation("PriceAgreementCreatedBy")
+  configPackagesCreated     ConfigPackage[]   @relation("ConfigPackageCreatedBy")
 
   // --- S8 S9 ---
   apInvoicesCreated     Invoice[]            @relation("ApInvoiceCreatedBy")
@@ -283,6 +316,8 @@ enum RoleCode {
   REVIEWER_LEGAL
   REVIEWER_FINANCE
   REVIEWER_INFOSEC
+  /// S6 (FR-ADM-101, BR-WF-16): admin.doa.* admin.workflow.* config.* without any approval right
+  DOA_ADMIN
 }
 
 model RoleAssignment {
@@ -488,6 +523,7 @@ model FileObject {
   exportJobs        ExportJob[]           @relation("ExportJobFile")
 
   // --- S6 ---
+  configPackages ConfigPackage[]
 
   // --- S8 S9 ---
   apInvoiceSources Invoice[]        @relation("ApInvoiceSourceFile")
@@ -1050,6 +1086,17 @@ model Request {
   suggestedSupplier Supplier?     @relation("RequestSuggestedSupplier", fields: [organizationId, suggestedSupplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   // --- S6 ---
+  /// The request a reorder copied (BR-FORM-07)
+  sourceRequestId        String?         @db.Uuid
+  /// The service line this request renews (BR-FORM-08)
+  renewalOfRequestLineId String?         @db.Uuid
+  /// Why a catalogue item with a price agreement goes to another supplier (BR-PRC-06 AGREEMENT_OFF)
+  offAgreementReason     String?
+  sourceRequest          Request?        @relation("RequestReorderSource", fields: [organizationId, sourceRequestId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  reorders               Request[]       @relation("RequestReorderSource")
+  renewalOfLine          RequestLine?    @relation("RequestRenewalOfLine", fields: [organizationId, renewalOfRequestLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  overruns               BudgetOverrun[]
+  flags                  RequestFlag[]
 
   // --- S8 S9 ---
 
@@ -1060,6 +1107,7 @@ model Request {
 
   @@unique([organizationId, id])
   @@unique([organizationId, number])
+  @@index([organizationId, requesterMemberId, submittedAt])
   @@index([organizationId, status])
   @@index([organizationId, requesterMemberId])
 }
@@ -1093,8 +1141,19 @@ model RequestLine {
   supplier  Supplier?      @relation("RequestLineSupplier", fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   poSources PoLineSource[]
 
+  // --- S6 ---
+  /// The line's own budget line; null = the request's (BR-BUD-16, ADR-106)
+  budgetLineId     String?         @db.Uuid
+  catalogItemId    String?         @db.Uuid
+  priceAgreementId String?         @db.Uuid
+  budgetLine       BudgetLine?     @relation("RequestLineBudgetLine", fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  catalogItem      CatalogItem?    @relation(fields: [organizationId, catalogItemId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  priceAgreement   PriceAgreement? @relation(fields: [organizationId, priceAgreementId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  renewals         Request[]       @relation("RequestRenewalOfLine")
+
   @@unique([organizationId, id])
   @@unique([organizationId, requestId, lineNo])
+  @@index([organizationId, catalogItemId])
 }
 
 /// Quotations as data (BR-FORM-06)
@@ -1162,6 +1221,36 @@ model InfoRequest {
 
   @@unique([organizationId, id])
   @@index([organizationId, requestId])
+}
+
+// ===== S6 · duplicate and split flags (FR-INT-103 · BR-DUP-01 to 05 · ADR-107) =====
+
+enum RequestFlagKind {
+  DUPLICATE
+  SPLIT
+}
+
+/// Written in the transaction of submit and resubmit (BR-DUP-05); append-only (trigger request_flag_append_only)
+model RequestFlag {
+  id                 String          @id @default(uuid(7)) @db.Uuid
+  organizationId     String          @db.Uuid
+  requestId          String          @db.Uuid
+  /// The route the submit created: a resubmit is checked again
+  routeNo            Int
+  kind               RequestFlagKind
+  matchedRequestIds  String[]        @db.Uuid
+  /// The totals and DOA rules behind the flag
+  detail             Json
+  acknowledgedReason String?
+  acknowledgedById   String?         @db.Uuid
+  createdAt          DateTime        @default(now()) @db.Timestamptz(6)
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  request        Request      @relation(fields: [organizationId, requestId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  acknowledgedBy Member?      @relation("RequestFlagAcknowledgedBy", fields: [organizationId, acknowledgedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, requestId, routeNo, kind])
 }
 
 // ---------- DOA and approvals (§6.2, §7.4) ----------
@@ -1237,6 +1326,13 @@ model DoaVersion {
   testCases    DoaTestCase[]
   routes       ApprovalRoute[]
 
+  // --- S6 ---
+  /// A withdrawal of a PUBLISHED version not yet in effect waits for its own DOA_CHANGE route (BR-DOA-18, FR-DOA-104)
+  withdrawalRequestedAt   DateTime? @db.Timestamptz(6)
+  withdrawalRequestedById String?   @db.Uuid
+  withdrawalReason        String?
+  withdrawalRequestedBy   Member?   @relation("DoaVersionWithdrawalRequestedBy", fields: [organizationId, withdrawalRequestedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
   @@unique([organizationId, id])
   @@unique([organizationId, code, versionNo])
 }
@@ -1276,6 +1372,101 @@ model DoaTestCase {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   doaVersion   DoaVersion   @relation(fields: [organizationId, doaVersionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+}
+
+// ===== S6 · parallel reviewers (FR-WF-101 FR-WF-103 · ADR-102) =====
+
+enum WorkflowVersionStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PUBLISHED
+  SUPERSEDED
+  REJECTED
+  WITHDRAWN
+}
+
+/// The reviewer rules of one organization, versioned like DoaVersion: a published version never changes, versions in
+/// effect never overlap (exclusion workflow_no_overlap), and publishing goes through a DOA_CHANGE route (BR-WF-12)
+model WorkflowVersion {
+  id                      String                @id @default(uuid(7)) @db.Uuid
+  organizationId          String                @db.Uuid
+  code                    String
+  versionNo               Int
+  status                  WorkflowVersionStatus @default(DRAFT)
+  effectiveFrom           DateTime              @db.Timestamptz(6)
+  effectiveTo             DateTime?             @db.Timestamptz(6)
+  changeReason            String?
+  diffSummary             Json?
+  checksum                String?
+  /// When the dry-run last ran against the latest draft; an update clears it and submit needs it (§6.4 WorkflowVersion)
+  dryRunAt                DateTime?             @db.Timestamptz(6)
+  submittedById           String?               @db.Uuid
+  approvedById            String?               @db.Uuid
+  submittedAt             DateTime?             @db.Timestamptz(6)
+  approvedAt              DateTime?             @db.Timestamptz(6)
+  publishedAt             DateTime?             @db.Timestamptz(6)
+  withdrawnAt             DateTime?             @db.Timestamptz(6)
+  withdrawalRequestedAt   DateTime?             @db.Timestamptz(6)
+  withdrawalRequestedById String?               @db.Uuid
+  withdrawalReason        String?
+  version                 Int                   @default(0)
+  createdAt               DateTime              @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime              @updatedAt @db.Timestamptz(6)
+
+  organization          Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  submittedBy           Member?            @relation("WorkflowVersionSubmittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  approvedBy            Member?            @relation("WorkflowVersionApprovedBy", fields: [organizationId, approvedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  withdrawalRequestedBy Member?            @relation("WorkflowVersionWithdrawalRequestedBy", fields: [organizationId, withdrawalRequestedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  rules                 WorkflowRule[]
+  testCases             WorkflowTestCase[]
+  routes                ApprovalRoute[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code, versionNo])
+}
+
+/// One reviewer rule (BR-WF-06): ALL and ANY name one reviewer, COUNT names two or more and needs quorumCount
+model WorkflowRule {
+  id                 String         @id @default(uuid(7)) @db.Uuid
+  organizationId     String         @db.Uuid
+  workflowVersionId  String         @db.Uuid
+  code               String
+  requestTypeCodes   String[]
+  /// Condition of §7.9 with the variables of BR-WF-07
+  when               Json
+  /// ReviewerSpec[]: { kind: POSITION_AT, position, department } or { kind: MEMBER, member }
+  reviewers          Json
+  fallback           Json?
+  mode               ApprovalQuorum
+  quorumCount        Int?
+  slaBusinessMinutes Int
+  descriptionTh      String?
+  sortOrder          Int            @default(0)
+  createdAt          DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime       @updatedAt @db.Timestamptz(6)
+
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  workflowVersion WorkflowVersion @relation(fields: [organizationId, workflowVersionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, workflowVersionId, code])
+}
+
+/// Every case must pass before the version can be submitted (as BR-DOA-08 (ง))
+model WorkflowTestCase {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  organizationId    String   @db.Uuid
+  workflowVersionId String   @db.Uuid
+  name              String
+  input             Json
+  expected          Json
+  createdAt         DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(6)
+
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  workflowVersion WorkflowVersion @relation(fields: [organizationId, workflowVersionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([organizationId, id])
 }
@@ -1328,6 +1519,11 @@ model ApprovalRoute {
   currentForVariances      Variance[]      @relation("VarianceCurrentRoute")
 
   // --- S6 ---
+  /// The reviewer version of a request route that has a REVIEW step (BR-WF-06)
+  workflowVersionId         String?          @db.Uuid
+  workflowVersion           WorkflowVersion? @relation(fields: [organizationId, workflowVersionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentForBudgetTransfers BudgetTransfer[] @relation("BudgetTransferCurrentRoute")
+  currentForBudgetOverruns  BudgetOverrun[]  @relation("BudgetOverrunCurrentRoute")
 
   // --- S8 S9 ---
   currentForInvoices  Invoice[]  @relation("InvoiceCurrentRoute")
@@ -1359,6 +1555,12 @@ enum ApprovalStepStatus {
   CANCELLED
 }
 
+/// S6: APPROVAL = a step of the DOA route · REVIEW = the parallel reviewers before it (BR-WF-06)
+enum ApprovalStepKind {
+  APPROVAL
+  REVIEW
+}
+
 model ApprovalStep {
   id                 String             @id @default(uuid(7)) @db.Uuid
   organizationId     String             @db.Uuid
@@ -1375,6 +1577,13 @@ model ApprovalStep {
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   route        ApprovalRoute  @relation(fields: [organizationId, routeId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   tasks        ApprovalTask[]
+
+  // --- S6 ---
+  kind         ApprovalStepKind @default(APPROVAL)
+  /// The step number of resolveRoute; null for the REVIEW step. The next step's approvers are found with it (BR-WF-06)
+  doaStepNo    Int?
+  /// REVIEW only: [{ ruleCodes, quorum, quorumCount?, slotNos }] (BR-WF-01, BR-WF-06)
+  reviewGroups Json?
 
   @@unique([organizationId, id])
   @@unique([organizationId, routeId, stepNo])
@@ -1434,6 +1643,12 @@ model ApprovalTask {
   infoRequests   InfoRequest[]
 
   actionTokens ActionToken[]
+
+  // --- S6 ---
+  /// The slot of the step the task fills (BR-WF-01); every task before S6 is slot 1
+  slotNo            Int      @default(1)
+  /// The reviewer rules a REVIEW slot answers for (a merged slot keeps them all, BR-WF-02)
+  workflowRuleCodes String[] @default([])
 
   @@unique([organizationId, id])
   @@index([organizationId, assigneeMemberId, status])
@@ -1623,6 +1838,10 @@ model BudgetLine {
   poLines PoLine[]
 
   // --- S6 ---
+  transfersOut BudgetTransfer[] @relation("BudgetTransferFrom")
+  transfersIn  BudgetTransfer[] @relation("BudgetTransferTo")
+  overruns     BudgetOverrun[]
+  requestLines RequestLine[]    @relation("RequestLineBudgetLine")
 
   // --- S8 S9 ---
 
@@ -1689,6 +1908,9 @@ model BudgetLineBalance {
 enum BudgetSourceType {
   REQUEST_LINE
   PO_LINE
+  /// S6: the reservation of a transfer's source line, and the earmark of an approved overrun (BR-BUD-10, BR-BUD-13)
+  BUDGET_TRANSFER
+  BUDGET_OVERRUN
 }
 
 /// Projection per document line (INV-BUD-03); the dashboard drills down through it (FR-BUD-005 AC2)
@@ -1761,6 +1983,107 @@ model BudgetImport {
   @@index([organizationId, checksum])
 }
 
+// ===== S6 · budget transfer and over-budget approval (FR-BUD-101 FR-BUD-103 · ADR-104 ADR-105) =====
+
+enum BudgetTransferKind {
+  TRANSFER
+  INCREASE
+  DECREASE
+}
+
+enum BudgetTransferStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  RETURNED
+  CANCELLED
+}
+
+/// A transfer between two lines of one fiscal year, or an increase or decrease of one line, approved by the
+/// BUDGET_TRANSFER rule of the DOA (BR-BUD-10, BR-BUD-11). CHECK budget_transfer_lines: which lines each kind has
+model BudgetTransfer {
+  id               String               @id @default(uuid(7)) @db.Uuid
+  organizationId   String               @db.Uuid
+  /// null while DRAFT; issued at submit (numbering.BT)
+  number           String?
+  kind             BudgetTransferKind
+  fromBudgetLineId String?              @db.Uuid
+  toBudgetLineId   String?              @db.Uuid
+  amountSatang     BigInt
+  reason           String
+  status           BudgetTransferStatus @default(DRAFT)
+  submittedById    String               @db.Uuid
+  submittedAt      DateTime?            @db.Timestamptz(6)
+  decidedAt        DateTime?            @db.Timestamptz(6)
+  currentRouteId   String?              @db.Uuid
+  version          Int                  @default(0)
+  createdAt        DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime             @updatedAt @db.Timestamptz(6)
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  fromBudgetLine BudgetLine?    @relation("BudgetTransferFrom", fields: [organizationId, fromBudgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  toBudgetLine   BudgetLine?    @relation("BudgetTransferTo", fields: [organizationId, toBudgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  submittedBy    Member         @relation("BudgetTransferSubmittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute   ApprovalRoute? @relation("BudgetTransferCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
+}
+
+enum BudgetOverrunStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  RETURNED
+  CANCELLED
+  CONSUMED
+  LAPSED
+}
+
+/// Over-budget approval of one request on one budget line, approved before the request is submitted (OQ-104 (ก)):
+/// the shortfall X is funded and earmarked, used at submit, and what is not used goes back outside (BR-BUD-12 to 18)
+model BudgetOverrun {
+  id                     String              @id @default(uuid(7)) @db.Uuid
+  organizationId         String              @db.Uuid
+  number                 String
+  requestId              String              @db.Uuid
+  budgetLineId           String              @db.Uuid
+  requestNetSatang       BigInt
+  /// X: the amount approved to fund (> 0)
+  shortfallSatang        BigInt
+  /// Used at submit (BR-BUD-14)
+  usedSatang             BigInt              @default(0)
+  /// Returned at use or lapse (BR-BUD-14, BR-BUD-15)
+  returnedSatang         BigInt              @default(0)
+  /// Returned after use when the request gives budget back (BR-BUD-18)
+  returnedAfterUseSatang BigInt              @default(0)
+  reason                 String
+  status                 BudgetOverrunStatus @default(PENDING_APPROVAL)
+  submittedById          String              @db.Uuid
+  submittedAt            DateTime            @db.Timestamptz(6)
+  approvedAt             DateTime?           @db.Timestamptz(6)
+  lapsesAt               DateTime?           @db.Timestamptz(6)
+  consumedAt             DateTime?           @db.Timestamptz(6)
+  currentRouteId         String?             @db.Uuid
+  version                Int                 @default(0)
+  createdAt              DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime            @updatedAt @db.Timestamptz(6)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  request      Request        @relation(fields: [organizationId, requestId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine   BudgetLine     @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  submittedBy  Member         @relation("BudgetOverrunSubmittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute ApprovalRoute? @relation("BudgetOverrunCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  // One live overrun per request and budget line
+  @@unique([organizationId, requestId, budgetLineId], map: "budget_overrun_live_unique", where: raw("status = ANY (ARRAY['PENDING_APPROVAL'::\"BudgetOverrunStatus\", 'APPROVED'::\"BudgetOverrunStatus\"])"))
+  @@index([organizationId, budgetLineId, status])
+}
+
 // ===== S4 · suppliers, delivery sites, purchase orders, receiving, invoices, exports, action tokens (S4-01) =====
 
 enum SupplierStatus {
@@ -1817,6 +2140,7 @@ model Supplier {
   invoiceConfirmations InvoiceConfirmation[]
 
   // --- S6 ---
+  priceAgreements PriceAgreement[]
 
   // --- S8 S9 ---
   /// Withholding tax and payment profile (BR-WHT-03, BR-WHT-04, BR-AP-07); bank accounts are S9
@@ -1859,6 +2183,119 @@ model DeliverySite {
 
   @@unique([organizationId, id])
   @@unique([organizationId, code])
+}
+
+// ===== S6 · catalogue, price agreements, document verification, configuration packages =====
+
+/// A catalogue item (FR-INT-102): the agreed price lives in PriceAgreement, never here; S8 reads accountCode and
+/// whtIncomeType
+model CatalogItem {
+  id                 String   @id @default(uuid(7)) @db.Uuid
+  organizationId     String   @db.Uuid
+  code               String
+  nameTh             String
+  nameEn             String?
+  uom                String
+  categoryCode       String
+  isService          Boolean  @default(false)
+  accountCode        String?
+  whtIncomeType      String?
+  /// Before VAT
+  refUnitPriceSatang BigInt   @default(0)
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @db.Timestamptz(6)
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  priceAgreements PriceAgreement[]
+  requestLines    RequestLine[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+}
+
+/// The agreed unit price of one item from one supplier for [validFrom, validTo); periods never overlap
+/// (exclusion price_agreement_no_overlap · BR-PRC-06)
+model PriceAgreement {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  organizationId  String    @db.Uuid
+  catalogItemId   String    @db.Uuid
+  supplierId      String    @db.Uuid
+  /// Before VAT, > 0
+  unitPriceSatang BigInt
+  validFrom       DateTime  @db.Date
+  /// Not included
+  validTo         DateTime  @db.Date
+  sourceRef       String?
+  endedAt         DateTime? @db.Timestamptz(6)
+  createdById     String?   @db.Uuid
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  catalogItem  CatalogItem   @relation(fields: [organizationId, catalogItemId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier     Supplier      @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy    Member?       @relation("PriceAgreementCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  requestLines RequestLine[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, catalogItemId])
+}
+
+enum VerificationSubjectType {
+  REQUEST
+  PURCHASE_ORDER
+}
+
+/// The QR of a printed PR or PO (FR-DOA-102 · BR-QR-01): a row is issued only by a POST command whose printed content
+/// changed; the raw token is never stored, only tokenHash = lower-case hex sha256 of the token string
+model DocumentVerification {
+  id             String                  @id @default(uuid(7)) @db.Uuid
+  organizationId String                  @db.Uuid
+  subjectType    VerificationSubjectType
+  subjectId      String                  @db.Uuid
+  tokenHash      String                  @unique
+  /// The key the token was computed with
+  keyId          String
+  /// sha256 of the printed content without status and approvals
+  contentSha256  String
+  issuedAt       DateTime                @db.Timestamptz(6)
+  supersededAt   DateTime?               @db.Timestamptz(6)
+  createdAt      DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime                @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, subjectType, subjectId, issuedAt])
+}
+
+enum ConfigPackageDirection {
+  EXPORT
+  IMPORT
+}
+
+/// A configuration package exported from or imported into an organization (FR-PLT-101 · BR-UAT-02 · BR-UAT-03);
+/// append-only (trigger config_package_append_only)
+model ConfigPackage {
+  id             String                 @id @default(uuid(7)) @db.Uuid
+  organizationId String                 @db.Uuid
+  direction      ConfigPackageDirection
+  schemaVersion  Int
+  checksum       String
+  fileId         String                 @db.Uuid
+  summary        Json
+  createdById    String                 @db.Uuid
+  /// The drafts an import created
+  createdObjects Json                   @default("{}")
+  createdAt      DateTime               @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  file         FileObject   @relation(fields: [organizationId, fileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy    Member       @relation("ConfigPackageCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, createdAt])
 }
 
 /// Goods or a service: lines of different kinds never share a PO (BR-CONS-01)
@@ -3416,4 +3853,35 @@ model SupplierNotice {
   @@unique([organizationId, id])
   @@unique([organizationId, dedupeKey])
   @@index([organizationId, status])
+}
+
+/// S6-07 (FR-DOA-103 AC3 · ADR-111): the 90-day backtest of a DOA or workflow draft with more documents than a page
+/// waits for, run by the job backtest-run. Read only: it writes its own result and no business data
+model BacktestRun {
+  id             String              @id @default(uuid(7)) @db.Uuid
+  organizationId String              @db.Uuid
+  /// DOA_VERSION or WORKFLOW_VERSION: the draft tried
+  subjectType    ApprovalSubjectType
+  subjectId      String              @db.Uuid
+  status         BacktestRunStatus   @default(PENDING)
+  documentCount  Int
+  /// The rows and the summary (BacktestResult of src/core/workflow), once DONE
+  result         Json?
+  error          String?
+  requestedById  String              @db.Uuid
+  completedAt    DateTime?           @db.Timestamptz(6)
+  createdAt      DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requestedBy  Member       @relation("BacktestRunRequestedBy", fields: [organizationId, requestedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, subjectType, subjectId, createdAt])
+}
+
+enum BacktestRunStatus {
+  PENDING
+  DONE
+  FAILED
 }

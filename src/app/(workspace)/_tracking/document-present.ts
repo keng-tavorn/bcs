@@ -63,6 +63,20 @@ export function stepCards(
   return route.steps.map((step) => {
     const detail = byNo.get(step.stepNo)
     const badge = stepBadge(t, locale, step, detail)
+    const slotted = slottedCard(t, tv, locale, step)
+    if (slotted) {
+      const sla = step.status === 'ACTIVE' && !step.decision ? detail?.sla : null
+      return {
+        key: String(step.stepNo),
+        badge: { look: STEP_BADGES[badge.key], label: badge.label },
+        current: step.status === 'ACTIVE' && !step.decision,
+        ...(sla?.overdue ? { overdue: true } : {}),
+        people: [],
+        ...slotted,
+        ...(sla?.dueAt ? { due: t('steps.due', { time: when(locale, sla.dueAt) }) } : {}),
+        history: (detail?.history ?? []).map((e) => ({ key: e.key, when: when(locale, e.at), text: historyText(t, locale, e), ...(e.note ? { note: e.note } : {}) })),
+      }
+    }
     // The step is named after the approver its rule gave it — not the co-assignee who decided an escalated step
     // (BR-SLA-04, NEW-46: their position is on the stamp) — or, before it starts, the approver the rule expects
     const ruleRole = step.ruleApprover === undefined ? step.role : (step.ruleApprover?.role ?? null)
@@ -87,9 +101,16 @@ export function stepCards(
       current: active,
       ...(sla?.overdue ? { overdue: true } : {}),
       people: people.filter(Boolean),
-      // BR-SLA-04, NEW-46: the band above joined the step past its time, and whoever decides first decides
-      ...(active && (step.escalation === 'CO_ASSIGNED' || open.length > 1)
-        ? { notes: [...(step.escalation === 'CO_ASSIGNED' ? [tv('route.escalated')] : []), ...(open.length > 1 ? [tv('route.firstDecides')] : [])] }
+      // BR-SLA-04, NEW-46: the band above joined the step past its time, and whoever decides first decides; S6-08: the
+      // holder of the position changed after the submit, so the step went to the holder of the time it started
+      ...((active && (step.escalation === 'CO_ASSIGNED' || open.length > 1)) || step.holderChanged
+        ? {
+            notes: [
+              ...(step.holderChanged ? [tv('route.holderChanged')] : []),
+              ...(active && step.escalation === 'CO_ASSIGNED' ? [tv('route.escalated')] : []),
+              ...(active && open.length > 1 ? [tv('route.firstDecides')] : []),
+            ],
+          }
         : {}),
       ...(sla?.dueAt ? { due: t('steps.due', { time: when(locale, sla.dueAt) }) } : {}),
       ...(sla && sla.usedMinutes !== null
@@ -114,6 +135,39 @@ export function stepCards(
       history: (detail?.history ?? []).map((e) => ({ key: e.key, when: when(locale, e.at), text: historyText(t, locale, e), ...(e.note ? { note: e.note } : {}) })),
     }
   })
+}
+
+const SLOT_LOOK = { OPEN: 'waiting', QUESTION: 'question', APPROVE: 'done', RETURN: 'returned', REJECT: 'rejected', CLOSED: 'closed' } as const
+
+/**
+ * The card of the reviewers' step or of a committee (S6 · ADR-103): its title, how far it is and one stamp per slot —
+ * every slot decides for itself, so no single person names the step and nobody "decides first" for the others
+ */
+function slottedCard(t: DocumentT, tv: ViewT, locale: Locale, step: RouteDto['steps'][number]): Pick<StepCardView, 'title' | 'progress' | 'slots'> | null {
+  const slots = step.slots ?? []
+  if ((step.stepType !== 'REVIEW' && step.stepType !== 'COMMITTEE') || slots.length === 0) return null
+  const review = step.stepType === 'REVIEW'
+  const passed = slots.filter((s) => s.decision === 'APPROVE').length
+  const need = step.quorum === 'ANY' ? 1 : step.quorum === 'COUNT' ? (step.quorumCount ?? slots.length) : slots.length
+  return {
+    title: t(review ? 'steps.reviewTitle' : 'steps.committeeTitle', { no: step.stepNo }),
+    progress: review ? tv('route.reviewProgress', { done: passed, total: slots.length }) : tv('route.committeeProgress', { done: passed, total: slots.length, need }),
+    slots: slots.map((s) => {
+      const holders = s.holders.filter((h) => h.status !== 'REASSIGNED')
+      const shown = holders.length ? holders : s.holders
+      const role = shown[0] ? roleText(tv, locale, shown[0].role) : ''
+      const decider = s.decidedBy ? memberName(locale, s.decidedBy) : ''
+      const by = s.decidedOnBehalfOf ? tv('route.decidedFor', { name: decider, principal: memberName(locale, s.decidedOnBehalfOf) }) : decider
+      return {
+        key: String(s.slotNo),
+        who: shown.map((h, i) => (i === 0 ? memberName(locale, h.approver) : tv('route.orApprover', { name: memberName(locale, h.approver) }))).join(' '),
+        ...(role ? { role } : {}),
+        ...(review && s.ruleCodes.length ? { rules: tv('route.slotRules', { rules: s.ruleCodes.join(', ') }) } : {}),
+        state: { kind: SLOT_LOOK[s.status], text: tv(`route.slotState.${s.status === 'APPROVE' && review ? 'PASS' : s.status}`) },
+        ...(s.decidedAt && by ? { decided: `${by} · ${when(locale, s.decidedAt)}` } : {}),
+      }
+    }),
+  }
 }
 
 /** Why the route goes where it goes, in the reader's language (the Thai record, or the sentence built from its parts) */

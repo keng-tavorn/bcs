@@ -30,7 +30,7 @@ import { completeUpload, getDownloadUrl, requestUpload } from '@/server/services
 import { assignSupplier } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
 import { requestCloseShort } from '@/server/services/receiving'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { LiffProvider } from '@/ui/liff/liff-provider'
 import type { ReceiptInput } from '@/ui/receiving/types'
 import th from '../../messages/th.json'
@@ -94,7 +94,7 @@ function asMember(code: string): Ctx {
   session.page = {
     kind: 'member',
     ctx,
-    member: { id: org.member[code]!, organizationId: org.organizationId, organizationName: 'องค์กรทดสอบ DOA', displayNameTh: `ผู้ใช้ ${code}`, displayNameEn: null, email: `${code}@test.bcs.local` },
+    member: { id: org.member[code]!, organizationId: org.organizationId, organizationName: 'องค์กรทดสอบ DOA', organizationKind: 'PRODUCTION', displayNameTh: `ผู้ใช้ ${code}`, displayNameEn: null, email: `${code}@test.bcs.local` },
     session: 'liff',
   }
   return ctx

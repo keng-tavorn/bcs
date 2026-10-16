@@ -9,6 +9,7 @@ import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import { listFormVersionRows, listRequestTypeRows, type RequestTypeRowDto } from '@/server/queries/settings'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { attachmentRulesChanged, lintAgainstCurrent, retireAndTell } from './form-builder'
 import { FORM_JSON_MAX_CHARS, formChanges, parseFormJson, sameForm, storedForm, summarizeForm, type FormChangesDto, type FormProblem, type FormSummaryDto } from './form-import'
 
 // Request types and their forms (FR-ADM-005, spec §7.9). ORG_ADMIN (admin.requestTypes) switches a type on or off and
@@ -148,7 +149,12 @@ export const publishFormVersionCommand = defineCommand({
     if ((current?.versionNo ?? null) !== input.basedOnVersionNo) {
       return fail('CONFLICT_VERSION', 'a newer form version was published', { currentVersionNo: current?.versionNo ?? null })
     }
-    if (sameForm(current ? storedForm(current.schema) : null, parsed.form)) return fail('VALIDATION_FAILED', 'the form is the same as the one in use', { field: 'json', reason: 'NO_CHANGE' })
+    const currentForm = current ? storedForm(current.schema) : null
+    if (sameForm(currentForm, parsed.form)) return fail('VALIDATION_FAILED', 'the form is the same as the one in use', { field: 'json', reason: 'NO_CHANGE' })
+    // BR-FORM-09 (S6-14): an imported form passes the same lint as one edited in the builder
+    const lint = await lintAgainstCurrent(tx, type, parsed.form, ctx.now)
+    if (lint.length) return fail('VALIDATION_FAILED', 'the form does not pass the lint', { field: 'json', reason: 'FORM_LINT_FAILED', errors: lint })
+    const rulesChanged = attachmentRulesChanged(formChanges(currentForm, parsed.form))
     const last = await tx.formVersion.findFirst({ where: { requestTypeId: type.id }, orderBy: { versionNo: 'desc' }, select: { versionNo: true } })
     const versionNo = (last?.versionNo ?? 0) + 1
     const id = newId()
@@ -164,15 +170,17 @@ export const publishFormVersionCommand = defineCommand({
         publishedById: ctx.actor.type === 'USER' ? ctx.actor.memberId : null,
       },
     })
-    // New requests get the new version; requests made before keep theirs (Request.formVersionId, AC3)
-    await tx.requestType.update({ where: { id: type.id }, data: { currentFormVersionId: id } })
-    // TODO(S4-13): when formChanges(current, parsed.form) shows added, removed or changed attachment rules, notify every
-    // AUDITOR (§10.1 row "form_version.published ที่เปลี่ยนกฎเอกสารแนบ" → template audit.policy_changed, e-mail and in-app,
-    // IMMEDIATE · FR-DOA-011 AC3). The template does not exist yet; S4-13 [go-live] owns it.
+    // The version in use retires; new requests get the new one and requests made before keep theirs (AC3); new attachment
+    // rules are told to every AUDITOR at once (S6-14 · FR-INT-104 AC3 · FR-DOA-011 AC3)
+    const after = await retireAndTell(tx, ctx, type, { id, versionNo }, rulesChanged)
     return {
       ok: true,
       result: { versionNo },
-      events: [{ type: 'form_version.published', aggregateType: 'FormVersion', aggregateId: id, data: { requestTypeCode: type.code, versionNo, via: 'ADMIN' } }],
+      events: [
+        { type: 'form_version.published', aggregateType: 'FormVersion', aggregateId: id, data: { requestTypeCode: type.code, versionNo, via: 'ADMIN', attachmentRulesChanged: rulesChanged } },
+        ...after.events,
+      ],
+      notifications: after.notifications,
     }
   },
 })

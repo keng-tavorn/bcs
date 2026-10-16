@@ -6,6 +6,8 @@ import type { Ctx } from '@/server/context'
 // liffPage() hands it (src/app/liff/_lib/session.ts reads the cookies of a request, which a test has none of). The
 // language of the screen is Thai. Everything else — the services, the commands, the Events — is the real path on real
 // Postgres (BCS_TEST_DB).
+// The fixtures send the same request again within the duplicate window (S6-13 · BR-DUP-05): the form would ask why
+const AGAIN = 'ส่งซ้ำโดยตั้งใจในเทสต์'
 const session = vi.hoisted(() => ({ page: { kind: 'signed-out' } as unknown }))
 vi.mock('@/app/liff/_lib/session', () => ({ liffPage: async () => session.page }))
 vi.mock('next-intl/server', () => ({ getLocale: async () => 'th' }))
@@ -75,7 +77,7 @@ function asMember(code: string): Ctx {
   session.page = {
     kind: 'member',
     ctx,
-    member: { id: org.member[code]!, organizationId: org.organizationId, organizationName: 'องค์กรทดสอบ DOA', displayNameTh: `ผู้ใช้ ${code}`, displayNameEn: null, email: `${code}@test.bcs.local` },
+    member: { id: org.member[code]!, organizationId: org.organizationId, organizationName: 'องค์กรทดสอบ DOA', organizationKind: 'PRODUCTION', displayNameTh: `ผู้ใช้ ${code}`, displayNameEn: null, email: `${code}@test.bcs.local` },
     session: 'liff',
   }
   return ctx
@@ -157,7 +159,7 @@ describe('[FR-LINE-003/AC1] a request made in LIFF goes through the workspace co
     expect(preview.preview.route).toMatchObject({ kind: 'ROUTE', doaCode: 'DOA-DEMO', versionNo: 1, ruleCode: 'PR-02' })
 
     const key = randomUUID()
-    const sent = await submitRequestAction({ requestId, expectedVersion: version, resubmit: false }, key)
+    const sent = await submitRequestAction({ requestId, expectedVersion: version, resubmit: false, duplicateReason: AGAIN }, key)
     if (!sent.ok) throw new Error(`send refused: ${sent.code}`)
     expect(sent.requestId).toBe(requestId)
     expect(sent.sent.number).toMatch(/^PR-\d{4}-\d{5}$/)
@@ -168,13 +170,13 @@ describe('[FR-LINE-003/AC1] a request made in LIFF goes through the workspace co
 
     // A double tap, or a retry after a lost answer, is the same submission with the same key: the command ran once and
     // the answer is the same — one number, one request.submitted, one task
-    expect(await submitRequestAction({ requestId, expectedVersion: version, resubmit: false }, key)).toEqual(sent)
+    expect(await submitRequestAction({ requestId, expectedVersion: version, resubmit: false, duplicateReason: AGAIN }, key)).toEqual(sent)
     expect(await channelsOf(requestId, 'request.submitted')).toEqual(['LIFF'])
     expect(await prisma.approvalTask.count({ where: { step: { route: { subjectType: 'REQUEST', subjectId: requestId } } } })).toBe(1)
     // A new send of a request that was sent is refused: for its state when it names the version the request has now,
     // for the version when it names the one the form saved before the send (the form then offers the latest version)
-    expect(await submitRequestAction({ requestId, expectedVersion: request.version, resubmit: false }, randomUUID())).toMatchObject({ ok: false, code: 'INVALID_STATE_TRANSITION' })
-    expect(await submitRequestAction({ requestId, expectedVersion: version, resubmit: false }, randomUUID())).toMatchObject({ ok: false, code: 'CONFLICT_VERSION' })
+    expect(await submitRequestAction({ requestId, expectedVersion: request.version, resubmit: false, duplicateReason: AGAIN }, randomUUID())).toMatchObject({ ok: false, code: 'INVALID_STATE_TRANSITION' })
+    expect(await submitRequestAction({ requestId, expectedVersion: version, resubmit: false, duplicateReason: AGAIN }, randomUUID())).toMatchObject({ ok: false, code: 'CONFLICT_VERSION' })
     expect(await channelsOf(requestId, 'request.submitted')).toEqual(['LIFF'])
     expect(await prisma.request.findUniqueOrThrow({ where: { id: requestId }, select: { number: true, version: true } })).toEqual({ number: sent.sent.number, version: request.version })
   })
@@ -187,7 +189,7 @@ const openTask = (requestId: string) =>
 /** A request req_con made and sent from LIFF */
 async function sentFromLiff(): Promise<string> {
   const { requestId, version } = await newDraft('req_con')
-  const sent = await submitRequestAction({ requestId, expectedVersion: version, resubmit: false }, randomUUID())
+  const sent = await submitRequestAction({ requestId, expectedVersion: version, resubmit: false, duplicateReason: AGAIN }, randomUUID())
   if (!sent.ok) throw new Error(`send refused: ${sent.code}`)
   return requestId
 }
@@ -208,8 +210,8 @@ describe('[FR-LINE-003/AC1] [FR-INT-009/AC2] the requester sends a returned requ
 
     asMember('req_con')
     const key = randomUUID()
-    expect(await resubmitReturnedAction(requestId, key)).toEqual({ ok: true })
-    expect(await resubmitReturnedAction(requestId, key)).toEqual({ ok: true })
+    expect(await resubmitReturnedAction(requestId, key, AGAIN)).toEqual({ ok: true })
+    expect(await resubmitReturnedAction(requestId, key, AGAIN)).toEqual({ ok: true })
     expect((await prisma.request.findUniqueOrThrow({ where: { id: requestId }, select: { status: true } })).status).toBe('PENDING_APPROVAL')
     // BR-DOA-09: a new route under the DOA in effect, made once
     expect(await routes()).toBe(before + 1)
@@ -253,19 +255,19 @@ describe('[FR-LINE-003/AC1] [FR-INT-009/AC2] the requester changes a returned re
 
     // Someone else signed in through LINE cannot send it, from the form either
     asMember('asst_con')
-    expect(await submitRequestAction({ requestId, expectedVersion: edit.version, resubmit: true }, randomUUID())).toMatchObject({ ok: false, code: 'FORBIDDEN' })
+    expect(await submitRequestAction({ requestId, expectedVersion: edit.version, resubmit: true, duplicateReason: AGAIN }, randomUUID())).toMatchObject({ ok: false, code: 'FORBIDDEN' })
     expect(await prisma.request.findUniqueOrThrow({ where: { id: requestId }, select: { status: true } })).toEqual({ status: 'RETURNED' })
 
     // The form's send of a returned request: resubmit, naming the version the requester checked
     asMember('req_con')
     const key = randomUUID()
-    const sent = await submitRequestAction({ requestId, expectedVersion: edit.version, resubmit: true }, key)
+    const sent = await submitRequestAction({ requestId, expectedVersion: edit.version, resubmit: true, duplicateReason: AGAIN }, key)
     if (!sent.ok) throw new Error(`send again refused: ${sent.code}`)
     expect(sent.requestId).toBe(requestId)
     expect(sent.sent.number).toMatch(/^PR-\d{4}-\d{5}$/)
     expect(sent.sent.waitingFor).toEqual([{ name: 'ผู้ใช้ vp_ops', principalName: null }])
     // A second tap with the same key: the same answer, the command ran once
-    expect(await submitRequestAction({ requestId, expectedVersion: edit.version, resubmit: true }, key)).toEqual(sent)
+    expect(await submitRequestAction({ requestId, expectedVersion: edit.version, resubmit: true, duplicateReason: AGAIN }, key)).toEqual(sent)
 
     const after = await prisma.request.findUniqueOrThrow({ where: { id: requestId }, select: { status: true, netSatang: true } })
     expect(after).toEqual({ status: 'PENDING_APPROVAL', netSatang: 2_700_000n })
@@ -302,7 +304,7 @@ describe('[FR-LINE-003/AC1] [FR-INT-009/AC3] the requester answers the approver�
 describe('[FR-LINE-003/AC1] [FR-INT-009/AC1] the requester cancels their request from LIFF', () => {
   it('[FR-LINE-003/AC1] [FR-INT-009/AC1] only the requester cancels, with a reason, on channel LIFF, and the budget the request held goes back', async () => {
     const { requestId, version } = await newDraft('req_con')
-    const sent = await submitRequestAction({ requestId, expectedVersion: version, resubmit: false }, randomUUID())
+    const sent = await submitRequestAction({ requestId, expectedVersion: version, resubmit: false, duplicateReason: AGAIN }, randomUUID())
     if (!sent.ok) throw new Error(`send refused: ${sent.code}`)
     const lineIds = (await prisma.requestLine.findMany({ where: { requestId }, select: { id: true } })).map((l) => l.id)
     const held = async () =>
@@ -338,7 +340,7 @@ describe('[FR-LINE-003/AC1] without a member session of the LIFF page, nothing i
 
       const unauthenticated = { ok: false, code: 'UNAUTHENTICATED' }
       expect(await previewRequestAction({ requestTypeCode: 'BUY_GOODS', requestId, budgetLineId: null, priceIncludesVat: false, lines: [] })).toEqual(unauthenticated)
-      expect(await submitRequestAction({ requestId, expectedVersion: version, resubmit: false }, randomUUID())).toEqual(unauthenticated)
+      expect(await submitRequestAction({ requestId, expectedVersion: version, resubmit: false, duplicateReason: AGAIN }, randomUUID())).toEqual(unauthenticated)
       expect(await attachFileAction(requestId, randomUUID(), 'OTHER', randomUUID())).toEqual(unauthenticated)
       expect(await answerInfoAction({ infoRequestId: randomUUID(), answer: 'คำตอบ' }, randomUUID())).toEqual(unauthenticated)
       expect(await resubmitReturnedAction(requestId, randomUUID())).toEqual(unauthenticated)
@@ -362,7 +364,7 @@ describe('[FR-LINE-003/AC1] another member cannot save into, preview or send som
     expect(((await edit.json()) as { code: string }).code).toBe('FORBIDDEN')
     const preview = await previewRequestAction({ requestTypeCode: 'BUY_GOODS', requestId, budgetLineId: await conLine(), priceIncludesVat: false, lines: [] })
     expect(preview).toMatchObject({ ok: false, code: 'FORBIDDEN' })
-    const sent = await submitRequestAction({ requestId, expectedVersion: version, resubmit: false }, randomUUID())
+    const sent = await submitRequestAction({ requestId, expectedVersion: version, resubmit: false, duplicateReason: AGAIN }, randomUUID())
     expect(sent).toMatchObject({ ok: false, code: 'FORBIDDEN' })
     const draft = await prisma.request.findUniqueOrThrow({ where: { id: requestId }, select: { status: true, version: true, title: true } })
     expect(draft.status).toBe('DRAFT')
@@ -373,7 +375,7 @@ describe('[FR-LINE-003/AC1] another member cannot save into, preview or send som
 
   it('[FR-LINE-003/AC1] a send without a proper idempotency key is refused before the command runs', async () => {
     const { requestId, version } = await newDraft('req_con')
-    expect(await submitRequestAction({ requestId, expectedVersion: version, resubmit: false }, 'not-a-key')).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' })
+    expect(await submitRequestAction({ requestId, expectedVersion: version, resubmit: false, duplicateReason: AGAIN }, 'not-a-key')).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' })
     expect(await attachFileAction(requestId, randomUUID(), 'OTHER', 'not-a-key')).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' })
     expect((await prisma.request.findUniqueOrThrow({ where: { id: requestId }, select: { status: true } })).status).toBe('DRAFT')
   })

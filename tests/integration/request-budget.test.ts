@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
-import { cancelRequest, createDraft, editRequest, resubmitRequest, submitRequest } from '@/server/services/requests'
+import { cancelRequest, createDraft, editRequest, resubmitRequest, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S3-05 (spec §6.4, FR-INT-007 AC1–AC2, FR-BUD-003, BR-BUD-02 to BR-BUD-04): submitting a request checks and reserves

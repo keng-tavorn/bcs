@@ -11,7 +11,7 @@ import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { closePurchaseOrder, submitPo } from '@/server/services/purchase-orders'
 import { recordInvoice } from '@/server/services/invoices'
 import { postGoodsReceipt, requestCloseShort } from '@/server/services/receiving'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S4-07 (spec §6.4 GR, §7.11, BR-GR-01 to BR-GR-05, FR-P2P-006, FR-P2P-007, FR-P2P-010 AC2 AC3): the receiver of the

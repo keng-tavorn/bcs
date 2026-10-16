@@ -1,13 +1,15 @@
+import { z } from 'zod'
 import { ok, type Result } from '@/core/result'
 import { TASK_MACHINE, transition, type TaskState } from '@/core/state-machines'
+import { stepOutcome, type SlotDecision } from '@/core/workflow'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import { closingDecisionOf, type ClosingDecision, type DecidableTask } from '@/server/queries/tasks'
 
-// A decision completes its step (spec §6.4 "ผู้รับร่วมอีกคนตัดสินแล้ว", BR-SLA-04 "whoever decides first decides",
-// NEW-47). A step can hold more than one open task: the co-assignee the SLA job adds past escalateAt (ADR-048), or the
+// A decision completes its slot, and with it maybe its step (spec §6.4 "ผู้รับร่วมอีกคนตัดสินแล้ว" and ApprovalStep
+// with slots, BR-SLA-04 "whoever decides first decides", NEW-47, BR-WF-01). A step can hold more than one open task: the co-assignee the SLA job adds past escalateAt (ADR-048), or the
 // task a delegation or an authority change moved there. The first decision — approve, return or reject, from any channel
 // and by any of the four decide flows (requests, policy, purchase orders, receiving variances) — is the step's decision:
 // in the same transaction every other task still OPEN or INFO_REQUESTED on the step is cancelled (version + 1) with
@@ -53,14 +55,14 @@ export type TaskDecision = 'APPROVE' | 'RETURN' | 'REJECT'
 /**
  * What a step comes to after one of its tasks is decided (FR-DOA-004 AC6): OPEN while the step waits for more of its
  * tasks — the document does not move — otherwise the step's own result. Every decide flow moves its document by this,
- * never by the decision of the task, and finds the next step through assignNextStep only. Until S6 brings steps of
- * several tasks (step-complete.ts and next-step.ts are its slot), a step's result is the decision of its first task.
+ * never by the decision of the task, and finds the next step through assignNextStep only. A step of one approver comes
+ * to the decision of its first task; a committee or a reviewer step (S6) to stepOutcome over its slots (BR-WF-01).
  */
 export type StepOutcome = 'OPEN' | 'APPROVED' | 'RETURNED' | 'REJECTED'
 
 export interface StepCompletion {
   readonly outcome: StepOutcome
-  /** approval_task.cancelled of the step's other open tasks, to follow the decision's own event */
+  /** approval_task.cancelled of the tasks closed now, and approval_step.completed of a step of several slots */
   readonly events: readonly EventDraft[]
 }
 
@@ -69,18 +71,18 @@ const OUTCOME_OF: Readonly<Record<TaskDecision, Exclude<StepOutcome, 'OPEN'>>> =
 /** The decision a step's result stands for, for flows that name their document commands by decision */
 export const FINAL_DECISION: Readonly<Record<Exclude<StepOutcome, 'OPEN'>, TaskDecision>> = { APPROVED: 'APPROVE', RETURNED: 'RETURN', REJECTED: 'REJECT' }
 
+type CancelWhy = 'CO_ASSIGNEE_DECIDED' | 'GROUP_DECIDED' | 'STEP_DECIDED'
+
 /**
- * Called by every decide flow right after the decided task is written: cancels the step's other open tasks, marks the
- * step DONE and says what the step came to. A failure rolls the whole command back (the pipeline throws on it), so the
- * task stays open.
+ * Cancels the step's open tasks that `which` picks, each with approval_task.cancelled. Every round takes tasks not seen
+ * before, and only a move committed while this one waited makes a new one: it ends.
  */
-export async function completeStep(tx: TenantTx, ctx: Ctx, decided: DecidedTask, decision: TaskDecision): Promise<Result<StepCompletion>> {
-  const events: EventDraft[] = []
-  const handled = new Set<string>([decided.id])
-  // Every round takes tasks not seen before, and only a move committed while this one waited makes a new one: it ends
+async function cancelOpenTasks(tx: TenantTx, ctx: Ctx, decided: DecidedTask, which: (slotNo: number) => boolean, why: CancelWhy, handled: Set<string>, events: EventDraft[]) {
   for (;;) {
-    const others = await tx.approvalTask.findMany({ where: { stepId: decided.stepId, id: { notIn: [...handled] }, status: { in: [...OPEN_STATES] } }, select: { id: true } })
-    if (others.length === 0) break
+    const others = (await tx.approvalTask.findMany({ where: { stepId: decided.stepId, id: { notIn: [...handled] }, status: { in: [...OPEN_STATES] } }, select: { id: true, slotNo: true } })).filter((t) =>
+      which(t.slotNo),
+    )
+    if (others.length === 0) return
     // Held already when lockForDecision found them open; a task moved here after that lock is locked now
     const locked = await lockRowsForUpdate(
       tx,
@@ -94,17 +96,76 @@ export async function completeStep(tx: TenantTx, ctx: Ctx, decided: DecidedTask,
       const moved = transition(TASK_MACHINE, task.status as TaskState, 'task.cancel')
       if (!moved.ok) continue
       await tx.approvalTask.update({ where: { id: task.id }, data: { status: moved.to, version: { increment: 1 } } })
-      events.push({ type: 'approval_task.cancelled', aggregateType: 'ApprovalTask', aggregateId: task.id, data: { subjectId: decided.step.route.subjectId, why: 'CO_ASSIGNEE_DECIDED' } })
+      events.push({ type: 'approval_task.cancelled', aggregateType: 'ApprovalTask', aggregateId: task.id, data: { subjectId: decided.step.route.subjectId, why } })
     }
   }
+}
+
+const ReviewGroupsJson = z.array(z.object({ quorum: z.enum(['ALL', 'ANY', 'COUNT']), quorumCount: z.number().int().positive().nullable().optional(), slotNos: z.array(z.number().int().positive()).min(1) }))
+
+/**
+ * Called by every decide flow right after the decided task is written: closes the other open tasks of the decided
+ * slot (a co-assignee, a moved task: whoever decides first decides the slot), counts the slots of a committee or a
+ * reviewer step (stepOutcome · BR-WF-01), closes the slots a decided group or step no longer needs, marks the step DONE
+ * once it has its result and says what it came to. A failure — a reviewer cannot reject (REVIEW_CANNOT_REJECT) — rolls
+ * the whole command back (the pipeline throws on it), so the task stays open.
+ */
+export async function completeStep(tx: TenantTx, ctx: Ctx, decided: DecidedTask, decision: TaskDecision): Promise<Result<StepCompletion>> {
+  const events: EventDraft[] = []
+  const handled = new Set<string>([decided.id])
+  const step = await tx.approvalStep.findUniqueOrThrow({
+    where: { id: decided.stepId },
+    select: { stepNo: true, routeId: true, kind: true, mode: true, quorum: true, quorumCount: true, reviewGroups: true, route: { select: { subjectType: true } } },
+  })
+  const { slotNo } = await tx.approvalTask.findUniqueOrThrow({ where: { id: decided.id }, select: { slotNo: true } })
+  // The slot is decided: its other open tasks close as the co-assignee's did before S6 (BR-SLA-04)
+  await cancelOpenTasks(tx, ctx, decided, (n) => n === slotNo, 'CO_ASSIGNEE_DECIDED', handled, events)
+
+  const slotted = step.mode === 'PARALLEL' || step.kind === 'REVIEW'
+  if (!slotted) {
+    await tx.approvalStep.update({ where: { id: decided.stepId }, data: { status: 'DONE' } })
+    return ok({ outcome: OUTCOME_OF[decision], events })
+  }
+
+  // What each slot came to: the first decision of the slot (§6.4 "การตัดสินแรกของ slot คือผลของ slot")
+  const tasks = await tx.approvalTask.findMany({ where: { stepId: decided.stepId }, select: { slotNo: true, decision: true, decidedAt: true }, orderBy: [{ decidedAt: 'asc' }, { id: 'asc' }] })
+  const slotCount = Math.max(...tasks.map((t) => t.slotNo))
+  const slots: (SlotDecision | null)[] = Array.from({ length: slotCount }, () => null)
+  for (const t of tasks) if (t.decision && t.decidedAt && slots[t.slotNo - 1] === null) slots[t.slotNo - 1] = t.decision
+  const groups = step.kind === 'REVIEW' ? ReviewGroupsJson.parse(step.reviewGroups).map((g) => ({ quorum: g.quorum, quorumCount: g.quorumCount ?? null, slots: g.slotNos })) : undefined
+  const result = stepOutcome({ kind: step.kind, quorum: step.quorum, quorumCount: step.quorumCount, ...(groups ? { groups } : {}), slots })
+  if (!result.ok) return result
+  const { outcome, cancel } = result.data
+  const closing = new Set(cancel)
+  await cancelOpenTasks(tx, ctx, decided, (n) => closing.has(n), outcome === 'OPEN' ? 'GROUP_DECIDED' : 'STEP_DECIDED', handled, events)
+  if (outcome === 'OPEN') return ok({ outcome, events })
+
   await tx.approvalStep.update({ where: { id: decided.stepId }, data: { status: 'DONE' } })
-  return ok({ outcome: OUTCOME_OF[decision], events })
+  events.push({
+    type: 'approval_step.completed',
+    aggregateType: 'ApprovalStep',
+    aggregateId: decided.stepId,
+    data: {
+      subjectType: step.route.subjectType,
+      subjectId: decided.step.route.subjectId,
+      routeId: step.routeId,
+      stepNo: step.stepNo,
+      kind: step.kind,
+      outcome,
+      quorum: step.quorum,
+      quorumCount: step.quorumCount,
+      slots,
+    },
+  })
+  return ok({ outcome, events })
 }
 
 /** What approval_task.decided says (FR-DOA-005 AC1, INV-DOA-01) */
 export interface DecidedEventInput {
-  readonly task: { readonly id: string; readonly principalMemberId: string | null }
-  readonly route: { readonly doaVersionId: string; readonly ruleCode: string }
+  /** slotNo and the step's mode and kind (as the decide flows load the task) add the slot of a step of several slots */
+  readonly task: { readonly id: string; readonly principalMemberId: string | null; readonly slotNo?: number; readonly step?: unknown; readonly workflowRuleCodes?: readonly string[] }
+  /** workflowVersionId: the reviewer version of a route with a REVIEW step (S6) */
+  readonly route: { readonly doaVersionId: string; readonly ruleCode: string; readonly workflowVersionId?: string | null }
   readonly subjectType: string
   readonly subjectId: string
   readonly decision: TaskDecision
@@ -115,9 +176,18 @@ export interface DecidedEventInput {
   readonly extra?: Readonly<Record<string, unknown>>
 }
 
+/** The step of a task is a committee's or the reviewers' (several slots): as the decide flows load it, with its columns */
+function slottedStep(step: unknown): boolean {
+  const s = step as { readonly mode?: unknown; readonly kind?: unknown } | null | undefined
+  return s?.mode === 'PARALLEL' || s?.kind === 'REVIEW'
+}
+
+/** The step of a task is the reviewers' (S6): as the decide flows load it */
+const reviewStep = (step: unknown): boolean => (step as { readonly kind?: unknown } | null | undefined)?.kind === 'REVIEW'
+
 /**
  * The approval_task.decided event of every decide flow, built in one place: the DOA version and rule of the route, the
- * channel, the actor and whom they act for. S6 adds the parallel reviewer's fields here.
+ * channel, the actor and whom they act for; a reviewer's adds the workflow version and the rules of the slot (INV-WF-04).
  */
 export function decidedEvent(ctx: Ctx, e: DecidedEventInput): EventDraft {
   const onBehalf = e.task.principalMemberId && e.actorMemberId !== e.task.principalMemberId ? e.task.principalMemberId : null
@@ -139,6 +209,8 @@ export function decidedEvent(ctx: Ctx, e: DecidedEventInput): EventDraft {
       onBehalfOfMemberId: onBehalf,
       reasonCommentId: e.reasonCommentId,
       ...(e.stepUpGrantId ? { stepUpGrantId: e.stepUpGrantId } : {}),
+      ...(e.task.slotNo !== undefined && slottedStep(e.task.step) ? { slotNo: e.task.slotNo } : {}),
+      ...(reviewStep(e.task.step) && e.route.workflowVersionId ? { workflowVersionId: e.route.workflowVersionId, workflowRuleCodes: [...(e.task.workflowRuleCodes ?? [])] } : {}),
       ...e.extra,
     },
   }

@@ -9,10 +9,12 @@ import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import type { StepProps } from './details-items'
 import { documentFieldIds } from './document-fields'
+import { DuplicatePanel } from './duplicate-panel'
 import { kindLabelOf } from './documents-step'
 import { fieldLabel } from './field-input'
-import { problemStep, savableLine, type Problem, type RuleStatus } from './model'
+import { problemStep, requestLineNeed, savableLine, type FormProblem, type RuleStatus } from './model'
 import { showMoney, showSatang } from './money'
+import { duplicateRefusal, type DuplicateAsk } from './duplicate'
 import { adminsWereTold, failureKey, failureStep, failureTarget, type ClosedWhy, type FormFailure, type StepId } from './outcome'
 import { placeAndSupplierText } from './place-supplier'
 import { BudgetStatus, RoutePreview, TotalsList } from './summary'
@@ -20,7 +22,7 @@ import type { RouteView } from './types'
 import type { SaveState } from './use-autosave'
 
 /** Refusals because the DOA names nobody who can approve (FR-DOA-003 AC3) */
-const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY'])
+const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'REVIEWER_NOT_FOUND'])
 
 // Step 4, "check and send" (§9.9 principle 3, FR-INT-004, FR-INT-005 AC1, FR-DOA-003 AC2): the request in short, the
 // budget line against its amount, the approval route the DOA expects with its explanation, the attachments the rules ask
@@ -32,7 +34,8 @@ const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_N
 // The budget point has no such way: its two fixes, a lower amount (items) or another line (details), are in its words.
 
 /** Problems that would send something other than what is on screen: an unfinished line or quotation is not saved */
-const BLOCKING: ReadonlySet<Problem['kind']> = new Set(['TITLE', 'NO_LINES', 'LINE_INCOMPLETE', 'QUOTATION_INCOMPLETE'])
+// A catalogue line before VAT on a request priced with VAT, or an item no longer in the catalogue: no save goes through (S6-10)
+const BLOCKING: ReadonlySet<FormProblem['kind']> = new Set(['TITLE', 'NO_LINES', 'LINE_INCOMPLETE', 'QUOTATION_INCOMPLETE', 'AGREEMENT_BEFORE_VAT', 'CATALOG_UNLISTED'])
 
 /**
  * The problems "ตรวจก่อนส่ง" marks "(ต้องแก้ก่อนส่ง)", as it marks the budget point (§9.9 principle 3 and rule 7): every
@@ -46,7 +49,7 @@ const BLOCKING: ReadonlySet<Problem['kind']> = new Set(['TITLE', 'NO_LINES', 'LI
  * that it must be fixed first, beside its way to the place that fixes it. Both forms mark the same points (the LIFF one
  * in src/ui/liff/requests/review-step.tsx). A new kind of problem does not compile until it is placed here.
  */
-export function mustFixBeforeSending(p: Problem): boolean {
+export function mustFixBeforeSending(p: FormProblem): boolean {
   switch (p.kind) {
     case 'TITLE':
     case 'NO_LINES':
@@ -59,6 +62,9 @@ export function mustFixBeforeSending(p: Problem): boolean {
     case 'QUOTATION_CHOOSE':
     case 'QUOTATION_REASON':
     case 'ATTACHMENTS':
+    case 'AGREEMENT_REASON':
+    case 'AGREEMENT_BEFORE_VAT':
+    case 'CATALOG_UNLISTED':
       return true
   }
 }
@@ -105,7 +111,7 @@ export function sendBlockPoint(t: T, block: SendBlock | null): { readonly text: 
 
 export interface ReviewProps extends StepProps {
   readonly rules: readonly RuleStatus[]
-  readonly problems: readonly Problem[]
+  readonly problems: readonly FormProblem[]
   readonly route: RouteView | null
   readonly attachmentCount: number
   readonly onGoTo: (step: string) => void
@@ -124,11 +130,13 @@ export interface ReviewProps extends StepProps {
   readonly closedWhy?: ClosedWhy
   /** The request's own page, once the draft exists: where a refusal because it was sent or cancelled leads */
   readonly requestHref?: string | null
+  /** S6-13: the send was refused as like a request sent before — the requests it matched and the reason to give */
+  readonly duplicate?: DuplicateAsk | null
 }
 
 /** The step that fixes a point of "ตรวจก่อนส่ง" or a refusal of the server, by its key and its name */
 export interface StepLocator {
-  readonly problem: (p: Problem) => { readonly key: string; readonly name: string }
+  readonly problem: (p: FormProblem) => { readonly key: string; readonly name: string }
   readonly failure: (f: FormFailure) => { readonly key: string; readonly name: string } | null
 }
 
@@ -143,7 +151,9 @@ export function sendStateOf(t: T, { data, values, totals, budget, problems, save
   const purchase = data.type.documentType === 'PURCHASE_REQUEST'
   const blocking = problems.filter((p) => BLOCKING.has(p.kind))
   const available = budget?.kind === 'LINE' && budget.budgetLineId === values.budgetLineId ? amountToSatang(budget.available.amount) : null
-  const shortfall = available !== null && totals !== null && totals.net > available ? totals.net - available : null
+  // S6-17 (BR-BUD-16): the request's budget line holds only the lines without one of their own; the submit checks theirs
+  const need = totals !== null ? requestLineNeed(values, data.vatRateBp) : null
+  const shortfall = available !== null && need !== null && need.net > available ? need.net - available : null
   const block: SendBlock | null =
     available !== null && shortfall !== null
       ? { kind: 'BUDGET', available, shortfall }
@@ -178,6 +188,7 @@ export function ReviewStep(props: ReviewProps) {
   const kindLabel = (kind: string) => kindLabelOf(t, kind)
   const stepName = (s: StepId) => t(`steps.${s}`)
   const { block, blockedReason, submitLabel } = sendStateOf(t, props)
+  const need = requestLineNeed(values, data.vatRateBp)
   // "ตรวจก่อนส่ง" leads with what stops the button, and is ready only when nothing does (§9.9 principle 3)
   const blockPoint = sendBlockPoint(t, block)
   const reported = submitError !== null && DOA_GAPS.has(submitError.code) && adminsWereTold(submitError)
@@ -232,7 +243,7 @@ export function ReviewStep(props: ReviewProps) {
           <h3 id="review-budget" className="text-lg font-semibold">
             {t('budget.title')}
           </h3>
-          <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={totals?.net ?? null} loading={previewLoading} />
+          <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={need?.net ?? null} others={need?.others ?? 0} loading={previewLoading} />
         </section>
       ) : null}
 
@@ -319,7 +330,9 @@ export function ReviewStep(props: ReviewProps) {
       </section>
 
       <div className="flex flex-col gap-3 border-t border-line pt-6">
-        {submitError ? (
+        {/* S6-13: like a request sent before — the panel asks for the reason instead of a refusal (BR-DUP-05) */}
+        {props.duplicate ? <DuplicatePanel ask={props.duplicate} /> : null}
+        {submitError && !(props.duplicate && duplicateRefusal(submitError)) ? (
           <Notice tone="danger">
             <p>{failureText(t, submitError, data.form.fields, locale, kindLabel)}</p>
             {failedStep ? (
@@ -364,16 +377,19 @@ export function ReviewStep(props: ReviewProps) {
 
 type T = ReturnType<typeof useTranslations<'requestForm'>>
 
-function problemText(t: T, p: Problem, fields: readonly FieldDef[], locale: 'th' | 'en'): string {
+function problemText(t: T, p: FormProblem, fields: readonly FieldDef[], locale: 'th' | 'en'): string {
   switch (p.kind) {
     case 'TITLE':
     case 'BUDGET_LINE':
     case 'NO_LINES':
     case 'QUOTATION_CHOOSE':
     case 'QUOTATION_REASON':
+    case 'AGREEMENT_REASON':
       return t(`problems.${p.kind}`)
     case 'LINE_INCOMPLETE':
     case 'SERVICE_END_DATE':
+    case 'AGREEMENT_BEFORE_VAT':
+    case 'CATALOG_UNLISTED':
       return t(`problems.${p.kind}`, { n: p.lineNo })
     case 'QUOTATION_INCOMPLETE':
     case 'QUOTATION_FILE':
@@ -408,11 +424,18 @@ export function failureText(t: T, f: FormFailure, fields: readonly FieldDef[], l
       return t('errors.FORM_FIELD', { field: target.fieldId ? labelOf(fields, target.fieldId, locale) : '-' })
     }
     case 'SERVICE_END_DATE':
-      return t('errors.SERVICE_END_DATE', { n: failureTarget(f).lineNo ?? 1 })
+    case 'AGREEMENT_PRICE_LOCKED':
+    case 'CATALOG_UNKNOWN':
+    case 'LINE_BUDGET_LINE_NOT_ALLOWED':
+    case 'LINE_BUDGET_LINE_YEAR':
+    case 'LINE_BUDGET_LINE':
+      return t(`errors.${key}`, { n: failureTarget(f).lineNo ?? 1 })
     case 'QUOTE_FILE':
       return t('errors.QUOTE_FILE', { n: (Number((f.field ?? '').split('.')[1]) || 0) + 1 })
     case 'APPROVER_NOT_FOUND':
       return t('errors.APPROVER_NOT_FOUND', { position: f.position ?? '-', departments: f.departments?.join(', ') || '-' }) + told
+    case 'REVIEWER_NOT_FOUND':
+      return t('errors.REVIEWER_NOT_FOUND', { position: f.position ?? '-', departments: f.departments?.join(', ') || '-', rule: f.rule ?? '-' }) + told
     case 'NO_HIGHER_AUTHORITY':
     case 'DOA_NOT_CONFIGURED':
       return t(`errors.${key}`) + told

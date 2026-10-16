@@ -12,7 +12,7 @@ import { decideTask } from '@/server/services/approvals/decide'
 import { BUDGET_IMPORT_COLUMNS, buildBudgetImportTemplate, importBudget } from '@/server/services/budget/import'
 import { grantRole } from '@/server/services/members/roles'
 import { markNotificationsRead } from '@/server/services/notifications'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { escalateTask, markTaskOverdue, planTaskSla } from '@/server/services/sla'
 import { E2E_DB } from '../support/e2e-env'
 

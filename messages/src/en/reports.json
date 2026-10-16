@@ -16,6 +16,22 @@
     "KPI": {
       "name": "KPI G-1 to G-5",
       "description": "The system's goal measures, computed from the event log and the documents: POs through BCS, approvals by the DOA, speed, budget control and approvals on LINE."
+    },
+    "WF_CYCLE": {
+      "name": "Request cycle time",
+      "description": "How long each request took from sending to full approval and to its first approved PO, with the medians of the period, in business hours"
+    },
+    "WF_BOTTLENECKS": {
+      "name": "Approval bottlenecks",
+      "description": "The positions and people with the most past-due tasks and the longest decision times"
+    },
+    "WF_WRONG_DOA": {
+      "name": "Decisions outside the DOA",
+      "description": "Decisions by someone the DOA does not name, without a DOA version and clause, and requests possibly split to stay under a limit"
+    },
+    "WF_HEATMAP": {
+      "name": "Approval heatmap",
+      "description": "Decisions by weekday and hour, and tasks waiting for approval by department and age"
     }
   },
   "proposalReports": "The seven reports of the original proposal (R-01 to R-07) will be added once the customer confirms their list and definitions. The system does not build reports that have no definition yet.",

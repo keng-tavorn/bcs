@@ -14,6 +14,9 @@ import { formatDateTime } from '../format'
 import { Button as UiButton } from '../shadcn/button'
 import { FORM_PAGE } from '../shell/form-page'
 import { DOOR_ASIDE } from '../shell/new-request-door'
+import { catalogProblems } from './catalog-lines'
+import { CatalogPicker } from './catalog-picker'
+import { SplitLineDialog } from './split-line-dialog'
 import type { StepProps } from './details-items'
 import { kindLabelOf, type DocumentsProps } from './documents-step'
 import { DropUploadButton } from './drop-upload'
@@ -35,11 +38,13 @@ import {
   totalsOf,
   visibleFieldIds,
   type FormAction,
+  type FormProblem,
 } from './model'
 import { planSteps, stepIndexOf, stepOfTarget, stopsNext, targetOfFailure, targetOfProblem, type PlannedStep } from './form-steps'
-import { failureKey, failureTarget, toFormFailure, type ClosedWhy, type FormFailure, type FormOutcome } from './outcome'
+import { duplicateReasonOf, duplicateRefusal } from './duplicate'
+import { failureKey, failureTarget, toFormFailure, type ClosedWhy, type DuplicateMatch, type FormFailure, type FormOutcome } from './outcome'
 import { failureText, ReviewStep, sendStateOf, type SaveStop, type StepLocator } from './review-step'
-import type { Attachment, PreviewRequestInput, RequestFormData, ScreenLocale, SentView } from './types'
+import type { Attachment, CatalogSearch, PreviewRequestInput, RequestFormData, ScreenLocale, SentView } from './types'
 import { useAutosave, type SaveState } from './use-autosave'
 import { usePreview, type PreviewAction } from './use-preview'
 import type { UploadActions } from './upload-button'
@@ -58,8 +63,11 @@ export interface RequestFormActions extends UploadActions {
   readonly preview: PreviewAction
   readonly attach: (requestId: string, fileId: string, kind: string, idempotencyKey: string) => Promise<FormOutcome>
   readonly detach: (requestId: string, fileId: string, idempotencyKey: string) => Promise<FormOutcome>
-  readonly submit: (input: { requestId: string; expectedVersion: number; resubmit: boolean }, idempotencyKey: string) => Promise<FormOutcome<{ requestId: string; sent: SentView }>>
+  /** duplicateReason: the requester's reason for asking again, once a send was refused as like one sent before (S6-13) */
+  readonly submit: (input: { requestId: string; expectedVersion: number; resubmit: boolean; duplicateReason?: string }, idempotencyKey: string) => Promise<FormOutcome<{ requestId: string; sent: SentView }>>
   readonly downloadUrl: (fileId: string) => Promise<string | null>
+  /** S6-10: the catalogue search of a line's picker (FR-INT-102); absent, lines are typed only */
+  readonly catalog?: CatalogSearch
   /** The Document Agent, when it is available to this member now (FR-AI-303 AC8: otherwise no AI button at all) */
   readonly ai?: AiReadActions
   /** The Intake Agent's step 0, when it is available to this member now (FR-AI-302: otherwise no step 0) */
@@ -125,6 +133,11 @@ export function RequestForm({
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<FormFailure | null>(null)
   const [sent, setSent] = useState<{ requestId: string; view: SentView } | null>(null)
+  // S6-13 (BR-DUP-05): a send refused as like a request sent before shows the requests it matched and asks for the reason,
+  // which every later send carries; pressing send with the box empty stops here (`stops` counts it, to move the focus)
+  const [duplicate, setDuplicate] = useState<readonly DuplicateMatch[] | null>(null)
+  const [duplicateReason, setDuplicateReason] = useState('')
+  const [duplicateStops, setDuplicateStops] = useState(0)
   const [fileBusy, setFileBusy] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const submission = useSubmissionKey()
@@ -174,7 +187,8 @@ export function RequestForm({
   const endDateRequired = purchase && needsServiceEndDate(data.form, input)
   const rules = applicableRules(data.form, input)
   const { nets, lowest } = compareFormQuotations(values, data.vatRateBp)
-  const problems = problemsOf(data, values, input, lowest)
+  // S6-10: and what the catalogue's agreed prices still ask (./catalog-lines.ts)
+  const problems: FormProblem[] = [...problemsOf(data, values, input, lowest), ...(purchase ? catalogProblems(values) : [])]
 
   // The server's view: the chosen line's balance and the expected route, shortly after amounts or the line change
   const previewLines = values.lines.filter(savableLine).map((l) => ({ quantity: plainNumber(l.quantity), unitPrice: plainNumber(l.unitPrice), vatable: l.vatable }))
@@ -316,6 +330,11 @@ export function RequestForm({
 
   async function submit() {
     setReviewed(true)
+    const carried = duplicateReasonOf(duplicate !== null, duplicateReason)
+    if (!carried.ok) {
+      setDuplicateStops((n) => n + 1)
+      return
+    }
     setSubmitError(null)
     setSubmitting(true)
     try {
@@ -330,13 +349,16 @@ export function RequestForm({
         if (autosave.halted() !== 'closed') setSubmitError(toFormFailure({ code: 'DRAFT_NOT_SAVED' }))
         return
       }
-      const outcome = await actions.submit({ requestId: id, expectedVersion: version, resubmit: data.draft?.status === 'RETURNED' }, submission.key)
+      const reason = carried.duplicateReason !== undefined ? { duplicateReason: carried.duplicateReason } : {}
+      const outcome = await actions.submit({ requestId: id, expectedVersion: version, resubmit: data.draft?.status === 'RETURNED', ...reason }, submission.key)
       submission.next()
       if (outcome.ok) {
         autosave.stop()
         setSent({ requestId: outcome.requestId, view: outcome.sent })
         return
       }
+      const matched = duplicateRefusal(outcome)
+      if (matched) setDuplicate(matched)
       setSubmitError(outcome)
     } finally {
       setSubmitting(false)
@@ -348,6 +370,12 @@ export function RequestForm({
     const target = failureTarget(submitError).fieldId
     if (target) fieldErrors[target] = t('errors.FORM_FIELD', { field: labelFor(target) })
   }
+  // S6-17: a line's own budget line refused at submit is said under that line too (lines.N.budgetLineId)
+  const lineErrors: Record<number, string> = {}
+  if (submitError && failureKey(submitError).startsWith('LINE_BUDGET_LINE')) {
+    const lineNo = failureTarget(submitError).lineNo
+    if (lineNo) lineErrors[lineNo] = t(`errors.${failureKey(submitError)}`, { n: lineNo })
+  }
   function labelFor(id: string) {
     const def = data.form.fields.find((f) => f.id === id)
     return def ? fieldLabel(def, locale) : id
@@ -358,7 +386,21 @@ export function RequestForm({
     return <SentConfirmation ref={sentRef} sent={sent} title={title} kind={!purchase ? 'procurement' : data.draft?.status === 'RETURNED' ? 'resubmit' : 'send'} />
   }
 
-  const stepProps: StepProps = { data, values, update, locale, input, visible, totals, showErrors, budget, previewLoading, fieldErrors }
+  const stepProps: StepProps = {
+    data,
+    values,
+    update,
+    locale,
+    input,
+    visible,
+    totals,
+    showErrors,
+    budget,
+    previewLoading,
+    fieldErrors,
+    ...(actions.catalog && purchase ? { catalog: { Picker: CatalogPicker, search: actions.catalog } } : {}),
+    ...(purchase ? { split: { Dialog: SplitLineDialog }, lineErrors } : {}),
+  }
   // Why saving is stopped, which the review step says in its "ตรวจก่อนส่ง" (sendBlockPoint)
   const saveStop: SaveStop | null = autosave.state.kind === 'conflict' ? 'conflict' : autosave.state.kind === 'closed' ? 'closed' : null
   const blockedSave = saveStop !== null
@@ -462,6 +504,7 @@ export function RequestForm({
                 saveStop={saveStop}
                 {...(autosave.state.kind === 'closed' ? { closedWhy: autosave.state.why } : {})}
                 requestHref={autosave.requestId ? `/requests/${autosave.requestId}` : null}
+                duplicate={duplicate ? { matched: duplicate, reason: duplicateReason, onReason: setDuplicateReason, missing: duplicateStops > 0, stops: duplicateStops } : null}
               />
             ) : (
               <>

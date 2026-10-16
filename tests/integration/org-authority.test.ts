@@ -10,7 +10,7 @@ import { decideTask } from '@/server/services/approvals/decide'
 import { importDoaDraft, submitDoaVersion } from '@/server/services/doa'
 import { resetMemberTwoFactor } from '@/server/services/members'
 import { applyDueChange, proposeOrgChange } from '@/server/services/org-authority'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { pinStepUp, seedTestPins, TEST_PIN } from '../support/pin'
 

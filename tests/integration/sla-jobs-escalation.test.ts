@@ -8,7 +8,7 @@ import { approvalTaskSlaHandler, type TimerStep } from '@/server/jobs/approval-t
 import { renderNotification } from '@/server/notifications/templates'
 import { runCommand } from '@/server/services/_pipeline'
 import { decideTask, provideInfo, requestInfo } from '@/server/services/approvals/decide'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { escalateTask, markTaskOverdue, planTaskSla, remindTaskSla } from '@/server/services/sla'
 import { escalateTaskCommand } from '@/server/services/sla/task-sla'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'

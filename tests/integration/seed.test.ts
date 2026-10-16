@@ -112,7 +112,8 @@ describe('[FR-PLT-001/AC1] pnpm db:seed creates the DEMO organization of Appendi
 describe('[FR-PLT-007/AC1] the seed has users for every role of tier 1, and each signs in with the dev password', () => {
   it('covers every stored role and the requester (no role)', async () => {
     const assignments = await prisma.roleAssignment.findMany({ where: { organizationId: first.organizationId, revokedAt: null }, select: { role: true, memberId: true } })
-    expect(new Set(assignments.map((a) => a.role))).toEqual(new Set(STORED_ROLES))
+    // DOA_ADMIN is a role of phase 1 (S6-09 · FR-ADM-101): the demo file of tier 1 has nobody with it
+    expect(new Set(assignments.map((a) => a.role))).toEqual(new Set(STORED_ROLES.filter((r) => r !== 'DOA_ADMIN')))
     const withRole = new Set(assignments.map((a) => a.memberId))
     const members = await prisma.member.findMany({ where: { organizationId: first.organizationId }, select: { id: true } })
     expect(members.some((m) => !withRole.has(m.id))).toBe(true)

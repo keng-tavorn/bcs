@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { lintDoaVersion, type OrgSnapshot, type RouteResult } from '@/core/doa'
+import { lintDoaVersion, stepApprovers, type OrgSnapshot, type RouteResult } from '@/core/doa'
 import { checkSod, type SodPolicy } from '@/core/sod'
 import { DOA_VERSION_MACHINE, transition, type DoaVersionState } from '@/core/state-machines'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
@@ -11,7 +11,7 @@ import { loadOrgSnapshot } from '@/server/doa/policy'
 import { versionSnapshotFromRows } from '@/server/doa/snapshot'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
-import { enabledModules } from '../modules'
+import { doaLintOptions } from './lint-options'
 import { storeRoute } from '../approvals/route'
 import { boundaryTableRequired } from './boundary'
 import { issueView, warningKey } from './lint-view'
@@ -96,7 +96,7 @@ export const submitInitialPackageCommand = defineCommand({
 
     // The holders: positions this version names, one per position and department, active members, never the submitter
     const version = versionSnapshotFromRows(row, row.rules)
-    const named = new Set(version.rules.flatMap((r) => r.steps.flatMap((s) => (s.approver.kind === 'MEMBER' ? [] : [s.approver.position]))))
+    const named = new Set(version.rules.flatMap((r) => r.steps.flatMap(stepApprovers).flatMap((a) => (a.kind === 'MEMBER' ? [] : [a.position]))))
     const structure = await loadOrgSnapshot(tx)
     const root = structure.departments.find((d) => d.parentId === null)
     const seen = new Set<string>()
@@ -126,7 +126,7 @@ export const submitInitialPackageCommand = defineCommand({
     if (unlisted.length) return fail('VALIDATION_FAILED', 'every current holder of a position the version names must be in the package', { reason: 'UNLISTED_HOLDER', slots: unlisted })
 
     // BR-DOA-08: the full lint against the organization as it will be with the package's holders
-    const lint = lintDoaVersion(version, withHolders(structure, input.holders, row.effectiveFrom), row.effectiveFrom, { modules: await enabledModules(tx) })
+    const lint = lintDoaVersion(version, withHolders(structure, input.holders, row.effectiveFrom), row.effectiveFrom, await doaLintOptions(tx, row.sodPolicy))
     if (lint.errors.length) return { ok: false, error: { code: 'DOA_LINT_FAILED', message: 'the DOA version does not pass the lint', details: { errors: lint.errors.map(issueView) } } }
     const unacknowledged = lint.warnings.map(warningKey).filter((k) => !input.acknowledgedWarnings.includes(k))
     if (unacknowledged.length) return fail('VALIDATION_FAILED', 'every warning must be acknowledged', { reason: 'WARNINGS_NOT_ACKNOWLEDGED', warnings: unacknowledged })

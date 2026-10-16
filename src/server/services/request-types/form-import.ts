@@ -271,3 +271,19 @@ export function storedForm(schema: unknown): FormJson | null {
 }
 
 export const sameForm = (a: FormJson | null, b: FormJson) => a !== null && stableStringify(a) === stableStringify(b)
+
+/**
+ * The form's shape when its JSON fits the form schema, before the checks of meaning (S6-14): enough for the lint of
+ * BR-FORM-09 to name the rules that read a field the form removed, ahead of parseFormJson's UNKNOWN_FIELD
+ */
+export function formShape(text: string): FormJson | null {
+  if (!text.trim() || text.length > FORM_JSON_MAX_CHARS) return null
+  try {
+    const raw: unknown = JSON.parse(text)
+    if (nestsDeeperThan(raw, FORM_JSON_MAX_DEPTH)) return null
+    const parsed = FormSchemaJson.safeParse(raw)
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}

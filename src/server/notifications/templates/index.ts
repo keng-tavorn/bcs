@@ -41,8 +41,37 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     title: { th: `มีงานรออนุมัติ: ${ref(d)}`, en: `Waiting for your approval: ${ref(d)}` },
     href: d.taskId ? `/tasks/${str(d.taskId)}` : null,
   }),
+  // S6 (§10.1 · BR-WF-09): a reviewer's task of the REVIEW step — pass, return or ask; never reject
+  'task.review_assigned': (d) => ({
+    title: { th: `มีงานรอตรวจ: ${ref(d)}`, en: `Waiting for your review: ${ref(d)}` },
+    body: { th: 'ผ่าน ตีกลับ หรือขอข้อมูลเพิ่ม ก่อนถึงผู้อนุมัติตาม DOA', en: 'Pass, return or ask for more information before it reaches the DOA approver' },
+    href: d.taskId ? `/tasks/${str(d.taskId)}` : null,
+  }),
   'request.approved': (d) => ({
     title: { th: `คำขอ ${ref(d)} อนุมัติแล้ว`, en: `Request ${ref(d)} is approved` },
+    href: `/requests/${str(d.requestId)}`,
+  }),
+  // S6-07 (FR-DOA-104 AC3): a version approved but not yet in effect was withdrawn, or its withdrawal was not approved
+  'policy.withdrawn': (d) => ({
+    title:
+      d.kind === 'WORKFLOW_VERSION'
+        ? { th: `ถอนผู้ตรวจคู่ขนาน ${str(d.code)} ฉบับ ${str(d.versionNo)} แล้ว`, en: `Parallel reviewers ${str(d.code)} version ${str(d.versionNo)} was withdrawn` }
+        : { th: `ถอน DOA ${str(d.code)} ฉบับ ${str(d.versionNo)} แล้ว`, en: `DOA ${str(d.code)} version ${str(d.versionNo)} was withdrawn` },
+    body: { th: 'ฉบับนี้จะไม่มีผล ฉบับก่อนหน้ามีผลต่อไป', en: 'It will not take effect; the version before it stays in effect' },
+    href: d.kind === 'WORKFLOW_VERSION' ? `/admin/workflows/${str(d.versionId)}` : `/admin/doa/${str(d.versionId)}`,
+  }),
+  'policy.withdrawal_rejected': (d) => ({
+    title:
+      d.kind === 'WORKFLOW_VERSION'
+        ? { th: `คำขอถอนผู้ตรวจคู่ขนาน ${str(d.code)} ฉบับ ${str(d.versionNo)} ไม่ได้รับอนุมัติ`, en: `The withdrawal of parallel reviewers ${str(d.code)} version ${str(d.versionNo)} was not approved` }
+        : { th: `คำขอถอน DOA ${str(d.code)} ฉบับ ${str(d.versionNo)} ไม่ได้รับอนุมัติ`, en: `The withdrawal of DOA ${str(d.code)} version ${str(d.versionNo)} was not approved` },
+    body: { th: 'ฉบับนี้ยังมีผลตามวันที่กำหนด', en: 'It still takes effect on its date' },
+    href: d.kind === 'WORKFLOW_VERSION' ? `/admin/workflows/${str(d.versionId)}` : `/admin/doa/${str(d.versionId)}`,
+  }),
+  // S6 (§10.1): every reviewer passed the request; it goes on to the DOA approver
+  'request.reviews_done': (d) => ({
+    title: { th: `คำขอ ${ref(d)} ผ่านผู้ตรวจครบแล้ว`, en: `Request ${ref(d)} passed every reviewer` },
+    body: { th: 'คำขอไปถึงผู้อนุมัติตาม DOA แล้ว', en: 'It is now with the DOA approver' },
     href: `/requests/${str(d.requestId)}`,
   }),
   'request.decided': (d) => ({
@@ -72,6 +101,55 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     body: { th: 'เปิดร่างแล้วบันทึกอีกครั้งเพื่อเก็บไว้ หรือปล่อยไว้ถ้าไม่ใช้แล้ว', en: 'Open and save it again to keep it, or leave it if you no longer need it' },
     href: `/requests/${str(d.requestId)}`,
   }),
+  // S6-15 (FR-BUD-103): the sender of a budget transfer hears how it was decided
+  'budget.transfer_decided': (d) => ({
+    title:
+      d.outcome === 'APPROVED'
+        ? { th: `การโอนงบ ${str(d.number)} อนุมัติแล้ว งบย้ายแล้ว`, en: `Budget transfer ${str(d.number)} is approved; the budget has moved` }
+        : d.outcome === 'RETURNED'
+          ? { th: `การโอนงบ ${str(d.number)} ถูกตีกลับ`, en: `Budget transfer ${str(d.number)} was returned` }
+          : { th: `การโอนงบ ${str(d.number)} ไม่ได้รับอนุมัติ`, en: `Budget transfer ${str(d.number)} was not approved` },
+    body: d.outcome === 'APPROVED' ? undefined : { th: 'งบที่จองไว้คืนบรรทัดต้นทางแล้ว', en: 'The reserved budget is back on the source line' },
+    href: `/budgets/transfers/${str(d.transferId)}`,
+  }),
+  // S6-16 (FR-BUD-101): the requester hears how their over-budget approval was decided, and when it is about to lapse
+  'budget.overrun_decided': (d) => ({
+    title:
+      d.outcome === 'APPROVED'
+        ? { th: `ขออนุมัติเกินงบ ${str(d.number)} อนุมัติแล้ว ส่งคำขอได้เลย`, en: `Over-budget approval ${str(d.number)} is approved; you can send the request` }
+        : d.outcome === 'RETURNED'
+          ? { th: `ขออนุมัติเกินงบ ${str(d.number)} ถูกตีกลับ`, en: `Over-budget approval ${str(d.number)} was returned` }
+          : { th: `ขออนุมัติเกินงบ ${str(d.number)} ไม่ได้รับอนุมัติ`, en: `Over-budget approval ${str(d.number)} was not approved` },
+    body:
+      d.outcome === 'APPROVED'
+        ? { th: `ยอดที่เติมกันไว้ให้คำขอนี้ถึง ${str(d.lapsesOn)}`, en: `The amount funded is kept for this request until ${str(d.lapsesOn)}` }
+        : { th: 'แก้คำขอหรือขออนุมัติเกินงบใหม่ได้', en: 'You can change the request or ask again' },
+    href: `/budgets/overruns/${str(d.overrunId)}`,
+  }),
+  'budget.overrun_lapsing': (d) => ({
+    title: { th: `ยอดเกินงบ ${str(d.number)} จะหมดอายุ ${str(d.lapsesOn)}`, en: `Over-budget approval ${str(d.number)} lapses on ${str(d.lapsesOn)}` },
+    body: { th: 'ส่งคำขอก่อนวันนั้น ไม่เช่นนั้นยอดที่เติมจะคืนออกจากบรรทัดงบ', en: 'Send the request before then, or the amount funded goes back' },
+    href: `/requests/${str(d.requestId)}`,
+  }),
+  // S6-15 (§10.1 · OQ-105): an import added to a budget line that had budget already
+  'audit.budget_topped_up': (d) => ({
+    title: { th: `นำเข้างบเพิ่มยอดให้บรรทัดงบที่มีงบแล้ว ${str(d.lines)} บรรทัด`, en: `A budget import added to ${str(d.lines)} budget lines that had budget already` },
+    href: '/budgets',
+  }),
+  // S6-13 (§10.1 · BR-DUP-05): the AUDITOR's digest names a request flagged a duplicate or part of a split purchase
+  'audit.request_flagged': (d) => ({
+    title:
+      d.kind === 'SPLIT'
+        ? { th: `คำขอ ${ref(d)} อาจแตกยอดเลี่ยงวงเงิน`, en: `Request ${ref(d)} may split a purchase to stay under a limit` }
+        : { th: `คำขอ ${ref(d)} คล้ายคำขอที่ส่งไปแล้ว`, en: `Request ${ref(d)} looks like one sent before` },
+    href: `/requests/${str(d.requestId)}`,
+  }),
+  // S6-12 (FR-INT-101 AC2, BR-FORM-08): a service line ends soon; the requester opens the request to renew it
+  'request.renewal_due': (d) => ({
+    title: { th: `บริการในคำขอ ${ref(d)} จะหมดใน ${str(d.milestone)} วัน`, en: `A service on request ${ref(d)} ends in ${str(d.milestone)} days` },
+    body: { th: 'เปิดคำขอแล้วกด "สร้างคำขอต่ออายุ" ที่บรรทัดนั้น ระบบคัดลอกบรรทัดเดิมเป็นร่างให้', en: 'Open the request and press "Renew" on that line; the line is copied into a new draft' },
+    href: `/requests/${str(d.requestId)}`,
+  }),
   'supplier_request.submitted': (d) => ({
     title: { th: `มีคำขอเพิ่มผู้ขายรายใหม่ ${ref(d)}`, en: `New supplier request ${ref(d)}` },
     href: `/requests/${str(d.requestId)}`,
@@ -89,7 +167,13 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     href: '/settings/delegation',
   }),
   'doa.authority_changed': (d) =>
-    d.kind === 'DOA_VERSION'
+    d.kind === 'WORKFLOW_VERSION'
+      ? {
+          // S6 (§10.1): a workflow version changes who reviews requests in parallel
+          title: { th: `ผู้ตรวจคู่ขนาน ${str(d.code)} ฉบับ ${str(d.versionNo)} ได้รับอนุมัติแล้ว`, en: `Parallel reviewers ${str(d.code)} version ${str(d.versionNo)} were approved` },
+          href: `/admin/workflows/${str(d.versionId)}`,
+        }
+      : d.kind === 'DOA_VERSION'
       ? {
           title: { th: `DOA ${str(d.code)} ฉบับ ${str(d.versionNo)} มีผลแล้ว`, en: `DOA ${str(d.code)} version ${str(d.versionNo)} is now in effect` },
           href: `/admin/doa/${str(d.versionId)}`,
@@ -107,12 +191,26 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     href: '/admin/org-authority',
   }),
   'doa_version.approved': (d) => ({ title: { th: 'DOA ฉบับที่คุณส่งได้รับอนุมัติแล้ว', en: 'The DOA version you submitted was approved' }, href: policyHref('DOA_VERSION', d.subjectId) }),
+  'workflow_version.approved': (d) => ({ title: { th: 'ผู้ตรวจคู่ขนานฉบับที่คุณส่งได้รับอนุมัติแล้ว', en: 'The workflow version you submitted was approved' }, href: `/admin/workflows/${str(d.subjectId)}` }),
+  'workflow_version.rejected': (d) => ({ title: { th: 'ผู้ตรวจคู่ขนานฉบับที่คุณส่งไม่ได้รับอนุมัติ', en: 'The workflow version you submitted was not approved' }, href: `/admin/workflows/${str(d.subjectId)}` }),
   'doa_version.rejected': (d) => ({ title: { th: 'DOA ฉบับที่คุณส่งไม่ได้รับอนุมัติ', en: 'The DOA version you submitted was not approved' }, href: policyHref('DOA_VERSION', d.subjectId) }),
   'org_authority_change.approved': () => ({ title: { th: 'การเปลี่ยนโครงสร้างอำนาจที่คุณเสนอได้รับอนุมัติแล้ว', en: 'The authority change you proposed was approved' }, href: '/admin/org-authority' }),
   'org_authority_change.rejected': () => ({ title: { th: 'การเปลี่ยนโครงสร้างอำนาจที่คุณเสนอไม่ได้รับอนุมัติ', en: 'The authority change you proposed was not approved' }, href: '/admin/org-authority' }),
   // FR-DOA-003 AC3 (§10.1): a requester could not submit because the DOA names nobody who can approve the request
   'admin.doa_gap': (d) => {
     const code = str(d.code)
+    // REVIEWER_NOT_FOUND (S6 · BR-WF-08): neither the reviewer of a workflow rule nor its fallback can review
+    if (code === 'REVIEWER_NOT_FOUND') {
+      const dept = Array.isArray(d.departments) ? d.departments.filter((x): x is string => typeof x === 'string').join(', ') : ''
+      return {
+        title: {
+          th: `คำขอ ${ref(d)} ส่งไม่ได้ เพราะไม่พบผู้ตรวจ ${str(d.position)} ของ ${dept} และผู้สำรองตามข้อ ${str(d.ruleCode)}`,
+          en: `Request ${ref(d)} cannot be sent: no reviewer ${str(d.position)} of ${dept} nor a fallback for rule ${str(d.ruleCode)}`,
+        },
+        body: { th: 'เสนอแต่งตั้งผู้ดำรงตำแหน่งนี้ หรือแก้ข้อผู้ตรวจใน workflow ฉบับใหม่ แล้วแจ้งผู้ขอให้ส่งอีกครั้ง', en: 'Propose a holder for this position, or change the reviewer rule in a new workflow version, then ask the requester to send it again' },
+        href: '/admin/org-authority',
+      }
+    }
     const title: Text =
       code === 'APPROVER_NOT_FOUND'
         ? { th: `คำขอ ${ref(d)} ส่งไม่ได้ เพราะไม่มีผู้ดำรงตำแหน่ง ${str(d.position)} ตาม DOA ข้อ ${str(d.ruleCode)}`, en: `Request ${ref(d)} cannot be sent: nobody holds ${str(d.position)} for DOA rule ${str(d.ruleCode)}` }
@@ -131,6 +229,15 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
   // FR-AUTH-003 AC2, BR-AUTH-06: a deactivated member still had approval tasks. No command moves a task by hand: an
   // appointment through the authority changes page moves the position's open tasks to the new holder when it takes
   // effect (BR-DOA-17, NEW-28), so that is what the notice offers — and opens
+  // S6-08 (BR-WF-14): a department move left open tasks with their holders: the new holder is missing or conflicts
+  'admin.reparent_tasks_stay': (d) => ({
+    title: { th: `ย้ายแผนกแล้ว มีงานอนุมัติ ${str(d.openTasks)} งานที่ยังอยู่กับผู้ถือเดิม`, en: `A department moved; ${str(d.openTasks)} approval tasks stay with their holders` },
+    body: {
+      th: 'ผู้ดำรงตำแหน่งตามผังใหม่ว่างหรือเกี่ยวข้องกับเอกสารนั้น แต่งตั้งผู้ดำรงตำแหน่งได้ที่หน้าเปลี่ยนโครงสร้างอำนาจ',
+      en: 'The holder by the new tree is missing or has a part in the document; appoint a holder on the Authority changes page',
+    },
+    href: '/admin/org-authority',
+  }),
   'admin.reassign_needed': (d) => ({
     title: { th: `${str(d.name)} ถูกปิดใช้งานและมีงานอนุมัติค้าง ${str(d.openTasks)} งาน`, en: `${str(d.name)} was deactivated with ${str(d.openTasks)} approval tasks open` },
     body: {
@@ -138,6 +245,22 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
       en: 'Appoint a new holder of the position on the Authority changes page; the position’s open tasks move to them when the appointment takes effect',
     },
     href: '/admin/org-authority',
+  }),
+  // §10.1 (FR-DOA-011 AC3 · S6-09 BR-WF-16): a change the AUDITOR hears of at once. S6-09 sends the role DOA_ADMIN given or
+  // taken; S6-14 and S4-13 add the attachment rules of a published form
+  'audit.policy_changed': (d) => ({
+    title:
+      d.change === 'FORM_ATTACHMENT_RULES'
+        ? { th: `กฎเอกสารแนบของฟอร์ม ${str(d.requestTypeCode)} เปลี่ยนในฉบับ ${str(d.versionNo)}`, en: `The attachment rules of form ${str(d.requestTypeCode)} changed in version ${str(d.versionNo)}` }
+        : d.change === 'DOA_ADMIN_REVOKED'
+          ? { th: `ถอนบทบาทผู้ดูแลผังอำนาจของ ${str(d.name)} แล้ว`, en: `${str(d.name)} is no longer a DOA administrator` }
+          : { th: `${str(d.name)} ได้รับบทบาทผู้ดูแลผังอำนาจ`, en: `${str(d.name)} was made a DOA administrator` },
+    body:
+      d.change === 'FORM_ATTACHMENT_RULES'
+        ? { th: 'คำขอใหม่ใช้ฉบับนี้ คำขอที่ส่งไปแล้วคงฉบับเดิม', en: 'New requests use this version; requests made before keep theirs' }
+        : { th: 'ผู้ดูแลผังอำนาจร่างผังอำนาจอนุมัติและผู้ตรวจคู่ขนานได้ แต่ไม่ได้สิทธิ์อนุมัติ', en: 'A DOA administrator drafts the delegation of authority and the parallel reviewers, but approves nothing' },
+    // The AUDITOR reads the change in the audit trail (they have no admin.requestTypes)
+    href: d.change === 'FORM_ATTACHMENT_RULES' ? '/audit' : d.memberId ? `/admin/members/${str(d.memberId)}` : null,
   }),
   'admin.module_changed': (d) => ({
     title: d.enabled ? { th: `เปิดใช้โมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched on` } : { th: `ปิดโมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched off` },

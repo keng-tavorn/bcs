@@ -91,7 +91,10 @@ function approvalRow(t: HomeT, tt: TasksT, tv: ViewT, locale: Locale, task: Inbo
       ? [memberName(locale, s.requester), s.department ? nameIn(locale, s.department.name) : null].filter(Boolean).join(' · ')
       : s.kind === 'PURCHASE_ORDER' && s.submittedBy
         ? memberName(locale, s.submittedBy)
-        : null
+        : // S6-16: the source request's title beside "ขอเกินงบ OB-… · PR-…"
+          s.kind === 'BUDGET_OVERRUN' && s.requestNumber
+          ? s.requestTitle
+          : null
   const sla =
     task.status === 'INFO_REQUESTED'
       ? { key: 'INFO_REQUESTED' as const, label: t('approvals.infoBadge') }

@@ -5,6 +5,7 @@ import { listOrganizationsForPlatform } from '@/server/db/lookups'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { settleOverrunsOfCancelledRequest } from '../budget/overrun-use'
 
 // Drafts left alone (spec FR-INT-006 AC3, NEW-07): a draft nobody edited for DRAFT_WARN_AFTER_DAYS is announced to its
 // requester, and DRAFT_EXPIRE_AFTER_DAYS after the last edit — and at least DRAFT_WARNING_LEAD_DAYS after the warning —
@@ -51,8 +52,11 @@ export const expireStaleDraftsCommand = defineCommand({
       }
       const leadOver = warned.getTime() + DRAFT_WARNING_LEAD_DAYS * MS_PER_DAY <= ctx.now.getTime()
       if (expiresAt <= ctx.now && leadOver) {
+        // S6-16 (BR-BUD-15): its over-budget approvals go with it
+        const overruns = await settleOverrunsOfCancelledRequest(tx, ctx, draft.id)
+        if (!overruns.ok) return overruns
         await tx.request.update({ where: { id: draft.id }, data: { status: 'CANCELLED', cancelledAt: ctx.now, cancelReason: 'STALE_DRAFT', version: { increment: 1 } } })
-        events.push({ type: 'request.cancelled', aggregateType: 'Request', aggregateId: draft.id, data: { from: 'DRAFT', reasonCommentId: null } })
+        events.push({ type: 'request.cancelled', aggregateType: 'Request', aggregateId: draft.id, data: { from: 'DRAFT', reasonCommentId: null } }, ...overruns.events)
         removed++
       }
     }

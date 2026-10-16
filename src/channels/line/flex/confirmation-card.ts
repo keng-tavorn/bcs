@@ -16,6 +16,8 @@ export interface DecisionConfirmationData {
   readonly decidedAt: Date
   /** NEXT_STEP: the route goes on to the next approver · DONE: the route is complete */
   readonly stage: 'NEXT_STEP' | 'DONE'
+  /** A reviewer passed it (S6): no approval, so the card says passed */
+  readonly review?: boolean
   readonly detailsUrl: string
 }
 
@@ -25,17 +27,17 @@ export function decisionConfirmationCard(data: DecisionConfirmationData): FlexMe
   const kind = clip(data.typeName ?? subjectKind(data.subjectType, t), CARD_NAME_MAX_LENGTH)
   return {
     type: 'flex',
-    altText: `${confirmationLabel('header', t)}: ${kind} ${documentLabel}`,
+    altText: `${confirmationLabel(data.review ? 'reviewHeader' : 'header', t)}: ${kind} ${documentLabel}`,
     contents: {
       type: 'bubble',
       size: 'mega',
       body: vertical(
         [
-          heading(confirmationLabel('header', t), PRIMARY),
+          heading(confirmationLabel(data.review ? 'reviewHeader' : 'header', t), PRIMARY),
           plain(`${kind} ${documentLabel}`),
-          plain(`${confirmationLabel('under', t)} ${doaReference(data.doa, t)}`),
+          plain(`${confirmationLabel(data.review ? 'reviewUnder' : 'under', t)} ${doaReference(data.doa, t)}`),
           plain(`${confirmationLabel('at', t)} ${dateTimeOf(data.decidedAt, t)}`, INK_MUTED),
-          plain(confirmationLabel(data.stage === 'DONE' ? 'done' : 'nextStep', t), INK_MUTED),
+          plain(confirmationLabel(data.review ? 'reviewNext' : data.stage === 'DONE' ? 'done' : 'nextStep', t), INK_MUTED),
         ],
         { spacing: 'md', paddingAll: '16px' },
       ),

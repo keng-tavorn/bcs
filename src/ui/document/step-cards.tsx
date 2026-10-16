@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '../cn'
+import { StateLine, type StateKind } from '../request-view/status'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '../shadcn/sheet'
 import { StatusBadge, type BadgeLook } from './badges'
 
@@ -22,6 +23,17 @@ export interface StepStampView {
   readonly doaRef?: string
   readonly doaHref?: string
   readonly escalated?: string
+}
+
+/** A slot of the reviewers' step or of a committee (S6 · ADR-103): its holder, its rules and its state, stamped once decided */
+export interface StepSlotView {
+  readonly key: string
+  readonly who: string
+  readonly role?: string
+  readonly rules?: string
+  readonly state: { readonly kind: StateKind; readonly text: string }
+  /** Who decided it and when ("ลลิตา กฎหมาย · 13 ต.ค. 2569 10:30 น."), for whom a delegate acted */
+  readonly decided?: string
 }
 
 export interface StepHistoryView {
@@ -45,6 +57,9 @@ export interface StepCardView {
   readonly sla?: string
   readonly stamp?: StepStampView
   readonly stampTone?: 'ok' | 'warn' | 'danger'
+  /** The reviewers' step or a committee: how far it is ("ผ่านแล้ว 2 ใน 3 ฝ่าย") and one stamp per slot, grouped */
+  readonly progress?: string
+  readonly slots?: readonly StepSlotView[]
   readonly history: readonly StepHistoryView[]
 }
 
@@ -95,6 +110,20 @@ export function StepCards({ steps, explanation, labels, next }: { steps: readonl
                     {p}
                   </p>
                 ))}
+                {step.progress ? <p className="text-ink-muted">{step.progress}</p> : null}
+                {step.slots?.length ? (
+                  <ol className="mt-1 flex flex-col gap-2 border-l-2 border-line pl-3">
+                    {step.slots.map((slot) => (
+                      <li key={slot.key} className="flex flex-col gap-0.5">
+                        <span className="break-words text-ink">{slot.who}</span>
+                        {slot.role ? <span className="text-ink-muted">{slot.role}</span> : null}
+                        {slot.rules ? <span className="text-ink-muted">{slot.rules}</span> : null}
+                        <StateLine kind={slot.state.kind}>{slot.state.text}</StateLine>
+                        {slot.decided ? <span className="tabular text-ink-muted">{slot.decided}</span> : null}
+                      </li>
+                    ))}
+                  </ol>
+                ) : null}
                 {(step.notes ?? []).map((n) => (
                   <p key={n} className="text-ink-muted">
                     {n}

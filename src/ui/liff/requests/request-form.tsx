@@ -5,7 +5,8 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { amountToSatang } from '@/core/money/dto'
 import type { FormAction, FormValues } from '../../request-form/model'
 import { showSatang } from '../../request-form/money'
-import type { ClosedWhy, FormFailure, FormOutcome } from '../../request-form/outcome'
+import { duplicateReasonOf, duplicateRefusal } from '../../request-form/duplicate'
+import type { ClosedWhy, DuplicateMatch, FormFailure, FormOutcome } from '../../request-form/outcome'
 import type { SaveStop, SendBlock } from '../../request-form/review-step'
 import type { Attachment, PreviewRequestInput, RequestFormData, ScreenLocale, SentView } from '../../request-form/types'
 import type { Autosave, SaveState } from '../../request-form/use-autosave'
@@ -61,7 +62,8 @@ const FORM_FIELD = /^formData\.([A-Za-z][A-Za-z0-9_]*)/
 
 export interface LiffRequestFormActions extends LiffFileActions {
   readonly preview: PreviewAction
-  readonly submit: (input: { requestId: string; expectedVersion: number; resubmit: boolean }, idempotencyKey: string) => Promise<FormOutcome<{ requestId: string; sent: SentView }>>
+  /** duplicateReason: the requester's reason for asking again, once a send was refused as like one sent before (S6-13) */
+  readonly submit: (input: { requestId: string; expectedVersion: number; resubmit: boolean; duplicateReason?: string }, idempotencyKey: string) => Promise<FormOutcome<{ requestId: string; sent: SentView }>>
 }
 
 export interface LiffRequestFormPaths {
@@ -142,6 +144,11 @@ export function LiffRequestForm({
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<FormFailure | null>(null)
   const [sent, setSent] = useState<{ requestId: string; view: SentView } | null>(null)
+  // S6-13 (BR-DUP-05): a send refused as like a request sent before shows the requests it matched and asks for the reason,
+  // which every later send carries; pressing send with the box empty stops here (`stops` counts it, to move the focus)
+  const [duplicate, setDuplicate] = useState<readonly DuplicateMatch[] | null>(null)
+  const [duplicateReason, setDuplicateReason] = useState('')
+  const [duplicateStops, setDuplicateStops] = useState(0)
   const submission = useRequestKey()
   const headingRef = useRef<HTMLHeadingElement>(null)
   const purchase = data.type.documentType === 'PURCHASE_REQUEST'
@@ -304,6 +311,11 @@ export function LiffRequestForm({
 
   async function submit() {
     setShowErrors(true)
+    const carried = duplicateReasonOf(duplicate !== null, duplicateReason)
+    if (!carried.ok) {
+      setDuplicateStops((n) => n + 1)
+      return
+    }
     setSubmitError(null)
     setSubmitting(true)
     try {
@@ -326,13 +338,16 @@ export function LiffRequestForm({
         if (api?.halted() !== 'closed') setSubmitError({ ok: false, code: 'DRAFT_NOT_SAVED' })
         return
       }
-      const outcome = await gated.submit({ requestId: id, expectedVersion: version, resubmit: data.draft?.status === 'RETURNED' }, submission.key)
+      const reason = carried.duplicateReason !== undefined ? { duplicateReason: carried.duplicateReason } : {}
+      const outcome = await gated.submit({ requestId: id, expectedVersion: version, resubmit: data.draft?.status === 'RETURNED', ...reason }, submission.key)
       submission.next()
       if (outcome.ok) {
         api.stop()
         setSent({ requestId: outcome.requestId, view: outcome.sent })
         return
       }
+      const matched = duplicateRefusal(outcome)
+      if (matched) setDuplicate(matched)
       setSubmitError(outcome)
     } catch {
       setSubmitError({ ok: false, code: 'FAILED' })
@@ -534,6 +549,8 @@ export function LiffRequestForm({
                   requestHref={requestId ? `${paths.requests}/${requestId}` : null}
                   onReload={() => window.location.reload()}
                   files={{ attachments, setAttachments, draftId, requestId, actions: gated, ready, saveBlocked: blockedSave }}
+                  duplicate={duplicate ? { matched: duplicate, reason: duplicateReason, onReason: setDuplicateReason, missing: duplicateStops > 0, stops: duplicateStops } : null}
+                  requestsPath={paths.requests}
                 />
               )}
             </Suspense>

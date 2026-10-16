@@ -64,6 +64,19 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'ChannelLinkCode',
   'LineChannelConfig',
   'LineWebhookEvent',
+  // S6-01
+  'RequestFlag',
+  'WorkflowVersion',
+  'WorkflowRule',
+  'WorkflowTestCase',
+  'BudgetTransfer',
+  'BudgetOverrun',
+  'CatalogItem',
+  'PriceAgreement',
+  'DocumentVerification',
+  'ConfigPackage',
+  // S6-07
+  'BacktestRun',
   // S13-02
   'AgentAction',
   'AiAgentSetting',

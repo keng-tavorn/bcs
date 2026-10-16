@@ -41,7 +41,7 @@ export const CLIENT_MESSAGES = {
   auth: ['actionLink', 'auth'],
   // The shared workspace shell's sidebar and trail read 'ui'; its door's dialog the catalogue's words (never drawn for
   // the BCS team, who has no door, but the shell imports it)
-  platform: ['auth.security', 'platform.modules', 'platform.ai', 'ui', 'request.newDialog', 'request.catalog'],
+  platform: ['auth.security', 'platform.modules', 'platform.ai', 'platform.tenant.sandbox', 'ui', 'request.newDialog', 'request.catalog'],
   /** /liff, /liff/help, /liff/tasks and /liff/track: the gate only */
   liff: [...LIFF_GATE],
   /**

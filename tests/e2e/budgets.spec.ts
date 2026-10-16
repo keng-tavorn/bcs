@@ -56,13 +56,14 @@ test('[FR-BUD-005/AC1] [FR-BUD-005/AC2] [FR-BUD-005/AC3] the dashboard shows eve
   // The line, its department and the total, to the satang as the ledger has them (AC1)
   const line = lineBlock(page, wide, s.line.code)
   await expectFigures(line, wide, s.figures.line)
-  await expect(line).toContainText('ใช้แล้ว 45.0%')
+  // S6-18 (BR-BUD-17): the used share is the burn's, rounded down with two decimals
+  await expect(line).toContainText('ใช้แล้ว 45.00%')
   await expect(line).toContainText('รวมที่จองแล้ว 91.3%')
   await expect(line).toContainText('ใกล้หมด เหลือ 8.7%')
   // …and every share and the warning's share left open what makes them up, like the amounts (§9.9 every number opens
   // its list): the documents behind a share, the ledger's movements behind what is left
   for (const [name, section] of [
-    [`ใช้แล้ว 45.0% ของ ${s.line.code}: ดูเอกสารที่ถือและตัดจ่ายจริง`, 'committed'],
+    [`ใช้แล้ว 45.00% ของ ${s.line.code}: ดูเอกสารที่ถือและตัดจ่ายจริง`, 'committed'],
     [`รวมที่จองแล้ว 91.3% ของ ${s.line.code}: ดูเอกสารที่จอง ถือ และตัดจ่ายจริง`, 'reserved'],
     [`ใกล้หมด เหลือ 8.7% ของ ${s.line.code}: ดูความเคลื่อนไหวในบัญชีงบ`, 'movements'],
   ] as const) {
@@ -160,7 +161,7 @@ test('[FR-BUD-005/AC1] [FR-BUD-005/AC2] [FR-BUD-005/AC3] the dashboard shows eve
   await expect(invoices).toContainText(`ใบกำกับ ${s.invoiceNo} ลงวันที่`)
   await expect(actual).toContainText(`รวม ${s.figures.line.actual} บาท`)
   // The planned amount leads to the import behind it, the available amount to the movements
-  await page.getByRole('link', { name: `งบตั้งต้น ${s.figures.line.planned} บาท ของ ${s.line.code}: ดูการนำเข้างบ` }).click()
+  await page.getByRole('link', { name: `งบปัจจุบัน ${s.figures.line.planned} บาท ของ ${s.line.code}: ดูการนำเข้างบ` }).click()
   await expect(page).toHaveURL(new RegExp(`/budgets/${s.line.id}#planned$`))
   const planned = page.getByRole('region', { name: 'การนำเข้าที่รวมเป็นงบตั้งต้น' })
   await expect(planned.getByRole('listitem').filter({ hasText: `ไฟล์ ${s.line.code}.xlsx` })).toContainText(s.figures.line.planned)

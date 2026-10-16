@@ -11,7 +11,8 @@
     "forbidden": "This page is for active members of the BCS team.",
     "empty": "There are no customer organizations yet. A new organization is created when its contract starts, following the BCS team guide, and then appears here.",
     "manageModules": "Manage modules of {name}",
-    "manageAi": "AI credits of {name}"
+    "manageAi": "AI credits of {name}",
+    "manageTenant": "Kind and trial systems of {name}"
   },
   "modules": {
     "titleShort": "Customer modules",
@@ -83,6 +84,43 @@
       "INPUT": "Something is not right. Check the amounts and the reference and try again",
       "INTERNAL": "Not saved. Reference {requestId}",
       "FAILED": "Not saved. Try again"
+    }
+  },
+  "tenant": {
+    "titleShort": "Customer organization",
+    "back": "Back to customer organizations",
+    "code": "Code {code} · {status}",
+    "kindTitle": "Kind of organization",
+    "PRODUCTION": "Live system (production)",
+    "SANDBOX": "Trial system (UAT) of {name}, code {code}",
+    "sandboxUnknown": "Trial system (UAT)",
+    "openProduction": "Open the page of {name}",
+    "sandbox": {
+      "title": "Create a trial system (UAT sandbox)",
+      "intro": "Creates an empty trial-system organization of {name} under the same contract. It uses the settings of this organization with LINE off, its e-mails start with [UAT], and every page shows the trial-system banner.",
+      "noCopy": "Nothing is copied from the live system: no organization structure, positions, users, DOA, workflow or documents. The customer's organization admin sets the trial system up like a new organization.",
+      "nested": "This organization is already a trial system. Trial systems are created from the page of a live organization only.",
+      "code": "Code of the trial system",
+      "codeHint": "Capital letters, digits, - or _, 2 to 40 characters, for example {example}",
+      "contractRef": "Contract reference",
+      "reason": "Reason (kept in the history)",
+      "submit": "Create trial system",
+      "pending": "Creating…",
+      "created": "Trial system {code} created",
+      "openCreated": "Open the page of trial system {code}",
+      "errors": {
+        "CODE": "Use capital letters, digits, - or _, 2 to 40 characters, starting with a letter or digit",
+        "CODE_TAKEN": "Another organization uses this code. Choose another one.",
+        "NOT_PRODUCTION": "Trial systems are created from a live organization only",
+        "CONTRACT_REF": "Enter the contract reference",
+        "REASON": "Enter a reason of at least 3 characters",
+        "INPUT": "Something is missing or not valid. Check the fields and try again.",
+        "FORBIDDEN": "This page is for active members of the BCS team. Sign in again and retry.",
+        "NOT_FOUND": "This organization was not found. Go back to customer organizations and choose again.",
+        "UNAUTHENTICATED": "Your session has ended. Sign in again and repeat this action.",
+        "INTERNAL": "Something went wrong (reference {requestId}). Try again.",
+        "FAILED": "This was not saved. Try again."
+      }
     }
   }
 }

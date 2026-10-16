@@ -27,7 +27,13 @@ const isFieldType = (type: string): type is FieldType => (FIELD_TYPES as readonl
 export default async function RequestTypeFormPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
-  const [t, tTypes, tCommon, locale] = await Promise.all([getTranslations('adminSettings.forms'), getTranslations('adminSettings.requestTypes'), getTranslations('adminSettings'), getLocale()])
+  const [t, tTypes, tCommon, tBuilder, locale] = await Promise.all([
+    getTranslations('adminSettings.forms'),
+    getTranslations('adminSettings.requestTypes'),
+    getTranslations('adminSettings'),
+    getTranslations('formBuilder'),
+    getLocale(),
+  ])
   if (!ctx) return null
   // Next decodes dynamic params already; decoding again would throw on a code such as "%" (a 500 instead of a 404)
   const result = await getRequestTypeForAdmin(ctx, code)
@@ -48,7 +54,20 @@ export default async function RequestTypeFormPage({ params }: { params: Promise<
 
       <PageBody>
         <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_26rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-6">
-          <Panel title={current ? t('currentTitle', { version: current.versionNo }) : t('fieldsTitle')} id="current" className="lg:col-start-1 lg:row-start-1">
+          <Panel
+            title={current ? t('currentTitle', { version: current.versionNo }) : t('fieldsTitle')}
+            id="current"
+            className="lg:col-start-1 lg:row-start-1"
+            actions={
+              // The no-code form builder (S6-14 · FR-INT-104): the same form edited question by question, with a preview
+              <Link
+                href={`/admin/request-types/${encodeURIComponent(type.code)}/form`}
+                className="inline-flex h-11 items-center justify-center rounded-md border border-input bg-bg px-4 font-medium text-ink hover:bg-surface"
+              >
+                {tBuilder('open')}
+              </Link>
+            }
+          >
             {current ? (
               <>
                 <h3 className="text-base font-semibold">{t('fieldsTitle')}</h3>
@@ -72,7 +91,7 @@ export default async function RequestTypeFormPage({ params }: { params: Promise<
                 {current.summary.rules.length ? <p className="break-words">{current.summary.rules.join(' · ')}</p> : <p className="text-ink-muted">{t('noRules')}</p>}
                 {current.summary.serviceEndDate ? <p className="text-ink-muted">{t('serviceEndDate')}</p> : null}
                 <a
-                  href={`/admin/request-types/${encodeURIComponent(type.code)}/form`}
+                  href={`/admin/request-types/${encodeURIComponent(type.code)}/form.json`}
                   download
                   className="inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline"
                 >

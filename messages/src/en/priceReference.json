@@ -1,0 +1,41 @@
+{
+  "title": "Price reference",
+  "intro": "Each unit price of the request against the prices of the same item on POs approved in the last {days} days, before VAT. The median is the price in the middle when sorted from lowest to highest; a line is flagged when its price is more than {threshold} away from it",
+  "vatNote": "This request's prices include VAT, so no difference from the median is worked out: the median is a price before VAT",
+  "list": "Price reference of each line",
+  "unit": "Baht",
+  "columns": {
+    "item": "Item",
+    "unitPrice": "Requested unit price",
+    "median": "Median",
+    "min": "Lowest",
+    "max": "Highest",
+    "range": "Lowest – highest",
+    "last": "Latest price",
+    "deviation": "Difference from the median"
+  },
+  "deviation": {
+    "none": "No median yet",
+    "vat": "Not worked out (prices include VAT)"
+  },
+  "alert": {
+    "HIGH": "Above the median",
+    "LOW": "Below the median"
+  },
+  "samples": "{count, plural, =0 {No price on an approved PO yet} one {From # price on approved POs} other {From # prices on approved POs}}",
+  "excluded": "{count, plural, one {# price including VAT left out} other {# prices including VAT left out}}",
+  "few": "Few prices: at least {min} are needed for a sound comparison",
+  "agreement": "Agreed price with {supplier}: {price} baht/{uom}",
+  "quotes": {
+    "title": "Quotations of this request (before VAT)",
+    "count": "Quotations",
+    "countValue": "{count, plural, one {# quotation} other {# quotations}}",
+    "lowest": "Lowest",
+    "highest": "Highest",
+    "selected": "Chosen",
+    "lowestChosen": "The lowest quotation was chosen",
+    "notLowest": "The chosen quotation is not the lowest. Reason: {reason}",
+    "notLowestNoReason": "The chosen quotation is not the lowest",
+    "noneSelected": "No quotation chosen yet"
+  }
+}

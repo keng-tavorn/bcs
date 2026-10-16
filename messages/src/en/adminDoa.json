@@ -56,9 +56,12 @@
     "DOA_LINT_OVERLAP": "{documentType}: amounts {band} fall under more than one rule",
     "DOA_LINT_MISSING_DOCTYPE": "No rule for {documentType}. Every version needs a DOA-change rule, an authority-change rule and a rule for every document type a module that is on requires.",
     "DOA_LINT_UNRESOLVABLE_GOVERNANCE": "Rule {rule}: no approver can be found on the effective date, so nobody could approve policy changes",
-    "DOA_LINT_PARALLEL_STEP": "Rule {rule}: has a parallel approval step, which is not supported yet",
+    "DOA_LINT_PARALLEL_STEP": "Rule {rule}: a parallel step must be a committee of at least 2 positions",
     "DOA_LINT_AMOUNT_NOT_ALLOWED": "Rule {rule}: this document type has no amount, so it cannot have an amount band",
-    "OTHER": "Check {code}"
+    "OTHER": "Check {code}",
+    "DOA_LINT_QUORUM_INVALID": "Rule {rule}: the committee votes needed must be from 1 to the number of members, and only for a count",
+    "DOA_LINT_NO_DOA_ADMIN": "This version separates the DOA administrators but nobody active holds that role yet; give it to at least one member on the Members page first",
+    "DOA_LINT_ADMIN_ROLES_COMBINED": "This version separates the DOA administrators but someone holds both organization administrator and DOA administrator; take one of the roles away on the Members page first"
   },
   "import": {
     "title": "Import a new version from YAML",
@@ -218,7 +221,10 @@
       "on": "Yes",
       "off": "No",
       "none": "Not set",
-      "amount": "{amount} baht"
+      "amount": "{amount} baht",
+      "doaAdminSeparated": "DOA administrators separated from organization administrators",
+      "doaAdminTogether": "Not separated: organization administrators also draft the DOA and the parallel reviewers",
+      "doaAdminApart": "Separated: DOA administrators only, and nobody holds both roles"
     },
     "initial": {
       "title": "Send the organization’s initial package",
@@ -301,7 +307,13 @@
     "boundaryBasis": "Different amount basis",
     "boundaryConfirmTitle": "Boundary table",
     "boundaryConfirmLink": "See the boundary table of the amount bands",
-    "boundaryConfirm": "I checked the boundary table: every amount at a band edge goes to the approver intended"
+    "boundaryConfirm": "I checked the boundary table: every amount at a band edge goes to the approver intended",
+    "committee": {
+      "ALL": "Committee {approvers}, every vote needed",
+      "ANY": "Committee {approvers}, any one of them",
+      "COUNT": "Committee {approvers}, {count, plural, one {# vote} other {# votes}} needed",
+      "MAJORITY": "Committee {approvers}, majority vote"
+    }
   },
   "start": {
     "title": "Edit the DOA on screen",
@@ -363,7 +375,9 @@
       "MONEY": "Enter an amount in baht with at most 2 decimals, e.g. 30,000.00",
       "BAND_ORDER": "The upper end must be above the start of the band",
       "APPROVER": "Choose the approver",
-      "SLA": "Enter the business hours as a whole number from 1 to 999"
+      "SLA": "Enter the business hours as a whole number from 1 to 999",
+      "MEMBERS": "Choose at least 2 positions for the committee",
+      "QUORUM_COUNT": "Enter the votes needed as a whole number from 1 to the number of members chosen"
     },
     "ruleProblem": "Rule {rule}: {problem}",
     "finishEditing": "Save or cancel the rule you are editing before the next step",
@@ -398,7 +412,19 @@
     "saveHint": "The whole version is checked (bands and approvers) before saving. {name} takes no effect until it is sent and approved. A saved draft cannot be deleted: {name} stays in the list of versions even if it is never sent, and the next edit gets a new number.",
     "saved": "{name} saved as a draft. It takes no effect until it is sent and approved.",
     "openSaved": "Open {name} to check and send it",
-    "errorsTitle": "Not saved: this version does not pass the checks. Fix what is listed and save again."
+    "errorsTitle": "Not saved: this version does not pass the checks. Fix what is listed and save again.",
+    "committee": "Approved by a committee (several at once)",
+    "members": "Committee members",
+    "membersHint": "Each position gets the task at the same time; one person holding several positions has one vote",
+    "quorum": "Votes needed",
+    "quorums": {
+      "ALL": "Everyone",
+      "ANY": "Any one",
+      "COUNT": "A set number",
+      "MAJORITY": "Majority"
+    },
+    "quorumCount": "Votes needed",
+    "quorumCountHint": "{count, plural, one {Only 1 vote} other {1 to # votes}}"
   },
   "simulate": {
     "title": "Try out {name}",
@@ -454,6 +480,11 @@
       "VALIDATION_FAILED": "The amount must be above 0",
       "OTHER": "No route could be found (code {code})"
     },
-    "forbidden": "This page is for organization admins. If you need it, contact your organization admin."
+    "forbidden": "This page is for organization admins. If you need it, contact your organization admin.",
+    "committee": {
+      "ALL": "Committee, every vote needed",
+      "ANY": "Committee, any one member",
+      "COUNT": "Committee, {count, plural, one {# vote} other {# votes}} needed"
+    }
   }
 }

@@ -1,6 +1,8 @@
 import { compareQuotations, evaluateCondition, evaluateForm, type FormInput } from '@/core/forms'
 import { amountToSatang } from '@/core/money/dto'
-import { documentTotals, lineNet, type Satang } from '@/core/money/math'
+import { documentTotals, lineNet, lineNetsBeforeVat, type Satang } from '@/core/money/math'
+import { catalogIndex, pickCatalogLine, unlinkCatalogLine, withAgreedPrices, type CatalogPick, type CatalogProblem } from './catalog-lines'
+import { splitFormLine, type SplitPart } from './split-lines'
 import type { AiReview } from '../ai/types'
 import type { FormDefinition, RequestFormData } from './types'
 
@@ -20,6 +22,13 @@ export interface FormLine {
   readonly unitPrice: string
   readonly vatable: boolean
   readonly serviceEndDate: string
+  /** S6-10: the catalogue item the line is (BR-PRC-06); absent or null: typed freely */
+  readonly catalogItemId?: string | null
+  /**
+   * S6-17 (BR-BUD-16): the line's own budget line; null: the request's. Absent: the form never offered the choice (a new
+   * line, or the LIFF form), and a save leaves what the line has
+   */
+  readonly budgetLineId?: string | null
 }
 
 export interface FormQuotation {
@@ -50,6 +59,13 @@ export interface FormValues {
   readonly lines: readonly FormLine[]
   readonly quotations: readonly FormQuotation[]
   readonly nonLowestQuoteReason: string
+  /**
+   * S6-10: the catalogue items the form knows (those its lines name, and those chosen since), by id — absent in a form
+   * that does not offer the catalogue (the LIFF form), whose catalogue lines the server alone checks (./catalog-lines.ts)
+   */
+  readonly catalog?: Readonly<Record<string, CatalogPick>>
+  /** S6-10 (BR-PRC-06): why a catalogue item goes to another supplier than the agreed one; absent where the catalogue is not offered */
+  readonly offAgreementReason?: string
   /** What the Intake Agent put into the request at step 0, until the requester confirmed it (FR-AI-302) */
   readonly intakeAi?: AiReview | null
 }
@@ -69,6 +85,12 @@ export type FormAction =
   | { readonly type: 'removeQuotation'; readonly key: string }
   | { readonly type: 'selectQuotation'; readonly key: string }
   | { readonly type: 'reason'; readonly value: string }
+  /** S6-10: a line takes an item of the catalogue; `offered`: the suppliers the form offers to suggest */
+  | { readonly type: 'pickCatalog'; readonly key: string; readonly item: CatalogPick; readonly offered: readonly string[] }
+  | { readonly type: 'unlinkCatalog'; readonly key: string }
+  /** S6-17 (BR-BUD-16): the line becomes its parts, by quantity at the same unit price (./split-lines.ts) */
+  | { readonly type: 'splitLine'; readonly key: string; readonly parts: readonly SplitPart[] }
+  | { readonly type: 'offAgreementReason'; readonly value: string }
   /** The Document Agent read the quotation's file: its values go into the quotation, waiting for the requester */
   | { readonly type: 'aiFilled'; readonly key: string; readonly review: AiReview; readonly patch: Partial<Pick<FormQuotation, 'supplierName' | 'supplierId' | 'amount' | 'includesVat'>> }
   /** The Intake Agent read what the requester wrote: its values go into the request, waiting for the requester */
@@ -98,6 +120,12 @@ export function droppedChoice(saved: string | null | undefined, options: Readonl
  * delivery site prefilled (BR-FORM-02)
  */
 export function initialValues(data: RequestFormData): FormValues {
+  const opened = openingValues(data)
+  // A form that offers the catalogue knows the items of its lines, and their lines take today's agreed prices (S6-10)
+  return data.catalogItems ? withAgreedPrices({ ...opened, catalog: catalogIndex(data.catalogItems), offAgreementReason: data.draft?.offAgreementReason ?? '' }) : opened
+}
+
+function openingValues(data: RequestFormData): FormValues {
   const d = data.draft
   const purchase = data.type.documentType === 'PURCHASE_REQUEST'
   if (!d) {
@@ -146,7 +174,8 @@ export function formReducer(state: FormValues, action: FormAction): FormValues {
     case 'deliverySite':
       return { ...state, deliverySiteId: action.value }
     case 'suggestedSupplier':
-      return { ...state, suggestedSupplierId: action.value }
+      // The suggested supplier is the supplier of the lines: its agreed prices apply (BR-PRC-06)
+      return withAgreedPrices({ ...state, suggestedSupplierId: action.value })
     case 'priceIncludesVat':
       return { ...state, priceIncludesVat: action.value }
     case 'field':
@@ -198,6 +227,14 @@ export function formReducer(state: FormValues, action: FormAction): FormValues {
       return { ...state, quotations: state.quotations.map((q) => ({ ...q, selected: q.key === action.key })) }
     case 'reason':
       return { ...state, nonLowestQuoteReason: action.value }
+    case 'pickCatalog':
+      return pickCatalogLine(state, action.key, action.item, action.offered)
+    case 'unlinkCatalog':
+      return unlinkCatalogLine(state, action.key)
+    case 'splitLine':
+      return splitFormLine(state, action.key, action.parts)
+    case 'offAgreementReason':
+      return { ...state, offAgreementReason: action.value }
     case 'saved': {
       const ids = new Map(action.lines.map((l) => [l.key, l.id]))
       const stored = new Set(action.quotations)
@@ -250,9 +287,10 @@ export interface DraftPayload {
   readonly suggestedSupplierId?: string | null
   readonly priceIncludesVat: boolean
   readonly formData: Record<string, unknown>
-  readonly lines?: Array<{ id: string | null; description: string; quantity: string; uom: string; unitPrice: string; vatable: boolean; serviceEndDate?: string }>
+  readonly lines?: Array<{ id: string | null; description: string; quantity: string; uom: string; unitPrice: string; vatable: boolean; serviceEndDate?: string; catalogItemId: string | null; categoryCode?: string; budgetLineId?: string | null }>
   readonly quotations?: Array<{ supplierName: string; supplierId?: string; amount: string; includesVat: boolean; fileId?: string; selected: boolean }>
   readonly nonLowestQuoteReason?: string | null
+  readonly offAgreementReason?: string | null
   /** What the requester confirmed of one AI reading, carried by the save that also carries its quotation (BR-AI-17) */
   readonly aiAssist?: { agentActionId: string; confirmedPaths: string[] }
 }
@@ -293,6 +331,7 @@ export function draftPayload(values: FormValues, typeName: string, isNew: boolea
   const quotesReady = values.quotations.every((q) => !q.saved || savableQuotation(q))
   const sentQuotes = quotesReady ? values.quotations.filter(savableQuotation) : null
   const reason = values.nonLowestQuoteReason.trim()
+  const offReason = (values.offAgreementReason ?? '').trim()
   const draft: DraftPayload = {
     ...(title ? { title } : isNew ? { title: typeName.slice(0, TITLE_MAX) } : {}),
     ...(values.budgetLineId ? { budgetLineId: values.budgetLineId } : isNew ? {} : { budgetLineId: null }),
@@ -311,6 +350,11 @@ export function draftPayload(values: FormValues, typeName: string, isNew: boolea
             unitPrice: plainNumber(l.unitPrice),
             vatable: l.vatable,
             ...(validDate(l.serviceEndDate) ? { serviceEndDate: l.serviceEndDate } : {}),
+            // S6-10: every line says whether it is a catalogue item; one the form knows brings the item's category
+            catalogItemId: l.catalogItemId ?? null,
+            ...(l.catalogItemId && values.catalog?.[l.catalogItemId] ? { categoryCode: values.catalog[l.catalogItemId]!.categoryCode } : {}),
+            // S6-17: the line's own budget line once the form knows it (null: the request's); left out, the line keeps it
+            ...(l.budgetLineId !== undefined ? { budgetLineId: l.budgetLineId } : {}),
           })),
         }
       : {}),
@@ -327,6 +371,8 @@ export function draftPayload(values: FormValues, typeName: string, isNew: boolea
         }
       : {}),
     ...(reason ? { nonLowestQuoteReason: reason } : isNew ? {} : { nonLowestQuoteReason: null }),
+    // Only a form that offers the catalogue asks it, so only such a form clears it (the LIFF form leaves it as saved)
+    ...(offReason ? { offAgreementReason: offReason } : isNew || values.offAgreementReason === undefined ? {} : { offAgreementReason: null }),
   }
   // One AI reading per save, and only with its quotation: the server compares what the AI proposed with what is saved.
   // Only a form that shows the AI's values (the workspace's, which passes aiSent) says anything of them
@@ -367,6 +413,34 @@ export function totalsOf(values: FormValues, rateBp: number | null): Totals | nu
   if (rateBp === null) return null
   const lines = values.lines.filter(savableLine).map((l) => ({ quantity: plainNumber(l.quantity), unitPriceSatang: amountToSatang(plainNumber(l.unitPrice)), vatable: l.vatable }))
   return documentTotals(lines, rateBp, values.priceIncludesVat)
+}
+
+/** S6-17 (BR-BUD-16): the budget line of its own a line uses — one other than the request's — or null */
+export function ownBudgetLine(line: FormLine, values: Pick<FormValues, 'budgetLineId'>): string | null {
+  return line.budgetLineId && line.budgetLineId !== values.budgetLineId ? line.budgetLineId : null
+}
+
+/**
+ * What the request's own budget line must hold, before VAT (BR-BUD-03): the lines that use it, each as the submit
+ * reserves it (core/money lineNetsBeforeVat); `others`: the lines on budget lines of their own (BR-BUD-16), which the
+ * submit checks on theirs. Null without today's VAT rate.
+ */
+export function requestLineNeed(values: FormValues, rateBp: number | null): { readonly net: Satang; readonly others: number } | null {
+  if (rateBp === null) return null
+  const lines = values.lines.filter(savableLine)
+  if (lines.length === 0) return { net: 0n, others: 0 }
+  const nets = lineNetsBeforeVat(
+    lines.map((l) => ({ quantity: plainNumber(l.quantity), unitPriceSatang: amountToSatang(plainNumber(l.unitPrice)), vatable: l.vatable })),
+    rateBp,
+    values.priceIncludesVat,
+  )
+  let net = 0n
+  let others = 0
+  lines.forEach((l, i) => {
+    if (ownBudgetLine(l, values)) others += 1
+    else net += nets[i]!
+  })
+  return { net, others }
 }
 
 /** The amount of one line (quantity × unit price, BR-MONEY-02 (1)); null until both are numbers */
@@ -444,6 +518,9 @@ export type Problem =
   | { readonly kind: 'QUOTATION_REASON' }
   | { readonly kind: 'ATTACHMENTS'; readonly ruleId: string }
 
+/** A problem the workspace's form lists: those of every form, and the catalogue's (S6-10, ./catalog-lines.ts) */
+export type FormProblem = Problem | CatalogProblem
+
 const blank = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && v.length === 0)
 
 /**
@@ -485,7 +562,7 @@ const NO_DOCUMENT_FIELDS: ReadonlySet<string> = new Set()
  * The step where each problem is fixed. A field the attachment rules ask to be filled is asked beside the documents
  * (`documentFields`, ./document-fields.ts), every other field with the request's details.
  */
-export function problemStep(p: Problem, documentFields: ReadonlySet<string> = NO_DOCUMENT_FIELDS): 'details' | 'items' | 'documents' {
+export function problemStep(p: FormProblem, documentFields: ReadonlySet<string> = NO_DOCUMENT_FIELDS): 'details' | 'items' | 'documents' {
   switch (p.kind) {
     case 'FIELD_REQUIRED':
       return documentFields.has(p.fieldId) ? 'documents' : 'details'
@@ -495,6 +572,9 @@ export function problemStep(p: Problem, documentFields: ReadonlySet<string> = NO
     case 'NO_LINES':
     case 'LINE_INCOMPLETE':
     case 'SERVICE_END_DATE':
+    case 'AGREEMENT_REASON':
+    case 'AGREEMENT_BEFORE_VAT':
+    case 'CATALOG_UNLISTED':
       return 'items'
     default:
       return 'documents'

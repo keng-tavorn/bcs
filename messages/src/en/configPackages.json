@@ -1,0 +1,92 @@
+{
+  "title": "Configuration packages",
+  "intro": "Export the configuration you tried on the trial (UAT) system as a file, then import it into the live system as drafts. Each draft goes through its normal approval before it takes effect.",
+  "forbidden": "This page is for organization admins and DOA admins. Ask an organization admin if you need it.",
+  "homeLink": "Back to home",
+  "sections": {
+    "FORMS": {
+      "name": "Request type forms",
+      "exportHint": "The published form of every active request type"
+    },
+    "WORKFLOW": {
+      "name": "Parallel reviewers (workflow)",
+      "exportHint": "The version in effect now; named reviewers by employee code"
+    },
+    "DOA": {
+      "name": "Approval authority (DOA)",
+      "exportHint": "The version in effect now, in the same YAML as the DOA import"
+    },
+    "CATALOG": {
+      "name": "Catalogue and agreed prices",
+      "exportHint": "Active items and agreed prices that have not expired"
+    }
+  },
+  "export": {
+    "title": "Export a configuration package",
+    "intro": "You get a JSON file with its format version and a checksum (sha256). It holds no requests, budgets, account numbers or personal data.",
+    "sections": "Sections to export",
+    "submit": "Export configuration package",
+    "pending": "Exporting…",
+    "done": "Configuration package exported: {fileName}",
+    "checksum": "checksum (sha256): {checksum}",
+    "downloadAgain": "Download {fileName} again"
+  },
+  "import": {
+    "title": "Import a configuration package as drafts",
+    "intro": "Choose a file exported from the trial system of this organization. The checksum and every code it refers to are checked first; if any row does not fit this organization, nothing is created.",
+    "draftsOnly": "Importing creates drafts only: the DOA and the workflow become drafts to send for approval, forms become drafts in the form builder, and catalogue items come in inactive. Nothing takes effect until each draft passes its normal approval.",
+    "file": "Configuration package file (.json)",
+    "chooseFile": "Choose file",
+    "noFileChosen": "No file chosen",
+    "effectiveDate": "Date the DOA and workflow drafts take effect once approved",
+    "effectiveDateHint": "Must be after today",
+    "changeReason": "Reason for the change",
+    "changeReasonHint": "Recorded in the history of every draft created, and shown to the approver",
+    "submit": "Import as drafts",
+    "pending": "Importing…",
+    "rowsRefused": "{count} rows of the package do not fit this organization, so no draft was created. Fix them as the table says and import again."
+  },
+  "created": {
+    "title": "Imported as {count} drafts. Nothing takes effect until each draft is approved. Open each draft to review and send it on.",
+    "none": "This package has no sections to import, so no draft was created.",
+    "form": "Draft form of request type {code}: review and publish it in the form builder",
+    "workflow": "Draft workflow {code}: try the route, then send it for approval",
+    "doa": "New draft of the approval authority (DOA) {n}: review it, then send it for approval",
+    "catalog": "{count} catalogue items ({codes}) are inactive: procurement turns them on from catalogue management"
+  },
+  "rows": {
+    "section": "Section",
+    "ref": "Item",
+    "reason": "Reason and how to fix it",
+    "reasons": {
+      "REQUEST_TYPE_NOT_FOUND": "This organization has no request type with this code. Create it first, then import again.",
+      "DRAFT_EXISTS": "A draft not yet sent or awaiting approval already exists. Send or cancel that draft first.",
+      "FORM_INVALID": "The form in the package does not pass the form check. Fix it in the trial system and export again.",
+      "POSITION_NOT_FOUND": "This organization has no position or department with this code. Add it to the organization structure first.",
+      "MEMBER_NOT_FOUND": "This organization has no member with this employee code. Invite the member or fix the employee code first.",
+      "CATALOG_CODE_EXISTS": "A catalogue item with this code already exists. Change the code in the trial system, or export without the catalogue.",
+      "SUPPLIER_NOT_FOUND": "This organization has no active supplier with this code. Add or reactivate the supplier first.",
+      "AGREEMENT_INVALID": "This agreed price cannot be used: the price must be above zero, the period must not be over, and it must not overlap another agreed price of the same item and supplier. Fix it in the trial system and export again.",
+      "OTHER": "This row does not fit this organization. Check the codes it refers to and export again."
+    }
+  },
+  "errors": {
+    "INVALID_NOT_JSON": "This file is not JSON. Choose the .json file exported from the configuration packages page.",
+    "INVALID_NOT_A_PACKAGE": "This file is not a BCS configuration package. Choose a file exported from the configuration packages page.",
+    "INVALID_SCHEMA_VERSION": "This package uses another format version. Export it again from the trial system and import it again.",
+    "INVALID_CHECKSUM": "The package was changed after it was exported (the checksum does not match), so it was not imported. Export it again from the trial system without editing the file.",
+    "ROWS": "Some rows of the package do not fit this organization, so no draft was created.",
+    "SECTIONS": "Choose at least one section to export",
+    "FILE_MISSING": "Choose a configuration package file (.json)",
+    "FILE_TOO_LARGE": "The file is too large for a configuration package. Export only the sections you need.",
+    "DATE": "Choose the day, month and year the drafts take effect",
+    "DATE_PAST": "That date has passed. Choose a date after today.",
+    "REASON": "Enter a reason of at least 3 characters",
+    "LINT": "The drafts from this package do not pass the checks of this organization, so no draft was created. Fix them in the trial system and export again.",
+    "FORBIDDEN": "You do not have permission for this. Importing a DOA and a workflow also needs the rights to draft both. Ask an organization admin.",
+    "CONFLICT": "Something changed at the same time. Reload the page and try again.",
+    "UNAUTHENTICATED": "Your session has ended. Sign in again and repeat this action.",
+    "INTERNAL": "Something went wrong (reference {requestId}). Try again.",
+    "FAILED": "This did not go through. Try again."
+  }
+}

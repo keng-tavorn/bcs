@@ -13,6 +13,8 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome } from '../_pipeline'
 import { digestEnabled } from '../self/notification-prefs'
 import { throwIfTransient } from './step-result'
+import { burnContext, burnOf } from '../budget/burn'
+import { BUDGET_LINE_AMOUNTS, lineAmounts } from '../budget/dashboard'
 
 // The daily summary (spec §10.3, FR-LINE-006, §4.7 rule 3): at 08:00 on the organization's business days — never on its
 // holidays (AC2) — each member with something to report gets one summary, by LINE when they are linked, else by e-mail:
@@ -22,6 +24,9 @@ import { throwIfTransient } from './step-result'
 //    department head the requests charged to the departments they head, as the board shows them; an escalated step,
 //    with its two open tasks, is one approval), and the budget lines whose available amount is below
 //    digest.budgetLowPct of the planned amount (FR-LINE-006 AC1), with a link to /board/pending;
+//  · S6-18 (FR-BUD-104 AC2 · BR-BUD-17): with the low lines, the lines whose use reached a threshold of
+//    budget.alertThresholdsBp or whose forecast is above the budget — each line once with every reason; BUDGET_ADMIN
+//    gets these lines of the whole organization (scope BUDGET: budget lines only, no approvals);
 //  · the notifications that wait for the summary (urgency DIGEST), counted and marked as summarized.
 // Nobody with nothing to report gets one (AC2), and a member who turned their summary off gets none (AC3,
 // Member.notificationPrefs.digest). The content is counts, document numbers, ages and budget line codes: no items,
@@ -52,12 +57,15 @@ export interface DigestData {
   readonly date: string
   readonly mine: { readonly pending: number; readonly overdue: number; readonly oldest: readonly DigestTaskItem[] } | null
   readonly scope: {
-    readonly kind: 'ORG' | 'DEPT'
+    readonly kind: 'ORG' | 'DEPT' | 'BUDGET'
     readonly pending: number
     readonly overdue: number
     readonly lowBudgetLines: number
     readonly lowLineCodes: readonly string[]
     readonly lowPct: number
+    /** S6-18: the lines low or with an alert, each once; the first DIGEST_LINES_SHOWN named with their reasons */
+    readonly budgetLines: number
+    readonly budgetLineFlags: ReadonlyArray<{ readonly code: string; readonly reasons: readonly string[] }>
   } | null
   /** Notifications of urgency DIGEST folded into this summary (§4.7 rule 3) */
   readonly updates: number
@@ -113,8 +121,11 @@ function stepCounts(tasks: readonly OpenTask[], isOverdue: (t: OpenTask) => bool
   return { pending: steps.size, overdue: [...steps.values()].filter(Boolean).length }
 }
 
+/** BUDGET_ADMIN who is neither EXECUTIVE nor a department head: the organization's budget lines, no approvals */
+const BUDGET_SCOPE = { kind: 'BUDGET', departments: new Set<string>() } as const
+
 interface Scope {
-  readonly kind: 'ORG' | 'DEPT'
+  readonly kind: 'ORG' | 'DEPT' | 'BUDGET'
   readonly departments: ReadonlySet<string>
 }
 
@@ -155,13 +166,19 @@ export const sendDailyDigestCommand = defineCommand({
 
     // Budget lines of the fiscal year today falls in, with what is available (the ledger's balance projection)
     const day = new Date(`${today.key}T00:00:00Z`)
-    const year = await tx.fiscalYear.findFirst({ where: { startsOn: { lte: day }, endsOn: { gte: day } }, select: { id: true } })
+    const year = await tx.fiscalYear.findFirst({ where: { startsOn: { lte: day }, endsOn: { gte: day } }, select: { id: true, startsOn: true, endsOn: true } })
     const lowBp = BigInt(Math.round(settings.data.budgetLowPct * PERCENT_TO_BP))
     const lines = year
-      ? await tx.budgetLine.findMany({ where: { fiscalYearId: year.id, status: 'OPEN' }, select: { code: true, departmentId: true, plannedSatang: true, balance: { select: { availableSatang: true } } }, orderBy: { code: 'asc' } })
+      ? await tx.budgetLine.findMany({ where: { fiscalYearId: year.id, status: 'OPEN' }, select: { code: true, departmentId: true, ...BUDGET_LINE_AMOUNTS }, orderBy: { code: 'asc' } })
       : []
     // FR-BUD-005: low when what is available is below budgetLowPct of the planned amount
-    const lowLines = lines.filter((l) => l.plannedSatang > 0n && (l.balance?.availableSatang ?? 0n) * BP_PER_WHOLE < l.plannedSatang * lowBp)
+    const isLow = (l: (typeof lines)[number]) => l.plannedSatang > 0n && (l.balance?.availableSatang ?? 0n) * BP_PER_WHOLE < l.plannedSatang * lowBp
+    const lowLines = lines.filter(isLow)
+    // S6-18 (BR-BUD-17): every reason of a line, so a line low and with an alert is named once
+    const pace = year ? burnContext(year, ctx.now, calendar.timezone, org.settings) : null
+    const flagged = lines
+      .map((l) => ({ line: l, reasons: [...(isLow(l) ? ['LOW'] : []), ...(pace ? burnOf(lineAmounts(l), pace).alerts : [])] }))
+      .filter((f) => f.reasons.length > 0)
 
     // DIGEST notifications wait for this summary (§4.7 rule 3)
     const waiting = await tx.notification.findMany({ where: { urgency: 'DIGEST', status: 'PENDING', readAt: null, recipientMemberId: { in: [...wants] } }, select: { id: true, recipientMemberId: true } })
@@ -171,8 +188,10 @@ export const sendDailyDigestCommand = defineCommand({
       where: { validFrom: { lte: ctx.now }, OR: [{ validTo: null }, { validTo: { gt: ctx.now } }], position: { scope: 'DEPARTMENT' } },
       select: { memberId: true },
     })
-    // Only EXECUTIVE and the holders of a department's position can have a scope: nobody else needs their principal read
-    const mayHaveScope = new Set([...executives.map((e) => e.memberId), ...heads.map((h) => h.memberId)])
+    // S6-18 (OQ-113): BUDGET_ADMIN reads the budget lines of the organization
+    const budgetAdmins = await tx.roleAssignment.findMany({ where: { role: 'BUDGET_ADMIN', revokedAt: null }, select: { memberId: true } })
+    // Only EXECUTIVE, BUDGET_ADMIN and the holders of a department's position can have a scope: nobody else needs their principal read
+    const mayHaveScope = new Set([...executives.map((e) => e.memberId), ...heads.map((h) => h.memberId), ...budgetAdmins.map((b) => b.memberId)])
     const candidates = new Set([...tasks.map((t) => t.assigneeMemberId), ...mayHaveScope, ...waiting.map((w) => w.recipientMemberId)])
 
     const events: EventDraft[] = []
@@ -198,21 +217,25 @@ export const sendDailyDigestCommand = defineCommand({
             }),
           }
         : null
-      const scope = mayHaveScope.has(memberId) ? await scopeOf(tx, ctx.organizationId, memberId, ctx.now) : null
+      const scope = mayHaveScope.has(memberId) ? ((await scopeOf(tx, ctx.organizationId, memberId, ctx.now)) ?? (budgetAdmins.some((b) => b.memberId === memberId) ? BUDGET_SCOPE : null)) : null
       let scopeData: DigestData['scope'] = null
       if (scope) {
-        const inScope = scope.kind === 'ORG' ? tasks : tasks.filter((t) => t.step.route.subjectType === 'REQUEST' && scope.departments.has(chargedTo.get(t.step.route.subjectId) ?? ''))
-        const low = scope.kind === 'ORG' ? lowLines : lowLines.filter((l) => scope.departments.has(l.departmentId))
+        const wholeOrg = scope.kind !== 'DEPT'
+        const inScope = scope.kind === 'ORG' ? tasks : scope.kind === 'BUDGET' ? [] : tasks.filter((t) => t.step.route.subjectType === 'REQUEST' && scope.departments.has(chargedTo.get(t.step.route.subjectId) ?? ''))
+        const low = wholeOrg ? lowLines : lowLines.filter((l) => scope.departments.has(l.departmentId))
+        const flags = wholeOrg ? flagged : flagged.filter((f) => scope.departments.has(f.line.departmentId))
         scopeData = {
           kind: scope.kind,
           ...stepCounts(inScope, overdue),
           lowBudgetLines: low.length,
           lowLineCodes: low.slice(0, DIGEST_LINES_SHOWN).map((l) => l.code),
           lowPct: settings.data.budgetLowPct,
+          budgetLines: flags.length,
+          budgetLineFlags: flags.slice(0, DIGEST_LINES_SHOWN).map((f) => ({ code: f.line.code, reasons: f.reasons })),
         }
       }
       const updates = waiting.filter((w) => w.recipientMemberId === memberId)
-      const reportable = (mine?.pending ?? 0) > 0 || (scopeData !== null && scopeData.pending + scopeData.overdue + scopeData.lowBudgetLines > 0) || updates.length > 0
+      const reportable = (mine?.pending ?? 0) > 0 || (scopeData !== null && scopeData.pending + scopeData.overdue + scopeData.budgetLines > 0) || updates.length > 0
       // FR-LINE-006 AC2: nothing to report, no summary
       if (!reportable) continue
       const data: DigestData = { date: today.key, mine, scope: scopeData, updates: updates.length }

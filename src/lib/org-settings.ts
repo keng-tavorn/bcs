@@ -3,7 +3,7 @@ import { AI_CREDIT_DEFAULTS } from './ai-config'
 import { BcsGoSettingsSchema, ChatIntakeSettingsSchema } from './s17-settings'
 import { BP_WHOLE } from './constants'
 import AP_DEFAULTS from './ap-defaults.json'
-import { BASIS_POINTS_WHOLE } from './constants'
+import { BASIS_POINTS_WHOLE, BUDGET_ALERT_DEFAULT_BP, BUDGET_ALERT_MAX_BP, SETTINGS_MAX_DAYS } from './constants'
 
 // Organization.settings (spec §6.2, Appendix A "ค่าตั้งต้นขององค์กร"): every save must pass this schema
 // (FR-PLT-001 AC2). Defaults for the demo org live in prisma/seed/org-settings.demo.yaml; each comment names
@@ -14,6 +14,9 @@ const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:mm')
 const weekday = z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'])
 // BR-NUM-03 reset periods; the pattern tokens are checked by core/numbering (BR-NUM-02) when it lands in S2-04
 const numberingRule = z.object({ pattern: z.string().min(1), reset: z.enum(['YEARLY', 'MONTHLY', 'NEVER']) }).strict()
+const positiveDays = z.number().int().min(1).max(SETTINGS_MAX_DAYS)
+// A share of the current budget in basis points (BR-BUD-17): 8000 = 80 %
+const alertBasisPoints = z.number().int().min(1).max(BUDGET_ALERT_MAX_BP)
 const basisPoints = z.number().int().min(0).max(BASIS_POINTS_WHOLE)
 /** Money in settings is a baht string with 2 decimals (BR-MONEY-01) */
 const bahtAmount = z.string().regex(/^\d{1,13}\.\d{2}$/, 'baht with 2 decimals, e.g. "1000.00"')
@@ -52,11 +55,14 @@ export const OrgSettingsSchema = z
     email: z.object({ fromAddress: z.email(), actionLinksRequireLogin: z.boolean() }).strict(), // OQ-22
     sso: z.object({ trustIdpMfa: z.boolean(), allowedDomains: z.array(z.string().min(1)) }).strict(),
     // OQ-12. One key per line, sorted: each lane adds its own document's key on a line of its own (P1-07), e.g. BT OB (S6)
-    // S8 AP (invoice) and WHT_CERT (50 ทวิ) are optional: missing reads as the default of OQ-12
+    // A key added in phase 1 is optional (an organization saved before it parses as it is): S6 BT OB read their default
+    // from s6SettingsOf; S8 AP (invoice) and WHT_CERT (50 ทวิ) read the default of OQ-12
     numbering: z
       .object({
         AP: numberingRule.optional(),
+        BT: numberingRule.optional(),
         GR: numberingRule,
+        OB: numberingRule.optional(),
         PO: numberingRule,
         PR: numberingRule,
         RQ: numberingRule,
@@ -76,6 +82,18 @@ export const OrgSettingsSchema = z
     features: z.object({ parallelApproval: z.boolean(), lineChannel: z.boolean() }).strict(),
     // Optional, so an organization saved before it (staging) needs no new seed: missing reads as the default (OQ-38)
     procurement: z.object({ queueTargetBusinessMinutes: z.number().int().min(1).optional() }).strict().optional(),
+    // S6: every key optional, missing reads as the default of s6SettingsOf (an organization saved before S6 parses as it is)
+    duplicateCheck: z.object({ windowDays: positiveDays.optional() }).strict().optional(),
+    priceRef: z.object({ windowDays: positiveDays.optional(), minSamples: z.number().int().min(1).optional() }).strict().optional(),
+    budget: z
+      .object({
+        alertThresholdsBp: z.array(alertBasisPoints).min(1).optional(),
+        forecastMinElapsedDays: positiveDays.optional(),
+        overrunLapseDays: positiveDays.optional(),
+      })
+      .strict()
+      .optional(),
+    renewal: z.object({ milestoneDays: z.array(positiveDays).min(1).optional() }).strict().optional(),
     // S13: AI credits of the organization, set by the BCS team only (BR-AI-23); missing reads as the defaults of OQ-143
     ai: z.object({ monthlyCredits: z.number().int().min(1), alertAtBp: z.number().int().min(1).max(BP_WHOLE) }).strict().optional(),
     // S8 (BR-MATCH-13): set by seed only, no page or command edits them in phase 1 (not in SECTION_CAPABILITY);
@@ -121,6 +139,66 @@ export function queueTargetMinutesOf(settings: unknown): number {
   const procurement = settings !== null && typeof settings === 'object' ? (settings as { procurement?: unknown }).procurement : undefined
   const parsed = OrgSettingsSchema.shape.procurement.safeParse(procurement)
   return (parsed.success ? parsed.data?.queueTargetBusinessMinutes : undefined) ?? DEFAULT_QUEUE_TARGET_MINUTES
+}
+
+/** The S6 settings with the default of each key that is not set (docs/sub-specs/S6.md "Entity และ migration") */
+export interface S6Settings {
+  /** BR-DUP-02: how many days back a submit looks for duplicates and splits */
+  readonly duplicateWindowDays: number
+  /** BR-PRC-01, BR-PRC-02: how many days of approved PO lines the price reference reads, and how many make it OK */
+  readonly priceRefWindowDays: number
+  readonly priceRefMinSamples: number
+  /** BR-BUD-17: alert when used ≥ each threshold, and forecast only after this many days of the fiscal year */
+  readonly budgetAlertThresholdsBp: readonly number[]
+  readonly budgetForecastMinElapsedDays: number
+  /** BR-BUD-15: an approved overrun lapses this many days after its approval */
+  readonly overrunLapseDays: number
+  /** BR-FORM-08: renewal reminders this many days before serviceEndDate */
+  readonly renewalMilestoneDays: readonly number[]
+  readonly numberingBT: z.infer<typeof numberingRule>
+  readonly numberingOB: z.infer<typeof numberingRule>
+}
+
+export const S6_DEFAULTS: S6Settings = {
+  duplicateWindowDays: 7, // TODO(OQ-103)
+  priceRefWindowDays: 365,
+  priceRefMinSamples: 3,
+  budgetAlertThresholdsBp: BUDGET_ALERT_DEFAULT_BP, // TODO(OQ-113)
+  budgetForecastMinElapsedDays: 30, // TODO(OQ-113)
+  overrunLapseDays: 14, // TODO(OQ-104)
+  renewalMilestoneDays: [60, 30],
+  numberingBT: { pattern: 'BT-{BE}-{SEQ5}', reset: 'YEARLY' }, // TODO(OQ-12)
+  numberingOB: { pattern: 'OB-{BE}-{SEQ5}', reset: 'YEARLY' }, // TODO(OQ-12)
+}
+
+/**
+ * The S6 keys of stored settings, each one falling back to S6_DEFAULTS when it is missing. Stored settings that do
+ * not parse as a whole still give the defaults of the keys that do not parse, never a guess from a broken value.
+ */
+export function s6SettingsOf(settings: unknown): S6Settings {
+  const s = settings !== null && typeof settings === 'object' ? (settings as Record<string, unknown>) : {}
+  const shape = OrgSettingsSchema.shape
+  const part = <T>(schema: z.ZodType<T>, value: unknown): T | undefined => {
+    const parsed = schema.safeParse(value)
+    return parsed.success ? parsed.data : undefined
+  }
+  const duplicateCheck = part(shape.duplicateCheck, s.duplicateCheck)
+  const priceRef = part(shape.priceRef, s.priceRef)
+  const budget = part(shape.budget, s.budget)
+  const renewal = part(shape.renewal, s.renewal)
+  const numbering = s.numbering !== null && typeof s.numbering === 'object' ? (s.numbering as Record<string, unknown>) : {}
+  const d = S6_DEFAULTS
+  return {
+    duplicateWindowDays: duplicateCheck?.windowDays ?? d.duplicateWindowDays,
+    priceRefWindowDays: priceRef?.windowDays ?? d.priceRefWindowDays,
+    priceRefMinSamples: priceRef?.minSamples ?? d.priceRefMinSamples,
+    budgetAlertThresholdsBp: budget?.alertThresholdsBp ?? d.budgetAlertThresholdsBp,
+    budgetForecastMinElapsedDays: budget?.forecastMinElapsedDays ?? d.budgetForecastMinElapsedDays,
+    overrunLapseDays: budget?.overrunLapseDays ?? d.overrunLapseDays,
+    renewalMilestoneDays: renewal?.milestoneDays ?? d.renewalMilestoneDays,
+    numberingBT: part(numberingRule, numbering.BT) ?? d.numberingBT,
+    numberingOB: part(numberingRule, numbering.OB) ?? d.numberingOB,
+  }
 }
 
 /** settings.ai of stored settings, or the defaults of OQ-143 (20,000 credits a month, alert at 80%) */

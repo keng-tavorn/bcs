@@ -29,6 +29,15 @@ export interface FormFailure {
   readonly requestId?: string
   /** DOA gaps (FR-DOA-003 AC3): how many of the organization's administrators were told; absent when the report failed */
   readonly adminsNotified?: number
+  /** DUPLICATE_UNACKNOWLEDGED (S6-13 · BR-DUP-05): the requester's requests this one looks like */
+  readonly matched?: readonly DuplicateMatch[]
+}
+
+/** A request the one being sent looks like (S6-13): its number once sent, and its title */
+export interface DuplicateMatch {
+  readonly id: string
+  readonly number: string | null
+  readonly title: string
 }
 
 export type FormSuccess<T> = { readonly ok: true } & T
@@ -37,6 +46,14 @@ export type FormOutcome<T = object> = FormSuccess<T> | FormFailure
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
 const strings = (v: unknown): string[] | undefined => (Array.isArray(v) && v.every((x) => typeof x === 'string') ? (v as string[]) : undefined)
 const numbers = (v: unknown): number[] | undefined => (Array.isArray(v) && v.every((x) => typeof x === 'number') ? (v as number[]) : undefined)
+
+function matchedOf(value: unknown): DuplicateMatch[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  return value.flatMap((m): DuplicateMatch[] => {
+    const x = m as Record<string, unknown>
+    return typeof x.id === 'string' && typeof x.title === 'string' ? [{ id: x.id, number: typeof x.number === 'string' ? x.number : null, title: x.title }] : []
+  })
+}
 
 function missingOf(value: unknown): MissingView[] {
   if (!Array.isArray(value)) return []
@@ -60,9 +77,12 @@ export function toFormFailure(error: { code: string; details?: Readonly<Record<s
   if (failures) out.failures = failures
   const lowest = numbers(d.lowest)
   if (lowest) out.lowest = lowest
-  const departments = strings(d.departments)
+  // REVIEWER_NOT_FOUND names the one department of the reviewer's position (S6 · BR-WF-08)
+  const departments = strings(d.departments) ?? (typeof d.department === 'string' && d.department ? [d.department] : undefined)
   if (departments) out.departments = departments
   if (typeof d.adminsNotified === 'number') out.adminsNotified = d.adminsNotified
+  const matched = matchedOf(d.matched)
+  if (matched) out.matched = matched
   return out as unknown as FormFailure
 }
 
@@ -104,9 +124,13 @@ export const FAILURE_KEYS = [
   'NO_BUDGET_LINE',
   'BUDGET_LINE_YEAR',
   'BUDGET_LINE_NOT_ALLOWED',
+  'LINE_BUDGET_LINE_NOT_ALLOWED',
+  'LINE_BUDGET_LINE_YEAR',
+  'LINE_BUDGET_LINE',
   'DOA_NOT_CONFIGURED',
   'APPROVER_NOT_FOUND',
   'NO_HIGHER_AUTHORITY',
+  'REVIEWER_NOT_FOUND',
   'DOA_AMBIGUOUS',
   'SOD_VIOLATION',
   'TAX_RATE_NOT_CONFIGURED',
@@ -130,6 +154,12 @@ export const FAILURE_KEYS = [
   'LINE_ID',
   'SITE_UNKNOWN',
   'SUPPLIER_UNKNOWN',
+  'AGREEMENT_PRICE_LOCKED',
+  'AGREEMENT_PRICE_BEFORE_VAT',
+  'AGREEMENT_OFF',
+  'CATALOG_UNKNOWN',
+  'DUPLICATE_UNACKNOWLEDGED',
+  'OVERRUN_PENDING',
   'FAILED',
 ] as const
 export type FailureKey = (typeof FAILURE_KEYS)[number]
@@ -144,6 +174,7 @@ const BY_CODE: readonly FailureKey[] = [
   'DOA_NOT_CONFIGURED',
   'APPROVER_NOT_FOUND',
   'NO_HIGHER_AUTHORITY',
+  'REVIEWER_NOT_FOUND',
   'DOA_AMBIGUOUS',
   'SOD_VIOLATION',
   'TAX_RATE_NOT_CONFIGURED',
@@ -170,6 +201,11 @@ function validationKey(f: FormFailure): FailureKey {
   if (reason === 'TOO_LARGE') return 'TOO_LARGE'
   if (reason === 'NO_PUBLISHED_FORM') return 'NO_FORM'
   if (reason === 'LINE_ID') return 'LINE_ID'
+  // S6-13: like a request sent before — the review step asks for the reason (duplicateRefusal)
+  if (reason === 'DUPLICATE_UNACKNOWLEDGED') return 'DUPLICATE_UNACKNOWLEDGED'
+  // The catalogue's agreed prices (S6-10, BR-PRC-06)
+  if (reason === 'AGREEMENT_PRICE_LOCKED' || reason === 'AGREEMENT_PRICE_BEFORE_VAT' || reason === 'AGREEMENT_OFF') return reason
+  if (/^lines\.\d+\.catalogItemId$/.test(f.field ?? '')) return 'CATALOG_UNKNOWN'
   // A delivery site closed or a supplier deactivated since the form opened (S4-02)
   if (f.field === 'deliverySiteId') return 'SITE_UNKNOWN'
   if (f.field === 'suggestedSupplierId') return 'SUPPLIER_UNKNOWN'
@@ -179,10 +215,26 @@ function validationKey(f: FormFailure): FailureKey {
   return 'INPUT'
 }
 
+/**
+ * S6-17 (BR-BUD-16): a line's own budget line refused at submit (`lines.N.budgetLineId`) — another department's not
+ * granted, of another fiscal year, or not found — said of that line, not of the request's budget line
+ */
+function lineBudgetKey(f: FormFailure): FailureKey | null {
+  if (!/^lines\.\d+\.budgetLineId$/.test(f.field ?? '')) return null
+  if (f.reason === 'BUDGET_LINE_NOT_ALLOWED') return 'LINE_BUDGET_LINE_NOT_ALLOWED'
+  if (f.reason === 'BUDGET_LINE_YEAR') return 'LINE_BUDGET_LINE_YEAR'
+  return 'LINE_BUDGET_LINE'
+}
+
 /** Message key under requestForm.errors for a failed request form action. */
 export function failureKey(f: FormFailure): FailureKey {
+  const line = lineBudgetKey(f)
+  if (line) return line
   if (f.code === 'FORBIDDEN' && f.reason === 'BUDGET_LINE_NOT_ALLOWED') return 'BUDGET_LINE_NOT_ALLOWED'
   if (f.code === 'VALIDATION_FAILED') return validationKey(f)
+  // S6-16 (§6.4): an over-budget approval of the request still waits — its amount and budget line are locked, and it is
+  // not sent until the approval is decided or cancelled; the request itself is still the requester's to change
+  if (f.code === 'INVALID_STATE_TRANSITION' && f.reason === 'OVERRUN_PENDING') return 'OVERRUN_PENDING'
   if (f.code === 'INVALID_STATE_TRANSITION') return 'STATE'
   if (f.code === 'RATE_LIMITED') return 'BUSY'
   // A file the request no longer holds is not the request missing: each gets its own words, neither guesses why
@@ -205,7 +257,7 @@ export function failureStep(f: FormFailure, documentFields: ReadonlySet<string> 
   if (fieldId && documentFields.has(fieldId)) return 'documents'
   if (key === 'FORM_FIELD' || field.startsWith('formData.') || field === 'title') return 'details'
   if (BUDGET_LINE_REASONS.includes(key) || key === 'BUDGET_LINE_CLOSED') return 'details'
-  if (key === 'NO_LINES' || key === 'SERVICE_END_DATE' || key === 'BUDGET_INSUFFICIENT' || key === 'SITE_UNKNOWN' || field.startsWith('lines')) return 'items'
+  if (key === 'NO_LINES' || key === 'SERVICE_END_DATE' || key === 'BUDGET_INSUFFICIENT' || key === 'SITE_UNKNOWN' || field.startsWith('lines') || field === 'offAgreementReason' || field === 'priceIncludesVat') return 'items'
   if (key === 'ATTACHMENT_RULE_FAILED' || key === 'SUPPLIER_UNKNOWN' || key.startsWith('QUOTE_') || field.startsWith('quotations') || field === 'nonLowestQuoteReason') return 'documents'
   return null
 }

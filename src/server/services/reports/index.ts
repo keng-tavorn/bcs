@@ -14,10 +14,12 @@ import { putObject, readObject } from '@/integrations/storage'
 import { authorize, loadPrincipal } from '@/server/authz'
 import { makeCtx, systemCtx, type Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
+import { reportTx } from './tx'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import '../exports/file-policy'
 import { reportScope, scopeCovers } from './access'
 import { computeKpis, type Ratio } from './kpi'
+import { computeWorkflowReport, type WorkflowReport } from './workflow'
 
 export { reportScope } from './access'
 
@@ -137,7 +139,86 @@ const KPI: ReportDefinition<KpiParams> = {
   },
 }
 
-export const REPORTS: Readonly<Record<string, ReportDefinition<KpiParams>>> = { KPI }
+// ---------- workflow reports (S6-20 · FR-VIS-101 · BR-RPT-03 to BR-RPT-06): one file per tab ----------
+
+const periodParams = { params: KpiParams, paramFields: KPI.paramFields }
+const workflowOf = (tx: TenantTx, ctx: Ctx, params: KpiParams, departmentIds: readonly string[] | null) => computeWorkflowReport(tx, ctx.organizationId, { ...periodOf(params), now: ctx.now }, departmentIds)
+const REASON_TH = { NOT_BY_DOA: 'ผู้ตัดสินไม่ใช่ผู้ที่ DOA กำหนด', NO_DOA_REFERENCE: 'ไม่อ้าง DOA ฉบับและข้อ', SPLIT: 'คำขอที่อาจแตกยอดเลี่ยงวงเงิน' } as const
+
+const WF_CYCLE: ReportDefinition<KpiParams> = {
+  code: 'WF_CYCLE',
+  ...periodParams,
+  columns: [
+    { key: 'number', header: { th: 'เลขที่คำขอ', en: 'Request' } },
+    { key: 'submittedAt', header: { th: 'ส่งเมื่อ', en: 'Sent' } },
+    { key: 'approvedAt', header: { th: 'อนุมัติครบเมื่อ', en: 'Approved' } },
+    { key: 'cycleHours', header: { th: 'ส่งถึงอนุมัติครบ (ชั่วโมงทำการ)', en: 'Sent to approved (business hours)' } },
+    { key: 'toFirstPoHours', header: { th: 'ส่งถึง PO แรกอนุมัติ (ชั่วโมงทำการ)', en: 'Sent to first PO approved (business hours)' } },
+  ],
+  async rows(tx, ctx, params, departmentIds) {
+    const r = await workflowOf(tx, ctx, params, departmentIds)
+    return r.cycle.requests.map((x) => ({ number: x.number ?? '', submittedAt: x.submittedAt, approvedAt: x.approvedAt ?? '', cycleHours: hoursText(x.cycleMinutes), toFirstPoHours: hoursText(x.toFirstPoMinutes) }))
+  },
+}
+
+const WF_BOTTLENECKS: ReportDefinition<KpiParams> = {
+  code: 'WF_BOTTLENECKS',
+  ...periodParams,
+  columns: [
+    { key: 'at', header: { th: 'ตำแหน่งที่งานรอ', en: 'Position' } },
+    { key: 'overdue', header: { th: 'งานเกินกำหนด', en: 'Past due' } },
+    { key: 'medianHours', header: { th: 'ค่ากลางเวลาตัดสิน (ชั่วโมงทำการ)', en: 'Median decision time (business hours)' } },
+    { key: 'tasks', header: { th: 'งานทั้งหมด', en: 'Tasks' } },
+  ],
+  async rows(tx, ctx, params, departmentIds) {
+    const r = await workflowOf(tx, ctx, params, departmentIds)
+    return r.bottlenecks.byPosition.map((x) => ({ at: x.at, overdue: String(x.overdue), medianHours: hoursText(x.median), tasks: String(x.taskIds.length) }))
+  },
+}
+
+const WF_WRONG_DOA: ReportDefinition<KpiParams> = {
+  code: 'WF_WRONG_DOA',
+  ...periodParams,
+  columns: [
+    { key: 'number', header: { th: 'เลขที่เอกสาร', en: 'Document' } },
+    { key: 'reason', header: { th: 'เหตุ', en: 'Why' } },
+    { key: 'at', header: { th: 'เมื่อ', en: 'When' } },
+    { key: 'code', header: { th: 'รหัสเหตุ', en: 'Code' }, fileOnly: true },
+  ],
+  async rows(tx, ctx, params, departmentIds) {
+    const r = await workflowOf(tx, ctx, params, departmentIds)
+    return r.wrongDoa.map((x) => ({ number: x.number ?? '', reason: REASON_TH[x.reason], at: x.at, code: x.reason }))
+  },
+}
+
+const WF_HEATMAP: ReportDefinition<KpiParams> = {
+  code: 'WF_HEATMAP',
+  ...periodParams,
+  columns: [
+    { key: 'weekday', header: { th: 'วัน', en: 'Day' } },
+    { key: 'hour', header: { th: 'ชั่วโมง', en: 'Hour' } },
+    { key: 'decisions', header: { th: 'การตัดสิน', en: 'Decisions' } },
+  ],
+  async rows(tx, ctx, params, departmentIds) {
+    const r = await workflowOf(tx, ctx, params, departmentIds)
+    return r.heatmap.decisions.map((x) => ({ weekday: x.weekday, hour: String(x.hour), decisions: String(x.count) }))
+  },
+}
+
+export const REPORTS: Readonly<Record<string, ReportDefinition<KpiParams>>> = { KPI, WF_CYCLE, WF_BOTTLENECKS, WF_WRONG_DOA, WF_HEATMAP }
+
+/** /reports/workflow (S6-20 · FR-VIS-101 AC2): the four tabs within the reader's report.view scope */
+export async function workflowReport(ctx: Ctx, rawParams: unknown): Promise<Result<WorkflowReport & { scope: 'ORG' | 'DEPT' }>> {
+  const params = KpiParams.safeParse(rawParams)
+  if (!params.success) return err('VALIDATION_FAILED', 'invalid report parameters', { field: params.error.issues[0]?.path.join('.') ?? 'params' })
+  return reportTx(ctx, async (tx) => {
+    const allowed = await authorize(tx, ctx, 'report.view')
+    if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
+    const scope = reportScope(allowed.data)
+    if (scope === 'NONE') return err('FORBIDDEN', 'missing capability report.view', { capability: 'report.view' })
+    return ok({ ...(await workflowOf(tx, ctx, params.data, scope)), scope: scope === null ? ('ORG' as const) : ('DEPT' as const) })
+  })
+}
 
 /** Of these members, the ones whose own report.view covers `scope` (null: the whole organization), each counted once */
 async function readersAmong(tx: TenantTx, ctx: Ctx, memberIds: readonly string[], scope: readonly string[] | null): Promise<string[]> {
@@ -154,7 +235,7 @@ export async function runReport(ctx: Ctx, code: string, rawParams: unknown): Pro
   if (!report) return err('NOT_FOUND', 'report not found')
   const params = report.params.safeParse(rawParams)
   if (!params.success) return err('VALIDATION_FAILED', 'invalid report parameters', { field: params.error.issues[0]?.path.join('.') ?? 'params' })
-  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+  return reportTx(ctx, async (tx) => {
     const allowed = await authorize(tx, ctx, 'report.view')
     if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
     const scope = reportScope(allowed.data)

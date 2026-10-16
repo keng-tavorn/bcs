@@ -1,0 +1,113 @@
+# tests/golden/budget-change.yaml
+suite: budget-change
+# บรรทัด A (แผนก CON) และ B (แผนก IT) ปีงบเดียวกัน · expect ต่อบรรทัดหลัง step: available reserved committed actual funded
+# op: fund | reserve | release | submitTransfer | approveTransfer | rejectTransfer | approveOverrun | consumeOverrun | lapseOverrun | approvePo | closePo
+# approvePo: คืนจองของคำขอ (release) แล้วถือยอด PO บรรทัด (hold) ในคำสั่งเดียว · closePo: ตัดยอดใบกำกับใบสุดท้าย (actual) แล้วคืนถือที่เหลือ
+# used returned = ของ overrun ตอนใช้หรือหมดอายุ · returnedAfterUse = คืนหลังใช้ตาม BR-BUD-18 (สะสม)
+cases:
+  # S6-15 · โอนและปรับงบ (BR-BUD-09 ถึง BR-BUD-11)
+  - id: GC-BUD-08
+    title: โอนจาก A ไป B
+    steps:
+      - { op: fund, line: A, amount: "500000.00" }
+      - { op: fund, line: B, amount: "100000.00" }
+      - { op: submitTransfer, id: T1, from: A, to: B, amount: "150000.00", expect: { A: { available: "350000.00", reserved: "150000.00", funded: "500000.00" }, B: { available: "100000.00", funded: "100000.00" } } }
+      - { op: approveTransfer, id: T1, expect: { A: { available: "350000.00", reserved: "0.00", funded: "350000.00" }, B: { available: "250000.00", funded: "250000.00" } } }
+  - id: GC-BUD-09
+    title: โอนเกินคงเหลือ 1 สตางค์ แล้วโอนเท่าคงเหลือพอดี
+    steps:
+      - { op: fund, line: A, amount: "100000.00" }
+      - { op: submitTransfer, id: T1, from: A, to: B, amount: "100000.01", expectError: BUDGET_INSUFFICIENT, shortfall: "0.01", expect: { A: { available: "100000.00", reserved: "0.00" } } }
+      - { op: submitTransfer, id: T2, from: A, to: B, amount: "100000.00", expect: { A: { available: "0.00", reserved: "100000.00" } } }
+  - id: GC-BUD-10
+    title: ไม่อนุมัติการโอน คืนการจองต้นทาง
+    steps:
+      - { op: fund, line: A, amount: "500000.00" }
+      - { op: submitTransfer, id: T1, from: A, to: B, amount: "150000.00" }
+      - { op: rejectTransfer, id: T1, expect: { A: { available: "500000.00", reserved: "0.00", funded: "500000.00" }, B: { available: "0.00", funded: "0.00" } } }
+  - id: GC-BUD-11
+    title: ปรับลดงบ
+    steps:
+      - { op: fund, line: A, amount: "200000.00" }
+      - { op: submitTransfer, id: T1, kind: DECREASE, from: A, amount: "50000.00" }
+      - { op: approveTransfer, id: T1, expect: { A: { available: "150000.00", reserved: "0.00", funded: "150000.00" } } }
+  - id: GC-BUD-12
+    title: ปรับเพิ่มงบ
+    steps:
+      - { op: fund, line: B, amount: "100000.00" }
+      - { op: submitTransfer, id: T1, kind: INCREASE, to: B, amount: "30000.00", expect: { B: { available: "100000.00", funded: "100000.00" } } }
+      - { op: approveTransfer, id: T1, expect: { B: { available: "130000.00", funded: "130000.00" } } }
+  - { id: GC-BUD-13, fn: transferDoaInput, input: { kind: TRANSFER, from: { department: CON }, to: { department: IT }, amount: "300000.00", submitter: u1 }, expect: { documentType: BUDGET_TRANSFER, net: "300000.00", vat: "0.00", department: CON, conflict: [u1] } }
+  - { id: GC-BUD-14, fn: transferDoaInput, input: { kind: INCREASE, to: { department: IT }, amount: "30000.00", submitter: u1 }, expect: { documentType: BUDGET_TRANSFER, net: "30000.00", vat: "0.00", department: IT, conflict: [u1] } }
+  # S6-16 · เกินงบ (BR-BUD-12 ถึง BR-BUD-15 BR-BUD-18)
+  - id: GC-BUD-15
+    title: เกินงบ ใช้ส่วนที่อนุมัติพอดี
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00", expect: { A: { available: "10000.00", reserved: "15000.00", funded: "25000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "0.00", reserved: "25000.00", funded: "25000.00" }, used: "15000.00", returned: "0.00" } }
+  - id: GC-BUD-16
+    title: งบว่างเพิ่มหลังอนุมัติ คืนส่วนที่ไม่ใช้
+    steps:
+      - { op: fund, line: A, amount: "18000.00" }
+      - { op: reserve, line: A, source: PR-X, amount: "8000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00", expect: { A: { available: "10000.00", reserved: "23000.00", funded: "33000.00" } } }
+      - { op: release, line: A, source: PR-X, expect: { A: { available: "18000.00", reserved: "15000.00", funded: "33000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "0.00", reserved: "25000.00", funded: "25000.00" }, used: "7000.00", returned: "8000.00" } }
+  - id: GC-BUD-17
+    title: ต้องใช้มากกว่าที่อนุมัติ 1 สตางค์
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: reserve, line: A, source: PR-Y, amount: "0.01", expect: { A: { available: "9999.99", reserved: "15000.01", funded: "25000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expectError: BUDGET_INSUFFICIENT, shortfall: "0.01", expect: { A: { available: "9999.99", reserved: "15000.01", funded: "25000.00" } } }
+  - id: GC-BUD-18
+    title: ไม่ได้ใช้จนหมดอายุ
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: lapseOverrun, id: O1, expect: { A: { available: "10000.00", reserved: "0.00", funded: "10000.00" }, used: "0.00", returned: "15000.00" } }
+  - id: GC-BUD-19
+    title: ไม่ต้องใช้เลย คืนทั้งหมด
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: fund, line: A, amount: "20000.00", expect: { A: { available: "30000.00", reserved: "15000.00", funded: "45000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "5000.00", reserved: "25000.00", funded: "30000.00" }, used: "0.00", returned: "15000.00" } }
+  - id: GC-BUD-20
+    title: ใช้เกินงบแล้วคำขอไม่ได้รับอนุมัติ คืนส่วนที่เติมออกจากบรรทัด
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "0.00", reserved: "25000.00", funded: "25000.00" }, used: "15000.00", returned: "0.00" } }
+      - { op: release, line: A, source: PR-1, expect: { A: { available: "10000.00", reserved: "0.00", funded: "10000.00" }, returnedAfterUse: "15000.00" } }
+  - id: GC-BUD-21
+    title: PO ถูกกว่าคำขอ แล้วปิด PO โดยใช้ไม่หมด
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { used: "15000.00", returned: "0.00" } }
+      - { op: approvePo, line: A, po: PO-1, request: PR-1, release: "25000.00", hold: "22000.00", expect: { A: { available: "0.00", reserved: "0.00", committed: "22000.00", funded: "22000.00" }, returnedAfterUse: "3000.00" } }
+      - { op: closePo, line: A, po: PO-1, actual: "20000.00", expect: { A: { available: "0.00", committed: "0.00", actual: "20000.00", funded: "20000.00" }, returnedAfterUse: "5000.00" } }
+  - id: GC-BUD-22
+    title: การคืนของคำขออื่นไม่คืนส่วนเกินงบ
+    steps:
+      - { op: fund, line: A, amount: "30000.00" }
+      - { op: reserve, line: A, source: PR-X, amount: "20000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00", expect: { A: { available: "10000.00", reserved: "35000.00", funded: "45000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "0.00", reserved: "45000.00", funded: "45000.00" }, used: "15000.00", returned: "0.00" } }
+      - { op: release, line: A, source: PR-X, expect: { A: { available: "20000.00", reserved: "25000.00", funded: "45000.00" }, returnedAfterUse: "0.00" } }
+      - { op: release, line: A, source: PR-1, expect: { A: { available: "30000.00", reserved: "0.00", funded: "30000.00" }, returnedAfterUse: "15000.00" } }
+  - { id: GC-BUD-23, fn: overrunDoaInput, input: { requestNet: "25000.00", line: { department: CON, available: "10000.00" }, requester: u1 }, expect: { documentType: OVER_BUDGET, net: "15000.00", vat: "0.00", department: CON, conflict: [u1] } }
+  - { id: GC-BUD-24, title: งบพอแล้ว ขอเกินงบไม่ได้, fn: overrunDoaInput, input: { requestNet: "10000.00", line: { department: CON, available: "10000.00" }, requester: u1 }, expect: { error: VALIDATION_FAILED, reason: NOT_OVER_BUDGET } }
+  # S6-17 · แบ่งค่าใช้จ่าย (BR-BUD-16)
+  - { id: GC-BUD-25, title: แบ่งบรรทัดตามจำนวน ไม่มีเศษ, fn: splitLine, input: { unitPrice: "300000.00", parts: ["0.6", "0.4"] }, expect: { nets: ["180000.00", "120000.00"], total: "300000.00", original: "300000.00" } }
+  - { id: GC-BUD-26, title: แบ่งครึ่งแล้วปัด half-up ต่อส่วน, fn: splitLine, input: { unitPrice: "100000.01", parts: ["0.5", "0.5"] }, expect: { nets: ["50000.01", "50000.01"], total: "100000.02", original: "100000.01" } }
+  - { id: GC-BUD-27, fn: chargedDepartmentOf, input: { lines: [{ lineNo: 1, department: CON, net: "50000.00" }, { lineNo: 2, department: IT, net: "70000.00" }] }, expect: { department: IT } }
+  - { id: GC-BUD-28, title: ยอดเท่ากันใช้บรรทัดแรก, fn: chargedDepartmentOf, input: { lines: [{ lineNo: 1, department: CON, net: "60000.00" }, { lineNo: 2, department: IT, net: "60000.00" }] }, expect: { department: CON } }
+  # S6-18 · budgetBurn (BR-BUD-17) · ปีงบ 365 วัน · thresholds [8000, 10000] · forecastMinElapsedDays 30
+  - { id: GC-BUD-29, fn: budgetBurn, input: { funded: "1200000.00", committed: "300000.00", actual: "330000.00", elapsedDays: 146 }, expect: { usedBp: 5250, forecastBp: 13125, alerts: [FORECAST_OVER] } }
+  - { id: GC-BUD-30, title: ใช้ 80% พอดี, fn: budgetBurn, input: { funded: "1000000.00", committed: "500000.00", actual: "300000.00", elapsedDays: 200 }, expect: { usedBp: 8000, forecastBp: 14600, alerts: [USED_8000, FORECAST_OVER] } }
+  - { id: GC-BUD-31, title: ยังไม่ครบ 30 วัน ไม่พยากรณ์, fn: budgetBurn, input: { funded: "1000000.00", committed: "100000.00", actual: "0.00", elapsedDays: 29 }, expect: { usedBp: 1000, forecastBp: null, alerts: [] } }
+  - { id: GC-BUD-32, fn: budgetBurn, input: { funded: "1000000.00", committed: "400000.00", actual: "0.00", elapsedDays: 200 }, expect: { usedBp: 4000, forecastBp: 7300, alerts: [] } }
+  - { id: GC-BUD-33, fn: budgetBurn, input: { funded: "0.00", committed: "0.00", actual: "0.00", elapsedDays: 200 }, expect: { usedBp: null, forecastBp: null, alerts: [] } }

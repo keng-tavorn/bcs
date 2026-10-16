@@ -42,7 +42,8 @@ describe('[FR-DOA-001/AC2] DOA YAML import and export', () => {
   it('a MEMBER approver is written with the member code and read back to the member id', () => {
     const memberRule = FIXTURE.replace('approver: { kind: POSITION_OF_ORG, position: COO }', 'approver: { kind: MEMBER, member: coo }')
     const parsed = parseDoaYaml(memberRule, new Map([['coo', 'member-id-coo']]))
-    expect(parsed.ok && parsed.data[0]!.rules.find((r) => r.code === 'PO-01')!.steps[0]!.approver).toEqual({ kind: 'MEMBER', memberId: 'member-id-coo' })
+    const step = parsed.ok ? parsed.data[0]!.rules.find((r) => r.code === 'PO-01')!.steps[0]! : null
+    expect(step && 'approver' in step && step.approver).toEqual({ kind: 'MEMBER', memberId: 'member-id-coo' })
     if (!parsed.ok) return
     expect(doaYaml(parsed.data, new Map([['member-id-coo', 'coo']]))).toContain('member: coo')
   })

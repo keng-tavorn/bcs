@@ -1,10 +1,11 @@
 import { z } from 'zod'
 import { validateNewDelegation } from '@/core/delegation'
-import { DOA_DOCUMENT_TYPES, lintDoaVersion, resolveRoute, versionAt, type DoaVersionSnapshot, type OrgSnapshot } from '@/core/doa'
+import { DOA_DOCUMENT_TYPES, lintDoaVersion, resolveRoute, stepApprovers, versionAt, type DoaVersionSnapshot, type OrgSnapshot } from '@/core/doa'
 import { amountToSatang } from '@/core/money/dto'
 import { err, ok, type Result } from '@/core/result'
 import { checkSod, type OrgAuthorityChangeKind } from '@/core/sod'
 import { ORG_CHANGE_MACHINE, TASK_MACHINE, transition, type OrgChangeCommand, type OrgChangeState, type TaskState } from '@/core/state-machines'
+import { reresolveOpenTasks } from '@/core/workflow'
 import { COMMAND_TX_MAX_WAIT_MS, COMMAND_TX_TIMEOUT_MS, REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { logger } from '@/lib/logger'
@@ -22,6 +23,7 @@ import { defineCommand, isBusyTxError, runCommand, type CommandFailure, type Com
 import { enabledModules } from '../modules'
 import { startRoute } from '../approvals/route'
 import { warningKey } from '../doa/lint-view'
+import { openTasksOnTree } from './reparent'
 
 // Changes to the authority structure (spec FR-DOA-010, BR-DOA-17, BR-SOD-08, BR-AUTH-07): ORG_ADMIN proposes one of five
 // kinds with an effective time that is not in the past and a reason; the approver of the ORG_AUTHORITY_CHANGE rule
@@ -85,7 +87,17 @@ function beneficiaryOf(p: Proposal): string | null {
 
 /** Whether a rule of the version names the position as approver */
 const namesPosition = (version: DoaVersionSnapshot, positionCode: string) =>
-  version.rules.some((r) => r.steps.some((s) => s.approver.kind !== 'MEMBER' && s.approver.position === positionCode))
+  version.rules.some((r) => r.steps.some((s) => stepApprovers(s).some((a) => a.kind !== 'MEMBER' && a.position === positionCode)))
+
+/**
+ * BR-WF-14: a position the workflow version in effect or waiting names as reviewer or fallback counts as one the DOA
+ * names (BR-DOA-17): left without a holder, it is a warning the proposer acknowledges
+ */
+async function workflowNamesPosition(tx: TenantTx, positionCode: string, at: Date): Promise<boolean> {
+  const versions = await tx.workflowVersion.findMany({ where: { status: 'PUBLISHED', OR: [{ effectiveTo: null }, { effectiveTo: { gt: at } }] }, select: { rules: { select: { reviewers: true, fallback: true } } } })
+  const named = (spec: unknown) => (spec as { kind?: unknown; position?: unknown } | null)?.kind === 'POSITION_AT' && (spec as { position?: unknown }).position === positionCode
+  return versions.some((v) => v.rules.some((r) => (Array.isArray(r.reviewers) && r.reviewers.some(named)) || named(r.fallback)))
+}
 
 /**
  * The pending approval tasks of one position slot (BR-DOA-17): open, or waiting for the requester's answer, whoever
@@ -223,14 +235,14 @@ async function assess(tx: TenantTx, ctx: Ctx, input: Proposal, proposer: string,
     // the slot itself (POSITION_VACANT:<position>@<department>), and any rule left with nobody at all (lint)
     const known = new Set(lintBefore.warnings.map(warningKey))
     warnings.push(...lintAfter.warnings.filter((w) => w.code === 'DOA_LINT_VACANT_POSITION' && !known.has(warningKey(w))).map(warningKey))
-    if (input.kind === 'POSITION_END' && !input.payload.replacementMemberId && namesPosition(version, input.payload.positionCode)) {
+    if (input.kind === 'POSITION_END' && !input.payload.replacementMemberId && (namesPosition(version, input.payload.positionCode) || (await workflowNamesPosition(tx, input.payload.positionCode, effectiveFrom)))) {
       const department = org.departments.find((d) => d.id === input.payload.departmentId)!
       warnings.unshift(`POSITION_VACANT:${input.payload.positionCode}@${department.code}`)
     }
   }
 
   // AC1: the impact shown before submitting — who gains or loses authority, open tasks that follow the change
-  const impact = await impactOf(tx, org, input)
+  const impact = await impactOf(tx, org, input, effectiveFrom)
   return { ok: true, data: { effectiveFrom, beneficiary, org, warnings, impact } }
 }
 
@@ -411,7 +423,13 @@ export async function previewOrgChange(ctx: Ctx, rawInput: z.input<typeof Propos
  * Who holds the slot now, and its pending tasks (BR-DOA-17): they move to the new holder when the change applies, or
  * stay where they are when the slot becomes vacant. Tasks the newcomer holds already, in their own name, stay with them.
  */
-async function impactOf(tx: TenantTx, org: OrgSnapshot, p: Proposal): Promise<Impact> {
+async function impactOf(tx: TenantTx, org: OrgSnapshot, p: Proposal, at: Date): Promise<Impact> {
+  // S6-08 (BR-WF-14): a department move moves the open tasks that land on someone else once it applies (approval and
+  // review); those whose new holder is missing or conflicts stay where they are
+  if (p.kind === 'DEPARTMENT_REPARENT') {
+    const found = reresolveOpenTasks(await openTasksOnTree(tx), orgAfter(org, p, at), at)
+    return { gains: [...new Set(found.reassign.map((r) => r.to))], loses: [], openTasks: found.reassign.length, openTasksStay: found.stuck.length }
+  }
   if (p.kind !== 'POSITION_ASSIGN' && p.kind !== 'POSITION_END') return { gains: p.kind === 'DELEGATION_ON_BEHALF' ? [p.payload.delegateMemberId] : [], loses: [], openTasks: 0, openTasksStay: 0 }
   const current = org.holders.filter((h) => h.positionCode === p.payload.positionCode && h.departmentId === p.payload.departmentId && h.validTo === null).map((h) => h.memberId)
   const departmentCode = org.departments.find((d) => d.id === p.payload.departmentId)?.code ?? ''
@@ -467,6 +485,7 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
   const told = new Set<string>()
   const extra: NotificationDraft[] = []
   let vacant: { positionCode: string; departmentId: string; openTasks: number } | null = null
+  let reparentStuck = 0
   const payload = change.payload as Record<string, unknown>
 
   const assign = async (positionCode: string, departmentId: string, memberId: string) => {
@@ -498,28 +517,38 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
     const pending = await tx.approvalTask.findMany({ where: { id: { in: locked }, ...slotTasks(positionCode, department.code) }, orderBy: { id: 'asc' } })
     for (const task of pending) {
       if (task.assigneeMemberId === toMember && task.principalMemberId === null) continue
-      const reassigned = transition(TASK_MACHINE, task.status as TaskState, 'task.reassign')
-      if (!reassigned.ok) continue
-      await tx.approvalTask.update({ where: { id: task.id }, data: { status: reassigned.to, version: { increment: 1 } } })
-      const moved = await tx.approvalTask.create({
-        data: {
-          organizationId: ctx.organizationId,
-          stepId: task.stepId,
-          assigneeMemberId: toMember,
-          resolvedFrom: task.resolvedFrom,
-          status: task.status,
-          assignedAt: at,
-          dueAt: task.dueAt,
-          remindAt: task.remindAt,
-          escalateAt: task.escalateAt,
-          remainingBusinessMinutes: task.remainingBusinessMinutes,
-          reassignedFromTaskId: task.id,
-        },
-        select: { id: true },
-      })
-      if (task.status === 'INFO_REQUESTED') await tx.infoRequest.updateMany({ where: { taskId: task.id, answeredAt: null }, data: { taskId: moved.id } })
-      events.push({ type: 'approval_task.reassigned', aggregateType: 'ApprovalTask', aggregateId: moved.id, data: { fromTaskId: task.id, fromMemberId: task.assigneeMemberId, toMemberId: toMember, why: 'ORG_AUTHORITY_CHANGE', changeId: change.id } })
+      await moveOne(task, toMember, task.resolvedFrom)
     }
+  }
+  /**
+   * One pending task to another member, in the same slot and with the same DOA reference: it keeps its due times and its
+   * open question; the resolvedFrom is the one the move found (a department move may find the position higher up)
+   */
+  async function moveOne(task: Awaited<ReturnType<typeof tx.approvalTask.findUniqueOrThrow>>, toMember: string, resolvedFrom: string) {
+    const reassigned = transition(TASK_MACHINE, task.status as TaskState, 'task.reassign')
+    if (!reassigned.ok) return
+    await tx.approvalTask.update({ where: { id: task.id }, data: { status: reassigned.to, version: { increment: 1 } } })
+    const moved = await tx.approvalTask.create({
+      data: {
+        organizationId: ctx.organizationId,
+        stepId: task.stepId,
+        // The moved task fills the same slot (BR-WF-01)
+        slotNo: task.slotNo,
+        workflowRuleCodes: task.workflowRuleCodes,
+        assigneeMemberId: toMember,
+        resolvedFrom,
+        status: task.status,
+        assignedAt: at,
+        dueAt: task.dueAt,
+        remindAt: task.remindAt,
+        escalateAt: task.escalateAt,
+        remainingBusinessMinutes: task.remainingBusinessMinutes,
+        reassignedFromTaskId: task.id,
+      },
+      select: { id: true },
+    })
+    if (task.status === 'INFO_REQUESTED') await tx.infoRequest.updateMany({ where: { taskId: task.id, answeredAt: null }, data: { taskId: moved.id } })
+    events.push({ type: 'approval_task.reassigned', aggregateType: 'ApprovalTask', aggregateId: moved.id, data: { fromTaskId: task.id, fromMemberId: task.assigneeMemberId, toMemberId: toMember, why: 'ORG_AUTHORITY_CHANGE', changeId: change.id } })
   }
 
   switch (change.kind) {
@@ -547,6 +576,20 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
       const p = payload as { departmentId: string; newParentId: string }
       const department = await tx.department.update({ where: { id: p.departmentId }, data: { parentId: p.newParentId }, select: { code: true } })
       events.push({ type: 'department.updated', aggregateType: 'Department', aggregateId: p.departmentId, data: { code: department.code, changed: ['parentId'] } })
+      // S6-08 (BR-WF-14): the open tasks found from the department tree are found again; those that now land on someone
+      // else move there with the same DOA reference, and both are told; one whose new holder is missing or conflicts with
+      // its document stays where it is, for ORG_ADMIN to reassign (BR-DOA-17)
+      const onTree = await openTasksOnTree(tx)
+      const found = reresolveOpenTasks(onTree, await loadOrgSnapshot(tx), at)
+      const locked = new Set(await lockRowsForUpdate(tx, 'ApprovalTask', ctx.organizationId, found.reassign.map((r) => r.task)))
+      for (const r of found.reassign) {
+        if (!locked.has(r.task)) continue
+        const task = await tx.approvalTask.findUniqueOrThrow({ where: { id: r.task } })
+        if (task.status !== 'OPEN' && task.status !== 'INFO_REQUESTED') continue
+        await moveOne(task, r.to, r.resolvedFrom)
+        told.add(task.assigneeMemberId).add(r.to)
+      }
+      if (found.stuck.length) reparentStuck = found.stuck.length
       break
     }
     case 'DELEGATION_ON_BEHALF': {
@@ -623,6 +666,19 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
         data: { changeId: change.id, ...position },
         urgency: 'IMMEDIATE',
         dedupeKey: `position.vacant:${change.id}:${memberId}`,
+        subjectType: 'ORG_AUTHORITY_CHANGE',
+        subjectId: change.id,
+      })
+    }
+  }
+  if (reparentStuck > 0) {
+    for (const memberId of new Set(admins.map((a) => a.memberId))) {
+      notifications.push({
+        recipientMemberId: memberId,
+        templateKey: 'admin.reparent_tasks_stay',
+        data: { changeId: change.id, openTasks: reparentStuck },
+        urgency: 'IMMEDIATE',
+        dedupeKey: `admin.reparent_tasks_stay:${change.id}:${memberId}`,
         subjectType: 'ORG_AUTHORITY_CHANGE',
         subjectId: change.id,
       })

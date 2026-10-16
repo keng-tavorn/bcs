@@ -95,6 +95,9 @@ async function moveTask(tx: TenantTx, ctx: Ctx, task: OpenTask, to: { readonly a
     data: {
       organizationId: ctx.organizationId,
       stepId: task.stepId,
+      // The moved task fills the same slot (BR-WF-01)
+      slotNo: task.slotNo,
+      workflowRuleCodes: task.workflowRuleCodes,
       assigneeMemberId: to.assigneeMemberId,
       principalMemberId: to.principalMemberId,
       resolvedFrom: task.resolvedFrom,

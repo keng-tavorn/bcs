@@ -62,7 +62,7 @@ function asMember(code: string) {
   session.page = {
     kind: 'member',
     ctx: org.ctxOf(code, NOW, 'LIFF'),
-    member: { id: org.member[code]!, organizationId: org.organizationId, organizationName: 'องค์กรทดสอบ DOA', displayNameTh: `ผู้ใช้ ${code}`, displayNameEn: null, email: `${code}@test.bcs.local` },
+    member: { id: org.member[code]!, organizationId: org.organizationId, organizationName: 'องค์กรทดสอบ DOA', organizationKind: 'PRODUCTION', displayNameTh: `ผู้ใช้ ${code}`, displayNameEn: null, email: `${code}@test.bcs.local` },
     session: 'liff',
   }
 }

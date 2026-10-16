@@ -6,8 +6,10 @@ import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
 import { businessDaysTaken, getMyOpenTaskId, getRouteStepDetails, listRequestPurchaseOrders } from '@/server/queries/document-page'
 import { getPoAccess } from '@/server/queries/purchase-orders'
-import { getRequestAccess, getRequestView, type RequestViewDto } from '@/server/queries/requests'
+import { getRequestAccess, getRequestView, getServiceLines, type RequestViewDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView } from '@/server/queries/tasks'
+import { getRequestOverruns } from '@/server/services/budget/overrun-view'
+import { listRequestFlags } from '@/server/services/requests/duplicates'
 import { getRequestFollowers } from '@/server/services/requests/followers'
 import { Notice } from '@/ui/form/notice'
 import { PO_BADGES, REQUEST_BADGES, StatusBadge, URGENCY_BADGES } from '@/ui/document/badges'
@@ -19,12 +21,16 @@ import { tabFrom } from '@/ui/document/tab-param'
 import { HistoryTable } from '@/ui/document/history-table'
 import { CommentList, PoCards, SummaryList, type PoCardView } from '@/ui/document/rail'
 import { StepCards } from '@/ui/document/step-cards'
+import { OverrunPanel } from '@/ui/budgets/overrun-panel'
 import { Toaster } from '@/ui/shadcn/sonner'
 import { AttachmentList } from '@/ui/request-view/attachments'
 import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Section } from '@/ui/request-view/facts'
 import { PlaceFacts, type PlaceFact } from '@/ui/request-view/place'
 import { FollowButton, FollowersPanel } from '@/ui/request-view/followers'
+import { RequestFlagsPanel } from '@/ui/request-flags/panel'
+import { RenewLines, ReorderButton } from '@/ui/request-view/repeat-actions'
+import { canRenew, canReorder } from '@/ui/request-view/repeat-rules'
 import { CancelRequest, RequesterActions } from '@/ui/request-view/requester-actions'
 import { StateLine } from '@/ui/request-view/status'
 import { BYTES_PER_KIB } from '@/lib/constants'
@@ -34,10 +40,13 @@ import { canOpenDoaVersion, canViewRequest, taskRight } from '../../_tracking/ac
 import { requestBudgetState } from '../../_tracking/budget-state'
 import { commentViews, historyRows, requestHistoryKinds, routeWhy, stepCards } from '../../_tracking/document-present'
 import { day, doaHref, doaRefText, dueText, fileKind, localeOf, memberName, money, nameIn, stageText, stageWaitingMinutes, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
+import { requestFlagsView } from '../../_tracking/request-flags'
 import { RequestFacts, RequestSections } from '../../_tracking/request-sections'
 import { canViewPo } from '../../procurement/pos/_parts/access'
+import { cancelBudgetOverrunAction, submitBudgetOverrunAction } from '../../budgets/overruns/actions'
+import { overrunPanelView } from '../../budgets/overruns/_present'
 import { askForInformationAction, decideTaskAction } from '../../tasks/actions'
-import { answerInfoAction, cancelRequestAction, followAction, manageFollowerAction } from './actions'
+import { answerInfoAction, cancelRequestAction, followAction, manageFollowerAction, renewLineAction, reorderAction } from './actions'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -81,7 +90,9 @@ const CLOSED_STATUSES: readonly string[] = ['CANCELLED', 'REJECTED', 'COMPLETED'
 // and the right column: the decision bar for whoever holds an open task on it, then its summary with the attachments
 // and followers, and its comments. request.view is checked before anything is read: the requester and followers,
 // everyone who had a task on it, and the organization-wide roles. The decision bar calls the task page's actions, whose
-// services check the assignee, the state, separation of duties and the PIN again.
+// services check the assignee, the state, separation of duties and the PIN again. The requester asks again from the
+// header ("ขอซ้ำ", once the request was sent) and renews a service line of an ordered or done request from the overview,
+// where the renewal reminder lands (S6-12 · FR-INT-101); the service checks the requester again.
 export default async function RequestPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string | string[] }> }) {
   const [{ id }, query] = await Promise.all([params, searchParams])
   const state = await getSession()
@@ -109,12 +120,18 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
   const route = view.route
   const closed = CLOSED_STATUSES.includes(view.status)
   const lastDone = view.track.filter((e) => e.state === 'done').at(-1)?.at ?? null
-  const [details, daysTaken, poAccess, task] = await Promise.all([
+  const [details, daysTaken, poAccess, task, flags, overruns] = await Promise.all([
     route ? getRouteStepDetails(ctx, route.id) : Promise.resolve([]),
     businessDaysTaken(ctx, view.submittedAt, closed ? lastDone : null),
     Promise.all(allPos.map((po) => getPoAccess(ctx, po.id))),
     myTaskId ? Promise.all([getTaskAccess(ctx, myTaskId), getTaskView(ctx, myTaskId)]) : Promise.resolve(null),
+    // Like a request its requester sent before, or a purchase that may be split (S6-13 · FR-INT-103 AC2 AC3)
+    listRequestFlags(ctx, id),
+    // Over budget (S6-16 · FR-BUD-101): the requester asks for the shortfall; whoever reads the request sees what was asked
+    view.documentType === 'PURCHASE_REQUEST' ? getRequestOverruns(ctx, id) : Promise.resolve(null),
   ])
+  const overrunView = overruns?.ok ? overrunPanelView(await getTranslations('budgetOverrun'), overruns.data, (iso) => day(locale, iso)) : null
+  const flagsView = flags.ok ? requestFlagsView(await getTranslations('requestFlags'), flags.data, (requestId) => `/requests/${requestId}`) : null
   // Only the POs the reader may open (po.view, §2.4): a PO they may not see is not mentioned at all (AC2)
   const pos = allPos.filter((_, i) => poAccess[i] && canViewPo(principal, poAccess[i]!))
   // The decision bar: an open task on this request that the reader may decide (approval.decide, BR-DLG-04)
@@ -122,6 +139,8 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
 
   const named = (m: { id: string; name: { th: string; en: string | null } }) => ({ id: m.id, name: memberName(locale, m) })
   const mine = view.requester.id === state.member.id
+  // Asking again (S6-12 · FR-INT-101): the requester's own request once sent, and its service lines once ordered or done
+  const serviceLines = canRenew(mine, view.status) ? await getServiceLines(ctx, view.id) : []
   const stage = view.stage
   const rejection = view.status === 'REJECTED' ? (view.track.filter((e) => e.what === 'REJECTED').at(-1)?.note ?? null) : null
   // DOA references link to the version only for those who may open it (ORG_ADMIN); everyone else reads them as text
@@ -167,6 +186,14 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
         {view.cancelReason ? <p className="break-words whitespace-pre-line text-ink">{tv('detail.cancelledReason', { reason: view.cancelReason })}</p> : null}
       </div>
 
+      {flagsView ? <RequestFlagsPanel view={flagsView} /> : null}
+
+      {serviceLines.length ? (
+        <Section id="renewal" title={tv('actions.renewTitle')}>
+          <RenewLines lines={serviceLines.map((l) => ({ id: l.id, description: l.description, ends: tv('lines.serviceEnd', { date: day(locale, l.serviceEndDate) }) }))} renew={renewLineAction} />
+        </Section>
+      ) : null}
+
       <Section id="route" title={tv('route.title')}>
         {route ? (
           <div className="flex flex-col gap-3">
@@ -193,7 +220,21 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
 
       {view.documentType === 'PURCHASE_REQUEST' ? (
         <Section id="budget-card" title={td('overview.budgetTitle')}>
-          {view.budget ? (
+          {view.budgetLines.length > 1 ? (
+            // S6-17 (BR-BUD-16): split over budget lines — each one with what the request holds on it
+            <div className="flex flex-col gap-2">
+              <StateLine kind={budget.kind}>{tv(`budget.${budget.key}`)}</StateLine>
+              <ul aria-label={tv('budget.lines')} className="flex flex-col divide-y divide-line border-t border-line">
+                {view.budgetLines.map((b) => (
+                  <li key={b.lineId} className="flex flex-col gap-1 py-2">
+                    <p className="text-ink">{`${b.code} · ${b.name}`}</p>
+                    {b.reservedSatang > 0n ? <p className="tabular text-ink">{`${tv('budget.reserved')} ${money(b.reservedSatang)} ${tv('amounts.currency')}`}</p> : null}
+                    {b.committedSatang > 0n ? <p className="tabular text-ink">{`${tv('budget.committed')} ${money(b.committedSatang)} ${tv('amounts.currency')}`}</p> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : view.budget ? (
             <div className="flex flex-col gap-1">
               <p className="text-ink">{`${view.budget.code} · ${view.budget.name}`}</p>
               <StateLine kind={budget.kind}>{tv(`budget.${budget.key}`)}</StateLine>
@@ -205,6 +246,8 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
           )}
         </Section>
       ) : null}
+
+      {overrunView ? <OverrunPanel requestId={view.id} view={overrunView} mine={mine} actions={{ submit: submitBudgetOverrunAction, cancel: cancelBudgetOverrunAction }} /> : null}
 
       {poCards.length ? (
         <Section id="po-card" title={td('overview.poTitle')}>
@@ -282,7 +325,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
             : []),
           { label: td('summary.type'), value: nameIn(locale, view.requestType.name) },
           { label: td('summary.charged'), value: view.chargedDepartment ? nameIn(locale, view.chargedDepartment.name) : td('summary.none') },
-          ...(view.documentType === 'PURCHASE_REQUEST' ? [{ label: td('summary.budgetLine'), value: view.budget ? `${view.budget.code} · ${view.budget.name}` : td('summary.none') }] : []),
+          ...(view.documentType === 'PURCHASE_REQUEST' ? [{ label: td('summary.budgetLine'), value: view.budgetLines.length ? view.budgetLines.map((b) => `${b.code} · ${b.name}`).join(', ') : td('summary.none') }] : []),
           { label: td('summary.requester'), value: memberName(locale, view.requester) },
           { label: td('summary.neededBy'), value: view.neededBy ? day(locale, view.neededBy) : td('summary.none') },
           ...(view.documentType === 'PURCHASE_REQUEST' ? [{ label: td('summary.site'), value: view.deliverySite ? `${view.deliverySite.code} · ${view.deliverySite.name}` : td('summary.none') }] : []),
@@ -313,6 +356,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
         }
         actions={
           <>
+            {canReorder(mine, view.status) ? <ReorderButton requestId={view.id} reorder={reorderAction} /> : null}
             {follow?.canFollow ? <FollowButton requestId={view.id} following={follow.following} unfollowEndsAccess={follow.unfollowEndsAccess} follow={followAction} /> : null}
             <DocMenu
               pdfHref={view.number ? `/requests/${view.id}/pdf` : null}

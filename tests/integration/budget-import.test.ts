@@ -114,6 +114,17 @@ describe('[FR-BUD-001/AC3] the same file again is recognised by its checksum and
   })
 })
 
+describe('[FR-BUD-103/AC3] an import that adds to lines that had budget tells the AUDITOR (S6-15 · OQ-105)', () => {
+  it('a new line tells nobody; adding to it again reaches every AUDITOR in their digest', async () => {
+    await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.auditor!, role: 'AUDITOR', grantedAt: NOW } })
+    const told = () => prisma.notification.findMany({ where: { organizationId: org.organizationId, templateKey: 'audit.budget_topped_up' }, select: { recipientMemberId: true, urgency: true, data: true } })
+    ok(await importBudget(org.ctxOf('fin_officer', NOW), { bytes: await file([['FY2569', 'IT', 'CC-IT', 'IMP-IT-TOPUP-2569', 'งบเติม', '1201', 1000]]), fileName: 'ใหม่.xlsx' }, key()))
+    expect(await told()).toEqual([])
+    ok(await importBudget(org.ctxOf('fin_officer', NOW), { bytes: await file([['FY2569', 'IT', 'CC-IT', 'IMP-IT-TOPUP-2569', 'งบเติม', '1201', 500]]), fileName: 'เติม.xlsx' }, key()))
+    expect(await told()).toEqual([{ recipientMemberId: org.member.auditor, urgency: 'DIGEST', data: expect.objectContaining({ lines: 1 }) }])
+  })
+})
+
 // The import page (S3-04) checks a file before anything is saved, gives the template with the organization's codes and
 // lists what came in before; each needs budget.import like the import itself.
 

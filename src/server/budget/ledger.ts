@@ -6,15 +6,27 @@ import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
+import { returnsAfterUse } from './overrun-return'
 
 // Running the ledger engine on stored budget lines (spec §7.7, S3-03), inside the calling command's transaction. The
 // balance row of the line is locked FOR UPDATE first (INV-BUD-05, ids in ascending order across lines, INV-PLT-03), the
 // engine works on the locked state, and the movements are written as ledger rows next to the new balance and the
 // allocations of the document lines (BR-BUD-01: never one without the other). Each kind of movement of an operation
 // is one event (an approved PO line gives back reservations and then holds: two events), whose id is made here and
-// named by its ledger rows (INV-BUD-04). A refusal writes nothing.
+// named by its ledger rows (INV-BUD-04). A refusal writes nothing. After the operations of one call (one command), what
+// they gave back of a request whose overrun was used takes the unused part of it out of the line (BR-BUD-18, S6-16).
 
-export type BudgetEventType = 'budget.imported' | 'budget.reserved' | 'budget.reservation_released' | 'budget.committed' | 'budget.commitment_released' | 'budget.actualized'
+export type BudgetEventType =
+  | 'budget.imported'
+  | 'budget.reserved'
+  | 'budget.reservation_released'
+  | 'budget.committed'
+  | 'budget.commitment_released'
+  | 'budget.actualized'
+  | 'budget.transferred_out'
+  | 'budget.transferred_in'
+  | 'budget.overrun_funded'
+  | 'budget.overrun_returned'
 
 /** §7.7: the event of each movement between buckets */
 const EVENT_OF_MOVEMENT: Readonly<Record<string, BudgetEventType>> = {
@@ -27,6 +39,12 @@ const EVENT_OF_MOVEMENT: Readonly<Record<string, BudgetEventType>> = {
 }
 
 function eventOf(m: Movement): BudgetEventType {
+  // S6-15 (BR-BUD-09): money that a transfer or an adjustment moves across the line's edge
+  if (m.sourceType === 'BUDGET_TRANSFER' && m.to === 'OUTSIDE') return 'budget.transferred_out'
+  if (m.sourceType === 'BUDGET_TRANSFER' && m.from === 'OUTSIDE') return 'budget.transferred_in'
+  // S6-16 (BR-BUD-13 to BR-BUD-15, BR-BUD-18): what an overrun funded, and what it did not use leaving the line
+  if (m.sourceType === 'BUDGET_OVERRUN' && m.from === 'OUTSIDE') return 'budget.overrun_funded'
+  if (m.sourceType === 'BUDGET_OVERRUN' && m.to === 'OUTSIDE') return 'budget.overrun_returned'
   const type = EVENT_OF_MOVEMENT[`${m.from}>${m.to}`]
   if (!type) throw new Error(`no budget event for a movement ${m.from} → ${m.to}`)
   return type
@@ -35,7 +53,7 @@ function eventOf(m: Movement): BudgetEventType {
 export interface BudgetOperation {
   readonly budgetLineId: string
   /** The document whose action moves the money (event data) */
-  readonly document: { readonly type: 'IMPORT' | 'REQUEST' | 'PURCHASE_ORDER'; readonly id: string }
+  readonly document: { readonly type: 'IMPORT' | 'REQUEST' | 'PURCHASE_ORDER' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN'; readonly id: string }
   readonly run: (state: LineState) => BudgetResult
 }
 
@@ -95,6 +113,12 @@ export async function applyBudget(
     planned.push({ op, before, after: result.state, movements: result.movements })
     states.set(op.budgetLineId, result.state)
   }
+  const operated = planned.length
+  const byLine = new Map<string, Movement[]>()
+  for (const p of planned) byLine.set(p.op.budgetLineId, [...(byLine.get(p.op.budgetLineId) ?? []), ...p.movements])
+  const afterUse = await returnsAfterUse(tx, byLine, states)
+  for (const r of afterUse.returns)
+    planned.push({ op: { budgetLineId: r.budgetLineId, document: { type: 'BUDGET_OVERRUN', id: r.overrunId }, run: () => ({ ok: true, state: r.after, movements: r.movements }) }, before: r.before, after: r.after, movements: r.movements })
 
   const events: EventDraft[] = []
   for (const { op, before, after, movements } of planned) {
@@ -163,5 +187,7 @@ export async function applyBudget(
       })
     }
   }
-  return { ok: true, events, lines: planned.map((p) => ({ budgetLineId: p.op.budgetLineId, before: p.before.buckets, after: p.after.buckets })) }
+  events.push(...afterUse.events)
+  // The lines as the caller's operations left them (the returns after use come after them)
+  return { ok: true, events, lines: planned.slice(0, operated).map((p) => ({ budgetLineId: p.op.budgetLineId, before: p.before.buckets, after: p.after.buckets })) }
 }

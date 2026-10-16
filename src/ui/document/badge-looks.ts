@@ -13,13 +13,18 @@ export type BadgeIcon =
   | 'CircleDot'
   | 'CircleX'
   | 'Clock'
+  | 'Copy'
   | 'FilePen'
+  | 'Gauge'
   | 'Hourglass'
   | 'Lock'
   | 'MessageCircleQuestion'
   | 'PackageCheck'
   | 'Send'
   | 'ShoppingCart'
+  | 'Split'
+  | 'TrendingDown'
+  | 'TrendingUp'
   | 'Undo2'
   | 'Wallet'
   | 'Zap'
@@ -85,6 +90,31 @@ export const BUDGET_BADGES: Readonly<Record<'OK' | 'LOW' | 'SHORT', BadgeLook>> 
   OK: { tone: 'ok', icon: 'Wallet' },
   LOW: { tone: 'warn', icon: 'Wallet' },
   SHORT: { tone: 'danger', icon: 'Wallet' },
+}
+
+/** S6-18 (FR-BUD-104 · BR-BUD-17): a budget line's use reached a threshold of the organization (USED: warn, like งบใกล้
+ * หมด), reached the whole current budget (USED_ALL: danger, like งบไม่พอ), or its year's forecast is above the budget
+ * (FORECAST_OVER: warn, a thing to look at before it happens). Not in §9.10's table, which has no burn state */
+export const BURN_BADGES: Readonly<Record<'USED' | 'USED_ALL' | 'FORECAST_OVER', BadgeLook>> = {
+  USED: { tone: 'warn', icon: 'Gauge' },
+  USED_ALL: { tone: 'danger', icon: 'Gauge' },
+  FORECAST_OVER: { tone: 'warn', icon: 'TrendingUp' },
+}
+
+/** A request line's price against the median of the past prices (S6-11 · BR-PRC-03): above or below it by more than the
+ * organization's priceAlertPct. Not in §9.10's table, which has no price state: warn as a thing to look at, info for a
+ * lower price, which is no fault */
+export const PRICE_BADGES: Readonly<Record<'HIGH' | 'LOW', BadgeLook>> = {
+  HIGH: { tone: 'warn', icon: 'TrendingUp' },
+  LOW: { tone: 'info', icon: 'TrendingDown' },
+}
+
+/** A flag of a sent request (S6-13 · FR-INT-103 · BR-DUP-05): it looks like one the requester sent within the window
+ * (DUPLICATE), or with others of its paying department it reaches a higher DOA rule (SPLIT). Not in §9.10's table, which
+ * has no such state: warn for both, things for the approver to look at — a flag never blocks and never changes the route */
+export const FLAG_BADGES: Readonly<Record<'DUPLICATE' | 'SPLIT', BadgeLook>> = {
+  DUPLICATE: { tone: 'warn', icon: 'Copy' },
+  SPLIT: { tone: 'warn', icon: 'Split' },
 }
 
 export const FALLBACK_BADGE: BadgeLook = { tone: 'neutral', icon: null }

@@ -183,6 +183,32 @@ const PRICE_OVER_BP = 300n
 const PRICE_WITHIN_TOL_BP = 50n
 
 /**
+ * S6 (BR-WF-06): a request whose facts match rules of the workflow in effect waits for its reviewers first. The history's
+ * reviewers pass it on the web a business half hour after it is sent — never after the row's decision or the seed — one
+ * task per slot (a slot's other tasks and a decided group's close with it), so its DOA step starts as the sheet expects.
+ */
+async function passReviewers(c: Context, row: DemoHistoryRow, requestId: string, submitAt: Date, decideAt: Date): Promise<void> {
+  const db = forTenant(c.organizationId)
+  const open = await db.approvalTask.findMany({
+    where: { status: 'OPEN', step: { kind: 'REVIEW', status: 'ACTIVE', route: { subjectType: 'REQUEST', subjectId: requestId, status: 'ACTIVE' } } },
+    select: { id: true, slotNo: true, assignee: { select: { employeeCode: true } } },
+    orderBy: [{ slotNo: 'asc' }, { id: 'asc' }],
+  })
+  if (open.length === 0) return
+  const soon = addBusinessMinutes(submitAt, STEP_MINUTES, c.calendar)
+  const at = new Date(Math.min(soon.getTime(), decideAt.getTime(), c.now.getTime()))
+  const done = new Set<number>()
+  for (const task of open) {
+    if (done.has(task.slotNo)) continue
+    done.add(task.slotNo)
+    // closed meanwhile by the result of its group (GROUP_DECIDED)
+    if ((await db.approvalTask.findUnique({ where: { id: task.id }, select: { status: true } }))?.status !== 'OPEN') continue
+    const step = `review-${task.slotNo}`
+    must(row, step, await decideTask(memberCtx(c, task.assignee.employeeCode ?? '', at, 'WEB', keyOf(row, step)), { taskId: task.id, decision: 'APPROVE' }, optionsOf(row, step)))
+  }
+}
+
+/**
  * S8-04, S8-12: the supplier's invoice of a completed row as a tier-2 invoice, through the real commands — a draft of
  * what was received, the number and date of the history, every line coded with its budget line's account code and cost
  * center (and the row's income type to withhold), then submitted and matched. The scenario of the sheet decides what the
@@ -539,7 +565,14 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
 
   // Send; when the form's attachment rules ask for files — quotations above ATT-QUOTES' amount, a DPA when the supplier
   // processes personal data (ATT-DPA) — add them and send again
-  let sent = await submitRequest(requester(submitAt, 'submit'), { requestId }, optionsOf(row, 'submit'))
+  // S6-13 (BR-DUP-05): the history's duplicates are found by the same check as any submit; the requester's reason is the
+  // row's note (pattern DUPLICATE of Request_History), so the flag is written the way a person's would be
+  const send = async (label: string) => {
+    const first = await submitRequest(requester(submitAt, label), { requestId }, optionsOf(row, label))
+    if (first.ok || first.error.details?.reason !== 'DUPLICATE_UNACKNOWLEDGED') return first
+    return submitRequest(requester(submitAt, `${label}-reason`), { requestId, duplicateReason: row.note ?? `ข้อมูลสังเคราะห์ ${row.ref}` }, optionsOf(row, `${label}-reason`))
+  }
+  let sent = await send('submit')
   const unmet = !sent.ok && sent.error.code === 'ATTACHMENT_RULE_FAILED' ? new Set(((sent.error.details?.failures ?? []) as ReadonlyArray<{ rule: string }>).map((f) => f.rule)) : new Set<string>()
   const unknownRule = [...unmet].find((rule) => rule !== 'ATT-QUOTES' && rule !== 'ATT-DPA')
   if (unknownRule) throw new Error(`Demo_History ${row.ref}: the history cannot meet attachment rule ${unknownRule}`)
@@ -559,9 +592,10 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
     must(row, 'quotations', await editRequest(requester(draftAt, 'quotations'), { requestId, quotations }, optionsOf(row, 'quotations')))
   }
   if (unmet.size > 0) {
-    sent = await submitRequest(requester(submitAt, 'submit-with-quotations'), { requestId }, optionsOf(row, 'submit-with-quotations'))
+    sent = await send('submit-with-quotations')
   }
   must(row, 'submit', sent)
+  await passReviewers(c, row, requestId, submitAt, decideAt)
 
   // The route is the one the sheet expects (BR-DOA-01..06)
   const route = await routeOf(c, requestId)

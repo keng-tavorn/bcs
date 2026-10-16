@@ -1,4 +1,5 @@
 import { textNotice, type OutgoingLineMessage } from '@/channels/line/flex'
+import { uatSubject } from '@/lib/uat'
 import { EmailSendError, getEmailProvider, type EmailMessage } from '@/integrations/email-provider'
 import { isLineApiError, type LineApiError, type LineChannelApi } from '@/integrations/line'
 import { MS_PER_MINUTE, MS_PER_SECOND } from '@/lib/constants'
@@ -58,6 +59,7 @@ export const LINE_DELIVERY_MAX_TRIES = 6
  */
 export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   'task.assigned',
+  'task.review_assigned',
   'task.reminder',
   'task.overdue',
   'task.escalated',
@@ -81,9 +83,12 @@ type Data = Readonly<Record<string, unknown>>
 /** task.escalated to ORG_ADMIN (nobody to escalate to) is an administrator's notice, like admin.*: e-mail only */
 const goesByLine = (templateKey: string, data: Data) => LINE_TEMPLATES.has(templateKey) && !(templateKey === 'task.escalated' && data.role === 'ADMIN')
 
-/** The notice that gives the recipient an approval task: task.assigned, and task.escalated to the co-assignee (BR-SLA-04) */
+/**
+ * The notice that gives the recipient an approval task: task.assigned, a reviewer's task.review_assigned (S6) and
+ * task.escalated to the co-assignee (BR-SLA-04)
+ */
 const assignedTaskOf = (templateKey: string, data: Data): string | null =>
-  typeof data.taskId === 'string' && (templateKey === 'task.assigned' || (templateKey === 'task.escalated' && data.role === 'CO_ASSIGNEE')) ? data.taskId : null
+  typeof data.taskId === 'string' && (templateKey === 'task.assigned' || templateKey === 'task.review_assigned' || (templateKey === 'task.escalated' && data.role === 'CO_ASSIGNEE')) ? data.taskId : null
 
 /** Notification.error of a notice that was not sent because its task no longer waits (FR-NOTI-003 AC3) */
 export const TASK_CLOSED = 'TASK_CLOSED'
@@ -98,6 +103,7 @@ function taskNoticeOf(templateKey: string, data: Data): { readonly taskId: strin
   if (typeof data.taskId !== 'string') return null
   switch (templateKey) {
     case 'task.assigned':
+    case 'task.review_assigned':
     case 'task.reminder':
       return { taskId: data.taskId, toAssignee: true }
     case 'task.overdue':
@@ -301,6 +307,8 @@ export async function deliverNotification(organizationId: string, notificationId
   const about = taskNoticeOf(n.templateKey, data)
   if (about && !(await taskStillWaits(organizationId, about, n.recipientMemberId))) return settleTaskClosed(organizationId, n.id, now)
   const active = n.recipient.status === 'ACTIVE'
+  // S6-21 (BR-UAT-01): a UAT sandbox never sends by LINE, and its e-mails say they come from the trial system
+  const sandbox = (await db.organization.findUnique({ where: { id: organizationId }, select: { kind: true } }))?.kind === 'SANDBOX'
 
   // ---- LINE first, while it is still worth a try ----
   let lineFailed: string | undefined
@@ -309,7 +317,7 @@ export async function deliverNotification(organizationId: string, notificationId
   const giveUpAt = firstTryAt.getTime() + LINE_DELIVERY_GIVE_UP_MS
   const lineDue = now.getTime() < giveUpAt && tries <= LINE_DELIVERY_MAX_TRIES
   const target =
-    active && n.recipient.lineReachable && options.openChannel && goesByLine(n.templateKey, data) && lineDue ? await lineTargetOf(organizationId, n.recipientMemberId, options.openChannel) : null
+    !sandbox && active && n.recipient.lineReachable && options.openChannel && goesByLine(n.templateKey, data) && lineDue ? await lineTargetOf(organizationId, n.recipientMemberId, options.openChannel) : null
   if (target) {
     // Everything is read before anything is sent: a failure here throws with nothing claimed, and the job tries again
     const message = await lineMessageOf(organizationId, n, target, now)
@@ -340,7 +348,8 @@ export async function deliverNotification(organizationId: string, notificationId
   }
 
   // ---- e-mail ----
-  const email = active ? await emailOf(organizationId, { ...n, email: n.recipient.email }, now) : null
+  const plain = active ? await emailOf(organizationId, { ...n, email: n.recipient.email }, now) : null
+  const email = plain && sandbox ? { ...plain, subject: uatSubject(plain.subject) } : plain
   // Claim: one run sends it
   const claimed = await db.notification.updateMany({ where: { id: n.id, status: 'PENDING', sentChannel: null }, data: { sentChannel: 'EMAIL' } })
   if (claimed.count !== 1) return { status: 'SKIPPED', why: 'CLAIMED' }

@@ -265,12 +265,13 @@ export const createDraftCommand = defineCommand({
   },
 })
 
-/** Where a draft that is not typed in by hand comes from (S6-12, BR-FORM-07 BR-FORM-08 · request.drafted source) */
-export interface DraftOrigin {
-  readonly source: 'REORDER' | 'RENEWAL'
-  readonly sourceRequestId: string
-  readonly renewalOfRequestLineId?: string
-}
+/**
+ * Where a draft that is not typed in by hand comes from (request.drafted source): a reorder or a renewal of a request
+ * (S6-12, BR-FORM-07 BR-FORM-08), or a draft begun in the LINE chat (S17-07, BR-LINE-12), which names no request
+ */
+export type DraftOrigin =
+  | { readonly source: 'REORDER' | 'RENEWAL'; readonly sourceRequestId: string; readonly renewalOfRequestLineId?: string }
+  | { readonly source: 'CHAT_INTAKE' }
 
 /**
  * The draft of request.create for the acting member, once its caller has checked the right: the form typed in, a reorder
@@ -321,7 +322,7 @@ export async function draftIn(tx: TenantTx, ctx: Ctx, input: z.output<typeof Dra
       ...(input.deliverySiteId ? { deliverySiteId: input.deliverySiteId } : {}),
       ...(input.suggestedSupplierId ? { suggestedSupplierId: input.suggestedSupplierId } : {}),
       ...(input.offAgreementReason ? { offAgreementReason: input.offAgreementReason } : {}),
-      ...(origin ? { sourceRequestId: origin.sourceRequestId, ...(origin.renewalOfRequestLineId ? { renewalOfRequestLineId: origin.renewalOfRequestLineId } : {}) } : {}),
+      ...(origin && origin.source !== 'CHAT_INTAKE' ? { sourceRequestId: origin.sourceRequestId, ...(origin.renewalOfRequestLineId ? { renewalOfRequestLineId: origin.renewalOfRequestLineId } : {}) } : {}),
     },
   })
   const written = await writeLines(tx, ctx, id, input.lines, agreed.agreementIds)

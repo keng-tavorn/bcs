@@ -1,0 +1,83 @@
+{
+  "pageTitle": "Draft from the chat",
+  "intro": "Check what you sent in the chat, give it a title and choose a request type. A draft is made for you to check, edit and send yourself in the next step.",
+  "textHeading": "What you sent in the chat",
+  "textNone": "No text: only photos were sent",
+  "textPurged": "The text was removed after the retention period",
+  "textTruncated": "The text was longer than can be kept, so only its start was kept",
+  "textReference": "This text is for reference only and is not sent with the request",
+  "imagesHeading": "{count, plural, one {# photo} other {# photos}} from the chat",
+  "image": {
+    "PENDING": "Photo {seq} · being fetched from LINE",
+    "STORED": "Photo {seq} · ready to attach",
+    "FAILED": "Photo {seq} · could not be fetched"
+  },
+  "imagesFailed": "Photos that could not be fetched are not attached. Take or attach them again on the request page.",
+  "makeHeading": "Make a request draft",
+  "title": "Title",
+  "titleHint": "Taken from the first line of the text; you can change it, up to 200 characters",
+  "type": "Request type",
+  "noTypes": "No request types are switched on yet. Contact your administrator.",
+  "make": "Make the request draft",
+  "working": "Making the draft",
+  "dismiss": "Not a request",
+  "sendLater": "Nothing is sent yet: you check, edit and send it for approval yourself on the next page",
+  "drafted": "A request draft was made from this chat",
+  "openDraft": "Open the request draft",
+  "dismissed": "This chat draft is closed. Its text and photos are removed after the retention period.",
+  "expired": "This chat draft expired because it was not used. Send a new message in the chat, or start from the request types.",
+  "toCatalog": "Go to the request types",
+  "listHeading": "Drafts from the chat",
+  "listLine": "{messages, plural, one {# message} other {# messages}} · {images, plural, one {# photo} other {# photos}} · last {time}",
+  "untitled": "Draft from the chat (no text yet)",
+  "notFound": "This chat draft was not found. It may be someone else's or removed.",
+  "errors": {
+    "title": "Enter a title before making the draft",
+    "type": "Choose a request type before making the draft",
+    "closed": "This chat draft is closed. Open this page again.",
+    "notFound": "This chat draft was not found",
+    "signIn": "Your session has ended. Open it from LINE again.",
+    "other": "That did not work. Please try again.",
+    "typeUnavailable": "This request type can no longer be used. Open this page again and choose another type.",
+    "noDepartment": "Your account has no main department yet, so it cannot make a request. Contact your administrator.",
+    "aiValue": "A value the AI proposed can no longer be used (the delivery site or the supplier). Untick it and make the draft again."
+  },
+  "backToChat": "Text from the chat",
+  "imagesPending": "Photos still being fetched are attached to the request draft when they arrive",
+  "ai": {
+    "badge": "Filled by AI, please check",
+    "heading": "What the AI read",
+    "intro": "The AI read the text and photos and proposes the values below. The ones ticked go into the draft; you can check and change them next.",
+    "reading": "The AI is reading the text and photos; its values appear here when it is done. You can make the draft now without waiting.",
+    "title": "Title the AI proposes",
+    "useTitle": "Use this title",
+    "lines": "{count, plural, one {# line} other {# lines}}",
+    "line": "{description} · {quantity} {uom} · unit price {unitPrice} baht",
+    "confirmLater": "To be confirmed one by one on the draft before sending",
+    "field": {
+      "site": "Delivery site",
+      "supplier": "Suggested supplier",
+      "other": "Value the AI proposes"
+    }
+  },
+  "review": {
+    "heading": "Values the AI filled in, waiting to be confirmed",
+    "intro": "Check each value in the form below, then tick the ones you checked and confirm. The request can be sent once all are confirmed (a value you changed in the form needs no confirming).",
+    "confirm": "Confirm the checked values",
+    "working": "Confirming",
+    "failed": "That did not work. Open this page again and try again.",
+    "line": {
+      "description": "Line {no} · description",
+      "quantity": "Line {no} · quantity",
+      "uom": "Line {no} · unit",
+      "unitPrice": "Line {no} · unit price (baht)"
+    },
+    "path": {
+      "title": "Title",
+      "deliverySiteId": "Delivery site (as chosen in the form)",
+      "suggestedSupplierId": "Suggested supplier (as chosen in the form)",
+      "requestTypeCode": "Request type",
+      "other": "Value the AI filled in"
+    }
+  }
+}

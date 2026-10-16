@@ -20,6 +20,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
   },
   AgentAction: {
     appliedBy: { model: 'Member', list: false },
+    chatIntakes: { model: 'ChatIntake', list: true },
     creditUses: { model: 'AiCreditLedger', list: true },
     decidedBy: { model: 'Member', list: false },
     invoices: { model: 'Invoice', list: true },
@@ -162,6 +163,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     organization: { model: 'Organization', list: false },
   },
   ChatIntake: {
+    agentAction: { model: 'AgentAction', list: false },
     items: { model: 'ChatIntakeItem', list: true },
     member: { model: 'Member', list: false },
     organization: { model: 'Organization', list: false },

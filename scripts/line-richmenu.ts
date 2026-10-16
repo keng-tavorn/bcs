@@ -1,9 +1,10 @@
-// pnpm line:richmenu — the two rich menus of §9.5 for an organization's LINE account (D-02, S5-04, FR-LINE-004):
-//   pnpm line:richmenu                 makes both menus at LINE from assets/line, sets UNLINKED as the account's default,
-//                                      moves every linked member to the new LINKED menu, stores both ids on the
-//                                      organization's LINE channel and takes down the menus made before
+// pnpm line:richmenu — the rich menus of §9.5 for an organization's LINE account (D-02, S5-04, FR-LINE-004, FR-LINE-303):
+//   pnpm line:richmenu                 makes UNLINKED and every set by role at LINE from assets/line, sets UNLINKED as the
+//                                      account's default, moves every linked member to the menu of their set, stores the
+//                                      ids on the organization's LINE channel and in LineRichMenuVariant, and takes down
+//                                      the menus made before
 //   pnpm line:richmenu --org <code>    the same for the organization with this code (needed when several have LINE)
-//   pnpm line:richmenu --images        draws assets/line/richmenu-unlinked.png and richmenu-linked.png again
+//   pnpm line:richmenu --images        draws the picture of every set again (assets/line/richmenu-<set>.png)
 // The menus are made through the organization's own channel (its sealed access token, src/server/services/line-channel)
 // by command organization.store_line_rich_menus, as the organization's first active ORG_ADMIN on channel SYSTEM, like
 // the seed does (event organization.settings_updated, section lineRichMenu). It runs on this machine only
@@ -30,7 +31,7 @@ import { LINE_RICH_MENU_HEIGHT_PX, LINE_RICH_MENU_WIDTH_PX } from '@/lib/constan
 import { getEnv } from '@/lib/env'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
-import { LINE_RICH_MENU_IMAGE_FILES, LINE_RICH_MENU_KINDS, lineRichMenuCells, richMenuImageProblem, type LineRichMenuButton, type LineRichMenuKind } from '@/server/line/link-rich-menus'
+import { LINE_RICH_MENU_IMAGE_FILES, LINE_RICH_MENU_KINDS, LINE_RICH_MENU_LAYOUTS, lineRichMenuCells, richMenuImageProblem, type LineRichMenuButton, type LineRichMenuKind } from '@/server/line/link-rich-menus'
 import { readLineRichMenuImages, replaceLineRichMenus, type LineRichMenuImages, type LineRichMenusReplaced } from '@/server/services/line-link'
 
 // ---------- the pictures ----------
@@ -42,15 +43,30 @@ const FONT_FAMILY = 'Sarabun'
 /** Lucide icon of each button (lucide-react, ISC licence; the outlines are read from the installed package) */
 const ICONS: Readonly<Record<LineRichMenuButton['key'], string>> = {
   link: 'link',
-  help: 'circle-question-mark',
+  home: 'house',
   request: 'shopping-cart',
   tasks: 'clipboard-check',
+  receive: 'package-check',
+  procurement: 'clipboard-list',
   track: 'package-search',
+  help: 'circle-question-mark',
 }
-/** Icon and label sizes (points = pixels at 72 dpi): one column of two for UNLINKED, a 2 × 2 grid for LINKED */
-const SIZES: Readonly<Record<LineRichMenuKind, { readonly icon: number; readonly font: number; readonly gap: number; readonly direction: 'column' | 'row' }>> = {
-  UNLINKED: { icon: 230, font: 128, gap: 40, direction: 'column' },
-  LINKED: { icon: 170, font: 112, gap: 52, direction: 'row' },
+interface CellSize {
+  readonly icon: number
+  readonly font: number
+  readonly gap: number
+  readonly direction: 'column' | 'row'
+}
+/**
+ * Icon and label sizes (points = pixels at 72 dpi) by layout: two cells in one row (UNLINKED) large, icon over label;
+ * a 2 × 2 grid icon beside label; three cells to a row (five or six buttons) smaller, icon over label, so "งานรออนุมัติ"
+ * fits a third of the width
+ */
+function sizeOf(kind: LineRichMenuKind): CellSize {
+  const rows = LINE_RICH_MENU_LAYOUTS[kind]!.rows
+  if (rows.length === 1) return { icon: 230, font: 128, gap: 40, direction: 'column' }
+  if (Math.max(...rows) <= 2) return { icon: 170, font: 112, gap: 52, direction: 'row' }
+  return { icon: 150, font: 96, gap: 24, direction: 'column' }
 }
 const DPI = '72'
 const RASTER_IMAGE = 'bcs-pdf-raster:bookworm'
@@ -79,7 +95,7 @@ function icon(node: IconNode, size: number, color: string): ReactElement {
 }
 
 async function menuDocument(kind: LineRichMenuKind): Promise<ReactElement<DocumentProps>> {
-  const size = SIZES[kind]
+  const size = sizeOf(kind)
   const cells = lineRichMenuCells(kind)
   const icons = await Promise.all(cells.map(({ button }) => lucideIcon(ICONS[button.key])))
   const rules: ReactElement[] = [h(View, { key: 'top', style: { position: 'absolute', left: 0, top: 0, width: LINE_RICH_MENU_WIDTH_PX, height: RULE_WIDTH, backgroundColor: COLORS.rule } })]
@@ -153,7 +169,7 @@ export async function writeLineRichMenuImages(dir: string = path.join(process.cw
   const written = {} as Record<LineRichMenuKind, { file: string; bytes: number }>
   for (const kind of LINE_RICH_MENU_KINDS) {
     const png = await drawLineRichMenuImage(kind)
-    const file = path.join(dir, LINE_RICH_MENU_IMAGE_FILES[kind])
+    const file = path.join(dir, LINE_RICH_MENU_IMAGE_FILES[kind]!)
     await writeFile(file, png)
     written[kind] = { file, bytes: png.length }
   }
@@ -220,7 +236,7 @@ export function describeLineRichMenuRun(run: Extract<LineRichMenuRun, { ok: true
   return [
     `line:richmenu เสร็จ: องค์กร ${run.organizationCode} · ${r.replaced ? 'แทนที่ชุดเดิมแล้ว' : 'สร้างครั้งแรก'}`,
     `  UNLINKED ${r.unlinkedId} · ${r.defaultSet ? 'ตั้งเป็นเมนูเริ่มต้นแล้ว' : 'ยังตั้งเป็นเมนูเริ่มต้นไม่ได้ — รันอีกครั้ง'}`,
-    `  LINKED   ${r.linkedId} · ผูกให้ผู้ที่ผูกบัญชีแล้ว ${r.relinked} คน${r.relinkRefused ? ` · LINE ไม่รับ ${r.relinkRefused} คน (เช่นบล็อก OA อยู่ จะได้เมนูนี้เองเมื่อเพิ่มเพื่อนอีกครั้ง)` : ''}${r.relinkFailed ? ` · ไม่สำเร็จชั่วคราว ${r.relinkFailed} คน — รันอีกครั้ง (เก็บชุดเดิมไว้ให้ก่อน)` : ''}`,
+    `  ชุดตามบทบาท ${r.sets - 1} ชุด (LINKED ${r.linkedId}) · ผูกให้ผู้ที่ผูกบัญชีแล้ว ${r.relinked} คน${r.relinkRefused ? ` · LINE ไม่รับ ${r.relinkRefused} คน (เช่นบล็อก OA อยู่ จะได้เมนูนี้เองเมื่อเพิ่มเพื่อนอีกครั้ง)` : ''}${r.relinkFailed ? ` · ไม่สำเร็จชั่วคราว ${r.relinkFailed} คน — รันอีกครั้ง (เก็บชุดเดิมไว้ให้ก่อน)` : ''}`,
     `  ลบชุดเดิม ${r.removed} ชุด${r.removeFailed ? ` · ลบไม่ได้ ${r.removeFailed} ชุด` : ''}`,
   ]
 }
@@ -235,7 +251,7 @@ async function main(): Promise<void> {
   if (args[0] === '--images') {
     if (args.length > 1) stop('--images ใช้เดี่ยว ๆ')
     const written = await writeLineRichMenuImages()
-    for (const kind of LINE_RICH_MENU_KINDS) console.log(`line:richmenu วาดภาพ ${kind} แล้ว: ${path.relative(process.cwd(), written[kind].file)} (${written[kind].bytes} ไบต์)`)
+    for (const kind of LINE_RICH_MENU_KINDS) console.log(`line:richmenu วาดภาพ ${kind} แล้ว: ${path.relative(process.cwd(), written[kind]!.file)} (${written[kind]!.bytes} ไบต์)`)
     return
   }
   let org: string | null = null

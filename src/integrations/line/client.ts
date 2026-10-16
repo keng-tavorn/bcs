@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { MS_PER_SECOND } from '@/lib/constants'
 import { LineApiError, lineStatusFailure, type LineErrorDetail, type LineOperation } from './errors'
-import { LINE_RICH_MENU_AREAS_MAX, lineMessageProblems, type LineMessage } from './limits'
+import { LINE_MESSAGE_CONTENT_MAX_BYTES, LINE_RICH_MENU_AREAS_MAX, LINE_RICH_MENU_BULK_USERS_MAX, lineMessageProblems, type LineMessage } from './limits'
 import type {
   LineBotInfo,
   LineCallOptions,
@@ -54,6 +54,15 @@ export interface LineChannelApi {
   cancelDefaultRichMenu(options?: LineCallOptions): Promise<void>
   linkRichMenuToUser(userId: string, richMenuId: string, options?: LineCallOptions): Promise<void>
   unlinkRichMenuFromUser(userId: string, options?: LineCallOptions): Promise<void>
+  /** One menu to many users at once (at most LINE_RICH_MENU_BULK_USERS_MAX); LINE answers 202 and applies it shortly after */
+  bulkLinkRichMenu(richMenuId: string, userIds: readonly string[], options?: LineCallOptions): Promise<void>
+  /** Takes the menu of their own from many users at once, so they see the default again */
+  bulkUnlinkRichMenus(userIds: readonly string[], options?: LineCallOptions): Promise<void>
+  /**
+   * The content of a message a user sent (an image of a chat request, S17-06), at most LINE_MESSAGE_CONTENT_MAX_BYTES;
+   * LINE keeps it for a while only: gone is a permanent failure (404 or 410)
+   */
+  getMessageContent(messageId: string, options?: LineCallOptions): Promise<{ readonly bytes: Uint8Array; readonly contentType: string | null }>
   /** The rich menu linked to this user; null when none is (the default then applies) */
   getUserRichMenuId(userId: string, options?: LineCallOptions): Promise<string | null>
   listRichMenus(options?: LineCallOptions): Promise<LineRichMenuWithId[]>
@@ -120,6 +129,11 @@ function segment(value: string, pattern: RegExp, what: string): string {
   return value
 }
 const userSegment = (userId: string) => segment(userId, LINE_USER_ID_IN_PATH, 'the LINE user id')
+/** The users of one bulk call: 1 to LINE_RICH_MENU_BULK_USERS_MAX, each a LINE user id */
+function bulkUsers(userIds: readonly string[]): string[] {
+  if (userIds.length === 0 || userIds.length > LINE_RICH_MENU_BULK_USERS_MAX) throw new Error(`a bulk call takes 1 to ${LINE_RICH_MENU_BULK_USERS_MAX} users`)
+  return userIds.map(userSegment)
+}
 const richMenuSegment = (richMenuId: string) => segment(richMenuId, LINE_RICH_MENU_ID_IN_PATH, 'the rich menu id')
 
 interface Answer {
@@ -316,6 +330,34 @@ export function createLineClient(options: LineClientOptions): LineClient {
 
         async unlinkRichMenuFromUser(userId, call) {
           await send('unlinkRichMenu', `${apiBase}/v2/bot/user/${userSegment(userId)}/richmenu`, { method: 'DELETE' }, call, LINE_REQUEST_TIMEOUT_MS)
+        },
+
+        async bulkLinkRichMenu(richMenuId, userIds, call) {
+          await send('bulkLinkRichMenu', `${apiBase}/v2/bot/richmenu/bulk/link`, { method: 'POST', ...json({ richMenuId: richMenuSegment(richMenuId), userIds: bulkUsers(userIds) }) }, call, LINE_REQUEST_TIMEOUT_MS)
+        },
+
+        async bulkUnlinkRichMenus(userIds, call) {
+          await send('bulkUnlinkRichMenu', `${apiBase}/v2/bot/richmenu/bulk/unlink`, { method: 'POST', ...json({ userIds: bulkUsers(userIds) }) }, call, LINE_REQUEST_TIMEOUT_MS)
+        },
+
+        async getMessageContent(messageId, call) {
+          if (!/^[0-9]{1,32}$/.test(messageId)) throw new Error('the message id is not one LINE gives')
+          const timeout = AbortSignal.timeout(call?.timeoutMs ?? LINE_REQUEST_TIMEOUT_MS)
+          const signal = call?.signal ? AbortSignal.any([timeout, call.signal]) : timeout
+          let response: Response
+          let bytes: Uint8Array | null = null
+          try {
+            response = await doFetch(`${dataBase}/v2/bot/message/${messageId}/content`, { method: 'GET', headers: { authorization: `Bearer ${accessToken}` }, signal, redirect: 'error' })
+            // A size LINE announces over the limit is refused before the body is read into memory
+            if (Number(response.headers.get('content-length') ?? 0) > LINE_MESSAGE_CONTENT_MAX_BYTES) await response.body?.cancel().catch(() => undefined)
+            else bytes = new Uint8Array(await response.arrayBuffer())
+          } catch {
+            const reason = timeout.aborted ? 'TIMEOUT' : call?.signal?.aborted ? 'ABORTED' : 'NETWORK'
+            throw new LineApiError({ operation: 'getMessageContent', kind: 'transient', reason })
+          }
+          if (!response.ok) throw new LineApiError({ operation: 'getMessageContent', ...lineStatusFailure(response.status), status: response.status, lineMessage: null, details: [], requestId: response.headers.get('x-line-request-id') })
+          if (bytes === null || bytes.length > LINE_MESSAGE_CONTENT_MAX_BYTES) throw new LineApiError({ operation: 'getMessageContent', kind: 'permanent', reason: 'LIMIT_EXCEEDED' })
+          return { bytes, contentType: response.headers.get('content-type') }
         },
 
         async getUserRichMenuId(userId, call) {

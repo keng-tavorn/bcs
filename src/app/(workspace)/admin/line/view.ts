@@ -13,7 +13,8 @@ export function toLineChannelView(dto: LineChannelSettingsDto): LineChannelView 
     liffId: dto.liffId ?? '',
     liffChannelId: dto.liffChannelId ?? '',
     active: dto.active,
-    richMenus: dto.richMenuLinkedId !== null && dto.richMenuUnlinkedId !== null,
+    // Every set by role too (S17-04): a channel whose menus were made before the sets existed says "not made yet"
+    richMenus: dto.richMenuLinkedId !== null && dto.richMenuUnlinkedId !== null && dto.richMenuSetsStored,
     version: dto.version,
   }
 }

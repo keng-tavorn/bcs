@@ -144,7 +144,8 @@
     "wht_certificate": "Withholding tax certificates",
     "wht_income_type": "Income types",
     "withholding_tax": "Withholding tax",
-    "push_device": "BCS Go phones"
+    "push_device": "BCS Go phones",
+    "chat_intake": "Requests through the LINE chat"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -199,7 +200,8 @@
     "WhtCertificate": "Withholding tax certificate",
     "WhtIncomeType": "Income type",
     "WithholdingTax": "Withholding tax",
-    "PushDevice": "BCS Go phone"
+    "PushDevice": "BCS Go phone",
+    "ChatIntake": "Chat request draft"
   },
   "events": {
     "approval_step": {
@@ -563,6 +565,17 @@
     "push_device": {
       "registered": "Phone registered for notifications in the app",
       "revoked": "Phone ended for notifications in the app"
+    },
+    "chat_intake": {
+      "opened": "Chat request draft opened",
+      "message_added": "Message or photo added to a chat draft",
+      "image_fetched": "Chat photo fetched",
+      "expired": "Chat draft expired",
+      "purged": "Text and photos of a chat draft cleared",
+      "message_refused": "Chat message not taken",
+      "drafted": "Request draft made from the chat",
+      "dismissed": "Chat draft closed (not a request)",
+      "ai_requested": "AI read the chat draft"
     }
   }
 }

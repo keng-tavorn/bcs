@@ -44,6 +44,8 @@ export interface LineWebhookDeps {
   readonly openChannel: OpenLineWebhookChannel
   /** The hand-over to the job (store.ts); tests replace it to see what a failed one does */
   readonly handOver?: typeof handOverLineWebhookEvents
+  /** S17-06: whether the organization asks through the chat now (chatIntakeSettingsFor of src/lib/s17-settings) — only then is a message's text kept */
+  readonly asksThroughChat?: (organizationId: string) => Promise<boolean>
 }
 
 export interface ReceiveLineWebhookOptions {
@@ -162,7 +164,8 @@ export async function receiveLineWebhook(request: LineWebhookRequest, deps: Line
   const outboxIds: string[] = []
   let recorded: Awaited<ReturnType<typeof recordLineWebhookEvents>>
   try {
-    recorded = await recordLineWebhookEvents(channel.organizationId, channel.channelKey, parsed.events, receivedAt)
+    const keepChatText = parsed.events.some((e) => e.inbound?.kind === 'TEXT') && deps.asksThroughChat ? await deps.asksThroughChat(channel.organizationId) : false
+    recorded = await recordLineWebhookEvents(channel.organizationId, channel.channelKey, parsed.events, receivedAt, { keepChatText })
   } catch (error) {
     log.error({ error: describeError(error), events: parsed.events.length }, 'LINE webhook events could not be recorded; LINE may deliver them again')
     return { status: 500 }

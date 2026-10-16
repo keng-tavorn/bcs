@@ -21,16 +21,27 @@ export interface RestoredLineChannel {
   readonly active: boolean
 }
 
-/** Replaces the organization's LINE channel (what the seed made from LINE_* values, if anything) with the restored one */
-export async function restoreLineChannelRow(organizationId: string, row: RestoredLineChannel, now: Date): Promise<void> {
+/** A rich menu set by role of the channel (LineRichMenuVariant · S17-04): carried with the channel so members keep their menus */
+export interface RestoredRichMenuSet {
+  readonly variantKey: string
+  readonly richMenuId: string
+  readonly madeAt: Date
+}
+
+/**
+ * Replaces the organization's LINE channel (what the seed made from LINE_* values, if anything) with the restored one,
+ * and its rich menu sets by role with the restored ones, in one transaction
+ */
+export async function restoreLineChannelRow(organizationId: string, row: RestoredLineChannel, now: Date, sets: readonly RestoredRichMenuSet[] = []): Promise<void> {
   const ctx = systemCtx(organizationId, now, 'seed')
   const set = new Set<LineChannelSettingField>(['providerId', 'messagingChannelId', 'channelSecret', 'channelAccessToken', 'active'])
   for (const field of ['liffId', 'liffChannelId', 'richMenuLinkedId', 'richMenuUnlinkedId'] as const) if (row[field]) set.add(field)
   const changed = LINE_CHANNEL_SETTING_FIELDS.filter((f) => set.has(f))
   await forTenant(organizationId).$transaction(async (tx) => {
     const existing = await tx.lineChannelConfig.findFirst({ select: { id: true } })
-    if (existing) await tx.lineChannelConfig.update({ where: { id: existing.id }, data: row })
-    else await tx.lineChannelConfig.create({ data: { organizationId, ...row } })
+    const channel = existing ? await tx.lineChannelConfig.update({ where: { id: existing.id }, data: row, select: { id: true } }) : await tx.lineChannelConfig.create({ data: { organizationId, ...row }, select: { id: true } })
+    await tx.lineRichMenuVariant.deleteMany({})
+    if (sets.length) await tx.lineRichMenuVariant.createMany({ data: sets.map((v) => ({ organizationId, channelConfigId: channel.id, variantKey: v.variantKey, richMenuId: v.richMenuId, madeAt: v.madeAt })) })
     await appendEvents(tx, ctx, [
       { type: 'organization.settings_updated', aggregateType: 'Organization', aggregateId: organizationId, data: { section: 'lineChannel', created: !existing, changed } },
     ])

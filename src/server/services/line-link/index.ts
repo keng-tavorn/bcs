@@ -24,7 +24,8 @@ export {
   type PreviewLineLinkCodeRequest,
 } from './link'
 export { LINE_LINK_REFUSALS, lineLinkRefusal, type LineLinkRefusal } from './refusals'
-export { LINE_RICH_MENU_SYNC_ROUNDS, runLineRichMenuSync, switchLineRichMenuNow, syncLineRichMenu, type LineRichMenuSyncOutcome } from './rich-menu'
+export { LINE_RICH_MENU_SYNC_ROUNDS, runLineRichMenuSync, switchLineRichMenuNow, membersOfMenuSubject, syncLineRichMenu, syncLineRichMenusOf, type LineRichMenuGroupOutcome, type LineRichMenuSyncOutcome } from './rich-menu'
+export { richMenuInputsOf } from './menu-flags'
 export {
   readLineRichMenuImages,
   replaceLineRichMenus,

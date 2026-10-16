@@ -6,6 +6,7 @@ import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { lineWebhookUrl, readLineChannelStored } from '@/server/queries/line-channel'
+import { LINE_RICH_MENU_KINDS } from '@/server/line/link-rich-menus'
 import { openLineSecret } from './secrets'
 
 // The "test connection" button of the LINE settings (FR-ADM-006 AC3): five checks, each PASS or FAIL with what to do in
@@ -18,7 +19,7 @@ import { openLineSecret } from './secrets'
 //  4. liffId           — a LIFF ID is set with the channel id it belongs to, and it is the LIFF app this BCS environment
 //                        runs: ADR-024 gives each environment one LIFF app, whose pages start with NEXT_PUBLIC_LIFF_ID
 //                        and whose ID tokens liff.ts verifies with LINE_LIFF_CHANNEL_ID (BR-LINE-02)
-//  5. richMenus        — both rich menus of §9.5 are stored and exist at LINE
+//  5. richMenus        — every rich menu of §9.5 (UNLINKED and each set by role, FR-LINE-303 AC4) is stored and exists at LINE
 // The access token is checked first; the three other calls to LINE need it and then run side by side. The whole test has
 // one time budget, under the time limit of a server function: a call still running when it ends is reported as
 // 'unreachable' (cause TIMEOUT), so the screen always gets a report. The webhook URL is always APP_URL's — never one a
@@ -168,12 +169,14 @@ function liffIdCheck(liffId: string | null, liffChannelId: string | null, enviro
   return check('liffId', 'ok', { liffId })
 }
 
-async function richMenusCheck(api: LineChannelApi | null, linked: string | null, unlinked: string | null, budget: Budget): Promise<LineConnectionCheck> {
-  if (!linked || !unlinked) return check('richMenus', 'notCreated')
+async function richMenusCheck(api: LineChannelApi | null, unlinked: string | null, sets: ReadonlyMap<string, string>, budget: Budget): Promise<LineConnectionCheck> {
+  // UNLINKED on the channel, every LINKED set in LineRichMenuVariant: a set not stored is a menu not made yet
+  const stored = new Map<string, string>([...(unlinked ? [['UNLINKED', unlinked] as const] : []), ...sets])
+  if (LINE_RICH_MENU_KINDS.some((kind) => !stored.has(kind))) return check('richMenus', 'notCreated')
   if (!api) return check('richMenus', 'needsAccessToken')
   try {
     const atLine = new Set((await api.listRichMenus(budget(LINE_REQUEST_TIMEOUT_MS))).map((m) => m.richMenuId))
-    const missing = [...(atLine.has(unlinked) ? [] : ['UNLINKED']), ...(atLine.has(linked) ? [] : ['LINKED'])]
+    const missing = LINE_RICH_MENU_KINDS.filter((kind) => !atLine.has(stored.get(kind)!))
     return missing.length ? check('richMenus', 'missingAtLine', { missing: missing.join(', ') }) : check('richMenus', 'ok')
   } catch (error) {
     const failed = callFailure(error)
@@ -200,7 +203,7 @@ export async function testLineConnection(ctx: Ctx, options: LineConnectionTestOp
   const [webhookUrlResult, webhookReachable, richMenus] = await Promise.all([
     api ? webhookUrlCheck(api, webhookUrl, budget) : check('webhookUrl', 'needsAccessToken', { expected: webhookUrl }),
     api ? webhookReachableCheck(api, webhookUrl, budget) : check('webhookReachable', 'needsAccessToken', { expected: webhookUrl }),
-    richMenusCheck(api, stored.richMenuLinkedId, stored.richMenuUnlinkedId, budget),
+    richMenusCheck(api, stored.richMenuUnlinkedId, new Map((await forTenant(ctx.organizationId).lineRichMenuVariant.findMany({ select: { variantKey: true, richMenuId: true } })).map((v) => [v.variantKey, v.richMenuId])), budget),
   ])
   const checks = [accessToken, webhookUrlResult, webhookReachable, liffIdCheck(stored.liffId, stored.liffChannelId, environmentLiff()), richMenus]
   return ok({ passed: checks.every((c) => c.status === 'PASS'), checks, webhookUrl })

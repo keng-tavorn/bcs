@@ -620,7 +620,11 @@ sequenceDiagram
 | `daily-digest` | cron `TZ=Asia/Bangkok 0 8 * * 1-5` | ข้ามวันหยุดขององค์กร ส่งสรุปรายคน | S5 |
 | `line-webhook` | `bcs/line.webhook_received` (คิวภายใน ไม่ใช่ event ของแคตตาล็อก) | ทำ event ของ LINE ที่บันทึกแล้วตามลำดับต่อผู้ใช้ (follow unfollow ข้อความ postback) · run ที่ล้มทำซ้ำอีก 2 รอบ เลิกพร้อมแจ้งเตือนเมื่อรอเกิน 1 วัน (ADR-046) | S5 |
 | `line-webhook-sweep` | cron ทุก 5 นาที | ส่ง event ของ LINE ที่บันทึกแล้วแต่คำขอจบก่อนส่งต่อ เข้า `line-webhook` | S5 |
-| `line-rich-menu` | `bcs/line.linked` · `bcs/line.unlinked` | ตั้ง rich menu ของผู้ใช้ตามการผูกล่าสุด (LINKED หรือเมนูเริ่มต้น UNLINKED) ให้ Inngest ทำซ้ำเมื่อ LINE ล้ม · เป็นทางเดียวที่สลับเมนูเมื่อยกเลิกผูกพร้อมปิดใช้งานสมาชิก · สมาชิกที่ผูกแล้ว follow ใหม่ได้เมนูคืนผ่าน follow hook ของ webhook (ADR-049) | S5 |
+| `line-rich-menu` | `bcs/line.linked` · `bcs/line.unlinked` · `bcs/member.role_granted` · `bcs/member.role_revoked` · `bcs/position.assigned` · `bcs/position.unassigned` · `bcs/delegation.started` · `bcs/delegation.ended` · `bcs/delegation.revoked` | ตั้ง rich menu ของผู้ใช้ตามการผูกล่าสุดและชุดตามบทบาทของ member ณ ตอนนั้น (UNLINKED หรือ LINKED และ LINKED:<บทบาท> · BR-LINE-16) ให้ Inngest ทำซ้ำเมื่อ LINE ล้ม · event ของ role ตำแหน่ง และรักษาการสลับเฉพาะผู้ใช้ LINE ของ member นั้น (BR-LINE-17 · S17-03) · เป็นทางเดียวที่สลับเมนูเมื่อยกเลิกผูกพร้อมปิดใช้งานสมาชิก · สมาชิกที่ผูกแล้ว follow ใหม่ได้เมนูคืนผ่าน follow hook ของ webhook (ADR-049) | S5 · S17 |
+| `line-rich-menu-versions` | `bcs/doa_version.published` · `bcs/doa_version.superseded` · `bcs/doa_version.withdrawn` · `bcs/workflow_version.published` · `bcs/workflow_version.superseded` · `bcs/workflow_version.withdrawn` | งานเดียวกับ `line-rich-menu` สำหรับทุกคนที่ผูกขององค์กร (ฉบับใหม่มีผลหรือถูกถอนเปลี่ยนว่าใครเป็นผู้อนุมัติ · superseded มาจาก job activate ตอนฉบับที่อนุมัติล่วงหน้ามีผลด้วย) · คำนวณธงทุกคนในการอ่านเดียวแล้วใช้ bulk link และ bulk unlink ของ LINE ทีละไม่เกิน 500 คน จากนั้นอ่านการผูกอีกครั้งและสลับรายคนเฉพาะผู้ที่การผูกเปลี่ยนระหว่างนั้น · ทีละ run ต่อองค์กร (แยก function เพราะ Inngest รับไม่เกิน 10 trigger ต่อ function · BR-LINE-17) | S17 |
+| `chat-intake-image` | `bcs/chat_intake.opened` · `bcs/chat_intake.message_added` ที่ `kind` เป็น `IMAGE` | ดึงรูปของร่างจากแชทที่ยัง `PENDING` จาก LINE ทีละ step ตรวจ magic bytes (JPEG PNG) และขนาดไม่เกิน 20 MB แล้วเก็บเป็นไฟล์ของเจ้าของร่างด้วย `chat_intake.store_image` · ดึงไม่ได้ถาวร (404 410 4xx ชนิดหรือขนาดผิด) → `FAILED` พร้อมรหัส · 5xx 429 และเครือข่ายให้ Inngest ทำซ้ำ · ทีละ run ต่อร่าง (BR-LINE-14 · S17-06) | S17 |
+| `chat-intake-sweep` | cron `TZ=Asia/Bangkok 23 * * * *` | ทุกองค์กร: ร่าง OPEN ที่ไม่ใช้เกิน `expireHours` → `EXPIRED` (`chat_intake.expire`) · ร่างที่ปิดแล้วและเปิดมาเกิน `textRetentionDays` ล้างข้อความและรูปที่ไม่มีเอกสารใช้ (`chat_intake.purge` · OQ-162) · รูปที่ยัง `PENDING` เกิน 6 ชั่วโมง → `FAILED` (`TIMEOUT`) · ลบ `LineInboundMessage` ที่เกิน 24 ชั่วโมง · ชั่วโมงเป็น idempotency key (BR-LINE-10 BR-LINE-11 · S17-06) | S17 |
+| `chat-intake-ai` | `bcs/chat_intake.opened` · `bcs/chat_intake.message_added` · `bcs/chat_intake.image_fetched` (debounce 20 วินาทีต่อร่าง · ทีละ run ต่อร่าง) | ร่าง OPEN ที่ไม่มีรูป `PENDING`: `isAgentAvailable` แล้ว `intakeFromMessage` ของ S13 ด้วย ctx ของเจ้าของร่าง key `chat_intake:<chatIntakeId>:<seq>` ใน step หนึ่ง แล้ว `chat_intake.link_agent_action` ใน step ถัดไป (การอ่านที่ใหม่กว่าไม่ถูกทับ) · ปิด AI หรือ agent ข้ามโดยไม่กระทบแชท · ไม่ส่งข้อความในแชท (BR-LINE-13 · S17-08) | S17 |
 | `po-idle-reminder` | cron `TZ=Asia/Bangkok 0 9 * * 1-5` | หา PO ที่ไม่มีความเคลื่อนไหวเกิน `poIdleDays` (OQ-36) แจ้งผู้ขอและจัดซื้อพร้อมปุ่มปิด PO (FR-P2P-010 AC4) | S5 |
 | `supplier-registry-recheck` | cron `TZ=Asia/Bangkok 0 6 1 * *` | ตรวจสถานะผู้ขายกับสรรพากรและ DBD ซ้ำ แจ้งจัดซื้อเมื่อสถานะเปลี่ยน (BR-SUP-04) | S4 |
 | `consolidation-cycle` | cron ตาม `settings.consolidation.cron` (OQ-13) | รวม PR เป็นร่าง PO | S4 |
@@ -3383,6 +3387,55 @@ cases:
   - { id: GC-APP-49, title: assertion จาก origin อื่น, input: { assertion: { signatureValid: true, challengeFresh: true, challengeUnused: true, userVerified: true, credentialOwnedBySessionUser: true, originMatches: false } }, expect: { verdict: REFUSED, reason: ORIGIN_MISMATCH } }
 ```
 
+**golden `line-rich-menu` (S17-03 · BR-LINE-16 · FR-LINE-303 AC1)** · `selectRichMenu` ใน `src/core/line-menu` (pure) รับธงที่ service คำนวณ ณ ตอนสลับ (`src/server/services/line-link/menu-flags.ts`) แล้วคืนชุดเมนู ปุ่มเรียงตามแถว จำนวนปุ่มต่อแถว และปุ่มหลัก · ชุดที่เก็บใน `LineRichMenuVariant.variantKey` คือ `variant`
+
+```yaml
+# tests/golden/line-rich-menu.yaml
+suite: line-rich-menu
+# selectRichMenu (src/core/line-menu · pure) · ธงมาจาก service ตาม BR-LINE-16: doaApprover (DOA ฉบับที่มีผลอ้างตำแหน่งที่ดำรงหรือระบุตัว รวมกรรมการ) · activeDelegate · workflowReviewer (ผู้ตรวจหรือผู้ตรวจสำรองของ workflow ฉบับที่มีผล)
+cases:
+  - { id: GC-LINE-01, title: ยังไม่ผูก, input: { linked: false }, expect: { variant: UNLINKED, buttons: [link, help], rows: [2], primary: link } }
+  - { id: GC-LINE-02, title: ผู้ขออย่างเดียว (pm_p07), input: { linked: true, memberStatus: ACTIVE, roles: [], doaApprover: false, activeDelegate: false, workflowReviewer: false }, expect: { variant: LINKED, buttons: [home, request, track, help], rows: [2, 2], primary: request } }
+  - { id: GC-LINE-03, title: ผู้ดำรงตำแหน่งใน DOA (dm_coni), input: { linked: true, memberStatus: ACTIVE, roles: [], doaApprover: true, activeDelegate: false, workflowReviewer: false }, expect: { variant: "LINKED:APPROVER", buttons: [home, request, tasks, track, help], rows: [3, 2], primary: tasks } }
+  - { id: GC-LINE-04, title: ผู้ตรวจรับ (store_p07), input: { linked: true, memberStatus: ACTIVE, roles: [RECEIVER], doaApprover: false, activeDelegate: false, workflowReviewer: false }, expect: { variant: "LINKED:RECEIVER", buttons: [home, request, receive, track, help], rows: [3, 2], primary: receive } }
+  - { id: GC-LINE-05, title: จัดซื้อ (proc_officer), input: { linked: true, memberStatus: ACTIVE, roles: [PROCUREMENT], doaApprover: false, activeDelegate: false, workflowReviewer: false }, expect: { variant: "LINKED:PROCUREMENT", buttons: [home, request, procurement, track, help], rows: [3, 2], primary: procurement } }
+  - { id: GC-LINE-06, title: ผู้อนุมัติที่เป็นจัดซื้อ (dm_proc) 6 ปุ่มพอดี, input: { linked: true, memberStatus: ACTIVE, roles: [PROCUREMENT], doaApprover: true, activeDelegate: false, workflowReviewer: false }, expect: { variant: "LINKED:APPROVER:PROCUREMENT", buttons: [home, request, tasks, procurement, track, help], rows: [3, 3], primary: tasks } }
+  - { id: GC-LINE-07, title: ครบสามบทบาท ตัดติดตามสถานะ, input: { linked: true, memberStatus: ACTIVE, roles: [RECEIVER, PROCUREMENT], doaApprover: true, activeDelegate: false, workflowReviewer: false }, expect: { variant: "LINKED:APPROVER:RECEIVER:PROCUREMENT", buttons: [home, request, tasks, receive, procurement, help], rows: [3, 3], primary: tasks } }
+  - { id: GC-LINE-08, title: ผู้รักษาการที่ ACTIVE นับเป็นผู้อนุมัติ, input: { linked: true, memberStatus: ACTIVE, roles: [], doaApprover: false, activeDelegate: true, workflowReviewer: false }, expect: { variant: "LINKED:APPROVER", buttons: [home, request, tasks, track, help], rows: [3, 2], primary: tasks } }
+  - { id: GC-LINE-09, title: ผู้ตรวจของ workflow (S6) นับเป็นผู้อนุมัติ, input: { linked: true, memberStatus: ACTIVE, roles: [], doaApprover: false, activeDelegate: false, workflowReviewer: true }, expect: { variant: "LINKED:APPROVER", buttons: [home, request, tasks, track, help], rows: [3, 2], primary: tasks } }
+  - { id: GC-LINE-10, title: ผู้ตรวจรับที่รักษาการด้วย, input: { linked: true, memberStatus: ACTIVE, roles: [RECEIVER], doaApprover: false, activeDelegate: true, workflowReviewer: false }, expect: { variant: "LINKED:APPROVER:RECEIVER", buttons: [home, request, tasks, receive, track, help], rows: [3, 3], primary: tasks } }
+  - { id: GC-LINE-11, title: role ที่ไม่มีปุ่มไม่เปลี่ยนเมนู (ceo มี EXECUTIVE), input: { linked: true, memberStatus: ACTIVE, roles: [EXECUTIVE], doaApprover: true, activeDelegate: false, workflowReviewer: false }, expect: { variant: "LINKED:APPROVER", buttons: [home, request, tasks, track, help], rows: [3, 2], primary: tasks } }
+  - { id: GC-LINE-12, title: member ที่ถูกปิดใช้งาน, input: { linked: true, memberStatus: DEACTIVATED, roles: [RECEIVER], doaApprover: false, activeDelegate: false, workflowReviewer: false }, expect: { variant: UNLINKED, buttons: [link, help], rows: [2], primary: link } }
+```
+
+**golden `chat-intake` (S17-06 · BR-LINE-10 BR-LINE-12 BR-LINE-15 · FR-LINE-301)** · `routeChatMessage` `titleFromText` และ `expiredIntakeIds` ใน `src/core/chat-intake` (pure) · service อ่านค่าตั้ง การผูก ร่าง OPEN ล่าสุด และจำนวนข้อความในชั่วโมงที่ผ่านมา แล้วส่งเข้าพร้อมเวลา
+
+```yaml
+# tests/golden/chat-intake.yaml
+suite: chat-intake
+# routeChatMessage และ titleFromText (src/core/chat-intake · pure) · settings: windowMinutes 30 · maxImages 10 · maxTextChars 2000 (code point) · hourlyLimit 20 · expireHours 24 · ชื่อเรื่องไม่เกิน 200 UTF-16 code unit · via ที่ไม่บอก = REPLY เมื่อ reply ไม่ใช่ NONE
+cases:
+  - { id: GC-LINE-13, title: ข้อความแรกของผู้ที่ผูกแล้ว, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, textChars: 40, openIntake: null, sentLastHour: 0 }, expect: { action: OPEN_NEW, reply: INTAKE_LINK } }
+  - { id: GC-LINE-14, title: ภายใน 29 นาที 59 วินาทีเติมร่างเดิม, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: image, now: "2026-11-02T03:00:00Z", openIntake: { lastMessageAt: "2026-11-02T02:30:01Z", images: 1, textChars: 40 }, sentLastHour: 1 }, expect: { action: APPEND, reply: INTAKE_LINK_SAME } }
+  - { id: GC-LINE-15, title: ครบ 30 นาทีพอดีเปิดร่างใหม่, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, textChars: 10, now: "2026-11-02T03:00:00Z", openIntake: { lastMessageAt: "2026-11-02T02:30:00Z", images: 1, textChars: 40 }, sentLastHour: 2 }, expect: { action: OPEN_NEW, reply: INTAKE_LINK } }
+  - { id: GC-LINE-16, title: รูปที่ 11 ไม่เพิ่ม, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: image, now: "2026-11-02T03:00:00Z", openIntake: { lastMessageAt: "2026-11-02T02:59:00Z", images: 10, textChars: 0 }, sentLastHour: 10 }, expect: { action: LIMIT_IMAGES, reply: ADD_IN_LIFF } }
+  - { id: GC-LINE-17, title: ข้อความรวมเกิน 2000 ตัดเหลือ 2000, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, textChars: 150, now: "2026-11-02T03:00:00Z", openIntake: { lastMessageAt: "2026-11-02T02:59:00Z", images: 0, textChars: 1900 }, sentLastHour: 3 }, expect: { action: APPEND, keptChars: 100, textTruncated: true, reply: INTAKE_LINK_SAME } }
+  - { id: GC-LINE-18, title: สติกเกอร์ได้คำแนะนำ, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: sticker, openIntake: null, sentLastHour: 0 }, expect: { action: UNSUPPORTED, reply: TEXT_OR_PHOTO_HINT } }
+  - { id: GC-LINE-19, title: ยังไม่ผูกบัญชี, input: { enabled: true, source: user, mode: active, sender: UNLINKED, messageType: text, openIntake: null, sentLastHour: 0 }, expect: { action: LINK_PROMPT, reply: LINK_PROMPT } }
+  - { id: GC-LINE-20, title: ข้อความในกลุ่มไม่ตอบ, input: { enabled: true, source: group, mode: active, sender: LINKED_ACTIVE, messageType: text, openIntake: null, sentLastHour: 0 }, expect: { action: IGNORE, reply: NONE } }
+  - { id: GC-LINE-21, title: mode standby ไม่ตอบ, input: { enabled: true, source: user, mode: standby, sender: LINKED_ACTIVE, messageType: text, openIntake: null, sentLastHour: 0 }, expect: { action: IGNORE, reply: NONE } }
+  - { id: GC-LINE-22, title: องค์กรไม่เปิดขอผ่านแชท (พฤติกรรมเดิม), input: { enabled: false, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, openIntake: null, sentLastHour: 0 }, expect: { action: IGNORE, reply: NONE } }
+  - { id: GC-LINE-23, title: ข้อความที่ 21 ในชั่วโมงแจ้งครั้งเดียว, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, openIntake: null, sentLastHour: 20, limitNoticeSentThisHour: false }, expect: { action: RATE_LIMITED, reply: RATE_LIMIT_NOTICE } }
+  - { id: GC-LINE-24, title: ข้อความที่ 22 ในชั่วโมงเงียบ, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, openIntake: null, sentLastHour: 21, limitNoticeSentThisHour: true }, expect: { action: RATE_LIMITED, reply: NONE } }
+  - { id: GC-LINE-25, title: ชื่อเรื่องจากบรรทัดแรกที่ไม่ว่าง, input: { text: "  \nขอซื้อเหล็กข้ออ้อย DB25 1 ตัน\nส่งไซต์พระราม 9" }, expect: { title: "ขอซื้อเหล็กข้ออ้อย DB25 1 ตัน" } }
+  - { id: GC-LINE-26, title: ชื่อเรื่องไม่เกิน 200 code unit ตัดที่ขอบ grapheme, input: { text: { repeat: "ที่", times: 130 } }, expect: { title: { repeat: "ที่", times: 66 }, graphemes: 66, codeUnits: 198 } }
+  - { id: GC-LINE-27, title: ชื่อเรื่อง 200 code unit พอดีไม่ตัด, input: { text: { repeat: "A", times: 200 } }, expect: { title: { repeat: "A", times: 200 }, graphemes: 200, codeUnits: 200 } }
+  - { id: GC-LINE-28, title: ไม่ตัดกลางสระและวรรณยุกต์ที่ขอบ 200, input: { text: { concat: [ { repeat: "A", times: 199 }, "ที่" ] } }, expect: { title: { repeat: "A", times: 199 }, graphemes: 199, codeUnits: 199 } }
+  - { id: GC-LINE-29, title: หมดอายุที่ 24 ชั่วโมงพอดี, input: { now: "2026-11-02T03:00:00Z", intakes: [ { id: a, status: OPEN, lastMessageAt: "2026-11-01T03:00:00Z" }, { id: b, status: OPEN, lastMessageAt: "2026-11-01T03:00:01Z" }, { id: c, status: DRAFTED, lastMessageAt: "2026-10-30T03:00:00Z" } ] }, expect: { expire: [a] } }
+  - { id: GC-LINE-30, title: reply token หมดอายุ ร่างใหม่ได้ปุ่มทาง push ครั้งเดียว, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, textChars: 20, openIntake: null, sentLastHour: 0, replyTokenExpired: true }, expect: { action: OPEN_NEW, reply: INTAKE_LINK, via: PUSH } }
+  - { id: GC-LINE-31, title: reply token หมดอายุ ร่างที่ได้ปุ่มแล้วไม่ตอบ, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: image, now: "2026-11-02T03:00:00Z", openIntake: { lastMessageAt: "2026-11-02T02:50:00Z", images: 1, textChars: 20, linkSent: true }, sentLastHour: 2, replyTokenExpired: true }, expect: { action: APPEND, reply: NONE } }
+```
+
 ---
 
 ## 8. Functional requirements
@@ -3846,7 +3899,7 @@ cases:
 
 #### FR-LINE-004 — Rich menu
 ขั้น S5 · LINE · §9.5
-- AC1 — ผู้ที่ยังไม่ผูกเห็นเมนูผูกบัญชีและช่วยเหลือ ผู้ผูกแล้วเห็น 4 ปุ่ม: ขอซื้อ · งานรออนุมัติ · ติดตามสถานะ · ช่วยเหลือ
+- AC1 — ผู้ที่ยังไม่ผูกเห็นเมนูผูกบัญชีและช่วยเหลือ ผู้ผูกแล้วเห็นเมนูตามบทบาทของ FR-LINE-303 (golden `line-rich-menu` · แก้ใน S17-03 ตามที่ผู้ใช้อนุมัติใน P1-06): ทุกคนมี หน้าแรก · ขอซื้อ · ช่วยเหลือ (และติดตามสถานะเมื่อไม่เกิน 6 ปุ่ม) ผู้อนุมัติมี งานรออนุมัติ
 - AC2 — ทุกปุ่มเปิดหน้า LIFF ที่ถูกต้อง
 - AC3 — เมนูสลับภายใน 1 นาทีหลังผูกหรือยกเลิกผูก
 
@@ -4157,7 +4210,7 @@ AC ของ FR ชั้น 2 ที่ขั้นของสายเขี�
 
 | งาน | Workspace (เว็บและ PWA) | LINE แชท | LIFF | อีเมล |
 | --- | --- | --- | --- | --- |
-| สร้างคำขอแบบเต็ม | ✓ | — | ✓ | — |
+| สร้างคำขอแบบเต็ม | ✓ | เริ่มร่างด้วยข้อความหรือรูปในองค์กรที่เปิดขอผ่านแชท แล้วตรวจและส่งใน LIFF เท่านั้น (BR-LINE-10 ถึง BR-LINE-12 · S17-06) | ✓ | — |
 | อนุมัติ ตีกลับ ไม่อนุมัติ ขอข้อมูลเพิ่ม | ✓ | ปุ่มอนุมัติเมื่อยอดต่ำกว่า step-up · ที่เหลือเปิด LIFF | ✓ | ✓ ผ่านลิงก์และ login |
 | ติดตามสถานะ | ✓ | สรุปในข้อความ | ✓ | ลิงก์ |
 | แจ้งเตือนและทวงงาน | ในระบบ | ✓ ช่องทางหลัก | — | ✓ สำรอง |
@@ -4223,25 +4276,30 @@ AC ของ FR ชั้น 2 ที่ขั้นของสายเขี�
 | Path | ทำอะไร |
 | --- | --- |
 | `/liff/link` | ผูกบัญชี |
+| `/liff/home` | หน้าแรกใน LINE: สิ่งที่ต้องทำ รอฉันอนุมัติ ที่ฉันติดตาม ตัวเลขเท่าหน้าแรกเว็บ · `/liff` พาผู้ผูกแล้วมาที่นี่ (FR-LINE-302 · BR-LINE-18 · ADR-167) |
 | `/liff/tasks` | งานรออนุมัติของฉัน เรียงตามกำหนดเวลา |
 | `/liff/tasks/[id]` | รายละเอียดและตัดสิน (พร้อม PIN เมื่อจำเป็น) |
-| `/liff/requests/new` | แคตตาล็อกและฟอร์มแบบย่อ |
+| `/liff/requests/new` | แคตตาล็อกและฟอร์มแบบย่อ · `?intake=<id>` ร่างจากแชทของผู้ใช้เอง: ข้อความเป็นข้อมูลอ้างอิง สถานะรูป ชื่อเรื่อง เลือกประเภท สร้างร่าง หรือ "ไม่ใช่คำขอ" · ไม่มี `intake` แสดงร่างจากแชทที่ OPEN ด้วย (S17-07) |
 | `/liff/requests/[id]` | รายละเอียดคำขอ |
 | `/liff/track` | คำขอของฉันและไทม์ไลน์ |
 | `/liff/delegation` | ตั้งรักษาการ |
+| `/liff/gr` | PO ที่ตรวจรับได้ตามขอบเขตและ SoD ของ `gr.post` (บริการเดียวกับ `/receiving`) แตะแล้วไป `/liff/gr/[poId]` · ผู้ไม่มี `gr.post` เห็นรายการว่าง (FR-LINE-303 AC3 · S17-04) |
 | `/liff/gr/[poId]` | ตรวจรับพร้อมกล้อง |
+| `/liff/procurement` | งานจัดซื้อแบบดูอย่างเดียว: จำนวนบรรทัดรอจัดซื้อและ PO ตามสถานะ พร้อมลิงก์เปิดเว็บนอก LINE · ตรวจ `procurement.pool.view` ใน service ผู้ไม่มีเห็นว่าไม่มีสิทธิ์และไม่มีตัวเลข (FR-LINE-303 AC4 · S17-04) |
 | `/liff/help` | วิธีใช้และช่องทางติดต่อผู้ดูแล |
 
 เงื่อนไข: `liff.init({ liffId })` ก่อนทุกอย่าง · session แยกช่องทาง `LIFF` idle 15 นาที ต่ออายุเงียบ ๆ ด้วย ID token ใหม่ · ออกแบบ mobile-first: ตัวอักษร 16 px ปุ่มสูงอย่างน้อย 44 px แถบปุ่มตัดสินติดล่างจอ · JavaScript เริ่มต้นไม่เกิน 200 KB (gzip) · กล้องใช้ `<input type="file" accept="image/*" capture="environment">` แล้วย่อรูปฝั่ง client · ลิงก์ลึกสร้างผ่าน helper เดียวที่อ่านรูปแบบ URL ตามชนิด channel (MINI App หรือ LIFF บน Login channel) · เปิดนอกแอป LINE → ใช้การ login ของเว็บตามปกติ
 
 ### 9.5 Rich menu
 
-สองชุด สร้างด้วยสคริปต์ `pnpm line:richmenu` จากไฟล์ภาพใน repo (2500 × 843 px)
+เมนูตามบทบาท (FR-LINE-303 · BR-LINE-16 · golden `line-rich-menu`) สร้างด้วยสคริปต์ `pnpm line:richmenu` จากไฟล์ภาพใน repo (2500 × 843 px) และเก็บ id ของแต่ละชุดใน `LineRichMenuVariant`
 
 | ชุด | ปุ่ม | ใช้กับ |
 | --- | --- | --- |
-| UNLINKED | ผูกบัญชี → `/liff/link` · ช่วยเหลือ → `/liff/help` | ค่าเริ่มต้นของ OA |
-| LINKED | ขอซื้อ → `/liff/requests/new` · งานรออนุมัติ → `/liff/tasks` · ติดตามสถานะ → `/liff/track` · ช่วยเหลือ → `/liff/help` | ผูกรายผู้ใช้หลังผูกบัญชี |
+| UNLINKED | ผูกบัญชี → `/liff/link` · ช่วยเหลือ → `/liff/help` | ค่าเริ่มต้นของ OA: ผู้ที่ยังไม่ผูก และ member ที่ไม่ ACTIVE |
+| LINKED และ `LINKED:<บทบาท>` | หน้าแรก → `/liff/home` · ขอซื้อ → `/liff/requests/new` · [งานรออนุมัติ → `/liff/tasks`] · [ตรวจรับ → `/liff/gr`] · [งานจัดซื้อ → `/liff/procurement`] · ติดตามสถานะ → `/liff/track` · ช่วยเหลือ → `/liff/help` (ไม่เกิน 6 ปุ่ม เกินให้ตัดติดตามสถานะ) | ผูกรายผู้ใช้ตามธง ณ ตอนสลับ: ผู้อนุมัติ (DOA ฉบับที่มีผลอ้างตำแหน่งที่ดำรงหรือระบุตัว รวมกรรมการ · รักษาการที่ ACTIVE · ผู้ตรวจของ workflow ฉบับที่มีผล) · role RECEIVER · role PROCUREMENT · ชุดที่ยังไม่มีใน `LineRichMenuVariant` ใช้เมนู LINKED ของ channel |
+
+เมนูสลับใน job `line-rich-menu` และ `line-rich-menu-versions` ภายใน 1 นาที (BR-LINE-17) · เมนูไม่ใช่สิทธิ์: ทุกหน้าที่ปุ่มเปิดตรวจสิทธิ์เอง (BR-AUTH-05)
 
 ### 9.6 อีเมล
 
@@ -4741,6 +4799,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
 | agent_action (S13) | `agent_action.requested` `agent_action.drafted` `agent_action.failed` `agent_action.applied` `agent_action.accepted` `agent_action.edited` `agent_action.rejected` `agent_action.expired` `agent_action.feedback_given` `agent_action.content_purged` · actor AI_AGENT เฉพาะ `drafted` `failed` (INV-AI-01) · data ไม่มีข้อความที่พิมพ์หรือผลของ AI |
 | ai_agent · ai_credit (S13) | `ai_agent.enabled` `ai_agent.disabled` `ai_agent.updated` `ai_credit.granted` `ai_credit.monthly_set` `ai_credit.threshold_reached` `ai_credit.exhausted` |
+| chat_intake (S17-06 · ขอผ่านแชท) | `chat_intake.opened` `chat_intake.message_added` `chat_intake.image_fetched` `chat_intake.expired` `chat_intake.purged` · บน member: `chat_intake.message_refused` (reason `UNSUPPORTED` `LIMIT_IMAGES` `RATE_LIMITED` · notified) · data เป็นรหัสและตัวเลขเท่านั้น ไม่มีข้อความที่พิมพ์ ชื่อไฟล์ หรือ LINE user id (BR-LINE-11) · `chat_intake.drafted` (requestId requestTypeCode images aiAssisted) `chat_intake.dismissed` (S17-07) · `chat_intake.ai_requested` (agentActionId · S17-08) |
 
 **ระยะ 1 (P1-07):** `approval_task.*` และ event ของ step-up ใน `auth` รับ `subjectType` ครบ 12 ค่าของ `APPROVAL_SUBJECTS` (ค่าใหม่ `BUDGET_TRANSFER` `BUDGET_OVERRUN` `WORKFLOW_VERSION` `INVOICE` `PO_CHANGE` `PAYMENT_RUN` `BANK_ACCOUNT_CHANGE`) · `request.drafted` schemaVersion 2 เพิ่ม `source` (`MANUAL` เป็นค่าเริ่มต้น · `REORDER` `RENEWAL` ของ S6 · `CHAT_INTAKE` ของ S17) และ `agentActionId` ไม่บังคับ (S13) · event ฉบับ 1 ยังอ่านได้ (source = `MANUAL`) · สายไม่เพิ่มฉบับของ event นี้เอง
 
@@ -5295,7 +5354,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       48 ไฟล์ · 593 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       50 ไฟล์ · 624 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge
@@ -6666,29 +6725,30 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 | S17-19 | main (หลัง A3) | LINE ของลูกค้า | `high` | เส้นชัย C และ P0-04 | ตรวจ |
 | S17-20 | main (หลัง A3) | แอปบน store | `high` | เส้นชัย C และ OQ-166 | ตรวจ |
 | S17-21 | main (หลัง A3) | ทดสอบที่หน้างานจริง | `medium` | หลัง S17-20 และ P0-14 | — |
+| S17-22 | 3 | `[go-live]` เมนูตามบทบาทเมื่อฉบับแรกที่อนุมัติล่วงหน้ามีผล และเมื่อย้ายแผนก (พบใน S17-03) | `high` | หลัง S17-08 | ตรวจ |
 
 - [x] **S17-01** `[demo]` migration ค่าตั้งต้น และกฎของขั้นตามหัวข้อ "Entity และ migration" และ "กฎ" ของ `docs/sub-specs/S17.md`: ตาราง `ChatIntake` `ChatIntakeItem` `LineInboundMessage` `PushDevice` `LineRichMenuVariant` · `GoodsReceipt.offlineCapturedAt` · ค่า enum `Channel.APP` `NotificationChannel.PUSH` `StepUpMethod.PASSKEY` · schema ของ `Organization.settings` (`chatIntake` `bcsGo`) และ `Member.notificationPrefs.appPush` · แถว Settings ใหม่ใน `scripts/inputs_p1/p1_master.py` พร้อมกติกาใน `validate_inputs.py --profile p1` · ใช้โมดูล `BCS_GO` ของ SIMEC ที่ P1-07 เปิด (ไม่ seed ซ้ำ) · เพิ่มกฎ BR ของขั้นลง spec ครั้งเดียว: ต่อท้ายตารางเดิมของ BR-AUTH (§2.5) BR-TOK (§4.9) BR-LINE (§9.2) BR-NOTI (§10.1) และตาราง BR-APP ใต้หัวข้อที่ P1-07 จองไว้ให้ S17 ท้าย §7 (กฎที่อ้าง ID ของขั้นที่ยังไม่อยู่ใน main ให้อ้างหัวข้อของ sub-spec นั้นแทน แล้วข้อที่ใช้ของนั้นแก้เป็น ID) · ตาราง passkey สร้างใน S17-15 — เสร็จ 2026-10-16 · 5952d11
   - เสร็จเมื่อ: migration แบบเพิ่มอย่างเดียว apply บนฐานของสายผ่าน · เทสต์ที่สร้างจาก DMMF ของ INV-TEN-01 และ INV-TEN-02 ครอบตารางใหม่และผ่าน · องค์กร demo เดิมมี `chatIntake.enabled` เป็น false และฉาก `@demo` ผ่าน · `pnpm inputs:check` ผ่าน · `pnpm spec:check` ไม่มี ID ที่ไม่มีนิยามและเลข ID ต่อเนื่อง · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S17-02** `[demo]` FR-LINE-302 หน้าแรกใน LIFF `/liff/home` ที่เรียก `homeTodo` `homeApprovals` `homeFollowing` เดิม render ฝั่งเซิร์ฟเวอร์ ลิงก์ไปหน้า LIFF ที่มี และให้ `/liff` พาผู้ผูกแล้วไปหน้านี้ (ADR-167) · "รอฉันอนุมัติ" มีงานผู้ตรวจและงานกรรมการของ S6 ตามหน้าแรกเว็บ (หน้างาน `/liff/tasks/[id]` เป็นของ S6 ข้อนี้ไม่แก้) · ข้อความไทยและอังกฤษ
+- [x] **S17-02** `[demo]` FR-LINE-302 หน้าแรกใน LIFF `/liff/home` ที่เรียก `homeTodo` `homeApprovals` `homeFollowing` เดิม render ฝั่งเซิร์ฟเวอร์ ลิงก์ไปหน้า LIFF ที่มี และให้ `/liff` พาผู้ผูกแล้วไปหน้านี้ (ADR-167) · "รอฉันอนุมัติ" มีงานผู้ตรวจและงานกรรมการของ S6 ตามหน้าแรกเว็บ (หน้างาน `/liff/tasks/[id]` เป็นของ S6 ข้อนี้ไม่แก้) · ข้อความไทยและอังกฤษ — เสร็จ 2026-10-16 · f776dc6
   - เสร็จเมื่อ: เทสต์ `[FR-LINE-302/AC1]` ถึง `[FR-LINE-302/AC5]` ผ่าน (AC1 เทียบตัวเลขกับหน้าแรกเว็บของผู้ใช้ seed หลายบทบาท · AC5 กับคำขอที่ผ่านผู้ตรวจ 3 ฝ่ายพร้อมกัน) · e2e วัดงบ JavaScript ของ LIFF (`tests/e2e/liff-support.ts`) ผ่านที่หน้าใหม่และที่หน้างานซึ่ง S6 แก้ · screenshot 375 px และ axe ไม่มี serious หรือ critical · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S17-03** `[demo]` FR-LINE-303 ส่วน core และ job: `selectRichMenu` ใน `src/core/line-menu` พร้อม golden `line-rich-menu` · ตัวคำนวณธงผู้อนุมัติใน service ตามหัวข้อ "กฎ" ของ `docs/sub-specs/S17.md` (DOA ฉบับที่มีผลทั้งแบบตำแหน่งและแบบระบุตัว กรรมการ รักษาการที่ ACTIVE ผู้ตรวจและผู้ตรวจสำรองของ workflow ฉบับที่มีผล) · job `line-rich-menu` รับ event ของ role ตำแหน่ง รักษาการ DOA และ workflow (ADR-161) · เพิ่ม golden ลง §7 พร้อมตัวคำนวณอ้างอิงใน `scripts/spec_check.py` · แก้ §4.6 §9.5 และ FR-LINE-004 AC1 ตามที่ผู้ใช้อนุมัติ · เทสต์ก่อนหรือพร้อมโค้ด
+- [x] **S17-03** `[demo]` FR-LINE-303 ส่วน core และ job: `selectRichMenu` ใน `src/core/line-menu` พร้อม golden `line-rich-menu` · ตัวคำนวณธงผู้อนุมัติใน service ตามหัวข้อ "กฎ" ของ `docs/sub-specs/S17.md` (DOA ฉบับที่มีผลทั้งแบบตำแหน่งและแบบระบุตัว กรรมการ รักษาการที่ ACTIVE ผู้ตรวจและผู้ตรวจสำรองของ workflow ฉบับที่มีผล) · job `line-rich-menu` รับ event ของ role ตำแหน่ง รักษาการ DOA และ workflow (ADR-161) · เพิ่ม golden ลง §7 พร้อมตัวคำนวณอ้างอิงใน `scripts/spec_check.py` · แก้ §4.6 §9.5 และ FR-LINE-004 AC1 ตามที่ผู้ใช้อนุมัติ · เทสต์ก่อนหรือพร้อมโค้ด — เสร็จ 2026-10-16 · 70d2bcd
   - เสร็จเมื่อ: golden `line-rich-menu` ผ่านทุกเคสและ branch coverage ของ `src/core/line-menu` 100% · `pnpm spec:check` รายงาน golden:line-rich-menu ผ่านครบ · เทสต์ `[FR-LINE-303/AC1]` `[FR-LINE-303/AC2]` `[FR-LINE-303/AC6]` ผ่านกับ fake LINE (ให้ role RECEIVER แล้วเมนูเปลี่ยน · รักษาการเริ่มแล้วได้ งานรออนุมัติ · ผู้ที่ DOA ระบุตัวและผู้ตรวจของ workflow ได้ งานรออนุมัติ · workflow ฉบับใหม่มีผลแล้วเมนูสลับ) · เทสต์เดิมของ FR-LINE-004 ปรับตาม AC ใหม่และผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S17-04** `[demo]` FR-LINE-303 ชุดเมนูและหน้า: `pnpm line:richmenu` วาดและสร้างหรือแทนที่ทุกชุดแล้วเก็บใน `LineRichMenuVariant` · ปุ่มทดสอบการเชื่อมต่อตรวจทุกชุด · หน้า `/liff/gr` (PO ที่ตรวจรับได้ตามขอบเขตและ SoD ของ `gr.post`) และ `/liff/procurement` (ดูอย่างเดียว ตรวจ `procurement.pool.view` ใน service) · ข้อความไทยและอังกฤษ
+- [x] **S17-04** `[demo]` FR-LINE-303 ชุดเมนูและหน้า: `pnpm line:richmenu` วาดและสร้างหรือแทนที่ทุกชุดแล้วเก็บใน `LineRichMenuVariant` · ปุ่มทดสอบการเชื่อมต่อตรวจทุกชุด · หน้า `/liff/gr` (PO ที่ตรวจรับได้ตามขอบเขตและ SoD ของ `gr.post`) และ `/liff/procurement` (ดูอย่างเดียว ตรวจ `procurement.pool.view` ใน service) · ข้อความไทยและอังกฤษ — เสร็จ 2026-10-16 · f2bf8c4
   - เสร็จเมื่อ: เทสต์ `[FR-LINE-303/AC3]` `[FR-LINE-303/AC4]` ผ่าน · เทสต์ปฏิเสธ: member ที่ไม่มี `procurement.pool.view` เปิด `/liff/procurement` ได้หน้าไม่มีสิทธิ์และไม่มีข้อมูล · ผู้ไม่มีสิทธิ์ `gr.post` เห็น `/liff/gr` ว่าง · ภาพเมนูทุกชุดอยู่ใน `assets/line/` และปุ่มทุกปุ่มเปิดหน้าที่ถูกต้องกับ fake LINE · screenshot 375 px และ axe ผ่าน · งบ JavaScript ของ LIFF ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
 - [x] **S17-05** `[demo]` FR-LINE-303 AC5 (งานของ NEW-64 · OQ-171 ตอบแล้วว่าทำ · ADR-072): ส่ง PO แล้วผู้ตรวจรับที่ได้รับมอบหมายได้ข้อความทันทีทาง LINE หรือ push พร้อมลิงก์หน้าตรวจรับ · แก้แถว `po.sent` ใน §10.1 และ allowlist ของ LINE · ทำแล้ว: `po.sent_receiver` IMMEDIATE ถึง RECEIVER ของแผนก (push → LINE → อีเมล · ลิงก์ `/liff/gr/<poId>` ใน LINE) ส่วนผู้ขอยัง DIGEST — เสร็จ 2026-10-16 · 9ea7ebc
   - เสร็จเมื่อ: เทสต์ `[FR-LINE-303/AC5]` ผ่าน (fake LINE ได้ข้อความพร้อมลิงก์ `/liff/gr/<poId>` และไม่มีราคา) · ผู้ขอยังได้แบบสรุปรายวัน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S17-06** `[demo]` FR-LINE-301 ฝั่งแชท: อ่าน message event ชนิดข้อความและรูป · `LineInboundMessage` · คำสั่ง `chat_intake.receive` `chat_intake.store_image` `chat_intake.expire` `chat_intake.purge` · ตอบด้วย reply พร้อมปุ่มเปิด LIFF (token หมดอายุ push ครั้งเดียวต่อร่าง) · ดึงรูปจาก LINE ใน job · job รายชั่วโมงหมดอายุและลบข้อความ (ADR-162 · OQ-161 OQ-162) · fake LINE ส่งข้อความและรูปได้ · เพิ่ม event ลง §10.2 golden `chat-intake` ลง §7 พร้อมตัวคำนวณอ้างอิงใน `scripts/spec_check.py` แถวงานใน §4.6 และแก้แถว "สร้างคำขอแบบเต็ม" ของตารางช่องทาง §9.1 (แชทเริ่มร่าง ส่งใน LIFF) · ข้อความไทยและอังกฤษ
+- [x] **S17-06** `[demo]` FR-LINE-301 ฝั่งแชท: อ่าน message event ชนิดข้อความและรูป · `LineInboundMessage` · คำสั่ง `chat_intake.receive` `chat_intake.store_image` `chat_intake.expire` `chat_intake.purge` · ตอบด้วย reply พร้อมปุ่มเปิด LIFF (token หมดอายุ push ครั้งเดียวต่อร่าง) · ดึงรูปจาก LINE ใน job · job รายชั่วโมงหมดอายุและลบข้อความ (ADR-162 · OQ-161 OQ-162) · fake LINE ส่งข้อความและรูปได้ · เพิ่ม event ลง §10.2 golden `chat-intake` ลง §7 พร้อมตัวคำนวณอ้างอิงใน `scripts/spec_check.py` แถวงานใน §4.6 และแก้แถว "สร้างคำขอแบบเต็ม" ของตารางช่องทาง §9.1 (แชทเริ่มร่าง ส่งใน LIFF) · ข้อความไทยและอังกฤษ — เสร็จ 2026-10-16 · c1b9af8 (รีวิว xhigh แก้ใน ff63e1e · docs/reports/p1-review-S17.md)
   - เสร็จเมื่อ: golden `chat-intake` ผ่านทุกเคส · `pnpm spec:check` รายงาน golden:chat-intake ผ่านครบ · เทสต์ `[FR-LINE-301/AC1]` `[FR-LINE-301/AC2]` `[FR-LINE-301/AC3]` `[FR-LINE-301/AC7]` ผ่าน (webhook ส่งซ้ำไม่เพิ่มรายการ · reply token หมดอายุได้ push ครั้งเดียว · log ไม่มีข้อความแชท) · เทสต์ LINE เดิมผ่านเมื่อองค์กรไม่เปิดขอผ่านแชท · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S17-07** `[demo]` FR-LINE-301 ฝั่ง LIFF: `/liff/requests/new?intake=<id>` เลือกประเภทแล้ว `chat_intake.draft` สร้างร่างด้วยตรรกะ `request.create_draft` เดิม (event `request.drafted` source `CHAT_INTAKE` ของ P1-07) แนบรูป แสดงข้อความแชทเป็นข้อมูลอ้างอิง · รายการร่างจากแชทที่ OPEN เมื่อเปิดโดยไม่มี `intake` · ปุ่ม "ไม่ใช่คำขอ" (`chat_intake.dismiss`) · ส่งด้วย `request.submit` ใน LIFF เท่านั้น (ร่างที่ติดธงซ้ำกรอกเหตุผลในหน้าแก้ร่าง LIFF ของ S6) · ทำงานครบเมื่อปิด AI · ข้อความไทยและอังกฤษ
+- [x] **S17-07** `[demo]` FR-LINE-301 ฝั่ง LIFF: `/liff/requests/new?intake=<id>` เลือกประเภทแล้ว `chat_intake.draft` สร้างร่างด้วยตรรกะ `request.create_draft` เดิม (event `request.drafted` source `CHAT_INTAKE` ของ P1-07) แนบรูป แสดงข้อความแชทเป็นข้อมูลอ้างอิง · รายการร่างจากแชทที่ OPEN เมื่อเปิดโดยไม่มี `intake` · ปุ่ม "ไม่ใช่คำขอ" (`chat_intake.dismiss`) · ส่งด้วย `request.submit` ใน LIFF เท่านั้น (ร่างที่ติดธงซ้ำกรอกเหตุผลในหน้าแก้ร่าง LIFF ของ S6) · ทำงานครบเมื่อปิด AI · ข้อความไทยและอังกฤษ — เสร็จ 2026-10-16 · 9d812c1 (รีวิว xhigh แก้ใน 5f23914 · docs/reports/p1-review-S17.md)
   - เสร็จเมื่อ: เทสต์ `[FR-LINE-301/AC4]` `[FR-LINE-301/AC6]` ผ่าน (ปิด AI ส่งได้ครบ · ชื่อเรื่องจากบรรทัดแรกที่ยาวผ่าน `request.create_draft` · ผู้อื่นเปิดร่างได้ `NOT_FOUND` · การเปิดลิงก์ไม่สร้างร่าง) · lint ยืนยันว่าโค้ดของ S17 ไม่ import `src/integrations/ai` · งบ JavaScript ของ LIFF ผ่าน · screenshot 375 px และ axe ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S17-08** `[demo]` FR-LINE-301 ส่วน AI ตาม ADR-162: migration เพิ่ม `ChatIntake.agentActionId` · job `chat-intake-ai` (ไม่ใช่ webhook) เรียก `isAgentAvailable` และ `intakeFromMessage` ของ S13 ด้วย ctx ของเจ้าของร่างและ `idempotencyKey` = `chat_intake:<chatIntakeId>:<seq>` (seq ของรายการล่าสุดที่รวมในการเรียก) แล้วเก็บ id ด้วย `chat_intake.link_agent_action` ใน step แยก · LIFF แสดงสถานะการอ่านจาก `getAgentAction` ประเภทที่แนะนำ และค่าที่ AI เสนอพร้อมป้าย "เติมโดย AI โปรดตรวจ" ในแผงชุดเบา · `chat_intake.draft` และ `request.edit` ส่ง `aiAssist` ตามกฎ AI ของ S13 · ไม่ส่งข้อความในแชทเมื่ออ่านเสร็จ · แก้กฎของขั้นใน spec ที่ยังอ้างหัวข้อของ `docs/sub-specs/S13.md` ให้อ้าง ID
+- [x] **S17-08** `[demo]` FR-LINE-301 ส่วน AI ตาม ADR-162: migration เพิ่ม `ChatIntake.agentActionId` · job `chat-intake-ai` (ไม่ใช่ webhook) เรียก `isAgentAvailable` และ `intakeFromMessage` ของ S13 ด้วย ctx ของเจ้าของร่างและ `idempotencyKey` = `chat_intake:<chatIntakeId>:<seq>` (seq ของรายการล่าสุดที่รวมในการเรียก) แล้วเก็บ id ด้วย `chat_intake.link_agent_action` ใน step แยก · LIFF แสดงสถานะการอ่านจาก `getAgentAction` ประเภทที่แนะนำ และค่าที่ AI เสนอพร้อมป้าย "เติมโดย AI โปรดตรวจ" ในแผงชุดเบา · `chat_intake.draft` และ `request.edit` ส่ง `aiAssist` ตามกฎ AI ของ S13 · ไม่ส่งข้อความในแชทเมื่ออ่านเสร็จ · แก้กฎของขั้นใน spec ที่ยังอ้างหัวข้อของ `docs/sub-specs/S13.md` ให้อ้าง ID — เสร็จ 2026-10-16 · 051e033 (รีวิว xhigh แก้ใน 71f4042 · docs/reports/p1-review-S17.md · กฎของขั้นอ้าง ID ของ S13 อยู่แล้ว)
   - เสร็จเมื่อ: เทสต์ `[FR-LINE-301/AC5]` ผ่านด้วย AI โหมด fixture ของ S13 (ช่องที่ต้องยืนยันทีละช่องยังไม่ครบ `request.submit` ได้ `AI_REVIEW_PENDING` · ยืนยันครบแล้วส่งได้ · ผู้ขอยังต้องกดส่งเอง · job ลองซ้ำส่ง key เดิมจึงได้ AgentAction เดิมโดยไม่เรียกโมเดลซ้ำ · รูปที่ส่งตามข้อความถูกอ่านด้วยหลังดึงเสร็จ) · เทสต์ AC6 ยังผ่าน · lint ยืนยันว่า S17 ไม่ import `src/integrations/ai` · งบ JavaScript ของ LIFF ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
 - [x] **S17-09** `[demo]` FR-PLT-301 โครงแอป: Capacitor 8 ใน `mobile/bcs-go/` (`server.url` ต่อ environment · `allowNavigation`) · workflow ของ GitHub Actions สร้าง APK ของ demo (`workflow_dispatch` และ push main ที่แตะ `mobile/**` · keystore ของ demo จาก secret) · ช่องทาง `APP` ใน ctx Event และไทม์ไลน์ (เพิ่มค่าในตาราง §4.5) และในทุก allowlist ช่องทางที่รับ `WEB` รวม `policy-decide.ts` enum ช่องทางของ event schema และ `CHANNELS` (กฎช่องทางใน `docs/sub-specs/S17.md` · ตามคำตอบของ P1-06 เรื่องตัดสินงานเชิงนโยบายในแอป) · `/.well-known/assetlinks.json` จาก env · lint ห้าม `mobile/` import `src/server` และ `src/core` และห้ามหน้า LIFF import ปลั๊กอิน Capacitor (ADR-163) · งานของ iOS อยู่ใน S17-20 · ทำแล้ว: แอปติดตั้งแยกใน `mobile/bcs-go` (Capacitor 8.5.2 · เครื่องหมาย `BCSGo/<semver>` · ไม่สำรองข้อมูลของ WebView) · `ctxFromSession` เปลี่ยน `WEB` เป็น `APP` ที่จุดเดียว · `tests/unit/app-channel.test.ts` ล้มเมื่อรายการหรือการเทียบช่องทางรับ `WEB` แต่ไม่รับ `APP` · G-5 คงนับเฉพาะ LINE (ADR-168) · รีวิว xhigh 5 ข้อ แก้ 4 (`docs/reports/p1-review-S17.md`) — เสร็จ 2026-10-16 · a28f8f3 c3e8931
@@ -6721,7 +6781,7 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **S17-18** `[demo]` รีวิวทั้งขั้น (สาย 1 หลังส่วน LINE ของสาย 3 อยู่ใน main): รวม main เข้าสาย แล้ว `/code-review high p1-s17-start...HEAD` (ทั้งสองส่วนของ S17 · ADR-072) แก้ข้อที่กระทบความถูกต้อง เงิน สิทธิ์ หรือ "เสร็จเมื่อ" บันทึก `docs/reports/p1-review-S17.md` แล้วส่งงานของขั้นเข้า main ตาม skill `bcs-lane` หัวข้อ 4 · ติ๊ก NEW-53 และ NEW-64 (OQ-171 ตอบแล้วว่าทำ) ด้วย commit ของ S17-15 และ S17-05 · หลังงานอยู่ใน main แจ้งในหัวข้อ "รอคุณ" ให้ผู้ใช้ทำตาม `docs/runbooks/bcs-go-demo.md` ก่อน P1-11 และ P1-13
   - เสร็จเมื่อ: ไม่มีข้อที่กระทบความถูกต้องค้าง · `pnpm verify --strict --e2e` ผ่าน · `pnpm test:e2e --grep @demo` ผ่าน · งานของขั้นอยู่ใน main
   - แยกงาน: ใช้คำสั่งเดียวทั้งขั้น ไม่แตกเพิ่ม
-- [ ] **S17-19** `[go-live]` LINE ของลูกค้า (P0-04 · OQ-15 OQ-16): ตั้ง channel ของลูกค้า สร้างเมนูทุกชุด เปิดขอผ่านแชทตามที่ลูกค้าตกลง และตรวจข้อความตอบกับ LINE MINI App จริง
+- [ ] **S17-19** `[go-live]` LINE ของลูกค้า (P0-04 · OQ-15 OQ-16): ตั้ง channel ของลูกค้า สร้างเมนูทุกชุด เปิดขอผ่านแชทตามที่ลูกค้าตกลง และตรวจข้อความตอบกับ LINE MINI App จริง · พบในรีวิวของ S17-04: เมื่อสมาชิกที่ผูกมีมาก ให้ปุ่มสร้างเมนูย้ายสมาชิกด้วย bulk ของ `syncLineRichMenusOf` แทนทีละคน และกดสร้างเมนูทุกชุดใหม่หลัง deploy ที่เพิ่มชุด
   - เสร็จเมื่อ: ปุ่มทดสอบการเชื่อมต่อผ่านทุกข้อรวมทุกชุดเมนูด้วยค่าของลูกค้า · ผู้ใช้จริงส่งคำขอผ่านแชทและยืนยันใน LIFF ได้ · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้หลังได้ P0-04
 - [ ] **S17-20** `[go-live]` แอปบน store ตาม OQ-166: Android และ iOS · APNs key · release signing ใน secret · assetlinks ของโดเมน production · iOS App-Bound Domains และ `/.well-known/apple-app-site-association` · ข้อมูลความเป็นส่วนตัวของ store (data safety และ privacy labels) · ตรวจ CSP `allowNavigation` และการใช้ `server.url` กับเอกสาร Capacitor 8 และแนวทางรีวิวของ store ก่อนส่ง review
@@ -6729,6 +6789,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
   - แยกงาน: ทำเองได้ (ผู้ใช้สมัครบัญชีผู้พัฒนาและอนุมัติการส่ง review)
 - [ ] **S17-21** `[go-live]` ทดสอบที่หน้างานจริงกับผู้ใช้จริงฝ่ายละ 1 คน (P0-14): ตรวจรับตอนไม่มีสัญญาณ สแกน QR บน PO จริง push และ biometric แล้วปรับค่าตาม OQ-163 OQ-169 ถ้าผลต่าง
   - เสร็จเมื่อ: บันทึกผลใน `docs/reports/s17-field-test.md` พร้อม `verifiedBy` (§15.6) · ไม่มีรายการคิวที่ส่งซ้ำหรือหาย · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S17-22** `[go-live]` เมนูตามบทบาทเปลี่ยนตามเวลาที่ฉบับมีผลจริง (พบในรีวิวของ S17-03 · BR-LINE-17): ฉบับแรกของ DOA หรือ workflow ที่อนุมัติล่วงหน้าไม่มีฉบับก่อนหน้า จึงไม่มี event `superseded` ตอนมีผล และการย้ายแผนกที่เปลี่ยนผู้ตรวจแบบ `POSITION_AT` (BR-WF-14) ไม่มี event ที่ job ฟัง · ให้ job activate เขียน event เมื่อฉบับแรกมีผล หรือให้ `line-rich-menu-versions` ตั้งเวลาตาม `effectiveFrom` และฟัง event ของผัง
+  - เสร็จเมื่อ: เทสต์กับ fake LINE: ฉบับแรกที่อนุมัติให้มีผลในอนาคตทำให้ผู้ตรวจได้เมนู `LINKED:APPROVER` ภายใน 1 นาทีหลังมีผล · ย้ายแผนกแล้วผู้ตรวจที่ resolve ใหม่ได้เมนูผู้อนุมัติ · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
 
 ---
@@ -6987,6 +7050,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-167 | หน้าแรกใน LIFF `/liff/home` เรียก service หน้าแรกเดิมและ render ฝั่งเซิร์ฟเวอร์ · `/liff` พาผู้ผูกแล้วไป `/liff/home` · ค่าคงที่ `LIFF_HOME_PATH` เดิม (กล่องงาน) คงความหมายเดิม เพิ่มค่าคงที่ใหม่สำหรับหน้าแรก | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-168 | โครงแอป BCS Go: `mobile/bcs-go` ติดตั้งแยกด้วย lockfile ของตัวเอง · `capacitor.config.ts` อ่าน `BCS_GO_SERVER_URL` (https) ตั้ง `allowNavigation` เป็น host นั้นและ `appendUserAgent` `BCSGo/<semver>` · `resolveSession` อ่านเครื่องหมายแล้ว `ctxFromSession` เปลี่ยน `WEB` เป็น `APP` ที่จุดเดียว · เทสต์ถาวรล้มเมื่อรายการหรือการเทียบช่องทางรับ `WEB` แต่ไม่รับ `APP` · `StepUpChannel` รับ `APP` · G-5 คงนับเฉพาะ LINE ส่วนแผงการควบคุมมีแท่ง `APP` · Android ไม่สำรองข้อมูลของแอป · app id demo `th.bcs.go` · `assetlinks.json` จาก env | ยอมรับ (S17-09) |
 | ADR-174 | ค่าตั้งของ S17 ใน UAT sandbox: `sandboxSettingsOf` ตัวเดียวทั้งคำสั่งสร้าง sandbox และ seed คัดลอกค่าตั้งของ production แล้วปิด LINE และ `chatIntake.enabled` · `chatIntakeSettingsFor` ถือว่า SANDBOX ปิดขอผ่านแชทเสมอ · push ไม่ส่งในองค์กร SANDBOX · `bcsGo` คัดลอกตามเดิม | ยอมรับ (S17-01 · ตามกฎเดิม BR-UAT-01) |
+| ADR-175 | ขอผ่านแชท LINE ระหว่างสร้าง (S17-06 ถึง S17-08): เวลาข้อความ = timestamp ของ LINE · นับ `hourlyLimit` จากข้อความที่รับหรือตอบ · ล้างรูปที่ไม่ได้ใช้เป็น `REJECTED` และผลอ่าน AI ไปพร้อมข้อความ · job รายชั่วโมงทุกองค์กร (staging ทุก 3 ชั่วโมง) · รูปที่มาช้าแนบเข้าร่างคำขอ · รายการของ AI ใช้ทั้งชุด · ผลอ่านของแชทเป็นของเจ้าของ · LIFF แสดง `pendingPaths` ตามกติกาของ submit | ยอมรับ (S17-06 ถึง S17-08 · ตามผลรีวิว xhigh) |
 
 ### 18.2 สมมติฐาน
 

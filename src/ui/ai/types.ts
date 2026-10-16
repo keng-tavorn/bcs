@@ -90,4 +90,6 @@ export interface AiReviewDraft {
   readonly proposed: Readonly<Record<string, string>>
   readonly requiredPaths: readonly string[]
   readonly confirmedPaths: readonly string[]
+  /** What holds the document back now (S17-08): the proposed values it still has unchanged and nobody confirmed */
+  readonly pendingPaths?: readonly string[]
 }

@@ -18,8 +18,10 @@ import { safeNextPath } from '@/lib/next-path'
 //    gate says so and offers to sign it out (WEB_SIGN_OUT_ENDPOINT); the page then loads again and signs in with LINE.
 
 export const LIFF_BASE_PATH = '/liff'
-/** Where a linked member lands (§9.4: /liff sends a linked member to their tasks) */
+/** The member's tasks (§9.4 /liff/tasks): where the links back to "งานรออนุมัติ" lead */
 export const LIFF_HOME_PATH = '/liff/tasks'
+/** Where a linked member lands (§9.4, FR-LINE-302 AC4, ADR-167): /liff sends a linked member to the home page in LINE */
+export const LIFF_START_PATH = '/liff/home'
 export const LIFF_LINK_PATH = '/liff/link'
 export const LIFF_HELP_PATH = '/liff/help'
 export const LIFF_SESSION_ENDPOINT = '/api/liff/session'

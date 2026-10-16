@@ -448,7 +448,7 @@ frs:
   FR-LINE-004:
     title: "Rich menu"
     acs:
-      AC1: { owner: S5-04, demo: true, basis: named, text: "ผู้ที่ยังไม่ผูกเห็นเมนูผูกบัญชีและช่วยเหลือ ผู้ผูกแล้วเห็น 4 ปุ่ม: ขอซื้อ งานรออนุมัติ ติดตามสถานะ ช่วยเหลือ", note: "สคริปต์ pnpm line:richmenu อยู่ใน D-02" }
+      AC1: { owner: S5-04, demo: true, basis: named, text: "ผู้ที่ยังไม่ผูกเห็นเมนูผูกบัญชีและช่วยเหลือ ผู้ผูกแล้วเห็นเมนูตามบทบาทของ FR-LINE-303 (แก้ใน S17-03)", note: "สคริปต์ pnpm line:richmenu อยู่ใน D-02" }
       AC2: { owner: S5-06, demo: true, basis: later, text: "ทุกปุ่มเปิดหน้า LIFF ที่ถูกต้อง", note: "URI ของปุ่มตรวจได้ใน S5-04 · หน้า LIFF ปลายทาง (requests/new tasks track help) สร้างใน S5-06" }
       AC3: { owner: S5-04, demo: true, basis: named, text: "เมนูสลับภายใน 1 นาทีหลังผูกหรือยกเลิกผูก" }
   FR-LINE-005:

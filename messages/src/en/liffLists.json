@@ -1,0 +1,31 @@
+{
+  "webHint": "opens in the browser outside LINE",
+  "home": "Back to home",
+  "gr": {
+    "title": "Receive",
+    "intro": "The POs you may receive now, the earliest sent first. Tap one to receive it with photos.",
+    "list": "POs you may receive",
+    "count": "{count, plural, one {# PO} other {# POs}}",
+    "site": "To {site}",
+    "requests": "Request {numbers}",
+    "sent": "Sent to the supplier {at}",
+    "outstanding": "{left} of {lines} lines still to come",
+    "empty": "No PO for you to receive right now",
+    "emptyHint": "When a PO you receive for is sent to the supplier, it shows here.",
+    "blocked": "{count, plural, one {# more PO} other {# more POs}} you may not receive yourself because of separation of duties: ask another receiver.",
+    "more": "See all {total} on the web"
+  },
+  "procurement": {
+    "title": "Purchasing",
+    "intro": "Purchasing's work in numbers now. View only: carry on on the web.",
+    "pool": "Purchasing pool",
+    "poolCount": "{count, plural, one {# line} other {# lines}} to purchase",
+    "urgent": "{count} urgent",
+    "openPool": "Open the pool on the web",
+    "pos": "Purchase orders by status",
+    "posList": "Number of purchase orders in each status",
+    "poCount": "{count, plural, one {# PO} other {# POs}}",
+    "denied": "This page is for purchasing",
+    "deniedHint": "Your account may not see the purchasing pool. If you think it should, contact your organization's administrator."
+  }
+}

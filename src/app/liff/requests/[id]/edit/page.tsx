@@ -1,5 +1,6 @@
 import { getLocale, getTranslations } from 'next-intl/server'
 import type { ReactNode } from 'react'
+import { chatIntakeIdOfRequest } from '@/server/queries/chat-intake'
 import { getRequestAccess, isUuid } from '@/server/queries/requests'
 import { getRequestForEdit } from '@/server/services/requests/form-view'
 import { LIFF_HOME_PATH } from '@/ui/liff/bootstrap'
@@ -7,10 +8,12 @@ import { LiffContent, LiffFrame } from '@/ui/liff/frame'
 import { LiffGate } from '@/ui/liff/liff-gate'
 import { LiffLink } from '@/ui/liff/liff-link'
 import { LiffNotice } from '@/ui/liff/notice'
+import { LiffAiConfirm, type LiffAiConfirmItem } from '@/ui/liff/requests/ai-confirm'
 import { LiffRequestForm } from '@/ui/liff/requests/request-form'
 import { liffFormStart } from '@/ui/liff/requests/start'
 import { editRefusal } from '../../../../(workspace)/_tracking/access'
 import { liffPage } from '../../../_lib/session'
+import { confirmAiValuesAction } from '../../actions'
 import { LIFF_FORM_ACTIONS, LIFF_FORM_PATHS, liffRequestHref } from '../../_lib/form'
 import { liffPrincipalOf, screenOf } from '../../_lib/principal'
 
@@ -73,9 +76,45 @@ export default async function LiffEditRequestPage({ params }: { params: Promise<
     return refused(tl('notFoundTitle'), 'warning', tl('notFound'), <LiffLink href={LIFF_FORM_PATHS.catalog}>{t('toCatalog')}</LiffLink>)
   }
   const data = result.data
+  // S17-07 (BR-LINE-12): a draft made from the chat leads back to what was typed there, kept as a reference until purged
+  const chatIntakeId = await chatIntakeIdOfRequest(page.ctx, id)
+  const tc = await getTranslations('liffChat')
+  const backTo = chatIntakeId ? { href: `${LIFF_FORM_PATHS.catalog}?intake=${chatIntakeId}`, label: tc('backToChat') } : back
+  // S17-08 (BR-AI-16 BR-AI-17): values the AI put in that wait to be confirmed one by one, before the request can be sent
+  const review = data.draft?.intakeAi ?? null
+  // Exactly what request.submit would count (AI_REVIEW_PENDING): a value the requester changed no longer waits
+  const waiting: LiffAiConfirmItem[] = review ? (review.pendingPaths ?? []).map((p) => aiItem(tc, p, review.proposed[p] ?? null)) : []
   return (
-    <LiffFrame title={t(data.draft?.status === 'RETURNED' ? 'returnedTitle' : 'draftTitle', { type: data.type.name })} back={back}>
+    <LiffFrame title={t(data.draft?.status === 'RETURNED' ? 'returnedTitle' : 'draftTitle', { type: data.type.name })} back={backTo}>
+      {review && data.draft ? (
+        <LiffAiConfirm
+          requestId={data.draft.requestId}
+          agentActionId={review.agentActionId}
+          items={waiting}
+          words={{ heading: tc('review.heading'), badge: tc('ai.badge'), intro: tc('review.intro'), confirm: tc('review.confirm'), working: tc('review.working'), failed: tc('review.failed') }}
+          confirm={confirmAiValuesAction}
+        />
+      ) : null}
       <LiffRequestForm data={data} start={liffFormStart(data)} locale={screen} actions={LIFF_FORM_ACTIONS} paths={LIFF_FORM_PATHS} />
     </LiffFrame>
   )
+}
+
+const AI_LINE = /^lines\.(\d+)\.(description|quantity|uom|unitPrice)$/
+type ChatWords = Awaited<ReturnType<typeof getTranslations<'liffChat'>>>
+
+/** A value of the AI that waits, in words: what it is, and the value itself unless it was picked from a list */
+function aiItem(tc: ChatWords, path: string, value: string | null): LiffAiConfirmItem {
+  const line = AI_LINE.exec(path)
+  if (line) {
+    const no = Number(line[1]) + 1
+    const field = line[2]
+    const label =
+      field === 'description' ? tc('review.line.description', { no }) : field === 'quantity' ? tc('review.line.quantity', { no }) : field === 'uom' ? tc('review.line.uom', { no }) : tc('review.line.unitPrice', { no })
+    return { path, label, value }
+  }
+  if (path === 'deliverySiteId') return { path, label: tc('review.path.deliverySiteId'), value: null }
+  if (path === 'suggestedSupplierId') return { path, label: tc('review.path.suggestedSupplierId'), value: null }
+  if (path === 'requestTypeCode') return { path, label: tc('review.path.requestTypeCode'), value: null }
+  return { path, label: path === 'title' ? tc('review.path.title') : tc('review.path.other'), value }
 }

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
 import { getMyLineLink } from '@/server/services/line-link'
-import { LIFF_HOME_PATH, LIFF_LINK_PATH, liffStateTarget } from '@/ui/liff/bootstrap'
+import { LIFF_LINK_PATH, LIFF_START_PATH, liffStateTarget } from '@/ui/liff/bootstrap'
 import { LiffContent, LiffFrame } from '@/ui/liff/frame'
 import { LiffGate } from '@/ui/liff/liff-gate'
 import { liffPage } from './_lib/session'
@@ -11,7 +11,7 @@ export async function generateMetadata() {
   return { title: t('title') }
 }
 
-// /liff, the LIFF app's endpoint (§9.4, ADR-024): a linked member goes to their tasks, anyone else to /liff/link. A deep
+// /liff, the LIFF app's endpoint (§9.4, ADR-024): a linked member goes to the home page in LINE (ADR-167), anyone else to /liff/link. A deep
 // link of LINE (https://liff.line.me/<LIFF ID>/<path>, from a card, a rich menu or a QR code) opens this page with
 // ?liff.state=<path>; the bootstrap goes on to /liff/<path> (liff.init does, and the gate makes sure), so the server never
 // redirects a request whose deep link the bootstrap will follow. A deep link it would refuse (not a LIFF page of this
@@ -26,7 +26,7 @@ export default async function LiffIndexPage({ searchParams }: { searchParams: Pr
   if (!liffStateTarget(liffState)) {
     if (page.kind === 'member') {
       const link = await getMyLineLink(page.ctx)
-      redirect(link.ok && link.data.linked ? LIFF_HOME_PATH : LIFF_LINK_PATH)
+      redirect(link.ok && link.data.linked ? LIFF_START_PATH : LIFF_LINK_PATH)
     }
     if (page.kind !== 'signed-out') redirect(LIFF_LINK_PATH)
   }

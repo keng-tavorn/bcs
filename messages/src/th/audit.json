@@ -144,7 +144,8 @@
     "wht_certificate": "50 ทวิ",
     "wht_income_type": "ประเภทเงินได้",
     "withholding_tax": "ภาษีหัก ณ ที่จ่าย",
-    "push_device": "โทรศัพท์ในแอป BCS Go"
+    "push_device": "โทรศัพท์ในแอป BCS Go",
+    "chat_intake": "ขอผ่านแชท LINE"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -199,7 +200,8 @@
     "WhtCertificate": "หนังสือรับรองการหักภาษี (50 ทวิ)",
     "WhtIncomeType": "ประเภทเงินได้",
     "WithholdingTax": "ภาษีหัก ณ ที่จ่าย",
-    "PushDevice": "โทรศัพท์ในแอป BCS Go"
+    "PushDevice": "โทรศัพท์ในแอป BCS Go",
+    "ChatIntake": "ร่างคำขอจากแชท"
   },
   "events": {
     "approval_step": {
@@ -563,6 +565,17 @@
     "push_device": {
       "registered": "ลงทะเบียนโทรศัพท์รับแจ้งเตือนในแอป",
       "revoked": "ยกเลิกโทรศัพท์รับแจ้งเตือนในแอป"
+    },
+    "chat_intake": {
+      "opened": "เปิดร่างคำขอจากแชท",
+      "message_added": "เพิ่มข้อความหรือรูปในร่างจากแชท",
+      "image_fetched": "ดึงรูปจากแชท",
+      "expired": "ร่างจากแชทหมดอายุ",
+      "purged": "ล้างข้อความและรูปของร่างจากแชท",
+      "message_refused": "ไม่รับข้อความในแชท",
+      "drafted": "สร้างร่างคำขอจากแชท",
+      "dismissed": "ปิดร่างจากแชท (ไม่ใช่คำขอ)",
+      "ai_requested": "AI อ่านร่างจากแชท"
     }
   }
 }

@@ -35,7 +35,8 @@ const org = await prisma.organization.findFirstOrThrow({ where: { code: 'DEMO' }
 async function menus(): Promise<string> {
   const stored = await prisma.lineChannelConfig.findFirst({ where: { organizationId: org.id }, select: { richMenuLinkedId: true } })
   if (stored?.richMenuLinkedId) return stored.richMenuLinkedId
-  const run = await runLineRichMenu({ org: null })
+  // DEMO by name: other organizations of the run have LINE channels of their own (the twins, tests/e2e/liff-home-scene.ts)
+  const run = await runLineRichMenu({ org: 'DEMO' })
   if (!run.ok) throw new Error(`the rich menus were not made: ${run.problem}`)
   return run.report.linkedId
 }

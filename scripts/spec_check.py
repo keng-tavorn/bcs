@@ -2159,6 +2159,85 @@ def run_workflow_reports(d):
         else: raise ValueError(f)
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_line_rich_menu(d):
+    # BR-LINE-16 (S17-03): the menu of a LINE user from the flags the service works out. Only a linked ACTIVE member has
+    # a menu of their own; an approver (DOA, ACTIVE delegation or workflow reviewer) adds tasks, RECEIVER receive and
+    # PROCUREMENT procurement, between request and track; past six buttons track goes; 4 = 2+2, 5 = 3+2, 6 = 3+3
+    out = []
+    for c in d["cases"]:
+        i = c["input"]
+        if not i.get("linked") or i.get("memberStatus") != "ACTIVE":
+            got = {"variant": "UNLINKED", "buttons": ["link", "help"], "rows": [2], "primary": "link"}
+        else:
+            roles = i.get("roles") or []
+            parts = [p for p, held in (("APPROVER", i.get("doaApprover") or i.get("activeDelegate") or i.get("workflowReviewer")), ("RECEIVER", "RECEIVER" in roles), ("PROCUREMENT", "PROCUREMENT" in roles)) if held]
+            button = {"APPROVER": "tasks", "RECEIVER": "receive", "PROCUREMENT": "procurement"}
+            buttons = ["home", "request"] + [button[p] for p in parts] + ["track", "help"]
+            if len(buttons) > 6: buttons.remove("track")
+            n = len(buttons)
+            got = {"variant": ":".join(["LINKED"] + parts), "buttons": buttons, "rows": [n] if n <= 3 else [(n + 1) // 2, n // 2], "primary": button[parts[0]] if parts else "request"}
+        out.append((c["id"], got == c["expect"], got))
+    return out
+def run_chat_intake(d):
+    # BR-LINE-10 BR-LINE-12 BR-LINE-15 (S17-06): what one chat message does and how it is answered; the title of a
+    # request drafted from the chat (first line not blank, whole characters, at most 200 UTF-16 code units); the drafts
+    # that expired (OPEN and unused for exactly 24 hours or more). Settings of the suite: window 30 min, 10 images,
+    # 2000 code points, 20 messages an hour
+    import unicodedata
+    W, IMG, TXT, HOUR, EXPIRE = 30 * 60, 10, 2000, 20, 24 * 3600
+    def ts(v): return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+    def text_of(t):
+        if isinstance(t, str): return t
+        if "repeat" in t: return t["repeat"] * t["times"]
+        return "".join(text_of(x) for x in t["concat"])
+    def clusters(text):
+        out = []
+        for ch in text:
+            if out and unicodedata.category(ch) in ("Mn", "Mc", "Me"): out[-1] += ch
+            else: out.append(ch)
+        return out
+    def units(text): return len(text.encode("utf-16-le")) // 2
+    out = []
+    for c in d["cases"]:
+        i, e = c["input"], c["expect"]
+        if "text" in i:
+            line = next((l.strip() for l in text_of(i["text"]).splitlines() if l.strip()), "")
+            title = ""
+            for g in clusters(line):
+                if units(title + g) > 200: break
+                title += g
+            got = {"title": title, "graphemes": len(clusters(title)), "codeUnits": units(title)}
+            want = {"title": text_of(e["title"]), **{k: e[k] for k in ("graphemes", "codeUnits") if k in e}}
+            out.append((c["id"], all(got[k] == v for k, v in want.items()), got)); continue
+        if "intakes" in i:
+            now = ts(i["now"])
+            got = {"expire": [x["id"] for x in i["intakes"] if x["status"] == "OPEN" and (now - ts(x["lastMessageAt"])).total_seconds() >= EXPIRE]}
+            out.append((c["id"], got == e, got)); continue
+        expired = i.get("replyTokenExpired") is True
+        def answer(action, reply): return {"action": action, "reply": "NONE" if expired else reply}
+        if not i["enabled"] or i["source"] != "user" or i["mode"] != "active": got = {"action": "IGNORE", "reply": "NONE"}
+        elif i["sender"] != "LINKED_ACTIVE": got = answer("LINK_PROMPT", "LINK_PROMPT")
+        elif i["sentLastHour"] >= HOUR: got = {"action": "RATE_LIMITED", "reply": "NONE"} if i.get("limitNoticeSentThisHour") else answer("RATE_LIMITED", "RATE_LIMIT_NOTICE")
+        elif i["messageType"] not in ("text", "image"): got = answer("UNSUPPORTED", "TEXT_OR_PHOTO_HINT")
+        else:
+            now = ts(i.get("now", "2026-11-02T03:00:00Z"))
+            o = i.get("openIntake")
+            o = o if o and (now - ts(o["lastMessageAt"])).total_seconds() < W else None
+            if o and i["messageType"] == "image" and o["images"] >= IMG: got = answer("LIMIT_IMAGES", "ADD_IN_LIFF")
+            else:
+                action = "APPEND" if o else "OPEN_NEW"
+                reply = "INTAKE_LINK_SAME" if o else "INTAKE_LINK"
+                if expired:
+                    got = {"action": action, "reply": reply, "via": "PUSH"} if not o or not o.get("linkSent") else {"action": action, "reply": "NONE"}
+                else: got = {"action": action, "reply": reply}
+                if i["messageType"] == "text":
+                    room = max(0, TXT - (o["textChars"] if o else 0))
+                    if i.get("textChars", 0) > room: got.update({"keptChars": room, "textTruncated": True})
+        if got["reply"] != "NONE" and "via" not in got: got["via"] = "REPLY"
+        want = {**e, "via": e.get("via", None if e["reply"] == "NONE" else "REPLY")}
+        if want["via"] is None: want.pop("via")
+        out.append((c["id"], got == want, got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
@@ -2175,6 +2254,7 @@ RUNNERS = {
     "bankfile-neutral": run_bankfile_neutral,
     "budget": run_budget,
     "budget-change": run_budget_change,
+    "chat-intake": run_chat_intake,
     "consolidation": run_cons,
     "dates": run_dates,
     "delegation": run_delegation,
@@ -2186,6 +2266,7 @@ RUNNERS = {
     "grni": run_grni,
     "invoice-confirmation": run_ivc,
     "invoice-vat": run_invoice_vat,
+    "line-rich-menu": run_line_rich_menu,
     "matching": run_matching,
     "money": run_money,
     "notification-route": run_notification_route,

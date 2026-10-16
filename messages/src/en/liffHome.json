@@ -1,0 +1,14 @@
+{
+  "title": "Home",
+  "greeting": "Hello {name}, your work for today is below",
+  "noneUrgent": "Nothing is overdue or waiting for you to fix. Tasks waiting for your approval are under Waiting for my approval below",
+  "approvalsSummary": "{count} in all · {overdue} overdue · {info} waiting for the requester",
+  "webHint": "opens in the browser outside LINE",
+  "status": "Status",
+  "now": "Now",
+  "error": {
+    "title": "The part {part} did not load",
+    "hint": "The other parts still work. Tap Try again; if it still fails, tell your administrator",
+    "retry": "Try again"
+  }
+}

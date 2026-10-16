@@ -222,7 +222,7 @@ describe('[FR-AI-303/AC6] the invoice screens of S8 with the AI (S13-20)', () =>
 
     // The page shows every value waiting, with the draft's values by the same paths
     const page = ok(await getApInvoicePage(fin(ap), invoiceId))
-    expect(page.aiReviews).toEqual([{ agentActionId, purpose: 'INVOICE_READ', fileId, proposed, requiredPaths: Object.keys(proposed).sort(), confirmedPaths: [] }])
+    expect(page.aiReviews).toEqual([{ agentActionId, purpose: 'INVOICE_READ', fileId, proposed, requiredPaths: Object.keys(proposed).sort(), confirmedPaths: [], pendingPaths: Object.keys(proposed).sort() }])
     expect(page.aiCurrent).toMatchObject(proposed)
 
     let version = await codeLines(invoiceId)

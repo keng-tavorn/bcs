@@ -424,6 +424,29 @@ export const PO_CHANGE_MACHINE = machine<PoChangeState, PoChangeCommand>('PoChan
   { from: ['DRAFT', 'PENDING_APPROVAL'], command: 'po_change.cancel', to: 'CANCELLED' },
 ])
 
+// ---------- a request asked through the LINE chat (S17 · BR-LINE-10 to BR-LINE-12) ----------
+
+export const CHAT_INTAKE_STATES = ['OPEN', 'DRAFTED', 'DISMISSED', 'EXPIRED'] as const
+export type ChatIntakeState = (typeof CHAT_INTAKE_STATES)[number]
+export const CHAT_INTAKE_COMMANDS = ['chat_intake.receive', 'chat_intake.store_image', 'chat_intake.link_agent_action', 'chat_intake.draft', 'chat_intake.dismiss', 'chat_intake.expire', 'chat_intake.purge'] as const
+export type ChatIntakeCommand = (typeof CHAT_INTAKE_COMMANDS)[number]
+
+export const CHAT_INTAKE_MACHINE = machine<ChatIntakeState, ChatIntakeCommand>('ChatIntake', CHAT_INTAKE_STATES, CHAT_INTAKE_COMMANDS, [
+  // a message within the window adds to the open draft (a first message, or one after the window, opens a new one)
+  { from: ['OPEN'], command: 'chat_intake.receive', to: 'OPEN' },
+  // an image fetched (or not) after the owner already picked the type still lands on its draft
+  { from: ['OPEN'], command: 'chat_intake.store_image', to: 'OPEN' },
+  { from: ['DRAFTED'], command: 'chat_intake.store_image', to: 'DRAFTED' },
+  { from: ['OPEN'], command: 'chat_intake.link_agent_action', to: 'OPEN' },
+  { from: ['OPEN'], command: 'chat_intake.draft', to: 'DRAFTED' },
+  { from: ['OPEN'], command: 'chat_intake.dismiss', to: 'DISMISSED' },
+  { from: ['OPEN'], command: 'chat_intake.expire', to: 'EXPIRED' },
+  // the text is cleared; the status stays (the service keeps it)
+  { from: ['DRAFTED'], command: 'chat_intake.purge', to: 'DRAFTED' },
+  { from: ['DISMISSED'], command: 'chat_intake.purge', to: 'DISMISSED' },
+  { from: ['EXPIRED'], command: 'chat_intake.purge', to: 'EXPIRED' },
+])
+
 // ---------- payment run (S9, docs/sub-specs/S9.md "State machine", BR-PAY-09 to BR-PAY-12) ----------
 
 export const PAYMENT_RUN_STATES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'FILE_READY', 'SENT_TO_BANK', 'COMPLETED', 'REJECTED', 'CANCELLED'] as const
@@ -526,6 +549,8 @@ export const MACHINES = [
   MATCH_EXCEPTION_MACHINE,
   RETENTION_MACHINE,
   PO_CHANGE_MACHINE,
+  // S17
+  CHAT_INTAKE_MACHINE,
   PAYMENT_RUN_MACHINE,
   PAYMENT_RUN_ITEM_MACHINE,
   PAYMENT_RUN_DOCUMENT_MACHINE,

@@ -2,6 +2,9 @@ import { getEnv } from '@/lib/env'
 import { aiActionsExpire } from './ai-actions-expire'
 import { aiAgentRun } from './ai-agent-run'
 import { aiApprovalBrief } from './ai-approval-brief'
+import { chatIntakeAi } from './chat-intake-ai'
+import { chatIntakeImage } from './chat-intake-image'
+import { chatIntakeSweep } from './chat-intake-sweep'
 import { aiCreditMonthly } from './ai-credit-monthly'
 import { approvalTaskResume } from './approval-task-resume'
 import { approvalTaskSla } from './approval-task-sla'
@@ -12,7 +15,7 @@ import { doaVersionActivate } from './doa-version-activate'
 import { draftExpiry } from './draft-expiry'
 import { invoiceAutoRecheck } from './invoice-auto-recheck'
 import { invoiceInboxPoll } from './invoice-inbox-poll'
-import { lineRichMenu } from './line-rich-menu'
+import { lineRichMenu, lineRichMenuVersions } from './line-rich-menu'
 import { retentionDue } from './retention-due'
 import { lineWebhook, lineWebhookSweep } from './line-webhook'
 import { notificationDeliver } from './notification-deliver'
@@ -57,6 +60,7 @@ export const functions = [
   lineWebhookSweep,
   // S5-04: the rich menu of a LINE user follows their link (FR-LINE-004 AC3)
   lineRichMenu,
+  lineRichMenuVersions,
   // S8-06: invoices matched again after a goods receipt, and the e-mails to suppliers (ADR-126)
   invoiceAutoRecheck,
   supplierNoticeSend,
@@ -72,6 +76,11 @@ export const functions = [
   aiAgentRun,
   // S13-09: the Approval Brief of a task on an approval step
   aiApprovalBrief,
+  // S17-06: the photos of a chat draft, and the hourly sweep of chat drafts and their text (BR-LINE-10, BR-LINE-14)
+  chatIntakeImage,
+  chatIntakeSweep,
+  // S17-08: the Intake Agent reads a chat draft once its messages settle (BR-LINE-13)
+  chatIntakeAi,
   // ADR-055 and ADR-056: the first seed and the demo reset of staging, started by hand from the Inngest dashboard;
   // never registered anywhere else
   ...(getEnv().APP_ENV === 'staging' ? [stagingFirstSeed, stagingDemoReset] : []),

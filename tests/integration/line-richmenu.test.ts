@@ -196,6 +196,8 @@ describe('[FR-LINE-004/AC1] two menus from assets/line: UNLINKED (link, help) is
     expect(made).toEqual({
       linkedId: expect.stringMatching(/^richmenu-/),
       unlinkedId: expect.stringMatching(/^richmenu-/),
+      // FR-LINE-303 AC4: UNLINKED and the eight sets by role
+      sets: 9,
       replaced: false,
       defaultSet: true,
       relinked: 0,
@@ -211,19 +213,36 @@ describe('[FR-LINE-004/AC1] two menus from assets/line: UNLINKED (link, help) is
       ['LINKED', made.linkedId],
     ] as const) {
       expect(atLine(id)?.menu).toMatchObject({ size: { width: 2500, height: 843 }, selected: true, name: expect.stringMatching(new RegExp(`^bcs:${org.channelKey}:${kind}:\\d+$`)), chatBarText: 'เมนู BCS' })
-      expect(atLine(id)?.image).toEqual({ contentType: 'image/png', bytes: images[kind].length })
+      expect(atLine(id)?.image).toEqual({ contentType: 'image/png', bytes: images[kind]!.length })
     }
     expect(buttons(made.unlinkedId)).toEqual([
       { label: 'ผูกบัญชี', uri: liff('/link') },
       { label: 'ช่วยเหลือ', uri: liff('/help') },
     ])
+    // FR-LINE-004 AC1 as S17-03 changed it: LINKED is the set of a member with no role button (golden line-rich-menu)
     expect(buttons(made.linkedId)).toEqual([
+      { label: 'หน้าแรก', uri: liff('/home') },
       { label: 'ขอซื้อ', uri: liff('/requests/new') },
-      { label: 'งานรออนุมัติ', uri: liff('/tasks') },
       { label: 'ติดตามสถานะ', uri: liff('/track') },
       { label: 'ช่วยเหลือ', uri: liff('/help') },
     ])
     expect(await lastSettingsEvent(org.orgId)).toMatchObject({ aggregateType: 'Organization', actorMemberId: org.admin.memberId, data: { section: 'lineRichMenu', replaced: false } })
+    // [FR-LINE-303/AC4] every set by role is made with its own picture and stored, LINKED the same menu as on the channel
+    const sets = await prisma.lineRichMenuVariant.findMany({ where: { organizationId: org.orgId }, select: { variantKey: true, richMenuId: true } })
+    expect(sets.map((v) => v.variantKey).sort()).toEqual(LINE_RICH_MENU_KINDS.filter((k) => k !== 'UNLINKED').sort())
+    expect(sets.find((v) => v.variantKey === 'LINKED')!.richMenuId).toBe(made.linkedId)
+    for (const v of sets) {
+      expect(atLine(v.richMenuId)?.image, v.variantKey).toEqual({ contentType: 'image/png', bytes: images[v.variantKey]!.length })
+      expect(buttons(v.richMenuId).map((b) => b.uri), v.variantKey).toEqual(lineRichMenuCells(v.variantKey).map((c) => liff(c.button.path)))
+    }
+    expect(buttons(sets.find((v) => v.variantKey === 'LINKED:APPROVER:RECEIVER:PROCUREMENT')!.richMenuId)).toEqual([
+      { label: 'หน้าแรก', uri: liff('/home') },
+      { label: 'ขอซื้อ', uri: liff('/requests/new') },
+      { label: 'งานรออนุมัติ', uri: liff('/tasks') },
+      { label: 'ตรวจรับ', uri: liff('/gr') },
+      { label: 'งานจัดซื้อ', uri: liff('/procurement') },
+      { label: 'ช่วยเหลือ', uri: liff('/help') },
+    ])
   })
 
   it('shares the picture among the buttons (§9.5): no gap and no overlap, in the order they are drawn', () => {
@@ -244,11 +263,20 @@ describe('[FR-LINE-004/AC1] two menus from assets/line: UNLINKED (link, help) is
       ['help', false, { x: 1250, y: 0, width: 1250, height: 843 }],
     ])
     expect(lineRichMenuCells('LINKED').map((c) => [c.button.key, c.button.primary, c.bounds])).toEqual([
-      ['request', true, { x: 0, y: 0, width: 1250, height: 421 }],
-      ['tasks', false, { x: 1250, y: 0, width: 1250, height: 421 }],
+      ['home', false, { x: 0, y: 0, width: 1250, height: 421 }],
+      ['request', true, { x: 1250, y: 0, width: 1250, height: 421 }],
       ['track', false, { x: 0, y: 421, width: 1250, height: 422 }],
       ['help', false, { x: 1250, y: 421, width: 1250, height: 422 }],
     ])
+    // FR-LINE-303: five buttons are 3 + 2, six are 3 + 3; the first role button is the main one
+    expect(lineRichMenuCells('LINKED:APPROVER').map((c) => [c.button.key, c.button.primary, c.bounds])).toEqual([
+      ['home', false, { x: 0, y: 0, width: 833, height: 421 }],
+      ['request', false, { x: 833, y: 0, width: 833, height: 421 }],
+      ['tasks', true, { x: 1666, y: 0, width: 834, height: 421 }],
+      ['track', false, { x: 0, y: 421, width: 1250, height: 422 }],
+      ['help', false, { x: 1250, y: 421, width: 1250, height: 422 }],
+    ])
+    expect(lineRichMenuCells('LINKED:APPROVER:RECEIVER:PROCUREMENT').map((c) => c.button.key)).toEqual(['home', 'request', 'tasks', 'receive', 'procurement', 'help'])
   })
 
   it('shows UNLINKED to someone who is not linked, LINKED with its four buttons once they link, and UNLINKED again after the unlink', async () => {
@@ -270,7 +298,7 @@ describe('[FR-LINE-004/AC1] two menus from assets/line: UNLINKED (link, help) is
     const member = await person(org.orgId)
     const { lineUserId } = await linkVia(member)
     const again = ok(await replaceLineRichMenus(org.adminCtx, images, key()))
-    expect(again).toMatchObject({ replaced: true, defaultSet: true, relinked: 1, relinkRefused: 0, relinkFailed: 0, removed: 2, removeFailed: 0 })
+    expect(again).toMatchObject({ replaced: true, defaultSet: true, relinked: 1, relinkRefused: 0, relinkFailed: 0, removed: 9, removeFailed: 0 })
     expect(line.fake.userRichMenu(lineUserId)).toBe(again.linkedId)
     expect(line.fake.defaultRichMenu()).toBe(again.unlinkedId)
     expect(atLine(org.linkedMenu)).toBeUndefined()
@@ -284,7 +312,8 @@ describe('[FR-LINE-004/AC1] two menus from assets/line: UNLINKED (link, help) is
     const stray = await menuNamed(`bcs:${a.channelKey}:LINKED:${Date.now() - MS_PER_MINUTE}`)
     const unstamped = await menuNamed(`bcs:${a.channelKey}:LINKED`)
     const again = ok(await replaceLineRichMenus(a.adminCtx, images, key()))
-    expect(again.removed).toBe(4)
+    // The nine of the first run, and the two a broken run left
+    expect(again.removed).toBe(11)
     const left = line.fake.richMenus().map((m) => m.richMenuId)
     expect(left).not.toContain(stray)
     expect(left).not.toContain(unstamped)
@@ -477,7 +506,7 @@ describe('[FR-LINE-004/AC1] making the menus again while members link or unlink 
         return made
       },
     )
-    expect(report).toMatchObject({ relinked: 1, relinkRefused: 0, relinkFailed: 0, removed: 2 })
+    expect(report).toMatchObject({ relinked: 1, relinkRefused: 0, relinkFailed: 0, removed: 9 })
     // The link read the stored menu again after LINE answered, and moved the member to the new one
     expect(line.fake.userRichMenu(lineUserId)).toBe(report.linkedId)
     expect(atLine(org.linkedMenu)).toBeUndefined()
@@ -510,7 +539,7 @@ describe('[FR-LINE-004/AC1] making the menus again while members link or unlink 
       },
     )
     // The replace read the link again after LINE answered and took the menu back off
-    expect(report).toMatchObject({ relinked: 0, relinkRefused: 0, relinkFailed: 0, removed: 2 })
+    expect(report).toMatchObject({ relinked: 0, relinkRefused: 0, relinkFailed: 0, removed: 9 })
     expect(line.fake.userRichMenu(lineUserId)).toBeNull()
     expect(line.fake.defaultRichMenu()).toBe(report.unlinkedId)
   })
@@ -521,7 +550,7 @@ describe('[FR-LINE-004/AC1] making the menus again while members link or unlink 
     const refusedLink = await linkVia(refused)
     const fineLink = await linkVia(fine)
     const forGood = await withLine(failing(linksMenuTo(refusedLink.lineUserId), 400), async () => ok(await replaceLineRichMenus(org.adminCtx, images, key())))
-    expect(forGood).toMatchObject({ relinked: 1, relinkRefused: 1, relinkFailed: 0, removed: 2, removeFailed: 0 })
+    expect(forGood).toMatchObject({ relinked: 1, relinkRefused: 1, relinkFailed: 0, removed: 9, removeFailed: 0 })
     expect(line.fake.userRichMenu(fineLink.lineUserId)).toBe(forGood.linkedId)
     expect(atLine(org.linkedMenu)).toBeUndefined()
     expect(describeLineRichMenuRun({ ok: true, organizationCode: org.code, report: forGood }).join('\n')).toContain('LINE ไม่รับ 1 คน')
@@ -532,7 +561,7 @@ describe('[FR-LINE-004/AC1] making the menus again while members link or unlink 
     expect(atLine(forGood.linkedId)).toBeDefined()
     expect(describeLineRichMenuRun({ ok: true, organizationCode: org.code, report: forAWhile }).join('\n')).toContain('รันอีกครั้ง')
     const after = ok(await replaceLineRichMenus(org.adminCtx, images, key()))
-    expect(after).toMatchObject({ relinked: 2, relinkRefused: 0, relinkFailed: 0, removed: 4 })
+    expect(after).toMatchObject({ relinked: 2, relinkRefused: 0, relinkFailed: 0, removed: 18 })
     expect(line.fake.userRichMenu(refusedLink.lineUserId)).toBe(after.linkedId)
   })
 })
@@ -611,9 +640,9 @@ describe('[FR-LINE-004/AC3] the menu changes within a minute of a link or an unl
       },
     )
     // LINE is back: Inngest's retry switches it
-    expect(await lineRichMenuRun({ data: message.data }, jobStep)).toEqual({ status: 'APPLIED', menu: 'LINKED' })
+    expect(await lineRichMenuRun({ data: message.data }, jobStep)).toEqual({ status: 'APPLIED', menu: 'LINKED', variant: 'LINKED' })
     expect(line.fake.userRichMenu(lineUserId)).toBe(org.linkedMenu)
-    expect(await lineRichMenuRun({ data: { something: 'else' } }, jobStep)).toEqual({ ignored: 'NOT_A_LINK_EVENT' })
+    expect(await lineRichMenuRun({ data: { something: 'else' } }, jobStep)).toEqual({ ignored: 'NOT_A_MENU_EVENT' })
   })
 
   it('a late run never undoes a later change: it sets the menu of the link as it is now', async () => {
@@ -622,7 +651,7 @@ describe('[FR-LINE-004/AC3] the menu changes within a minute of a link or an unl
     const { lineUserId, identityId } = await linkVia(member)
     const linked = toInngest.find((m) => m.name === 'bcs/line.linked' && (m.data as { aggregateId?: string }).aggregateId === identityId)
     ok(await unlinkMyLine(member.ctx(), {}, key()))
-    expect(await lineRichMenuRun({ data: linked!.data }, jobStep)).toEqual({ status: 'APPLIED', menu: 'UNLINKED' })
+    expect(await lineRichMenuRun({ data: linked!.data }, jobStep)).toEqual({ status: 'APPLIED', menu: 'UNLINKED', variant: 'UNLINKED' })
     expect(line.fake.userRichMenu(lineUserId)).toBeNull()
   })
 
@@ -651,7 +680,7 @@ describe('[FR-LINE-004/AC3] the menu changes within a minute of a link or an unl
         expect(line.fake.userRichMenu(lineUserId)).toBeNull()
         open()
         // Its LINKED landed after the unlink; it reads the link again and puts UNLINKED back
-        expect(await racing).toEqual({ status: 'APPLIED', menu: 'UNLINKED' })
+        expect(await racing).toEqual({ status: 'APPLIED', menu: 'UNLINKED', variant: 'UNLINKED' })
       },
     )
     expect(line.fake.userRichMenu(lineUserId)).toBeNull()

@@ -2809,6 +2809,7 @@
         "updated": "Catalogue item edited"
       },
       "chat_intake": {
+        "ai_requested": "AI read the chat draft",
         "dismissed": "Chat draft closed (not a request)",
         "drafted": "Request draft made from the chat",
         "expired": "Chat draft expired",
@@ -6002,6 +6003,22 @@
     }
   },
   "liffChat": {
+    "ai": {
+      "badge": "Filled by AI, please check",
+      "confirmLater": "To be confirmed one by one on the draft before sending",
+      "field": {
+        "other": "Value the AI proposes",
+        "site": "Delivery site",
+        "supplier": "Suggested supplier"
+      },
+      "heading": "What the AI read",
+      "intro": "The AI read the text and photos and proposes the values below. The ones ticked go into the draft; you can check and change them next.",
+      "line": "{description} · {quantity} {uom} · unit price {unitPrice} baht",
+      "lines": "{count, plural, one {# line} other {# lines}}",
+      "reading": "The AI is reading the text and photos; its values appear here when it is done. You can make the draft now without waiting.",
+      "title": "Title the AI proposes",
+      "useTitle": "Use this title"
+    },
     "backToChat": "Text from the chat",
     "dismiss": "Not a request",
     "dismissed": "This chat draft is closed. Its text and photos are removed after the retention period.",
@@ -6034,6 +6051,26 @@
     "notFound": "This chat draft was not found. It may be someone else's or removed.",
     "openDraft": "Open the request draft",
     "pageTitle": "Draft from the chat",
+    "review": {
+      "confirm": "Confirm the checked values",
+      "failed": "That did not work. Open this page again and try again.",
+      "heading": "Values the AI filled in, waiting to be confirmed",
+      "intro": "Check each value in the form below, then tick the ones you checked and confirm. The request can be sent once all are confirmed (a value you changed in the form needs no confirming).",
+      "line": {
+        "description": "Line {no} · description",
+        "quantity": "Line {no} · quantity",
+        "unitPrice": "Line {no} · unit price (baht)",
+        "uom": "Line {no} · unit"
+      },
+      "path": {
+        "deliverySiteId": "Delivery site (as chosen in the form)",
+        "other": "Value the AI filled in",
+        "requestTypeCode": "Request type",
+        "suggestedSupplierId": "Suggested supplier (as chosen in the form)",
+        "title": "Title"
+      },
+      "working": "Confirming"
+    },
     "sendLater": "Nothing is sent yet: you check, edit and send it for approval yourself on the next page",
     "textHeading": "What you sent in the chat",
     "textNone": "No text: only photos were sent",

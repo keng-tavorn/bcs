@@ -18,6 +18,8 @@ defineEvents('ChatIntake', {
   },
   // S17-07: "ไม่ใช่คำขอ" - the owner closed the draft in LIFF
   'chat_intake.dismissed': { schema: z.strictObject({}) },
+  // S17-08: job chat-intake-ai linked the Intake Agent's reading of the draft as it stands (BR-LINE-13)
+  'chat_intake.ai_requested': { schema: z.strictObject({ agentActionId: z.uuid() }) },
   // Nobody used the draft for expireHours (job chat-intake-sweep)
   'chat_intake.expired': { schema: z.strictObject({ reason: z.literal('IDLE') }) },
   // The typed text of a closed draft was cleared after textRetentionDays (BR-LINE-11, OQ-162), and its photos no document took

@@ -2,6 +2,7 @@ import { getEnv } from '@/lib/env'
 import { aiActionsExpire } from './ai-actions-expire'
 import { aiAgentRun } from './ai-agent-run'
 import { aiApprovalBrief } from './ai-approval-brief'
+import { chatIntakeAi } from './chat-intake-ai'
 import { chatIntakeImage } from './chat-intake-image'
 import { chatIntakeSweep } from './chat-intake-sweep'
 import { aiCreditMonthly } from './ai-credit-monthly'
@@ -78,6 +79,8 @@ export const functions = [
   // S17-06: the photos of a chat draft, and the hourly sweep of chat drafts and their text (BR-LINE-10, BR-LINE-14)
   chatIntakeImage,
   chatIntakeSweep,
+  // S17-08: the Intake Agent reads a chat draft once its messages settle (BR-LINE-13)
+  chatIntakeAi,
   // ADR-055 and ADR-056: the first seed and the demo reset of staging, started by hand from the Inngest dashboard;
   // never registered anywhere else
   ...(getEnv().APP_ENV === 'staging' ? [stagingFirstSeed, stagingDemoReset] : []),

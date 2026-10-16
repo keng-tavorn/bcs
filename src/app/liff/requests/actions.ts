@@ -7,7 +7,7 @@ import { doaGapNames, sentRequestSummary } from '@/server/queries/request-form'
 import { getRequestAccess } from '@/server/queries/requests'
 import { dismissChatIntake, draftFromChat } from '@/server/services/chat-intake'
 import { completeUpload, getDownloadUrl, requestUpload } from '@/server/services/files'
-import { resubmitRequest, submitRequest } from '@/server/services/requests'
+import { editRequest, resubmitRequest, submitRequest } from '@/server/services/requests'
 import { attachFile, detachFile } from '@/server/services/requests/attachments'
 import { previewRequest } from '@/server/services/requests/preview'
 import type { CompleteUploadResult, FileRefusal, RequestUploadResult } from '@/ui/files/file-upload'
@@ -191,14 +191,20 @@ const chatFailure = (error: { readonly code: string; readonly details?: Readonly
 }
 
 /** "สร้างร่างคำขอ": chat_intake.draft as the member of this LIFF page; the draft then opens in the LIFF form */
-export async function draftFromChatAction(input: { intakeId: string; requestTypeCode: string; title?: string; idempotencyKey: string }): Promise<LiffChatOutcome> {
+export async function draftFromChatAction(input: { intakeId: string; requestTypeCode: string; title?: string; ai?: { agentActionId: string; usePaths: string[] }; idempotencyKey: string }): Promise<LiffChatOutcome> {
   const ctx = await memberCtx()
   if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
   if (!Key.safeParse(input?.idempotencyKey).success) return { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
   // Browser input on its way to the service, whose Zod schema checks it; a title left out is the first line of the text
   const result = await draftFromChat(
     ctx,
-    { intakeId: String(input.intakeId), requestTypeCode: String(input.requestTypeCode), ...(typeof input.title === 'string' ? { title: input.title } : {}) },
+    {
+      intakeId: String(input.intakeId),
+      requestTypeCode: String(input.requestTypeCode),
+      ...(typeof input.title === 'string' ? { title: input.title } : {}),
+      // S17-08: what the owner took of the AI's reading (the service checks it is this draft's and of its paths)
+      ...(input.ai ? { ai: input.ai } : {}),
+    },
     { idempotencyKey: input.idempotencyKey },
   )
   return result.ok ? { ok: true, href: liffDraftHref(result.data.requestId) } : chatFailure(result.error)
@@ -210,5 +216,21 @@ export async function dismissChatIntakeAction(input: { intakeId: string; idempot
   if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
   if (!Key.safeParse(input?.idempotencyKey).success) return { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
   const result = await dismissChatIntake(ctx, { intakeId: String(input.intakeId) }, { idempotencyKey: input.idempotencyKey })
+  return result.ok ? { ok: true, href: '' } : chatFailure(result.error)
+}
+
+/**
+ * S17-08 (BR-AI-16 BR-AI-17 · FR-LINE-301 AC5): the requester confirms, one by one, values the AI put into their draft
+ * (request.edit with aiAssist, nothing else changed). Until each is confirmed request.submit answers AI_REVIEW_PENDING.
+ */
+export async function confirmAiValuesAction(input: { requestId: string; agentActionId: string; paths: string[]; idempotencyKey: string }): Promise<LiffChatOutcome> {
+  const ctx = await memberCtx()
+  if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
+  if (!Key.safeParse(input?.idempotencyKey).success) return { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
+  const result = await editRequest(
+    ctx,
+    { requestId: String(input.requestId), aiAssist: { agentActionId: String(input.agentActionId), confirmedPaths: Array.isArray(input.paths) ? input.paths.map(String) : [] } },
+    { idempotencyKey: input.idempotencyKey },
+  )
   return result.ok ? { ok: true, href: '' } : chatFailure(result.error)
 }

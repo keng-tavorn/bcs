@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { systemClock } from '@/lib/clock'
+import { PROMPT_VERSIONS } from '@/lib/ai-config'
 import { MS_PER_HOUR } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { makeCtx } from '@/server/context'
@@ -13,6 +14,8 @@ import { E2E_DB } from '../support/e2e-env'
 //   intake <tag> <lineUserId>   a fresh requester of the demo organization's construction department (e2e-lc-<tag>),
 //                               linked to that LINE account, with a chat draft as the chat side leaves it: two lines of
 //                               text and a photo LINE no longer had (FAILED), so the page shows both
+//   intake-ai <tag> <lineUserId>  the same, with the Intake Agent's reading of it linked as job chat-intake-ai leaves it
+//                               (S17-08: a DRAFT AgentAction whose values the LIFF page offers; no model call in e2e)
 //   state <intakeId>            how the chat draft stands now and the request drafts its owner has
 // Prints JSON on the last line.
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the LIFF chat scene runs in the e2e database only')
@@ -60,6 +63,29 @@ async function intake() {
       { organizationId: org.id, intakeId: draft.id, seq: 3, kind: 'IMAGE', lineMessageId: `${id()}3`, fetchStatus: 'FAILED', fetchError: 'GONE', receivedAt: now },
     ],
   })
+  if (mode === 'intake-ai') {
+    const action = await prisma.agentAction.create({
+      data: {
+        organizationId: org.id,
+        agent: 'INTAKE',
+        purpose: 'INTAKE',
+        level: 'L1',
+        status: 'DRAFT',
+        subjectType: 'CHAT_INTAKE',
+        subjectId: draft.id,
+        requestedById: member.id,
+        channel: 'LINE_CHAT',
+        promptVersion: PROMPT_VERSIONS.INTAKE,
+        idempotencyKey: `chat_intake:${draft.id}:3`,
+        review: {
+          proposed: { requestTypeCode: 'BUY_GOODS', title: 'หมวกนิรภัยสีขาวสำหรับไซต์บางนา', 'lines.0.description': 'หมวกนิรภัยสีขาว', 'lines.0.quantity': '20', 'lines.0.uom': 'ใบ', 'lines.0.unitPrice': '250.00' },
+          requiredPaths: ['lines.0.quantity', 'lines.0.unitPrice', 'requestTypeCode'],
+          confirmedPaths: [],
+        },
+      },
+    })
+    await prisma.chatIntake.update({ where: { id: draft.id }, data: { agentActionId: action.id } })
+  }
   return { memberId: member.id, intakeId: draft.id }
 }
 
@@ -69,7 +95,7 @@ async function state() {
   return { status: draft.status, requestId: draft.requestId, requests }
 }
 
-const result = mode === 'intake' ? await intake() : mode === 'state' ? await state() : null
+const result = mode === 'intake' || mode === 'intake-ai' ? await intake() : mode === 'state' ? await state() : null
 if (result === null) throw new Error(`unknown mode ${mode}`)
 console.log(JSON.stringify(result))
 await prisma.$disconnect()

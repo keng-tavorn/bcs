@@ -522,7 +522,8 @@
       "purged": "Text and photos of a chat draft cleared",
       "message_refused": "Chat message not taken",
       "drafted": "Request draft made from the chat",
-      "dismissed": "Chat draft closed (not a request)"
+      "dismissed": "Chat draft closed (not a request)",
+      "ai_requested": "AI read the chat draft"
     }
   }
 }

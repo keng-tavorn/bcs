@@ -12,6 +12,7 @@ import { deleteStaleLineInboundTexts } from '@/server/line/webhook'
 import type { EventDraft } from '@/server/events/append'
 import { describeError } from '@/server/errors/describe'
 import { defineCommand, runCommand, type CommandFailure, type CommandOutcome } from '../_pipeline'
+import { purgeChatIntakeAiContent } from '../ai'
 import { giveUpChatImages } from './images'
 
 // The hourly sweep of asking through the chat (S17-06 · BR-LINE-10, BR-LINE-11 · OQ-161 OQ-162 · FR-LINE-301 AC7), job
@@ -92,6 +93,8 @@ export const purgeChatIntakesCommand = defineCommand({
       await tx.chatIntake.update({ where: { id: intake.id }, data: { text: null, purgedAt: ctx.now, version: { increment: 1 } } })
       events.push({ type: 'chat_intake.purged', aggregateType: 'ChatIntake', aggregateId: intake.id, data: { textRemoved: intake.text !== null, filesRemoved: unused.length, fileIds: unused.map((f) => f.id) } })
     }
+    // BR-LINE-11: what the AI read of these drafts goes with their text
+    events.push(...(await purgeChatIntakeAiContent(tx, ctx, due.map((d) => d.id))))
     return { ok: true, result: { purged: due.length, storageKeys }, events }
   },
 })

@@ -42,5 +42,41 @@
     "noDepartment": "Your account has no main department yet, so it cannot make a request. Contact your administrator."
   },
   "backToChat": "Text from the chat",
-  "imagesPending": "Photos still being fetched are attached to the request draft when they arrive"
+  "imagesPending": "Photos still being fetched are attached to the request draft when they arrive",
+  "ai": {
+    "badge": "Filled by AI, please check",
+    "heading": "What the AI read",
+    "intro": "The AI read the text and photos and proposes the values below. The ones ticked go into the draft; you can check and change them next.",
+    "reading": "The AI is reading the text and photos; its values appear here when it is done. You can make the draft now without waiting.",
+    "title": "Title the AI proposes",
+    "useTitle": "Use this title",
+    "lines": "{count, plural, one {# line} other {# lines}}",
+    "line": "{description} · {quantity} {uom} · unit price {unitPrice} baht",
+    "confirmLater": "To be confirmed one by one on the draft before sending",
+    "field": {
+      "site": "Delivery site",
+      "supplier": "Suggested supplier",
+      "other": "Value the AI proposes"
+    }
+  },
+  "review": {
+    "heading": "Values the AI filled in, waiting to be confirmed",
+    "intro": "Check each value in the form below, then tick the ones you checked and confirm. The request can be sent once all are confirmed (a value you changed in the form needs no confirming).",
+    "confirm": "Confirm the checked values",
+    "working": "Confirming",
+    "failed": "That did not work. Open this page again and try again.",
+    "line": {
+      "description": "Line {no} · description",
+      "quantity": "Line {no} · quantity",
+      "uom": "Line {no} · unit",
+      "unitPrice": "Line {no} · unit price (baht)"
+    },
+    "path": {
+      "title": "Title",
+      "deliverySiteId": "Delivery site (as chosen in the form)",
+      "suggestedSupplierId": "Suggested supplier (as chosen in the form)",
+      "requestTypeCode": "Request type",
+      "other": "Value the AI filled in"
+    }
+  }
 }

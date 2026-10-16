@@ -2941,6 +2941,8 @@ model ChatIntake {
   linkSentAt     DateTime?        @db.Timestamptz(6)
   requestTypeId  String?          @db.Uuid
   requestId      String?          @db.Uuid
+  /// S17-08 (BR-LINE-13): the Intake Agent's reading of this draft, linked by chat_intake.link_agent_action in job chat-intake-ai
+  agentActionId  String?          @db.Uuid
   draftedAt      DateTime?        @db.Timestamptz(6)
   closedAt       DateTime?        @db.Timestamptz(6)
   /// When the text was cleared (BR-LINE-11); the row and its counts stay
@@ -2953,6 +2955,7 @@ model ChatIntake {
   member       Member           @relation("ChatIntakeMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   requestType  RequestType?     @relation(fields: [organizationId, requestTypeId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   request      Request?         @relation(fields: [organizationId, requestId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  agentAction  AgentAction?     @relation(fields: [organizationId, agentActionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   items        ChatIntakeItem[]
 
   @@unique([organizationId, id])
@@ -3178,6 +3181,8 @@ model AgentAction {
   creditUses   AiCreditLedger[]
   /// Invoices drafted from its reading (S13-12)
   invoices     Invoice[]
+  /// S17-08: chat drafts whose latest reading this is (ChatIntake.agentActionId)
+  chatIntakes  ChatIntake[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, idempotencyKey])

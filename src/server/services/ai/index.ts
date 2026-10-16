@@ -8,6 +8,7 @@ export {
   requestAgentAction,
   completeAgentAction,
   expireAgentAction,
+  purgeChatIntakeAiContent,
   runAgentActionSweep,
   SUBJECT_TYPES,
   type AgentActionDto,

@@ -1,5 +1,6 @@
 import { getLocale, getTranslations } from 'next-intl/server'
 import { getMyChatIntake, listMyOpenChatIntakes } from '@/server/queries/chat-intake'
+import { chatIntakeAiView } from '@/server/services/chat-intake'
 import { listMyOpenDrafts, listRequestCatalog } from '@/server/queries/request-form'
 import { formatDateTime } from '@/ui/format'
 import { LiffContent, LiffFrame, LiffSection } from '@/ui/liff/frame'
@@ -61,6 +62,8 @@ export default async function LiffNewRequestPage({ searchParams }: { searchParam
   ])
   if (intake?.ok) {
     const view = intake.data
+    // S17-08: the AI's reading of it, when there is one (none with AI off: the form works on alone, AC6)
+    const ai = view.status === 'OPEN' ? await chatIntakeAiView(page.ctx, view.id, screen) : null
     return (
       <LiffFrame title={tc('pageTitle')} back={{ href: LIFF_FORM_PATHS.catalog, label: tc('toCatalog') }}>
         <LiffContent>
@@ -68,6 +71,7 @@ export default async function LiffNewRequestPage({ searchParams }: { searchParam
             intake={{ ...view, requestHref: view.requestId ? liffDraftHref(view.requestId) : null }}
             types={types}
             catalogHref={LIFF_FORM_PATHS.catalog}
+            ai={ai?.ok ? ai.data : { status: 'NONE' }}
             draft={draftFromChatAction}
             dismiss={dismissChatIntakeAction}
           />

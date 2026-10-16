@@ -8,6 +8,7 @@ import { discardLineInboundText } from '@/server/line/webhook'
 // webhook. The draft becomes a request only in LIFF (./draft.ts · S17-07); nothing is ever sent from the chat.
 
 export { CHAT_IMAGE_GIVE_UP_MS, CHAT_IMAGE_JOB, chatImagePrefix, fetchChatImage, giveUpChatImages, pendingChatImages, storeChatImageCommand, type ChatImageFailure, type ChatImageOutcome } from './images'
+export { CHAT_AI_JOB, chatIntakeAiView, linkChatIntakeAgentAction, linkChatIntakeAgentActionCommand, readChatIntakeWithAi, type ChatAiRead, type ChatAiValue, type ChatAiView } from './ai'
 export { dismissChatIntake, dismissChatIntakeCommand, draftFromChat, draftFromChatCommand } from './draft'
 export { receiveChatMessage, receiveChatMessageCommand } from './receive'
 export { CHAT_SWEEP_JOB, chatSweepOrganizationIds, expireChatIntakesCommand, LINE_INBOUND_TEXT_MAX_AGE_MS, purgeChatIntakesCommand, runChatIntakeSweep, type ChatIntakeSweepResult } from './sweep'

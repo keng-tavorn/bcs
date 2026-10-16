@@ -413,6 +413,21 @@ export const purgeContentCommand = defineCommand({
   },
 })
 
+/**
+ * BR-LINE-11 (S17-08): the readings of chat drafts nobody took into a request lose their content in the same transaction
+ * as the drafts' typed text (chat_intake.purge), so the AI's copy never outlives textRetentionDays, whatever
+ * CONTENT_RETENTION_DAYS.chatIntake says. A reading applied to a request moved to that request (subject REQUEST) and is
+ * kept as the request's. For the caller's transaction; the events go with its command's.
+ */
+export async function purgeChatIntakeAiContent(tx: TenantTx, ctx: Ctx, chatIntakeIds: readonly string[]): Promise<EventDraft[]> {
+  if (ctx.actor.type !== 'SYSTEM' || chatIntakeIds.length === 0) return []
+  const rows = await tx.agentAction.findMany({ where: { subjectType: 'CHAT_INTAKE', subjectId: { in: [...chatIntakeIds] }, contentPurgedAt: null }, select: { id: true }, orderBy: { id: 'asc' } })
+  for (const { id } of rows) {
+    await tx.agentAction.update({ where: { id }, data: { inputText: null, output: PURGED, review: PURGED, verification: PURGED, fieldConfidence: PURGED, contentPurgedAt: ctx.now } })
+  }
+  return rows.map(({ id }) => ({ type: 'agent_action.content_purged', aggregateType: 'AgentAction', aggregateId: id, data: { reason: 'CHAT_INTAKE_UNUSED' } }))
+}
+
 /** What the job ai-actions-expire runs for one organization each hour: the hour is the idempotency key */
 export async function runAgentActionSweep(organizationId: string, now: Date) {
   const hour = now.toISOString().slice(0, 13)

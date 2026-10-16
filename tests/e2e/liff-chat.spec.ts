@@ -27,10 +27,10 @@ function run<T>(...args: string[]): T {
   return JSON.parse(r.stdout.trim().split('\n').at(-1)!) as T
 }
 
-/** A requester of the demo organization with a chat draft, whose LINE account this browser stands for */
-async function withDraft(context: BrowserContext): Promise<Intake> {
+/** A requester of the demo organization with a chat draft (and the AI's reading of it), whose LINE account this browser stands for */
+async function withDraft(context: BrowserContext, mode: 'intake' | 'intake-ai' = 'intake'): Promise<Intake> {
   const lineUserId = newLineUserId()
-  const intake = run<Intake>('intake', sceneTag('chat'), lineUserId)
+  const intake = run<Intake>(mode, sceneTag('chat'), lineUserId)
   await openAsLineUser(context, lineUserId)
   return intake
 }
@@ -96,5 +96,31 @@ test.describe('[FR-LINE-301/AC4] §9.4 the first JavaScript of the chat draft pa
     const s = await withDraft(context)
     const load = await weighFirstLoad(page, `/liff/requests/new?intake=${s.intakeId}`, () => expect(page.getByRole('heading', { level: 1, name: 'ร่างคำขอจากแชท' })).toBeVisible())
     expectFirstLoadWithinBudget(testInfo, '/liff/requests/new?intake=<id>', load)
+  })
+})
+
+test.describe('[FR-LINE-301/AC5] the AI reading in LIFF: its values marked "เติมโดย AI โปรดตรวจ", money and quantities confirmed one by one on the draft', () => {
+  test('the proposed type is picked, the values go into the draft, and the draft waits for the two values until the requester confirms them', async ({ page, context }, testInfo) => {
+    const s = await withDraft(context, 'intake-ai')
+    await page.goto(`/liff/requests/new?intake=${s.intakeId}`)
+    const ai = page.getByRole('region', { name: /ค่าที่ AI อ่านได้/ })
+    await expect(ai.getByText('เติมโดย AI โปรดตรวจ')).toBeVisible()
+    await expect(ai.getByText('หมวกนิรภัยสีขาว · 20 ใบ · ราคาต่อหน่วย 250.00 บาท')).toBeVisible()
+    await expect(page.getByRole('radio', { name: /ซื้อของ/ })).toBeChecked()
+    await ai.getByRole('button', { name: 'ใช้ชื่อเรื่องนี้' }).click()
+    await expect(page.getByRole('textbox', { name: 'ชื่อเรื่อง' })).toHaveValue('หมวกนิรภัยสีขาวสำหรับไซต์บางนา')
+    await checkScreen(page, testInfo, 'liff-chat-ai')
+
+    await page.getByRole('button', { name: 'สร้างร่างคำขอ' }).click()
+    await expect(page).toHaveURL(/\/liff\/requests\/[0-9a-f-]{36}\/edit$/)
+    const waiting = page.getByRole('region', { name: /ค่าที่ AI เติมรอยืนยัน/ })
+    await expect(waiting.getByRole('checkbox')).toHaveCount(2)
+    await expect(waiting.getByText('รายการที่ 1 · จำนวน')).toBeVisible()
+    await expect(waiting.getByText('รายการที่ 1 · ราคาต่อหน่วย (บาท)')).toBeVisible()
+    await checkScreen(page, testInfo, 'liff-ai-confirm')
+    for (const box of await waiting.getByRole('checkbox').all()) await box.check()
+    await waiting.getByRole('button', { name: 'ยืนยันค่าที่ตรวจแล้ว' }).click()
+    await expect(page.getByRole('region', { name: /ค่าที่ AI เติมรอยืนยัน/ })).toHaveCount(0)
+    expect(run<State>('state', s.intakeId)).toMatchObject({ status: 'DRAFTED', requests: 1 })
   })
 })

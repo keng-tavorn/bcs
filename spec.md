@@ -3030,6 +3030,34 @@ cases:
   - { id: GC-LINE-12, title: member ที่ถูกปิดใช้งาน, input: { linked: true, memberStatus: DEACTIVATED, roles: [RECEIVER], doaApprover: false, activeDelegate: false, workflowReviewer: false }, expect: { variant: UNLINKED, buttons: [link, help], rows: [2], primary: link } }
 ```
 
+**golden `chat-intake` (S17-06 · BR-LINE-10 BR-LINE-12 BR-LINE-15 · FR-LINE-301)** · `routeChatMessage` `titleFromText` และ `expiredIntakeIds` ใน `src/core/chat-intake` (pure) · service อ่านค่าตั้ง การผูก ร่าง OPEN ล่าสุด และจำนวนข้อความในชั่วโมงที่ผ่านมา แล้วส่งเข้าพร้อมเวลา
+
+```yaml
+# tests/golden/chat-intake.yaml
+suite: chat-intake
+# routeChatMessage และ titleFromText (src/core/chat-intake · pure) · settings: windowMinutes 30 · maxImages 10 · maxTextChars 2000 (code point) · hourlyLimit 20 · expireHours 24 · ชื่อเรื่องไม่เกิน 200 UTF-16 code unit · via ที่ไม่บอก = REPLY เมื่อ reply ไม่ใช่ NONE
+cases:
+  - { id: GC-LINE-13, title: ข้อความแรกของผู้ที่ผูกแล้ว, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, textChars: 40, openIntake: null, sentLastHour: 0 }, expect: { action: OPEN_NEW, reply: INTAKE_LINK } }
+  - { id: GC-LINE-14, title: ภายใน 29 นาที 59 วินาทีเติมร่างเดิม, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: image, now: "2026-11-02T03:00:00Z", openIntake: { lastMessageAt: "2026-11-02T02:30:01Z", images: 1, textChars: 40 }, sentLastHour: 1 }, expect: { action: APPEND, reply: INTAKE_LINK_SAME } }
+  - { id: GC-LINE-15, title: ครบ 30 นาทีพอดีเปิดร่างใหม่, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, textChars: 10, now: "2026-11-02T03:00:00Z", openIntake: { lastMessageAt: "2026-11-02T02:30:00Z", images: 1, textChars: 40 }, sentLastHour: 2 }, expect: { action: OPEN_NEW, reply: INTAKE_LINK } }
+  - { id: GC-LINE-16, title: รูปที่ 11 ไม่เพิ่ม, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: image, now: "2026-11-02T03:00:00Z", openIntake: { lastMessageAt: "2026-11-02T02:59:00Z", images: 10, textChars: 0 }, sentLastHour: 10 }, expect: { action: LIMIT_IMAGES, reply: ADD_IN_LIFF } }
+  - { id: GC-LINE-17, title: ข้อความรวมเกิน 2000 ตัดเหลือ 2000, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, textChars: 150, now: "2026-11-02T03:00:00Z", openIntake: { lastMessageAt: "2026-11-02T02:59:00Z", images: 0, textChars: 1900 }, sentLastHour: 3 }, expect: { action: APPEND, keptChars: 100, textTruncated: true, reply: INTAKE_LINK_SAME } }
+  - { id: GC-LINE-18, title: สติกเกอร์ได้คำแนะนำ, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: sticker, openIntake: null, sentLastHour: 0 }, expect: { action: UNSUPPORTED, reply: TEXT_OR_PHOTO_HINT } }
+  - { id: GC-LINE-19, title: ยังไม่ผูกบัญชี, input: { enabled: true, source: user, mode: active, sender: UNLINKED, messageType: text, openIntake: null, sentLastHour: 0 }, expect: { action: LINK_PROMPT, reply: LINK_PROMPT } }
+  - { id: GC-LINE-20, title: ข้อความในกลุ่มไม่ตอบ, input: { enabled: true, source: group, mode: active, sender: LINKED_ACTIVE, messageType: text, openIntake: null, sentLastHour: 0 }, expect: { action: IGNORE, reply: NONE } }
+  - { id: GC-LINE-21, title: mode standby ไม่ตอบ, input: { enabled: true, source: user, mode: standby, sender: LINKED_ACTIVE, messageType: text, openIntake: null, sentLastHour: 0 }, expect: { action: IGNORE, reply: NONE } }
+  - { id: GC-LINE-22, title: องค์กรไม่เปิดขอผ่านแชท (พฤติกรรมเดิม), input: { enabled: false, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, openIntake: null, sentLastHour: 0 }, expect: { action: IGNORE, reply: NONE } }
+  - { id: GC-LINE-23, title: ข้อความที่ 21 ในชั่วโมงแจ้งครั้งเดียว, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, openIntake: null, sentLastHour: 20, limitNoticeSentThisHour: false }, expect: { action: RATE_LIMITED, reply: RATE_LIMIT_NOTICE } }
+  - { id: GC-LINE-24, title: ข้อความที่ 22 ในชั่วโมงเงียบ, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, openIntake: null, sentLastHour: 21, limitNoticeSentThisHour: true }, expect: { action: RATE_LIMITED, reply: NONE } }
+  - { id: GC-LINE-25, title: ชื่อเรื่องจากบรรทัดแรกที่ไม่ว่าง, input: { text: "  \nขอซื้อเหล็กข้ออ้อย DB25 1 ตัน\nส่งไซต์พระราม 9" }, expect: { title: "ขอซื้อเหล็กข้ออ้อย DB25 1 ตัน" } }
+  - { id: GC-LINE-26, title: ชื่อเรื่องไม่เกิน 200 code unit ตัดที่ขอบ grapheme, input: { text: { repeat: "ที่", times: 130 } }, expect: { title: { repeat: "ที่", times: 66 }, graphemes: 66, codeUnits: 198 } }
+  - { id: GC-LINE-27, title: ชื่อเรื่อง 200 code unit พอดีไม่ตัด, input: { text: { repeat: "A", times: 200 } }, expect: { title: { repeat: "A", times: 200 }, graphemes: 200, codeUnits: 200 } }
+  - { id: GC-LINE-28, title: ไม่ตัดกลางสระและวรรณยุกต์ที่ขอบ 200, input: { text: { concat: [ { repeat: "A", times: 199 }, "ที่" ] } }, expect: { title: { repeat: "A", times: 199 }, graphemes: 199, codeUnits: 199 } }
+  - { id: GC-LINE-29, title: หมดอายุที่ 24 ชั่วโมงพอดี, input: { now: "2026-11-02T03:00:00Z", intakes: [ { id: a, status: OPEN, lastMessageAt: "2026-11-01T03:00:00Z" }, { id: b, status: OPEN, lastMessageAt: "2026-11-01T03:00:01Z" }, { id: c, status: DRAFTED, lastMessageAt: "2026-10-30T03:00:00Z" } ] }, expect: { expire: [a] } }
+  - { id: GC-LINE-30, title: reply token หมดอายุ ร่างใหม่ได้ปุ่มทาง push ครั้งเดียว, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: text, textChars: 20, openIntake: null, sentLastHour: 0, replyTokenExpired: true }, expect: { action: OPEN_NEW, reply: INTAKE_LINK, via: PUSH } }
+  - { id: GC-LINE-31, title: reply token หมดอายุ ร่างที่ได้ปุ่มแล้วไม่ตอบ, input: { enabled: true, source: user, mode: active, sender: LINKED_ACTIVE, messageType: image, now: "2026-11-02T03:00:00Z", openIntake: { lastMessageAt: "2026-11-02T02:50:00Z", images: 1, textChars: 20, linkSent: true }, sentLastHour: 2, replyTokenExpired: true }, expect: { action: APPEND, reply: NONE } }
+```
+
 ---
 
 ## 8. Functional requirements
@@ -4883,7 +4911,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       41 ไฟล์ · 492 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       42 ไฟล์ · 511 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

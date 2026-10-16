@@ -71,6 +71,9 @@ export const TASK_ERROR_KEYS = [
   'APPROVER_NOT_FOUND',
   'BUDGET',
   'BUDGET_LINE_CLOSED',
+  'PAYMENT_FLAGS_CHANGED',
+  'PAYMENT_FLAG_REASON_REQUIRED',
+  'PAYMENT_DATE_INVALID',
   'LATER_VERSION',
   'SUBJECT',
   'CHANNEL',
@@ -117,6 +120,8 @@ export function taskErrorKey(failure: ActionFailure): TaskErrorKey {
   // Approving a PO holds its budget, and approving an excess holds more: told without amounts (budget.view, §2.4)
   if (code === 'BUDGET_INSUFFICIENT') return 'BUDGET'
   if (code === 'BUDGET_LINE_CLOSED') return 'BUDGET_LINE_CLOSED'
+  // S9: the approval of a payment run checks its flags and its pay date again (BR-PAY-02, BR-PAY-07)
+  if (code === 'PAYMENT_FLAGS_CHANGED' || code === 'PAYMENT_FLAG_REASON_REQUIRED' || code === 'PAYMENT_DATE_INVALID') return code
   if (code === 'NOT_FOUND') return 'NOT_FOUND'
   if (code === 'RATE_LIMITED') return 'BUSY'
   if (code === 'IDEMPOTENCY_CONFLICT') return 'CONFLICT'

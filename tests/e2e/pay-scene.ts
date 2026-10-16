@@ -7,6 +7,9 @@ import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/prov
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { seedDevPins } from '@/server/seed/pins'
+import { sweepSupplierNotices } from '@/server/notifications/supplier-notices'
+// the payment advice and the bank account notice are S9's templates: registered by importing their file
+import '@/server/notifications/supplier-templates-pay'
 import { seedLineChannel } from '@/server/services/line-channel'
 import { issueLineLinkCode, linkLineAccount } from '@/server/services/line-link'
 import { AP_NOW } from '../support/ap'
@@ -21,6 +24,12 @@ import { payOrg, paySupplier, readyInvoice, sentRun } from '../support/pay'
 //                          the first supplier's registry reported ceased after its invoice was ready and the preparer's
 //                          reason given; the run pays on the next Friday from today (real time: the app decides it now)
 //   decided <runId>        the run's status and how its task was decided (channel, step-up)
+//   web <tag>              S9-09: every member able to sign in (e-mail <code>.<tag>@pay.bcs.local, TOTP of SEED_TOTP_KEY),
+//                          the approvers' PIN, two suppliers with an invoice ready for payment (due 15 Oct 2026) and a
+//                          third whose registry was reported ceased after its invoice was ready
+//   payday <runId>         the bank paid today: the run's pay date set to today (Bangkok) so results can be recorded on
+//                          any day the e2e runs (the run was approved for a later Friday)
+//   notices                sends the supplier e-mails waiting (the job supplier-notice-send, which the e2e app does not run)
 // Prints one JSON line. No other organization is touched.
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the payment scene runs in the e2e database only')
 const [mode, arg] = process.argv.slice(2)
@@ -70,6 +79,34 @@ if (mode === 'liff') {
   const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'PAYMENT_RUN', subjectId: sent.runId } } }, select: { id: true } })
   const run = await prisma.paymentRun.findUniqueOrThrow({ where: { id: sent.runId }, select: { totalTransferSatang: true } })
   console.log(JSON.stringify({ orgCode: `PAY-${tag}`, runId: sent.runId, taskId: task.id, number: sent.number, flagsKey: sent.flagsKey, flagged: flagged.code, clean: clean.code, transferSatang: run.totalTransferSatang.toString() }))
+} else if (mode === 'web') {
+  if (!arg || !/^[a-z0-9]+$/.test(arg)) throw new Error('web <tag>: a run tag')
+  const ap = await payOrg()
+  const code = `PAY-${arg.toUpperCase()}`
+  await prisma.organization.update({ where: { id: ap.org.organizationId }, data: { code, displayName: `ทดสอบรอบจ่าย ${arg}` } })
+  await prisma.orgModule.create({ data: { organizationId: ap.org.organizationId, module: 'CORE', enabled: true, enabledAt: AP_NOW, contractRef: 'TEST-P1', reason: 'องค์กรทดสอบระยะ 1' } })
+  const password = process.env.SEED_DEV_PASSWORD
+  const totpKey = process.env.SEED_TOTP_KEY
+  if (!password || !totpKey) throw new Error('SEED_DEV_PASSWORD and SEED_TOTP_KEY are needed')
+  for (const [memberCode, memberId] of Object.entries(ap.org.member)) {
+    const local = `${memberCode}.${arg}`
+    const email = `${local}@pay.bcs.local`
+    const userId = await upsertUserWithPassword({ email, name: `ผู้ใช้ ${memberCode}`, password })
+    await enableTotpWithSecret(userId, deriveSeedTotpSecret(totpKey, local), deriveSeedBackupCodes(totpKey, local))
+    await prisma.member.update({ where: { id: memberId }, data: { email, userId } })
+  }
+  await seedDevPins(ap.org.organizationId, E2E_PIN, AP_NOW)
+  const suppliers = [await paySupplier(ap), await paySupplier(ap), await paySupplier(ap)]
+  const invoices = []
+  for (const s of suppliers) invoices.push(await readyInvoice(ap, s.id, '30000.00', '2100.00', '2026-10-15'))
+  await prisma.supplier.update({ where: { id: suppliers[2]!.id }, data: { registryFlag: 'CEASED' } })
+  console.log(JSON.stringify({ orgCode: code, suppliers: suppliers.map((s) => ({ id: s.id, code: s.code, email: s.email, last4: s.accountNo!.slice(-4) })), invoiceIds: invoices }))
+} else if (mode === 'payday') {
+  const today = taxDateOf(new Date())
+  await prisma.paymentRun.update({ where: { id: arg! }, data: { payDate: new Date(`${today}T00:00:00Z`) } })
+  console.log(JSON.stringify({ payDate: today }))
+} else if (mode === 'notices') {
+  console.log(JSON.stringify({ sent: await sweepSupplierNotices(new Date(Date.now() + 2 * 60_000)) }))
 } else if (mode === 'decided') {
   const run = await prisma.paymentRun.findUniqueOrThrow({ where: { id: arg! }, select: { status: true } })
   const decided = await prisma.event.findFirst({ where: { type: 'approval_task.decided', data: { path: ['subjectId'], equals: arg! } }, orderBy: { seq: 'desc' }, select: { data: true } })

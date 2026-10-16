@@ -3836,6 +3836,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | จัดซื้อ | ตรวจรับ | `/receiving` | `gr.post` | PO ที่รอตรวจรับ |
 | จัดซื้อ | ผู้ขาย | `/suppliers` | ทุกคน | — |
 | การเงิน | ยืนยันใบกำกับ | `/finance/invoices` | `invoiceConfirmation.record` | — |
+| การเงิน | รอบจ่าย (เมื่อเปิด `PAY` · S9) | `/finance/payments` | `paymentRun.view` ระดับองค์กร | — |
+| การเงิน | บัญชีธนาคาร (เมื่อเปิด `PAY` · S9) | `/finance/bank-accounts` | `bankAccount.view` | — |
 | การเงิน | ส่งออก Express | `/finance/exports` | `export.express` | — |
 | การเงิน | งบประมาณ | `/budgets` | `budget.view` (dashboard) | — |
 | ภาพรวม | สรุปผู้บริหาร | `/insights` | `report.view` | — |

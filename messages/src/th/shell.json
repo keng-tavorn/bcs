@@ -23,6 +23,8 @@
     "suppliers": "ผู้ขาย",
     "invoices": "ยืนยันใบกำกับ",
     "invoicesAp": "ใบแจ้งหนี้",
+    "payments": "รอบจ่าย",
+    "bankAccounts": "บัญชีธนาคาร",
     "exports": "ส่งออก Express",
     "budgets": "งบประมาณ",
     "board": "เอกสารค้าง",

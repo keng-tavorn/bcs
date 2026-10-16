@@ -54,6 +54,16 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
     expect(keys(member('ORG_ADMIN'), ['PAY'])).toEqual(['home', 'settings', 'security', 'pin', 'lineLink', 'notifications'])
   })
 
+  it('S9-09: with PAY on, FINANCE and AUDITOR see the payment runs and the bank accounts, PROCUREMENT the bank accounts only; an approver reaches a run from the task', () => {
+    const pay = ['CORE', 'PAY'] as const
+    const finance = (role: StoredRole) => keys(member(role), pay).filter((k) => k === 'payments' || k === 'bankAccounts')
+    expect(finance('FINANCE')).toEqual(['payments', 'bankAccounts'])
+    expect(finance('AUDITOR')).toEqual(['payments', 'bankAccounts'])
+    expect(finance('PROCUREMENT')).toEqual(['bankAccounts'])
+    expect(finance('EXECUTIVE')).toEqual([])
+    expect(keys(member()).includes('payments')).toBe(false)
+  })
+
   it('[FR-PLT-013/AC2] S8-13: with PAY on the invoices of the finance group are named "ใบแจ้งหนี้" (§9.10), the rest keep their names', () => {
     const invoices = MENU.find((item) => item.key === 'invoices')!
     expect(menuLabelKey(invoices, ['CORE'])).toBe('invoices')
@@ -92,6 +102,9 @@ describe('[FR-PLT-013/AC2] [FR-PLT-002/AC1] the sidebar follows the table of §9
     ['procurement', 'receiving', '/receiving'],
     ['procurement', 'suppliers', '/suppliers'],
     ['finance', 'invoices', '/finance/invoices'],
+    // S9-09: shown only while module PAY is on (docs/sub-specs/S9.md "หน้าจอ")
+    ['finance', 'payments', '/finance/payments'],
+    ['finance', 'bankAccounts', '/finance/bank-accounts'],
     ['finance', 'exports', '/finance/exports'],
     ['finance', 'budgets', '/budgets'],
     ['insight', 'insights', '/insights'],

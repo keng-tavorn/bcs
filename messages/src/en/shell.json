@@ -23,6 +23,8 @@
     "suppliers": "Suppliers",
     "invoices": "Confirm invoices",
     "invoicesAp": "Invoices",
+    "payments": "Payment runs",
+    "bankAccounts": "Bank accounts",
     "exports": "Express export",
     "budgets": "Budgets",
     "board": "Pending documents",

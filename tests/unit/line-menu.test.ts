@@ -1,44 +1,10 @@
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { parse } from 'yaml'
-import { RICH_MENU_BUTTONS, RICH_MENU_MAX_BUTTONS, RICH_MENU_VARIANTS, richMenuForRoles, selectRichMenu, type RichMenuInput } from '@/core/line-menu'
+import { RICH_MENU_BUTTONS, RICH_MENU_MAX_BUTTONS, RICH_MENU_VARIANTS, richMenuForRoles, selectRichMenu } from '@/core/line-menu'
 
-// Draft of S17-03 (spec §16.18 lets lane 3 write src/core/line-menu before S6 is in main, without putting the golden
-// in the spec). Until S17-03 adds the block to spec §7.20 and tests/golden/line-rich-menu.yaml with its runner, the
-// cases are read from the draft block of docs/sub-specs/S17.md (`# draft: tests/golden/line-rich-menu.yaml`), so
-// they are the same cases word for word and no expect is copied by hand. S17-03 moves this runner to tests/golden and
-// adds 'line-menu' to COVERAGE_ENGINES (scripts/lib/verify-gates.ts) once S6's change of that line is in main.
+// S17-03 · rich menu by role beyond the golden cases (tests/golden/line-rich-menu.yaml · BR-LINE-16): members who are
+// not ACTIVE, roles in any order, the nine menus `pnpm line:richmenu` makes, and every combination of flags.
 
-interface LineMenuCase {
-  id: string
-  title?: string
-  input: RichMenuInput
-  expect: { variant: string; buttons: string[]; rows: number[]; primary: string }
-}
-
-function draftSuite(): { suite: string; cases: LineMenuCase[] } {
-  const text = readFileSync(path.resolve(import.meta.dirname, '../../docs/sub-specs/S17.md'), 'utf8').replace(/\r\n/g, '\n')
-  const block = /```yaml\n(# draft: tests\/golden\/line-rich-menu\.yaml\n[\s\S]*?)```/.exec(text)
-  if (!block) throw new Error('the draft block of line-rich-menu is missing from docs/sub-specs/S17.md')
-  return parse(block[1]!) as { suite: string; cases: LineMenuCase[] }
-}
-
-const suite = draftSuite()
-
-describe('draft golden line-rich-menu (docs/sub-specs/S17.md)', () => {
-  it('has the cases of the draft', () => {
-    expect(suite.suite).toBe('line-rich-menu')
-    expect(suite.cases.length).toBeGreaterThan(0)
-  })
-  for (const c of suite.cases) {
-    it(`[${c.id}] ${c.title ?? ''}`.trim(), () => {
-      expect(selectRichMenu(c.input)).toEqual(c.expect)
-    })
-  }
-})
-
-describe('[FR-LINE-303/AC1] rich menu by role beyond the draft cases', () => {
+describe('[FR-LINE-303/AC1] rich menu by role beyond the golden cases', () => {
   const linked = { linked: true, memberStatus: 'ACTIVE', roles: [], doaApprover: false, activeDelegate: false, workflowReviewer: false } as const
 
   it('gives a member who is only invited the menu of someone not linked', () => {

@@ -1794,6 +1794,25 @@ def run_workflow_reports(d):
         else: raise ValueError(f)
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_line_rich_menu(d):
+    # BR-LINE-16 (S17-03): the menu of a LINE user from the flags the service works out. Only a linked ACTIVE member has
+    # a menu of their own; an approver (DOA, ACTIVE delegation or workflow reviewer) adds tasks, RECEIVER receive and
+    # PROCUREMENT procurement, between request and track; past six buttons track goes; 4 = 2+2, 5 = 3+2, 6 = 3+3
+    out = []
+    for c in d["cases"]:
+        i = c["input"]
+        if not i.get("linked") or i.get("memberStatus") != "ACTIVE":
+            got = {"variant": "UNLINKED", "buttons": ["link", "help"], "rows": [2], "primary": "link"}
+        else:
+            roles = i.get("roles") or []
+            parts = [p for p, held in (("APPROVER", i.get("doaApprover") or i.get("activeDelegate") or i.get("workflowReviewer")), ("RECEIVER", "RECEIVER" in roles), ("PROCUREMENT", "PROCUREMENT" in roles)) if held]
+            button = {"APPROVER": "tasks", "RECEIVER": "receive", "PROCUREMENT": "procurement"}
+            buttons = ["home", "request"] + [button[p] for p in parts] + ["track", "help"]
+            if len(buttons) > 6: buttons.remove("track")
+            n = len(buttons)
+            got = {"variant": ":".join(["LINKED"] + parts), "buttons": buttons, "rows": [n] if n <= 3 else [(n + 1) // 2, n // 2], "primary": button[parts[0]] if parts else "request"}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
@@ -1818,6 +1837,7 @@ RUNNERS = {
     "grni": run_grni,
     "invoice-confirmation": run_ivc,
     "invoice-vat": run_invoice_vat,
+    "line-rich-menu": run_line_rich_menu,
     "matching": run_matching,
     "money": run_money,
     "numbering": run_numbering,

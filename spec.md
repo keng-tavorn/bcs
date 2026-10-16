@@ -3008,6 +3008,27 @@ cases:
 | BR-APP-13 | โมดูล `BCS_GO`: ลงทะเบียน push เตรียมสำเนา resolve QR และหน้า `/go/*` เรียก `requireModule(ctx, 'BCS_GO')` · ปิดโมดูล → ไม่ส่ง push (กลับทางเดิม) และเตรียมหรือบันทึกใหม่ไม่ได้ · `/api/go/receiving/gr` (POST และ GET ผลของ key) และ `/api/go/files/*` ไม่ตรวจโมดูลเพราะ `gr.post` และไฟล์อยู่ใน `CORE` · หน้า `/go/receive` ตอนปิดโมดูลแสดงเฉพาะคิวที่ค้างให้ส่งต่อ (ไม่ให้ข้อมูลหาย) |
 | BR-APP-14 | รูปของรายการอัปโหลดก่อนส่ง `gr.post` ครั้งแรก (`UPLOADING`) ทีละรูปผ่าน `/api/go/files/request` และ `/api/go/files/complete` ที่เรียก `requestUpload` `completeUpload` เดิม (ผู้อัปโหลด = ผู้บันทึก ตาม `photosUsable`) แล้วเก็บ fileId ในรายการ · PUT ยังไม่สำเร็จ → ขอ ticket ใหม่ · PUT สำเร็จแต่ไม่รู้ผล complete → complete ซ้ำด้วย ticket เดิมเมื่อออกมาไม่ถึง 14 นาที (ticket อายุ 15 นาที · complete ใช้ key `upload:<key>` จึงได้ fileId เดิม) ไม่เช่นนั้นขอใหม่ · complete ได้ `TICKET_INVALID` (ticket หมดอายุเพราะนาฬิกาคลาด) → ขอ ticket ใหม่ ไม่ใช่ `NEEDS_ATTENTION` · ล้มชั่วคราว → `RETRY` (attempts ไม่เพิ่ม) · ไฟล์ถูกปฏิเสธ (`TYPE_NOT_ALLOWED` `TOO_LARGE` `EMPTY` `CONTENT_MISMATCH`) → `NEEDS_ATTENTION` · fileId ครบแล้วจึงตรึง input พร้อม `photoFileIds` (golden `offline-queue`) |
 
+**golden `line-rich-menu` (S17-03 · BR-LINE-16 · FR-LINE-303 AC1)** · `selectRichMenu` ใน `src/core/line-menu` (pure) รับธงที่ service คำนวณ ณ ตอนสลับ (`src/server/services/line-link/menu-flags.ts`) แล้วคืนชุดเมนู ปุ่มเรียงตามแถว จำนวนปุ่มต่อแถว และปุ่มหลัก · ชุดที่เก็บใน `LineRichMenuVariant.variantKey` คือ `variant`
+
+```yaml
+# tests/golden/line-rich-menu.yaml
+suite: line-rich-menu
+# selectRichMenu (src/core/line-menu · pure) · ธงมาจาก service ตาม BR-LINE-16: doaApprover (DOA ฉบับที่มีผลอ้างตำแหน่งที่ดำรงหรือระบุตัว รวมกรรมการ) · activeDelegate · workflowReviewer (ผู้ตรวจหรือผู้ตรวจสำรองของ workflow ฉบับที่มีผล)
+cases:
+  - { id: GC-LINE-01, title: ยังไม่ผูก, input: { linked: false }, expect: { variant: UNLINKED, buttons: [link, help], rows: [2], primary: link } }
+  - { id: GC-LINE-02, title: ผู้ขออย่างเดียว (pm_p07), input: { linked: true, memberStatus: ACTIVE, roles: [], doaApprover: false, activeDelegate: false, workflowReviewer: false }, expect: { variant: LINKED, buttons: [home, request, track, help], rows: [2, 2], primary: request } }
+  - { id: GC-LINE-03, title: ผู้ดำรงตำแหน่งใน DOA (dm_coni), input: { linked: true, memberStatus: ACTIVE, roles: [], doaApprover: true, activeDelegate: false, workflowReviewer: false }, expect: { variant: "LINKED:APPROVER", buttons: [home, request, tasks, track, help], rows: [3, 2], primary: tasks } }
+  - { id: GC-LINE-04, title: ผู้ตรวจรับ (store_p07), input: { linked: true, memberStatus: ACTIVE, roles: [RECEIVER], doaApprover: false, activeDelegate: false, workflowReviewer: false }, expect: { variant: "LINKED:RECEIVER", buttons: [home, request, receive, track, help], rows: [3, 2], primary: receive } }
+  - { id: GC-LINE-05, title: จัดซื้อ (proc_officer), input: { linked: true, memberStatus: ACTIVE, roles: [PROCUREMENT], doaApprover: false, activeDelegate: false, workflowReviewer: false }, expect: { variant: "LINKED:PROCUREMENT", buttons: [home, request, procurement, track, help], rows: [3, 2], primary: procurement } }
+  - { id: GC-LINE-06, title: ผู้อนุมัติที่เป็นจัดซื้อ (dm_proc) 6 ปุ่มพอดี, input: { linked: true, memberStatus: ACTIVE, roles: [PROCUREMENT], doaApprover: true, activeDelegate: false, workflowReviewer: false }, expect: { variant: "LINKED:APPROVER:PROCUREMENT", buttons: [home, request, tasks, procurement, track, help], rows: [3, 3], primary: tasks } }
+  - { id: GC-LINE-07, title: ครบสามบทบาท ตัดติดตามสถานะ, input: { linked: true, memberStatus: ACTIVE, roles: [RECEIVER, PROCUREMENT], doaApprover: true, activeDelegate: false, workflowReviewer: false }, expect: { variant: "LINKED:APPROVER:RECEIVER:PROCUREMENT", buttons: [home, request, tasks, receive, procurement, help], rows: [3, 3], primary: tasks } }
+  - { id: GC-LINE-08, title: ผู้รักษาการที่ ACTIVE นับเป็นผู้อนุมัติ, input: { linked: true, memberStatus: ACTIVE, roles: [], doaApprover: false, activeDelegate: true, workflowReviewer: false }, expect: { variant: "LINKED:APPROVER", buttons: [home, request, tasks, track, help], rows: [3, 2], primary: tasks } }
+  - { id: GC-LINE-09, title: ผู้ตรวจของ workflow (S6) นับเป็นผู้อนุมัติ, input: { linked: true, memberStatus: ACTIVE, roles: [], doaApprover: false, activeDelegate: false, workflowReviewer: true }, expect: { variant: "LINKED:APPROVER", buttons: [home, request, tasks, track, help], rows: [3, 2], primary: tasks } }
+  - { id: GC-LINE-10, title: ผู้ตรวจรับที่รักษาการด้วย, input: { linked: true, memberStatus: ACTIVE, roles: [RECEIVER], doaApprover: false, activeDelegate: true, workflowReviewer: false }, expect: { variant: "LINKED:APPROVER:RECEIVER", buttons: [home, request, tasks, receive, track, help], rows: [3, 3], primary: tasks } }
+  - { id: GC-LINE-11, title: role ที่ไม่มีปุ่มไม่เปลี่ยนเมนู (ceo มี EXECUTIVE), input: { linked: true, memberStatus: ACTIVE, roles: [EXECUTIVE], doaApprover: true, activeDelegate: false, workflowReviewer: false }, expect: { variant: "LINKED:APPROVER", buttons: [home, request, tasks, track, help], rows: [3, 2], primary: tasks } }
+  - { id: GC-LINE-12, title: member ที่ถูกปิดใช้งาน, input: { linked: true, memberStatus: DEACTIVATED, roles: [RECEIVER], doaApprover: false, activeDelegate: false, workflowReviewer: false }, expect: { variant: UNLINKED, buttons: [link, help], rows: [2], primary: link } }
+```
+
 ---
 
 ## 8. Functional requirements
@@ -4857,7 +4878,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       40 ไฟล์ · 480 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       41 ไฟล์ · 492 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

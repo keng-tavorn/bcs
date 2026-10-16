@@ -74,7 +74,7 @@ export const fileKind = (kind: string): (typeof FILE_KINDS)[number] => ((FILE_KI
 export const doaRefText = (tl: TimelineT, doa: { code: string; versionNo: number; ruleCode: string }): string => tl('doaRef', { code: doa.code, version: doa.versionNo, rule: doa.ruleCode })
 export const doaHref = (versionId: string): string => `/admin/doa/${versionId}`
 
-const CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
+const CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'APP', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
 const channelText = (tl: TimelineT, channel: string | null): string | undefined =>
   channel && (CHANNELS as readonly string[]).includes(channel) ? tl(`channel.${channel as (typeof CHANNELS)[number]}`) : undefined
 

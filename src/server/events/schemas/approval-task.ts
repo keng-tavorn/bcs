@@ -5,7 +5,7 @@ import { defineEvents } from '../registry'
 // Approval task events (spec §10.2 "approval_task", FR-DOA-005 AC1: every decision names the DOA version and rule, the
 // channel, who acted and on whose behalf).
 
-const channel = z.enum(['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'])
+const channel = z.enum(['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'APP', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'])
 
 defineEvents('ApprovalTask', {
   // FR-VIS-001 AC2 (MANUAL, from the board) and BR-SLA-02 (SLA, the reminder job of S5)

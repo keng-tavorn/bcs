@@ -29,7 +29,7 @@ export default async function VerifyPage({ params }: { params: Promise<{ token: 
   const session = await getSession()
   const viewer =
     session.kind === 'member'
-      ? (organizationId: string) => (session.member.organizationId === organizationId ? makeCtx({ organizationId, actor: { type: 'USER', memberId: session.member.id }, channel: 'WEB', now }) : null)
+      ? (organizationId: string) => (session.member.organizationId === organizationId ? makeCtx({ organizationId, actor: { type: 'USER', memberId: session.member.id }, channel: session.client === 'APP' ? 'APP' : 'WEB', now }) : null)
       : null
   const page = await verifyPage(token, clientIp(await headers()), now, viewer)
 

@@ -36,7 +36,8 @@ export interface KpiResult {
   readonly g5: { readonly total: Ratio; readonly bySubject: Readonly<Record<string, Ratio>> }
 }
 
-const MOBILE = new Set(['LINE_CHAT', 'LIFF'])
+// G-5: decisions on a phone — LINE (chat buttons and LIFF) and the BCS Go app (BR-APP-02)
+const MOBILE = new Set(['LINE_CHAT', 'LIFF', 'APP'])
 
 export function median(values: readonly number[]): number | null {
   if (values.length === 0) return null

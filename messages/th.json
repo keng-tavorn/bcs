@@ -5507,6 +5507,7 @@
     "control": {
       "channel": "ช่องทาง",
       "channels": {
+        "APP": "แอป BCS Go",
         "EMAIL": "อีเมล",
         "LIFF": "LIFF",
         "LINE_CHAT": "แชท LINE",
@@ -9616,12 +9617,13 @@
   "timeline": {
     "channel": {
       "API": "ระบบอื่นที่เชื่อมต่อ",
+      "APP": "แอป BCS Go",
       "EMAIL": "อีเมล",
       "LIFF": "หน้าจอใน LINE",
       "LINE_CHAT": "แชท LINE",
       "MCP": "ผู้ช่วย AI ที่เชื่อมต่อ",
       "PORTAL": "พอร์ทัลผู้ขาย",
-      "PWA": "แอป BCS Go",
+      "PWA": "BCS Go บนเว็บ (PWA)",
       "SYSTEM": "ระบบอัตโนมัติ",
       "WEB": "เว็บ"
     },

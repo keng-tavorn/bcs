@@ -3,7 +3,7 @@ import { newId } from '@/lib/ids'
 // Request context passed to every service and query (spec §4.3 step 3). `now` is business time from an
 // injectable clock, so tests, the demo-history seed and e2e can control it.
 
-export const CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
+export const CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'APP', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
 export type Channel = (typeof CHANNELS)[number]
 
 export type Actor =

@@ -3,7 +3,8 @@
 // follows every LIFF page's imports to check that none of them comes in through another module.
 
 /** Packages of the workspace: cmdk (⌘K), recharts (charts), the form helpers, the Drawer and toasts, the primitives of
- * shadcn/ui, and tailwind-merge, which src/ui/cn.ts brings */
+ * shadcn/ui, and tailwind-merge, which src/ui/cn.ts brings; and the BCS Go app's Capacitor plugins, which only the
+ * app's pages load (BR-APP-01, ADR-163) */
 export const LIFF_FORBIDDEN_PACKAGES = [
   'cmdk',
   'recharts',
@@ -16,6 +17,8 @@ export const LIFF_FORBIDDEN_PACKAGES = [
   'tailwind-merge',
   'radix-ui',
   '@radix-ui/*',
+  '@capacitor/*',
+  '@capacitor-mlkit/*',
 ]
 
 /** Modules of src (repo paths without extension): the shadcn/ui components, the class merger, the workspace's button,

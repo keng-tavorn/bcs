@@ -92,7 +92,7 @@ async function decidedOutcome(ctx: Ctx, taskId: string, result: ServiceResult, l
   return { ...outcome, name: memberName(locale, decided.decidedBy), ...(decided.decidedAt ? { time: decided.decidedAt.toISOString() } : {}) }
 }
 
-const stepUpChannelOf = (ctx: Ctx): StepUpChannel => (ctx.channel === 'LIFF' || ctx.channel === 'PWA' ? ctx.channel : 'WEB')
+const stepUpChannelOf = (ctx: Ctx): StepUpChannel => (ctx.channel === 'LIFF' || ctx.channel === 'PWA' || ctx.channel === 'APP' ? ctx.channel : 'WEB')
 
 /**
  * The PIN for this task's document (FR-AUTH-005 AC2), then a new session id (NFR-SEC-04): null when both went through,

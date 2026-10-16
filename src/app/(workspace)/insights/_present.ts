@@ -134,10 +134,9 @@ export function itemViews(t: InsightsT, locale: string, items: readonly InsightI
   })
 }
 
+// The channels the control card counts one by one (DECISION_CHANNELS of src/server/services/reports/insights.ts)
+const DECISION_CHANNELS = ['WEB', 'APP', 'LIFF', 'LINE_CHAT', 'EMAIL'] as const
+
 export function channelText(t: InsightsT, channel: string): string {
-  if (channel === 'WEB') return t('control.channels.WEB')
-  if (channel === 'LIFF') return t('control.channels.LIFF')
-  if (channel === 'LINE_CHAT') return t('control.channels.LINE_CHAT')
-  if (channel === 'EMAIL') return t('control.channels.EMAIL')
-  return t('control.channels.OTHER')
+  return (DECISION_CHANNELS as readonly string[]).includes(channel) ? t(`control.channels.${channel as (typeof DECISION_CHANNELS)[number]}`) : t('control.channels.OTHER')
 }

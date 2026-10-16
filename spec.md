@@ -265,7 +265,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | G-2 | อนุมัติถูกคน | การอนุมัติที่ผิด DOA · การอนุมัติที่อ้างอิง DOA ฉบับและข้อครบ | 0 รายการ · 100% | T1 |
 | G-3 | เร็วขึ้น | มัธยฐานเวลาส่งคำขอ→ออก PO · มัธยฐานเวลาอนุมัติต่อขั้น · ขั้นที่เกิน SLA | ลดลง ≥ 50% · ≤ 1 วันทำการ · < 10% | T1 |
 | G-4 | คุมงบ | คำขอเกินงบที่หลุดถึงผู้อนุมัติ | 0 รายการ | T1 |
-| G-5 | อนุมัติบนมือถือ | การตัดสินใจผ่าน LINE/LIFF ÷ การตัดสินใจทั้งหมด | ≥ 60% | T1 |
+| G-5 | อนุมัติบนมือถือ | การตัดสินใจผ่าน LINE/LIFF หรือแอป BCS Go ÷ การตัดสินใจทั้งหมด | ≥ 60% | T1 |
 | G-6 | จ่ายเงินถูกต้อง | ไฟล์ที่ธนาคารตีกลับ · จ่ายตรงเวลา · อัตราจับคู่ 3 ทางอัตโนมัติ | 0 ไฟล์ · ≥ 95% · ตั้งเป้าหลังวัด 1 เดือน | S9 (ระยะ 1) |
 | G-7 | ผู้ขายเข้าเร็ว | มัธยฐานวันจากส่งคำเชิญถึงอนุมัติผู้ขาย | ลดลง ≥ 50% | S7 (ระยะ 2) |
 | G-8 | จัดหาโปร่งใส | ยอดประหยัดจาก RFQ · มัธยฐานเวลาเปิด RFx ถึงอนุมัติผล | รายงานรายไตรมาส · ตั้งเป้าหลัง baseline | S10 (ระยะ 2) |
@@ -583,7 +583,7 @@ sequenceDiagram
 | `actorMemberId` · `actorPlatformAdminId` | uuid (null ได้) | ใช้ตาม `actorType` เพราะ PLATFORM_ADMIN ไม่ใช่ Member |
 | `onBehalfOfMemberId` | uuid (null ได้) | ผู้มอบอำนาจ เมื่อทำแทนตาม Delegation |
 | `agentId` | text (null ได้) | ชั้น 4 |
-| `channel` | enum | `WEB` `LIFF` `LINE_CHAT` `PWA` `EMAIL` `PORTAL` `SYSTEM` `API` `MCP` |
+| `channel` | enum | `WEB` `LIFF` `LINE_CHAT` `PWA` `APP` `EMAIL` `PORTAL` `SYSTEM` `API` `MCP` · `APP` = แอป BCS Go ตรวจจากเครื่องหมาย `BCSGo/<เวอร์ชัน>` ใน user agent ใช้เพื่อ audit และ KPI เท่านั้น (BR-APP-02 · ADR-168) |
 | `doaVersionId` · `doaRuleCode` | uuid · text | บังคับสำหรับ event การตัดสินอนุมัติ (INV-DOA-01) |
 | `correlationId` · `causationId` | uuid · uuid | ผูก event ที่มาจากคำสั่งเดียวกัน · event ที่เป็นเหตุ |
 | `requestId` | text | HTTP request id สำหรับไล่ log |
@@ -6533,6 +6533,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-165 | push: adapter `src/integrations/push` ส่ง FCM HTTP v1 ด้วย fetch และ OAuth JWT ที่เซ็นด้วย node:crypto (ไม่เพิ่ม dependency) มี fake ใน fake LINE server เดิม (path `/fcm/` ไม่เพิ่มพอร์ตของสาย) · token เข้ารหัส AES-256-GCM + sha256 · `NotificationChannel.PUSH` · `deliverNotification` เลือกช่องทางด้วย pure function ใน `src/core/notification-route` · ข้อความ push สร้างด้วยตัวสร้างเดียวจากคีย์ `push.<templateKey>.title` | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-166 | biometric = passkey ใน WebView ของแอป (WebAuthn ผ่าน androidx.webkit กับ Digital Asset Links บน Android) ไม่ใช้ปลั๊กอิน passkey ของ Capacitor · ลงทะเบียนและตรวจ assertion ในคำสั่งของ BCS ผ่าน `runCommand` (challenge ใช้ครั้งเดียวใน `PasskeyChallenge`) ไม่เปิด endpoint passkey ของ Better Auth · หลักฐาน step-up ชนิด `PASSKEY` UV required · เครื่องที่ไม่รองรับใช้ PIN · ลองบน Android จริงหลังส่งเข้า main ถ้า WebView ใช้ไม่ได้ใช้ PWA ใน Chrome ระหว่างรอและหยุดถามก่อนเพิ่มปลั๊กอิน | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-167 | หน้าแรกใน LIFF `/liff/home` เรียก service หน้าแรกเดิมและ render ฝั่งเซิร์ฟเวอร์ · `/liff` พาผู้ผูกแล้วไป `/liff/home` · ค่าคงที่ `LIFF_HOME_PATH` เดิม (กล่องงาน) คงความหมายเดิม เพิ่มค่าคงที่ใหม่สำหรับหน้าแรก | ร่าง P1-04 รออนุมัติ P1-06 |
+| ADR-168 | โครงแอป BCS Go: `mobile/bcs-go` ติดตั้งแยกด้วย lockfile ของตัวเอง · `capacitor.config.ts` อ่าน `BCS_GO_SERVER_URL` (https) ตั้ง `allowNavigation` เป็น host นั้นและ `appendUserAgent` `BCSGo/<semver>` · `resolveSession` อ่านเครื่องหมายแล้ว `ctxFromSession` เปลี่ยน `WEB` เป็น `APP` ที่จุดเดียว · เทสต์ถาวรล้มเมื่อรายการหรือการเทียบช่องทางรับ `WEB` แต่ไม่รับ `APP` · `StepUpChannel` รับ `APP` · G-5 นับ `APP` · app id demo `th.bcs.go` · `assetlinks.json` จาก env | ยอมรับ (S17-09) |
 | ADR-174 | ค่าตั้งของ S17 ใน UAT sandbox: `sandboxSettingsOf` ตัวเดียวทั้งคำสั่งสร้าง sandbox และ seed คัดลอกค่าตั้งของ production แล้วปิด LINE และ `chatIntake.enabled` · `chatIntakeSettingsFor` ถือว่า SANDBOX ปิดขอผ่านแชทเสมอ · push ไม่ส่งในองค์กร SANDBOX · `bcsGo` คัดลอกตามเดิม | ยอมรับ (S17-01 · ตามกฎเดิม BR-UAT-01) |
 
 ### 18.2 สมมติฐาน
@@ -6859,6 +6860,10 @@ LINE_LOGIN_CHANNEL_ID=
 LINE_LOGIN_CHANNEL_SECRET=
 LINE_LIFF_CHANNEL_ID=
 NEXT_PUBLIC_LIFF_ID=
+
+# --- BCS Go (S17 · ADR-163 ADR-166) ---
+BCS_GO_ANDROID_PACKAGE=     # package ของแอป Android เช่น th.bcs.go
+BCS_GO_ANDROID_CERT_SHA256= # ลายนิ้วมือ SHA-256 ของใบรับรองที่เซ็น APK (AB:CD:… คั่นด้วย , ได้หลายใบ) · ตั้งครบสองค่า = /.well-known/assetlinks.json ตอบ ไม่ครบ = 404
 
 # --- SSO (S5) ---
 GOOGLE_CLIENT_ID=

@@ -63,7 +63,7 @@ const OUTCOME: Partial<Record<DocTrackWhat, TimelineOutcome>> = { APPROVED: 'app
 const STAMPED: ReadonlyArray<DocTrackWhat> = ['APPROVED', 'RETURNED', 'REJECTED']
 /** Steps that wait for a team rather than a person */
 const TEAM: ReadonlyArray<DocTrackWhat> = ['WAIT_EDIT', 'WAIT_SEND', 'WAIT_CLOSE']
-const CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
+const CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'APP', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
 
 /**
  * The timeline of a PO or a variance as stamps (§9.9): who, position, when, channel, the DOA rule of every decision —

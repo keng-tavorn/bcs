@@ -1,5 +1,6 @@
 import { systemClock } from '@/lib/clock'
 import { SESSION_ABSOLUTE_MS, SESSION_IDLE_LIFF_MS, SESSION_IDLE_WEB_MS, SESSION_TOUCH_AFTER_MS } from '@/lib/constants'
+import { isAppUserAgent } from '@/lib/app-client'
 import { makeCtx, type Ctx } from '@/server/context'
 import { systemDb } from '@/server/db/system'
 import { forTenant } from '@/server/db/tenant'
@@ -36,6 +37,8 @@ export type SessionState =
       readonly sessionId: string
       readonly member: SessionMember
       readonly roles: readonly StoredRole[]
+      /** The request came from the BCS Go app (its user agent mark): web pages record the APP channel (BR-APP-02) */
+      readonly client?: 'APP'
     }
 
 export type SessionChannel = 'WEB' | 'LIFF' | 'PWA'
@@ -167,6 +170,7 @@ export async function resolveSession(headers: Headers, opts: ResolveSessionOptio
     kind: needsSetup ? 'needs-2fa-setup' : 'member',
     userId,
     sessionId,
+    ...(isAppUserAgent(headers.get('user-agent')) ? { client: 'APP' as const } : {}),
     member: {
       id: member.id,
       organizationId: member.organizationId,
@@ -216,8 +220,13 @@ export function platformCtx(state: PlatformSessionState, organizationId: string,
   return makeCtx({ organizationId, actor: { type: 'PLATFORM_ADMIN', platformAdminId: state.platformAdminId }, channel: 'WEB', now })
 }
 
-/** Context for services; only a fully set-up member gets one (2FA enforced before any work, FR-AUTH-002 AC1). */
+/**
+ * Context for services; only a fully set-up member gets one (2FA enforced before any work, FR-AUTH-002 AC1). A web
+ * page asked from the BCS Go app records the APP channel (BR-APP-02): the app is the web, so everything the web may do
+ * the app may do, and the channel only tells audit and KPI where the work was done.
+ */
 export function ctxFromSession(state: SessionState, channel: SessionChannel, now: Date): Ctx | null {
   if (state.kind !== 'member') return null
-  return makeCtx({ organizationId: state.member.organizationId, actor: { type: 'USER', memberId: state.member.id }, channel, now })
+  const recorded = channel === 'WEB' && state.client === 'APP' ? 'APP' : channel
+  return makeCtx({ organizationId: state.member.organizationId, actor: { type: 'USER', memberId: state.member.id }, channel: recorded, now })
 }

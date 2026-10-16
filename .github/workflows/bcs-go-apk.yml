@@ -1,0 +1,128 @@
+# BCS Go demo APK (S17-09, ADR-163, FR-PLT-301): builds the Android app of mobile/bcs-go — the Capacitor shell that
+# opens the BCS web of one environment — signed with the demo keystore, and keeps the APK as a run artifact to install
+# by hand. Runs when someone presses "Run workflow" (workflow_dispatch: GitHub shows it once this file is on main) and
+# on a push to main that changes mobile/**. The store apps are S17-20.
+#
+# What the user sets once (docs/runbooks/bcs-go-demo.md, S17-17), under Settings → Secrets and variables → Actions:
+#   variable BCS_GO_SERVER_URL       the web the app opens, e.g. https://bcs-staging-demo.vercel.app
+#   secret   BCS_GO_KEYSTORE_B64     the demo keystore (.jks) as base64
+#   secret   BCS_GO_KEYSTORE_PASSWORD · BCS_GO_KEY_ALIAS · BCS_GO_KEY_PASSWORD
+# Without them a push run stops with a notice (nothing to sign with yet) and a pressed run fails, saying what is missing.
+name: bcs-go-apk
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: "เว็บที่แอปเปิด (ว่าง = ตัวแปร BCS_GO_SERVER_URL ของ repo)"
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths: ["mobile/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bcs-go-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BCS_GO_SERVER_URL: ${{ inputs.server_url || vars.BCS_GO_SERVER_URL }}
+      HAS_KEYSTORE: ${{ secrets.BCS_GO_KEYSTORE_B64 != '' && secrets.BCS_GO_KEYSTORE_PASSWORD != '' && secrets.BCS_GO_KEY_ALIAS != '' && secrets.BCS_GO_KEY_PASSWORD != '' }}
+    defaults:
+      run:
+        working-directory: mobile/bcs-go
+    steps:
+      - name: Settings present?
+        id: settings
+        working-directory: .
+        run: |
+          missing=""
+          [ -n "$BCS_GO_SERVER_URL" ] || missing="$missing variable:BCS_GO_SERVER_URL"
+          [ "$HAS_KEYSTORE" = "true" ] || missing="$missing secrets:BCS_GO_KEYSTORE_B64/BCS_GO_KEYSTORE_PASSWORD/BCS_GO_KEY_ALIAS/BCS_GO_KEY_PASSWORD"
+          if [ -z "$missing" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+          msg="ยังไม่ได้ตั้ง:$missing — ทำตาม docs/runbooks/bcs-go-demo.md"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then echo "::error::$msg"; exit 1; fi
+          echo "::notice::$msg (ข้ามการสร้าง APK ของ push นี้)"
+
+      - uses: actions/checkout@v4
+        if: steps.settings.outputs.ready == 'true'
+
+      - uses: pnpm/action-setup@v4
+        if: steps.settings.outputs.ready == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.settings.outputs.ready == 'true'
+        with:
+          node-version: 24
+
+      # Capacitor 8 builds with Java 21; the runner has the Android SDK (ANDROID_HOME)
+      - uses: actions/setup-java@v4
+        if: steps.settings.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Capacitor (mobile/bcs-go has its own lockfile)
+        if: steps.settings.outputs.ready == 'true'
+        run: pnpm install --frozen-lockfile --ignore-workspace
+
+      - name: Type check of the shell's config
+        if: steps.settings.outputs.ready == 'true'
+        run: pnpm exec tsc --noEmit
+
+      # capacitor.config.ts reads BCS_GO_SERVER_URL and refuses anything but an https origin
+      - name: cap sync android
+        if: steps.settings.outputs.ready == 'true'
+        run: pnpm exec cap sync android
+
+      - name: Demo keystore (only in the runner's temp folder)
+        if: steps.settings.outputs.ready == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.BCS_GO_KEYSTORE_B64 }}
+        run: echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/bcs-go-demo.jks"
+
+      - name: Build the signed APK
+        if: steps.settings.outputs.ready == 'true'
+        working-directory: mobile/bcs-go/android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.BCS_GO_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BCS_GO_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.BCS_GO_KEY_PASSWORD }}
+        run: |
+          ./gradlew --no-daemon assembleRelease \
+            -PbcsGoVersionCode=${{ github.run_number }} \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/bcs-go-demo.jks" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+
+      # The certificate's SHA-256 goes into BCS_GO_ANDROID_CERT_SHA256 of the environment (assetlinks.json, passkeys)
+      - name: Signing certificate
+        if: steps.settings.outputs.ready == 'true'
+        run: |
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs "$apk" | tee "$RUNNER_TEMP/certs.txt"
+          sha=$(grep -m1 'SHA-256 digest' "$RUNNER_TEMP/certs.txt" | awk '{print $NF}' | tr 'a-f' 'A-F' | sed 's/../&:/g; s/:$//')
+          {
+            echo "### BCS Go APK"
+            echo "- เว็บที่เปิด: $BCS_GO_SERVER_URL"
+            echo "- versionCode: ${{ github.run_number }}"
+            echo "- BCS_GO_ANDROID_CERT_SHA256: \`$sha\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.settings.outputs.ready == 'true'
+        with:
+          name: bcs-go-demo-apk
+          path: mobile/bcs-go/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
+          if-no-files-found: error

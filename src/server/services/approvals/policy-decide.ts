@@ -54,7 +54,8 @@ export async function decidePolicyTask(
   const actor = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
   if (!actor) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member decides' } }
   if (input.decision === 'RETURN') return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'policy is approved or rejected', details: { field: 'decision', reason: 'RETURN_NOT_ALLOWED' } } }
-  if (ctx.channel !== 'WEB' && ctx.channel !== 'LIFF') return { ok: false, error: { code: 'FORBIDDEN', message: 'policy is decided on the web or LIFF only', details: { reason: 'CHANNEL' } } }
+  // The BCS Go app is the web (BR-APP-02): what the web may decide, the app may decide
+  if (ctx.channel !== 'WEB' && ctx.channel !== 'APP' && ctx.channel !== 'LIFF') return { ok: false, error: { code: 'FORBIDDEN', message: 'policy is decided on the web, the BCS Go app or LIFF only', details: { reason: 'CHANNEL' } } }
 
   const table = subjectType === 'DOA_VERSION' ? 'DoaVersion' : 'OrgAuthorityChange'
   const [locked] = await lockRowsForUpdate(tx, table, ctx.organizationId, [route.subjectId])

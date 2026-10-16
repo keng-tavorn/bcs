@@ -98,6 +98,7 @@
     "decisions": "Decisions",
     "channels": {
       "WEB": "Web",
+      "APP": "BCS Go app",
       "LIFF": "LIFF",
       "LINE_CHAT": "LINE chat",
       "EMAIL": "Email",

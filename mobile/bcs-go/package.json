@@ -1,0 +1,20 @@
+{
+  "name": "bcs-go",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BCS Go: Capacitor 8 shell that opens the BCS web of one environment (ADR-163). No business code lives here.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "sync": "cap sync android",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2",
+    "@types/node": "24.19.0",
+    "typescript": "5.9.3"
+  }
+}

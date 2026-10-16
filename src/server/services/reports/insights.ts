@@ -51,7 +51,7 @@ export const INSIGHT_WEEKS = 12
 /** poIdleDays: no setting yet, the default of OQ-36 */
 export const PO_IDLE_DAYS = 30 // TODO(OQ-36)
 /** The channels the control chart names; any other channel is added up as "other" */
-export const DECISION_CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'EMAIL'] as const
+export const DECISION_CHANNELS = ['WEB', 'APP', 'LIFF', 'LINE_CHAT', 'EMAIL'] as const
 /** A list shows at most this many documents, the newest or the most urgent first */
 export const INSIGHT_LIST_MAX = 200
 

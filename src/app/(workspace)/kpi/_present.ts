@@ -152,7 +152,7 @@ export function listTitle(t: KpiT, list: KpiList, kind: KpiKind | null): { name:
 }
 
 const DECISIONS = ['APPROVE', 'RETURN', 'REJECT'] as const
-const CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
+const CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'APP', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
 const DOCUMENTS = ['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE'] as const
 const MARK_KIND = {
   MOBILE: 'done',

@@ -267,6 +267,17 @@ const schema = z
     // The same rules as LINE_API_BASE_URL, for the host of LINE's content API (rich menu images)
     LINE_DATA_API_BASE_URL: optional(urlSchema()).transform((v) => v ?? LINE_DATA_API_ORIGIN),
 
+    // BCS Go (S17-09, ADR-163, ADR-166): the Android app's package and the SHA-256 fingerprints of the certificates
+    // that sign its APK, for /.well-known/assetlinks.json (the app's WebView may then use this domain's passkeys).
+    // Both set = the file is served; either unset = 404.
+    BCS_GO_ANDROID_PACKAGE: optional(z.string().regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/, 'ต้องเป็นชื่อ package ของแอป Android เช่น th.bcs.go')),
+    BCS_GO_ANDROID_CERT_SHA256: optional(
+      z
+        .string()
+        .transform((v) => v.replace(/\s+/g, '').toUpperCase())
+        .pipe(z.string().regex(/^[0-9A-F]{2}(:[0-9A-F]{2}){31}(,[0-9A-F]{2}(:[0-9A-F]{2}){31})*$/, 'ต้องเป็นลายนิ้วมือ SHA-256 ของใบรับรอง แบบ AB:CD:… 32 คู่ (คั่นด้วย , ได้หลายใบ)')),
+    ),
+
     GOOGLE_CLIENT_ID: optional(z.string()),
     GOOGLE_CLIENT_SECRET: optional(z.string()),
     MICROSOFT_CLIENT_ID: optional(z.string()),

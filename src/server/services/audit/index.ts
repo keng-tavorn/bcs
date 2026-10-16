@@ -23,7 +23,7 @@ import { holdsNationalId, maskNationalIds, seesNationalIdsWhole } from './maskin
 // register shows it to masked or not at all (./masking.ts) — the search, the page and the file alike, so the file's
 // checksum is over what it holds; a file that holds a number whole downloads only for readers who see them whole.
 
-export const AUDIT_CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
+export const AUDIT_CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'APP', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
 const CHANNELS = AUDIT_CHANNELS
 
 export const AuditFilterSchema = z.strictObject({

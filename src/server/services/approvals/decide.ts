@@ -310,7 +310,7 @@ async function decideRegisteredTask(
   // BR-DOA-25: where the subject may be decided — the web and the BCS Go app always, the rest as its adapter says
   const open = adapter.channels
   const channelOpen =
-    ctx.channel === 'WEB' || ctx.channel === 'PWA' || (ctx.channel === 'LIFF' && open.liff) || (ctx.channel === 'LINE_CHAT' && open.chatButton(facts)) || (ctx.channel === 'EMAIL' && open.emailLink)
+    ctx.channel === 'WEB' || ctx.channel === 'PWA' || ctx.channel === 'APP' || (ctx.channel === 'LIFF' && open.liff) || (ctx.channel === 'LINE_CHAT' && open.chatButton(facts)) || (ctx.channel === 'EMAIL' && open.emailLink)
   if (!channelOpen) return { ok: false, error: { code: 'FORBIDDEN', message: `${type} tasks are not decided on ${ctx.channel}`, details: { reason: 'CHANNEL' } } }
   const version = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.doaVersionId }, select: { sodPolicy: true, stepUpThresholdSatang: true } })
   const sod = adapter.sodContext(facts)

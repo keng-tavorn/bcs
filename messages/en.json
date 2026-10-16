@@ -5507,6 +5507,7 @@
     "control": {
       "channel": "Channel",
       "channels": {
+        "APP": "BCS Go app",
         "EMAIL": "Email",
         "LIFF": "LIFF",
         "LINE_CHAT": "LINE chat",
@@ -9616,12 +9617,13 @@
   "timeline": {
     "channel": {
       "API": "Connected system",
+      "APP": "BCS Go app",
       "EMAIL": "Email",
       "LIFF": "Screen in LINE",
       "LINE_CHAT": "LINE chat",
       "MCP": "Connected AI assistant",
       "PORTAL": "Supplier portal",
-      "PWA": "BCS Go app",
+      "PWA": "BCS Go in the browser (PWA)",
       "SYSTEM": "Automated",
       "WEB": "Web"
     },

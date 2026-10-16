@@ -14,7 +14,7 @@ import { doaHref, doaRefText, expectedText, memberName, nameIn, roleText, routeS
 
 export type DocumentT = Awaited<ReturnType<typeof getTranslations<'document'>>>
 
-const CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
+const CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'APP', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
 export const channelName = (tl: TimelineT, channel: string | null): string | undefined =>
   channel && (CHANNELS as readonly string[]).includes(channel) ? tl(`channel.${channel as (typeof CHANNELS)[number]}`) : undefined
 

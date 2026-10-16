@@ -60,9 +60,9 @@ export const STEP_UP_PURPOSE = 'DECIDE'
 /** The documents a step-up is for: the subjects of approval routes (ApprovalSubjectType of prisma/schema.prisma) */
 export const STEP_UP_SUBJECT_TYPES = APPROVAL_SUBJECTS
 
-/** Where the member typed the PIN; kept as the channel of security.pin_locked */
-export type StepUpChannel = 'WEB' | 'LIFF' | 'PWA'
-const STEP_UP_CHANNELS = ['WEB', 'LIFF', 'PWA'] as const
+/** Where the member typed the PIN; kept as the channel of security.pin_locked (APP: the BCS Go app, BR-APP-02) */
+export type StepUpChannel = 'WEB' | 'LIFF' | 'PWA' | 'APP'
+const STEP_UP_CHANNELS = ['WEB', 'LIFF', 'PWA', 'APP'] as const
 
 /** The proofs every decision that needs a step-up takes (FR-AUTH-005 AC2, ADR-047 item 8): the PIN only */
 export const PIN_ONLY: readonly StepUpMethod[] = ['PIN']

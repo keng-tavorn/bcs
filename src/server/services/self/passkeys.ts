@@ -126,11 +126,11 @@ export const addPasskeyCommand = defineCommand({
 /**
  * Adds a passkey of the member's own (FR-PLT-301 AC4). Refused: STEP_UP_REQUIRED {reason: IDENTITY_PROOF} without a
  * fresh proof · VALIDATION_FAILED {field: passkey, reason: CHALLENGE | ORIGIN_MISMATCH | ATTESTATION | UV_REQUIRED |
- * DUPLICATE | LIMIT} · RATE_LIMITED after too many tries in a row.
+ * DUPLICATE | LIMIT}. Too many tries in a row are refused when their options are asked for (RATE_LIMITED).
  */
-export async function addOwnPasskey(ctx: Ctx, input: z.input<typeof AddInput>, options: RunOptions) {
-  const memberId = ownMember(ctx)
-  if (memberId && !(await withinRegistrationLimit(memberId))) return err('RATE_LIMITED', 'too many passkeys tried in a row', { reason: 'PASSKEY_REGISTRATION' })
+export function addOwnPasskey(ctx: Ctx, input: z.input<typeof AddInput>, options: RunOptions) {
+  // The tries are counted where a ceremony starts (newPasskeyOptions): a resend of the same key after a lost answer
+  // gets the answer stored for it, and a new try needs new options
   return runCommand(ctx, addPasskeyCommand, input, options)
 }
 

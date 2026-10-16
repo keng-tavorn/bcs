@@ -177,6 +177,8 @@ export const PASSKEY_CEREMONY_TIMEOUT_MS = MS_PER_MINUTE
 /** Adding passkeys: at most this many ceremonies per member in the window (BR-AUTH-10: RATE_LIMITED beyond) */
 export const PASSKEY_REGISTRATIONS_MAX = 10
 export const PASSKEY_REGISTRATION_WINDOW_MS = 15 * MS_PER_MINUTE
+/** Step-up challenges a member may ask for in a minute (each press of the passkey button writes one) */
+export const PASSKEY_STEP_UPS_PER_MINUTE = 30
 /** base64url of a 1023-byte credential id, the longest WebAuthn allows (the CHECK of MemberPasskey.credentialId) */
 export const PASSKEY_CREDENTIAL_ID_MAX = 1366
 /** The largest parts of a WebAuthn response taken (base64url): far above what authenticators send */

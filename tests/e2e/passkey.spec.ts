@@ -86,7 +86,11 @@ test('[FR-PLT-301/AC3] [FR-AUTH-005/AC2] [FR-AUTH-005/AC6] a task at the step-up
 
     // The fingerprint does not match (the user is not verified): the device gives no answer, nothing is approved
     await device.cdp.send('WebAuthn.setUserVerified', { authenticatorId: device.id, isUserVerified: false })
+    // The page waits for the device's answer, then sends nothing: the button comes back and the task is still open
+    const asked = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes(`/tasks/${first.taskId}`))
     await withPasskey.click()
+    await asked
+    await page.waitForTimeout(500)
     await expect(withPasskey).toBeEnabled()
     await expect(page.getByText('อนุมัติแล้ว', { exact: true })).toHaveCount(0)
     expect((scene('grants', cast.approver) as { grants: Array<{ method: string }> }).grants.filter((g) => g.method === 'PASSKEY')).toEqual([])

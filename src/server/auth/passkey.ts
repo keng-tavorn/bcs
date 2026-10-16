@@ -3,14 +3,16 @@ import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthe
 import { isoBase64URL, parseAuthenticatorData } from '@simplewebauthn/server/helpers'
 import { z } from 'zod'
 import { passkeyAssertionVerdict, signCountAdvanced, type PasskeyRefusal } from '@/core/step-up-methods'
-import { COMMAND_TX_MAX_WAIT_MS, COMMAND_TX_TIMEOUT_MS, MS_PER_DAY, PASSKEY_ATTESTATION_MAX, PASSKEY_CEREMONY_TIMEOUT_MS, PASSKEY_CHALLENGE_TTL_MS, PASSKEY_CLIENT_DATA_MAX, PASSKEY_CREDENTIAL_ID_MAX, PASSKEY_SIGNATURE_MAX } from '@/lib/constants'
+import { COMMAND_TX_MAX_WAIT_MS, COMMAND_TX_TIMEOUT_MS, MS_PER_DAY, MS_PER_MINUTE, PASSKEY_STEP_UPS_PER_MINUTE, PASSKEY_ATTESTATION_MAX, PASSKEY_CEREMONY_TIMEOUT_MS, PASSKEY_CHALLENGE_TTL_MS, PASSKEY_CLIENT_DATA_MAX, PASSKEY_CREDENTIAL_ID_MAX, PASSKEY_SIGNATURE_MAX } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { newId } from '@/lib/ids'
 import { systemClock } from '@/lib/clock'
+import { countRateLimited } from '@/server/db/sql/rate-limit'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { dispatchOutbox, enqueueOutbox, getDefaultOutboxSender, type OutboxSender } from '@/server/events/outbox'
 import { createNotifications } from '@/server/notifications/create'
-import { issueGrant, STEP_UP_SUBJECT_TYPES, type StepUpChannel, type StepUpOutcome } from './step-up'
+import { lockRowsForUpdate } from '@/server/db/sql/locks'
+import { issueGrant, STEP_UP_SUBJECT_TYPES, type StepUpOutcome } from './step-up'
 
 // Passkeys of BCS (S17-15, FR-PLT-301 AC3 AC4, BR-AUTH-09 to BR-AUTH-11, ADR-166, OQ-167 OQ-168): WebAuthn credentials
 // with user verification — the fingerprint, face or screen lock of the member's own device — checked by BCS itself
@@ -19,7 +21,7 @@ import { issueGrant, STEP_UP_SUBJECT_TYPES, type StepUpChannel, type StepUpOutco
 //  - Every ceremony starts with a challenge used once (PasskeyChallenge): 32 random bytes, of which only the sha256 of
 //    their base64url is kept; REGISTER to add a passkey, STEP_UP for one document; good for 5 minutes on the security
 //    clock (real time, never the business clock e2e tests move). Issuing one drops the member's challenges a day past
-//    their expiry, so the table stays small without a job of its own.
+//    their expiry; a member asks for a handful a minute at most (RATE_LIMITED beyond).
 //  - The relying party is the environment itself: its RP ID is the host of APP_URL and the only origin taken is APP_URL's
 //    origin (BR-AUTH-09: anything else is ORIGIN_MISMATCH). The BCS Go app's WebView uses the domain's passkeys through
 //    Digital Asset Links (/.well-known/assetlinks.json, S17-09).
@@ -33,7 +35,6 @@ import { issueGrant, STEP_UP_SUBJECT_TYPES, type StepUpChannel, type StepUpOutco
 const RP_NAME = 'BCS'
 /** COSE algorithms taken: ES256 and RS256 (what platform authenticators make) */
 const ALGORITHMS = [-7, -257]
-/** The largest parts of a WebAuthn response taken (base64url): far above what authenticators send */
 const TX_OPTIONS = { isolationLevel: 'ReadCommitted', maxWait: COMMAND_TX_MAX_WAIT_MS, timeout: COMMAND_TX_TIMEOUT_MS } as const
 
 /** The relying party of this environment: APP_URL's host and origin */
@@ -171,11 +172,13 @@ export interface PasskeySubject {
   readonly subjectId: string
 }
 
-export type StepUpOptionsOutcome = { readonly ok: true; readonly options: PublicKeyCredentialRequestOptionsJSON } | { readonly ok: false; readonly reason: 'NO_PASSKEY' }
+export type StepUpOptionsOutcome = { readonly ok: true; readonly options: PublicKeyCredentialRequestOptionsJSON } | { readonly ok: false; readonly reason: 'NO_PASSKEY' | 'RATE_LIMITED' }
 
 /** The options of navigator.credentials.get for a step-up on one document: the member's passkeys in use, UV required */
 export async function stepUpOptions(subject: PasskeySubject, now: Date = systemClock.now()): Promise<StepUpOptionsOutcome> {
   const ids = StepUpIds.parse(subject)
+  // Every press writes a challenge: a member asks for a handful a minute, never thousands
+  if (!(await countRateLimited(`bcs:passkey-step-up:${ids.memberId}`, MS_PER_MINUTE, PASSKEY_STEP_UPS_PER_MINUTE, now)).allowed) return { ok: false, reason: 'RATE_LIMITED' }
   return forTenant(ids.organizationId).$transaction(async (tx) => {
     const member = await tx.member.findFirst({ where: { id: ids.memberId, status: 'ACTIVE' }, select: { id: true } })
     const passkeys = member ? await tx.memberPasskey.findMany({ where: { memberId: ids.memberId, revokedAt: null }, select: { credentialId: true, transports: true } }) : []
@@ -198,7 +201,6 @@ export type PasskeyStepUpOutcome = Extract<StepUpOutcome, { ok: true }> | { read
 export interface PasskeyStepUpRequest extends PasskeySubject {
   /** What navigator.credentials.get answered (AuthenticationResponseJSON) */
   readonly response: unknown
-  readonly channel?: StepUpChannel
 }
 
 /**
@@ -206,7 +208,7 @@ export interface PasskeyStepUpRequest extends PasskeySubject {
  * used once), at `now` on the security clock. The member and the document come from the session and the task, never
  * from the request. A counter that went back tells the owner by e-mail.
  */
-export async function grantStepUpByPasskey(input: PasskeyStepUpRequest, now: Date, options: { readonly sender?: OutboxSender | null; readonly requestId?: string; readonly correlationId?: string } = {}): Promise<PasskeyStepUpOutcome> {
+export async function grantStepUpByPasskey(input: PasskeyStepUpRequest, now: Date, options: { readonly sender?: OutboxSender | null } = {}): Promise<PasskeyStepUpOutcome> {
   const ids = StepUpIds.parse({ organizationId: input.organizationId, memberId: input.memberId, subjectType: input.subjectType, subjectId: input.subjectId })
   const parsed = AuthenticationResponse.safeParse(input.response)
   const malformed = { ok: false, reason: 'PASSKEY', refusal: 'MALFORMED' } as const
@@ -262,15 +264,35 @@ export async function grantStepUpByPasskey(input: PasskeyStepUpRequest, now: Dat
     return { ok: false, reason: 'PASSKEY', refusal: verdict.reason }
   }
   return db.$transaction(async (tx) => {
+    // Under the member's row lock — the lock their deactivation, a reset of their identity and a passkey's removal take
+    // — what was read above is read again: a passkey revoked meanwhile, or a member no longer active, earns nothing
+    const [locked] = await lockRowsForUpdate(tx, 'Member', ids.organizationId, [ids.memberId])
+    const still = locked ? await tx.member.findUnique({ where: { id: ids.memberId }, select: { status: true } }) : null
+    if (still?.status !== 'ACTIVE') return { ok: false, reason: 'PASSKEY', refusal: 'NOT_OWNER' } as const
+    // The counter moves forward only: an answer settling after a later one is refused, never written back
+    const counted = await tx.memberPasskey.updateMany({
+      where: { id: passkey!.id, memberId: ids.memberId, revokedAt: null, ...(received === 0n ? { signCount: 0n } : { signCount: { lt: received } }) },
+      data: { signCount: received, lastUsedAt: now, version: { increment: 1 } },
+    })
+    if (counted.count !== 1) {
+      const current = await tx.memberPasskey.findUnique({ where: { id: passkey!.id }, select: { revokedAt: true } })
+      return { ok: false, reason: 'PASSKEY', refusal: current?.revokedAt ? 'NOT_OWNER' : 'SIGN_COUNT' } as const
+    }
     // Used once: a second answer to the same challenge, however close, finds it used
     const spent = await tx.passkeyChallenge.updateMany({ where: { id: challenge!.id, usedAt: null }, data: { usedAt: now } })
-    if (spent.count !== 1) return { ok: false, reason: 'PASSKEY', refusal: 'CHALLENGE_USED' } as const
-    await tx.memberPasskey.update({ where: { id: passkey!.id }, data: { signCount: received, lastUsedAt: now, version: { increment: 1 } } })
+    if (spent.count !== 1) throw new ChallengeSpent()
     const granted = await issueGrant(tx, ids, 'PASSKEY', now)
     if (!granted.ok) throw new Error('a grant is always issued')
     return granted
-  }, TX_OPTIONS)
+  }, TX_OPTIONS).catch((error: unknown) => {
+    // The challenge went to a parallel answer: this transaction is rolled back, the counter with it
+    if (error instanceof ChallengeSpent) return { ok: false, reason: 'PASSKEY', refusal: 'CHALLENGE_USED' } as const
+    throw error
+  })
 }
+
+/** A challenge another answer used in the meantime: rolls the grant's transaction back */
+class ChallengeSpent extends Error {}
 
 /** BR-AUTH-09: a signature counter that went back may be a copied authenticator; its owner hears of it by e-mail */
 async function tellSignCount(ids: { organizationId: string; memberId: string }, passkeyId: string, now: Date, options: { readonly sender?: OutboxSender | null }): Promise<void> {

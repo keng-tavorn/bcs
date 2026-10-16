@@ -3111,7 +3111,7 @@ model MemberPasskey {
 /// A WebAuthn challenge used once (S17-15, BR-AUTH-09, BR-AUTH-10): issued to the member of the session for adding a
 /// passkey (REGISTER) or for a step-up on one document (STEP_UP, with its subject), good for 5 minutes; usedAt is set in
 /// the transaction that adds the passkey or gives the grant. Only the sha256 of the challenge is kept. Not a business
-/// record: rows a day past their expiry are deleted by the hourly job.
+/// record: a member's rows a day past their expiry are deleted when the next one is issued to them.
 model PasskeyChallenge {
   id             String                  @id @default(uuid(7)) @db.Uuid
   organizationId String                  @db.Uuid

@@ -117,7 +117,7 @@ async function stepUpFor(ctx: Ctx, access: TaskAccessDto, proof: StepUpProof, se
   const subject = { organizationId: ctx.organizationId, memberId: ctx.actor.memberId, subjectType: access.subjectType, subjectId: access.subjectId }
   const options = { requestId: ctx.requestId, correlationId: ctx.correlationId, ...(session.sender !== undefined ? { sender: session.sender } : {}) }
   if ('passkey' in proof) {
-    const granted = await grantStepUpByPasskey({ ...subject, response: proof.passkey, channel: stepUpChannelOf(ctx) }, session.securityNow, options)
+    const granted = await grantStepUpByPasskey({ ...subject, response: proof.passkey }, session.securityNow, session.sender !== undefined ? { sender: session.sender } : {})
     if (!granted.ok) return invalid('passkey', granted.refusal)
   } else {
     const granted = await grantStepUp({ ...subject, method: 'PIN', pin: proof.pin, channel: stepUpChannelOf(ctx) }, session.securityNow, options)

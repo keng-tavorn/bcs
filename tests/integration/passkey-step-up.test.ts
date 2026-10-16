@@ -188,6 +188,26 @@ describe('[FR-PLT-301/AC3] [FR-AUTH-005/AC2] [FR-AUTH-005/AC6] a passkey earns t
     authenticator.counter = 1000
   })
 
+  it('two answers settling out of order never move the counter back', async () => {
+    const a = request()
+    const b = request()
+    authenticator.counter = 2000
+    const first = await assertion(org, 'dm_con', authenticator, a)
+    authenticator.counter = 2001
+    const second = await assertion(org, 'dm_con', authenticator, b)
+    const [ra, rb] = await Promise.all([grant(org, 'dm_con', a, first), grant(org, 'dm_con', b, second)])
+    expect(rb).toMatchObject({ ok: true })
+    expect(ra.ok ? 'GRANT' : ra.refusal).toMatch(/GRANT|SIGN_COUNT/)
+    expect((await prisma.memberPasskey.findFirstOrThrow({ where: { credentialId: authenticator.credentialId } })).signCount).toBe(2001n)
+    authenticator.counter = 3000
+  })
+
+  it('a member asks for a handful of challenges a minute; beyond it RATE_LIMITED', async () => {
+    const ask = () => stepUpOptions({ organizationId: org.organizationId, memberId: org.member.vp_ops!, ...request() })
+    for (let i = 0; i < 30; i++) expect(await ask()).toEqual({ ok: false, reason: 'NO_PASSKEY' })
+    expect(await ask()).toEqual({ ok: false, reason: 'RATE_LIMITED' })
+  })
+
   it('a member without a passkey gets no options: the page offers the PIN', async () => {
     expect(await stepUpOptions({ organizationId: org.organizationId, memberId: org.member.req_con!, ...request() })).toEqual({ ok: false, reason: 'NO_PASSKEY' })
   })

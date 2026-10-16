@@ -20,6 +20,7 @@ import type { Messages, NestedKeyOf } from 'next-intl'
 //    translator on, needs the whole namespace. A part a LIFF page loads on demand may bring its own words: it is drawn
 //    inside a client provider that holds the page's messages and namespaces it imports from messages/src
 //    (src/ui/liff/requests/step-words.tsx, steps 2 and 3 of the request form), so they are in its chunk, not the HTML;
+//  - BCS Go (src/app/go/layout.tsx): the receiving page's words, its form's from receiving.form;
 //  - the workspace ((workspace)/layout.tsx) passes the whole catalogue: its pages have no such budget.
 // tests/unit/client-messages.test.ts follows the imports of every page and layout to its client components and fails
 // when one reads a namespace or a message its provider does not pass: the page would show the key instead of the words.
@@ -116,6 +117,11 @@ export const CLIENT_MESSAGES = {
   liffDelegation: [...LIFF_GATE, 'delegation', 'liffDelegation'],
   /** /liff/gr/[poId]: receiving with the camera */
   liffReceiving: [...LIFF_GATE, 'liffReceiving', 'receiving.approver', 'receiving.errors', 'receiving.form', 'receiving.history', 'receiving.status.po', 'files'],
+  /**
+   * /go/receive (S17-13): BCS Go's receiving without a signal — its own words, the LIFF receipt's fields in their words
+   * (receiving.form) with the refusals the page says itself (receiving.errors), and the sign-out's (auth.security)
+   */
+  go: ['goReceive', 'receiving.form', 'receiving.errors', 'auth.security'],
 } as const satisfies Record<string, readonly MessagePath[]>
 
 export type ClientMessagesScope = keyof typeof CLIENT_MESSAGES

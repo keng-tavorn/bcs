@@ -9,15 +9,28 @@
 // no save arrived with the worker and all of them arrived with the rule or with no worker; a tab closed outright
 // delivered its save either way. tests/e2e/pwa.spec.ts checks the rule, tests/e2e/liff-requests.spec.ts the saves with
 // the worker in place. Where the API is missing, nothing changes: the fetch handler still ignores POST requests.
+// One page is kept for use without a signal (S17-13, BR-APP-03, FR-PLT-301): /go/receive, BCS Go's receiving, whose
+// HTML is a shell with no business data (its data lives in the phone's IndexedDB). Opened with a signal, the page is
+// stored as it came, and the page hands the worker the hashed static files it loaded (/_next/static/…) to keep beside
+// it; without a signal the stored page opens with them. Nothing else of /_next/static is kept, no response of data is
+// ever stored, and a new build starts with an empty store (the page fills it again the next time it is opened).
 
 export const dynamic = 'force-static'
 
 const VERSION = process.env.APP_COMMIT_SHA || `build-${Date.now()}`
 const PRECACHE = ['/offline', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/maskable-512.png']
 
+const GO_SHELL = '/go/receive'
+/** The static files a page may hand over at once: more than any page loads, a cap on what a message can make it fetch */
+const GO_ASSETS_MAX = 300
+
 const SCRIPT = `
 const CACHE = ${JSON.stringify(`bcs-shell-${VERSION}`)};
 const PRECACHE = ${JSON.stringify(PRECACHE)};
+const GO_CACHE = ${JSON.stringify(`bcs-go-${VERSION}`)};
+const GO_SHELL = ${JSON.stringify(GO_SHELL)};
+const GO_ASSETS_MAX = ${GO_ASSETS_MAX};
+const STATIC_PREFIX = '/_next/static/';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(Promise.all([postToNetwork(event), caches.open(CACHE).then((cache) => cache.addAll(PRECACHE))]));
@@ -36,25 +49,53 @@ function postToNetwork(event) {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key.startsWith('bcs-') && key !== CACHE).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith('bcs-') && key !== CACHE && key !== GO_CACHE).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
+  else if (event.data && event.data.type === 'GO_KEEP_SHELL') event.waitUntil(keepGoShell(event.data.assets));
 });
+
+// The page /go/receive and the static files it loaded, from this origin only
+function keepGoShell(assets) {
+  const statics = (Array.isArray(assets) ? assets : [])
+    .filter((path) => typeof path === 'string' && path.startsWith(STATIC_PREFIX) && !path.includes('..'))
+    .slice(0, GO_ASSETS_MAX);
+  return caches.open(GO_CACHE).then((cache) => Promise.all([
+    fetch(GO_SHELL, { credentials: 'same-origin', cache: 'no-store' }).then((res) => (res.ok && !res.redirected ? cache.put(GO_SHELL, res) : undefined)),
+    ...statics.map((path) => cache.match(path).then((hit) => hit || fetch(path).then((res) => (res.ok ? cache.put(path, res) : undefined)))),
+  ])).catch(() => undefined);
+}
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  const own = url.origin === self.location.origin;
   if (request.mode === 'navigate') {
+    if (own && url.pathname === GO_SHELL) {
+      event.respondWith(fetch(request).then((res) => {
+        if (res.ok && !res.redirected) {
+          const copy = res.clone();
+          event.waitUntil(caches.open(GO_CACHE).then((cache) => cache.put(GO_SHELL, copy)).catch(() => undefined));
+        }
+        return res;
+      }).catch(() => caches.match(GO_SHELL, { cacheName: GO_CACHE }).then((hit) => hit || caches.match('/offline'))));
+      return;
+    }
     event.respondWith(fetch(request).catch(() => caches.match('/offline')));
     return;
   }
-  const url = new URL(request.url);
-  if (url.origin === self.location.origin && PRECACHE.includes(url.pathname)) {
+  if (own && PRECACHE.includes(url.pathname)) {
     event.respondWith(caches.match(request).then((hit) => hit || fetch(request)));
+    return;
+  }
+  // The hashed files of /go/receive, once the page handed them over; anything else of /_next/static from the network
+  if (own && url.pathname.startsWith(STATIC_PREFIX)) {
+    event.respondWith(caches.match(request, { cacheName: GO_CACHE }).then((hit) => hit || fetch(request)));
   }
 });
 `

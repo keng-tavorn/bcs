@@ -195,6 +195,19 @@ describe('[FR-PLT-301/AC5] the routes of /go/receive (BR-APP-03, BR-APP-07)', ()
     expect((await lookupRoute(new Request(`${url}?key=x`, { headers: { cookie } }))).status).toBe(400)
     expect((await lookupRoute(new Request(`${url}?key=${queueKey}`))).status).toBe(401)
   })
+
+  it('GET prepare names the member the copies are for (the page sends for that member only, BR-APP-09); 401 without a session', async () => {
+    const cookie = await cookieOf(org, 'receiver_con')
+    const po = await sentPo(org, supplierId)
+    const url = `${getEnv().APP_URL}/api/go/receiving/prepare`
+    const prepared = await prepareRoute(new Request(url, { headers: { cookie, 'user-agent': APP_UA } }))
+    expect(prepared.status).toBe(200)
+    expect(prepared.headers.get('cache-control')).toBe('no-store')
+    const body = (await prepared.json()) as { memberId: string; copies: Array<{ poId: string }> }
+    expect(body.memberId).toBe(org.member.receiver_con)
+    expect(body.copies.some((c) => c.poId === po.poId)).toBe(true)
+    expect((await prepareRoute(new Request(url))).status).toBe(401)
+  })
 })
 
 describe('[FR-PLT-301/AC7] the photos of a queued receipt go up through the routes (BR-APP-14)', () => {

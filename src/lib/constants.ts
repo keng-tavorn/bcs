@@ -169,6 +169,9 @@ export const PUSH_ACCESS_TOKEN_MARGIN_S = 60
 export const PUSH_DEVICES_PER_MEMBER_MAX = 5
 /** The phone answers the app's push registration within this, or the page says it could not register */
 export const PUSH_REGISTRATION_TIMEOUT_MS = 15 * MS_PER_SECOND
+
+/** How often /go/receive looks at its queue while it is open (S17-13): a retry that is due goes within this */
+export const GO_RECEIVE_DRAIN_EVERY_MS = 10 * MS_PER_SECOND
 /** The sidebar's cookie: "true" open, "false" collapsed; read by the workspace layout to draw the first page the same way */
 export const SIDEBAR_STATE_COOKIE = 'sidebar_state'
 /** Below this width (px) the workspace menu opens as a sheet from the left (§9.10 layout sizes) */

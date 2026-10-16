@@ -44,8 +44,10 @@ const to = (...types) => ({ to: { element: { types: { anyOf: types } } } })
 // the Result type, pure data) so screens can map codes to messages (docs/sub-specs/S1.md)
 const coreFormatting = { to: { element: { type: 'core', captured: { module: '{thai,money,result}' } } } }
 // Shared screen components (src/ui, not in the §4.10 table) also run the form rules the server runs: fields shown or
-// hidden as the requester types (FR-INT-002 AC1) and quotations compared (BR-FORM-06) with the same core/forms
-const coreForUi = { to: { element: { type: 'core', captured: { module: '{thai,money,result,forms}' } } } }
+// hidden as the requester types (FR-INT-002 AC1) and quotations compared (BR-FORM-06) with the same core/forms; BCS
+// Go's receiving page runs the offline queue's rules on the phone (core/offline-queue, ADR-164) and, with no signal to
+// ask the server, finds an excess beyond the tolerance as gr.post measures it (core/receiving)
+const coreForUi = { to: { element: { type: 'core', captured: { module: '{thai,money,result,forms,offline-queue,receiving}' } } } }
 // Channels get exactly the §4.10 row: core/{thai,money} for formatting, nothing else of core
 const coreFormattingForChannels = { to: { element: { type: 'core', captured: { module: '{thai,money}' } } } }
 

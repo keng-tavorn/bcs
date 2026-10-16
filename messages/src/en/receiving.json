@@ -3,6 +3,7 @@
     "metaTitle": "Receiving",
     "title": "Receiving",
     "intro": "Purchase orders sent to the supplier and waiting for goods, the one sent longest ago first. Choose a purchase order number to record what came.",
+    "goReceive": "Receive on site without a signal (BCS Go)",
     "count": "{count, plural, one {# purchase order} other {# purchase orders}} waiting for goods",
     "range": "Purchase orders {from}–{to} of {total} (page {page} of {pages}), the one sent longest ago first",
     "label": "Purchase orders waiting for goods",

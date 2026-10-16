@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
+import { listEnabledModules } from '@/server/queries/organization'
 import { listReceivable } from '@/server/services/receiving/view'
 import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { ReceivingList } from '@/ui/receiving/receiving-list'
@@ -22,11 +23,12 @@ const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text
 // requesters receive (OQ-04) — oldest sent first, a page at a time (?page=, read with nuqs in ./_filters.ts). The service
 // decides who may receive each PO, separation of duties included (BR-SOD-02, BR-SOD-07); POs it refuses for that reason
 // are listed apart with why, in a card of their own, so the receiver knows to hand them to a colleague. Reading a page
-// changes nothing (a GET).
+// changes nothing (a GET). With BCS Go on (module BCS_GO), the header links to /go/receive, where a receiver prepares
+// POs to receive on site without a signal (S17-13).
 export default async function ReceivingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null
-  const [t, locale, query] = await Promise.all([getTranslations('receiving'), getLocale(), loadReceivingFilters(searchParams)])
+  const [t, locale, query, modules] = await Promise.all([getTranslations('receiving'), getLocale(), loadReceivingFilters(searchParams), listEnabledModules(ctx.organizationId)])
   const result = await listReceivable(ctx, { page: query.page ?? 1 })
 
   if (!result.ok || !result.data.receives) {
@@ -45,7 +47,17 @@ export default async function ReceivingPage({ searchParams }: { searchParams: Pr
   const to = from + rows.length + blocked.length - 1
   return (
     <Page>
-      <PageHeader title={t('list.title')} intro={t('list.intro')} />
+      <PageHeader
+        title={t('list.title')}
+        intro={t('list.intro')}
+        actions={
+          modules.includes('BCS_GO') ? (
+            <a href="/go/receive" className={linkClass}>
+              {t('list.goReceive')}
+            </a>
+          ) : undefined
+        }
+      />
       <PageBody>
         <Panel label={t('list.label')}>
           {pageCount > 1 ? (

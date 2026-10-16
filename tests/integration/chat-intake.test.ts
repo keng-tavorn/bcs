@@ -10,7 +10,7 @@ import { getDefaultOutboxSender, setDefaultOutboxSender, type OutboxMessage, typ
 import { chatIntakeImageRun } from '@/server/jobs/chat-intake-image'
 import { processQueuedLineWebhookEvents, receiveLineWebhook } from '@/server/jobs/line-webhook'
 import { runCommand } from '@/server/services/_pipeline'
-import { expireChatIntakesCommand, giveUpChatImages, receiveChatMessage, runChatIntakeSweep, storeChatImageCommand } from '@/server/services/chat-intake'
+import { chatSweepOrganizationIds, expireChatIntakesCommand, fetchChatImage, giveUpChatImages, purgeChatIntakesCommand, receiveChatMessage, runChatIntakeSweep, storeChatImageCommand } from '@/server/services/chat-intake'
 import { saveLineChannelSettings } from '@/server/services/line-channel'
 import { buildLineWebhook, lineEvents, newLineUserId, redelivered, signLineWebhook, type LineWebhookEventJson } from '../../scripts/line-simulate'
 import { createMember, createOrg } from '../support/factory'
@@ -357,7 +357,7 @@ describe('[FR-LINE-301/AC7] a draft nobody used expires, its text and unused pho
     expect(await prisma.chatIntake.findUniqueOrThrow({ where: { id: intake!.id } })).toMatchObject({ status: 'EXPIRED', text: null, messageCount: 2, imageCount: 1 })
     expect(await prisma.fileObject.findUniqueOrThrow({ where: { id: file.id } })).toMatchObject({ status: 'REJECTED' })
     expect(await headObject(file.storageKey)).toBeNull()
-    expect((await eventsOf(org.orgId, 'chat_intake.purged')).map((e) => e.data)).toEqual([{ textRemoved: true, filesRemoved: 1 }])
+    expect((await eventsOf(org.orgId, 'chat_intake.purged')).map((e) => e.data)).toEqual([{ textRemoved: true, filesRemoved: 1, fileIds: [file.id] }])
     // The same hour again repeats nothing
     expect(await runChatIntakeSweep(org.orgId, at(7 * MS_PER_DAY))).toMatchObject({ expired: 0, purged: 1 })
     expect(await eventsOf(org.orgId, 'chat_intake.purged')).toHaveLength(1)
@@ -373,7 +373,27 @@ describe('[FR-LINE-301/AC7] a draft nobody used expires, its text and unused pho
     expect(await receiveChatMessage(asOther, { lineWebhookEventId: row.id }, { idempotencyKey: randomUUID() })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     expect(await receiveChatMessage(systemCtx(org.orgId, NOW, 'x'), { lineWebhookEventId: row.id }, { idempotencyKey: randomUUID() })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     expect(await runCommand(asOther, expireChatIntakesCommand, {}, { idempotencyKey: randomUUID() })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await runCommand(asOther, purgeChatIntakesCommand, {}, { idempotencyKey: randomUUID() })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     expect(await intakesOf(org.orgId, other.memberId)).toHaveLength(0)
+  })
+
+  it('a suspended organization is swept too; a photo still waiting when its closed draft was cleared is never stored', async () => {
+    const org = await chatOrg()
+    const m = await linkedMember(org.orgId)
+    const image = lineEvents.image({ userId: m.lineUserId, timestamp: NOW.getTime() })
+    line.fake.putContent((image.message as { id: string }).id, 'image/png', PNG)
+    await send(org, image, NOW)
+    const [intake] = await intakesOf(org.orgId, m.memberId)
+    await prisma.organization.update({ where: { id: org.orgId }, data: { status: 'SUSPENDED' } })
+    expect(await chatSweepOrganizationIds()).toContain(org.orgId)
+    // Expired after a day and cleared after the retention with its photo still PENDING (the job never ran)
+    expect(await runChatIntakeSweep(org.orgId, at(25 * MS_PER_HOUR))).toMatchObject({ expired: 1 })
+    expect(await runChatIntakeSweep(org.orgId, at(7 * MS_PER_DAY))).toMatchObject({ purged: 1 })
+    const itemId = intake!.items[0]!.id
+    expect(await fetchChatImage(org.orgId, itemId, at(7 * MS_PER_DAY))).toEqual({ itemId, status: 'SKIPPED' })
+    const asSystem = systemCtx(org.orgId, at(7 * MS_PER_DAY), 'chat-intake-image')
+    expect(await runCommand(asSystem, storeChatImageCommand, { itemId, status: 'FAILED', code: 'GONE' }, { idempotencyKey: randomUUID() })).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION' } })
+    expect(await prisma.fileObject.count({ where: { organizationId: org.orgId, storageKey: { startsWith: `org/${org.orgId}/chat-intake/` } } })).toBe(0)
   })
 
   it('logs of taking, answering, refusing and clearing carry no typed text, LINE user id or reply token (NFR-SEC-09)', async () => {

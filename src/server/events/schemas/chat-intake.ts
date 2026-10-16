@@ -15,7 +15,7 @@ defineEvents('ChatIntake', {
   // Nobody used the draft for expireHours (job chat-intake-sweep)
   'chat_intake.expired': { schema: z.strictObject({ reason: z.literal('IDLE') }) },
   // The typed text of a closed draft was cleared after textRetentionDays (BR-LINE-11, OQ-162), and its photos no document took
-  'chat_intake.purged': { schema: z.strictObject({ textRemoved: z.boolean(), filesRemoved: z.number().int().nonnegative() }) },
+  'chat_intake.purged': { schema: z.strictObject({ textRemoved: z.boolean(), filesRemoved: z.number().int().nonnegative(), fileIds: z.array(z.uuid()) }) },
 })
 defineEvents('Member', {
   // A message the chat took but did not add (a sticker, an 11th image, more than hourlyLimit an hour): its text is not

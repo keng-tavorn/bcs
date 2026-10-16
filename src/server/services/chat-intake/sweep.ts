@@ -1,10 +1,12 @@
 import { z } from 'zod'
 import { expiredIntakeIds } from '@/core/chat-intake'
+import type { Result } from '@/core/result'
 import { deleteObject } from '@/integrations/storage'
 import { MS_PER_DAY, MS_PER_HOUR } from '@/lib/constants'
 import { logger } from '@/lib/logger'
 import { chatIntakeSettingsOf } from '@/lib/s17-settings'
 import { systemCtx } from '@/server/context'
+import { listOrganizationsForPlatform } from '@/server/db/lookups'
 import type { TenantTx } from '@/server/db/tenant'
 import { deleteStaleLineInboundTexts } from '@/server/line/webhook'
 import type { EventDraft } from '@/server/events/append'
@@ -21,7 +23,13 @@ import { giveUpChatImages } from './images'
 //    and its FileObject is REJECTED, so nothing can read it again. The draft row and its counts stay. TODO(OQ-162)
 //  - images still PENDING after CHAT_IMAGE_GIVE_UP_MS become FAILED (TIMEOUT), so LIFF asks for them again;
 //  - LineInboundMessage rows older than 24 hours go: text nobody processed (BR-LINE-11; not a document, no event).
-// The hour is the idempotency key of each command, so a retry of the hour repeats nothing.
+// The hour is the idempotency key of each command, so a retry of the hour repeats nothing. Every organization is swept,
+// a suspended one too: what members typed is kept no longer than its retention whatever the organization's status.
+
+/** Every organization, whatever its status: the retention of chat text and photos holds for all (BR-LINE-11) */
+export async function chatSweepOrganizationIds(): Promise<string[]> {
+  return (await listOrganizationsForPlatform()).map((o) => o.id)
+}
 
 export const CHAT_SWEEP_JOB = 'chat-intake-sweep'
 /** BR-LINE-11: the longest the text of a message waits for its processing */
@@ -47,10 +55,16 @@ export const expireChatIntakesCommand = defineCommand({
       orderBy: { id: 'asc' },
       take: SWEEP_BATCH,
     })
-    const ids = expiredIntakeIds(ctx.now, expireHours, candidates)
-    if (ids.length === 0) return fail('NOT_FOUND', 'nothing to expire')
-    await tx.chatIntake.updateMany({ where: { id: { in: ids }, status: 'OPEN' }, data: { status: 'EXPIRED', closedAt: ctx.now, version: { increment: 1 } } })
-    return { ok: true, result: { expired: ids.length }, events: ids.map((id) => ({ type: 'chat_intake.expired', aggregateType: 'ChatIntake', aggregateId: id, data: { reason: 'IDLE' } })) }
+    // Each one by a conditional update: Postgres re-reads the row under its lock, so a draft its owner dismissed or drafted,
+    // or that took a message, since the read above is left alone - and gets no event
+    const cutoff = new Date(ctx.now.getTime() - expireHours * MS_PER_HOUR)
+    const expired: string[] = []
+    for (const id of expiredIntakeIds(ctx.now, expireHours, candidates)) {
+      const changed = await tx.chatIntake.updateMany({ where: { id, status: 'OPEN', lastMessageAt: { lte: cutoff } }, data: { status: 'EXPIRED', closedAt: ctx.now, version: { increment: 1 } } })
+      if (changed.count === 1) expired.push(id)
+    }
+    if (expired.length === 0) return fail('NOT_FOUND', 'nothing to expire')
+    return { ok: true, result: { expired: expired.length }, events: expired.map((id) => ({ type: 'chat_intake.expired', aggregateType: 'ChatIntake', aggregateId: id, data: { reason: 'IDLE' } })) }
   },
 })
 
@@ -76,7 +90,7 @@ export const purgeChatIntakesCommand = defineCommand({
       if (unused.length > 0) await tx.fileObject.updateMany({ where: { id: { in: unused.map((f) => f.id) } }, data: { status: 'REJECTED' } })
       storageKeys.push(...unused.map((f) => f.storageKey))
       await tx.chatIntake.update({ where: { id: intake.id }, data: { text: null, purgedAt: ctx.now, version: { increment: 1 } } })
-      events.push({ type: 'chat_intake.purged', aggregateType: 'ChatIntake', aggregateId: intake.id, data: { textRemoved: intake.text !== null, filesRemoved: unused.length } })
+      events.push({ type: 'chat_intake.purged', aggregateType: 'ChatIntake', aggregateId: intake.id, data: { textRemoved: intake.text !== null, filesRemoved: unused.length, fileIds: unused.map((f) => f.id) } })
     }
     return { ok: true, result: { purged: due.length, storageKeys }, events }
   },
@@ -93,20 +107,25 @@ export interface ChatIntakeSweepResult {
 export async function runChatIntakeSweep(organizationId: string, now: Date): Promise<ChatIntakeSweepResult> {
   const hour = now.toISOString().slice(0, 13)
   const ctx = systemCtx(organizationId, now, CHAT_SWEEP_JOB)
-  const expired = await runCommand(ctx, expireChatIntakesCommand, {}, { idempotencyKey: `${CHAT_SWEEP_JOB}:expire:${hour}` })
-  const purged = await runCommand(ctx, purgeChatIntakesCommand, {}, { idempotencyKey: `${CHAT_SWEEP_JOB}:purge:${hour}` })
-  if (purged.ok) {
-    for (const key of purged.data.storageKeys) {
-      try {
-        await deleteObject(key)
-      } catch (error) {
-        // The FileObject is REJECTED already, so nothing reads the object; the next run of the hour tries it again
-        logger.warn({ organizationId, error: describeError(error) }, 'a cleared chat image is still in the bucket')
-        throw error
-      }
+  // Nothing to do is NOT_FOUND; anything else throws, and the job's step runs again with the same `now` (the job takes it
+  // once), so the same keys replay what was done - the storage keys of a purge included
+  const done = <T,>(result: Result<T>, what: string): T | null => {
+    if (result.ok) return result.data
+    if (result.error.code === 'NOT_FOUND') return null
+    throw new Error(`the chat sweep's ${what} did not finish (${result.error.code})`)
+  }
+  const expired = done(await runCommand(ctx, expireChatIntakesCommand, {}, { idempotencyKey: `${CHAT_SWEEP_JOB}:expire:${hour}` }), 'expiry')
+  const purged = done(await runCommand(ctx, purgeChatIntakesCommand, {}, { idempotencyKey: `${CHAT_SWEEP_JOB}:purge:${hour}` }), 'purge')
+  for (const key of purged?.storageKeys ?? []) {
+    try {
+      await deleteObject(key)
+    } catch (error) {
+      // The FileObject is REJECTED already, so nothing reads the object; the step's next try deletes it
+      logger.warn({ organizationId, error: describeError(error) }, 'a cleared chat image is still in the bucket')
+      throw error
     }
   }
   const imagesGivenUp = await giveUpChatImages(organizationId, now)
   const textsDeleted = await deleteStaleLineInboundTexts(organizationId, new Date(now.getTime() - LINE_INBOUND_TEXT_MAX_AGE_MS))
-  return { expired: expired.ok ? expired.data.expired : 0, purged: purged.ok ? purged.data.purged : 0, imagesGivenUp, textsDeleted }
+  return { expired: expired?.expired ?? 0, purged: purged?.purged ?? 0, imagesGivenUp, textsDeleted }
 }

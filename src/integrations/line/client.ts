@@ -345,16 +345,18 @@ export function createLineClient(options: LineClientOptions): LineClient {
           const timeout = AbortSignal.timeout(call?.timeoutMs ?? LINE_REQUEST_TIMEOUT_MS)
           const signal = call?.signal ? AbortSignal.any([timeout, call.signal]) : timeout
           let response: Response
-          let bytes: Uint8Array
+          let bytes: Uint8Array | null = null
           try {
             response = await doFetch(`${dataBase}/v2/bot/message/${messageId}/content`, { method: 'GET', headers: { authorization: `Bearer ${accessToken}` }, signal, redirect: 'error' })
-            bytes = new Uint8Array(await response.arrayBuffer())
+            // A size LINE announces over the limit is refused before the body is read into memory
+            if (Number(response.headers.get('content-length') ?? 0) > LINE_MESSAGE_CONTENT_MAX_BYTES) await response.body?.cancel().catch(() => undefined)
+            else bytes = new Uint8Array(await response.arrayBuffer())
           } catch {
             const reason = timeout.aborted ? 'TIMEOUT' : call?.signal?.aborted ? 'ABORTED' : 'NETWORK'
             throw new LineApiError({ operation: 'getMessageContent', kind: 'transient', reason })
           }
           if (!response.ok) throw new LineApiError({ operation: 'getMessageContent', ...lineStatusFailure(response.status), status: response.status, lineMessage: null, details: [], requestId: response.headers.get('x-line-request-id') })
-          if (bytes.length > LINE_MESSAGE_CONTENT_MAX_BYTES) throw new LineApiError({ operation: 'getMessageContent', kind: 'permanent', reason: 'LIMIT_EXCEEDED' })
+          if (bytes === null || bytes.length > LINE_MESSAGE_CONTENT_MAX_BYTES) throw new LineApiError({ operation: 'getMessageContent', kind: 'permanent', reason: 'LIMIT_EXCEEDED' })
           return { bytes, contentType: response.headers.get('content-type') }
         },
 

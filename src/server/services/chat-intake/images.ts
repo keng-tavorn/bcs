@@ -54,10 +54,11 @@ export const storeChatImageCommand = defineCommand({
     if (ctx.actor.type !== 'SYSTEM') return fail('FORBIDDEN', 'images are fetched by the system only')
     const item = await tx.chatIntakeItem.findFirst({
       where: { id: input.itemId },
-      select: { id: true, seq: true, kind: true, fetchStatus: true, intake: { select: { id: true, status: true, memberId: true } } },
+      select: { id: true, seq: true, kind: true, fetchStatus: true, intake: { select: { id: true, status: true, memberId: true, purgedAt: true } } },
     })
     if (!item || item.kind !== 'IMAGE') return fail('NOT_FOUND', 'no such image')
-    if (item.fetchStatus !== 'PENDING' || !transition(CHAT_INTAKE_MACHINE, item.intake.status, 'chat_intake.store_image').ok) {
+    // A draft cleared already keeps no new file: one stored now would outlive its retention (OQ-162)
+    if (item.fetchStatus !== 'PENDING' || item.intake.purgedAt !== null || !transition(CHAT_INTAKE_MACHINE, item.intake.status, 'chat_intake.store_image').ok) {
       return fail('INVALID_STATE_TRANSITION', `the image is ${item.fetchStatus} in a draft that is ${item.intake.status}`)
     }
     const intakeId = item.intake.id
@@ -97,7 +98,7 @@ export const storeChatImageCommand = defineCommand({
 /** The images of a draft still waiting to be fetched (job chat-intake-image) */
 export async function pendingChatImages(organizationId: string, intakeId: string): Promise<string[]> {
   const items = await forTenant(organizationId).chatIntakeItem.findMany({
-    where: { intakeId, kind: 'IMAGE', fetchStatus: 'PENDING', intake: { status: { in: ['OPEN', 'DRAFTED'] } } },
+    where: { intakeId, kind: 'IMAGE', fetchStatus: 'PENDING', intake: { status: { in: ['OPEN', 'DRAFTED'] }, purgedAt: null } },
     select: { id: true },
     orderBy: { seq: 'asc' },
   })
@@ -119,8 +120,8 @@ export type ChatImageOutcome = { readonly itemId: string; readonly status: 'STOR
  */
 export async function fetchChatImage(organizationId: string, itemId: string, now: Date): Promise<ChatImageOutcome> {
   const db = forTenant(organizationId)
-  const item = await db.chatIntakeItem.findFirst({ where: { id: itemId, kind: 'IMAGE', fetchStatus: 'PENDING' }, select: { id: true, intakeId: true, lineMessageId: true, intake: { select: { status: true } } } })
-  if (!item || !transition(CHAT_INTAKE_MACHINE, item.intake.status, 'chat_intake.store_image').ok) return { itemId, status: 'SKIPPED' }
+  const item = await db.chatIntakeItem.findFirst({ where: { id: itemId, kind: 'IMAGE', fetchStatus: 'PENDING' }, select: { id: true, intakeId: true, lineMessageId: true, intake: { select: { status: true, purgedAt: true } } } })
+  if (!item || item.intake.purgedAt !== null || !transition(CHAT_INTAKE_MACHINE, item.intake.status, 'chat_intake.store_image').ok) return { itemId, status: 'SKIPPED' }
   const ctx = systemCtx(organizationId, now, CHAT_IMAGE_JOB)
   const record = (input: z.input<typeof StoreImageInput>) => runCommand(ctx, storeChatImageCommand, input, { idempotencyKey: storeKey(input) })
   const failed = async (code: ChatImageFailure): Promise<ChatImageOutcome> => {
@@ -130,6 +131,8 @@ export async function fetchChatImage(organizationId: string, itemId: string, now
   }
 
   const opened = await openLineChannel(organizationId)
+  // A secret that cannot be read now is the deployment's problem, fixed by an operator: tried again, never given up here
+  if (!opened.ok && opened.reason === 'SECRET_UNREADABLE') throw new Error('the LINE channel secret cannot be read; the image job tries again')
   if (!opened.ok) return failed('NO_CHANNEL')
   let bytes: Uint8Array
   try {
@@ -163,7 +166,7 @@ export const CHAT_IMAGE_GIVE_UP_MS = 6 * MS_PER_HOUR
 /** The sweep's part: images nobody fetched (the job gave up) become FAILED, so LIFF asks for them again */
 export async function giveUpChatImages(organizationId: string, now: Date): Promise<number> {
   const stale = await forTenant(organizationId).chatIntakeItem.findMany({
-    where: { kind: 'IMAGE', fetchStatus: 'PENDING', receivedAt: { lt: new Date(now.getTime() - CHAT_IMAGE_GIVE_UP_MS) }, intake: { status: { in: ['OPEN', 'DRAFTED'] } } },
+    where: { kind: 'IMAGE', fetchStatus: 'PENDING', receivedAt: { lt: new Date(now.getTime() - CHAT_IMAGE_GIVE_UP_MS) }, intake: { status: { in: ['OPEN', 'DRAFTED'] }, purgedAt: null } },
     select: { id: true },
     take: 500,
   })

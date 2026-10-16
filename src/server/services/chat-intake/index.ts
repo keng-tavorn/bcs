@@ -9,7 +9,7 @@ import { discardLineInboundText } from '@/server/line/webhook'
 
 export { CHAT_IMAGE_GIVE_UP_MS, CHAT_IMAGE_JOB, chatImagePrefix, fetchChatImage, giveUpChatImages, pendingChatImages, storeChatImageCommand, type ChatImageFailure, type ChatImageOutcome } from './images'
 export { receiveChatMessage, receiveChatMessageCommand } from './receive'
-export { CHAT_SWEEP_JOB, expireChatIntakesCommand, LINE_INBOUND_TEXT_MAX_AGE_MS, purgeChatIntakesCommand, runChatIntakeSweep, type ChatIntakeSweepResult } from './sweep'
+export { CHAT_SWEEP_JOB, chatSweepOrganizationIds, expireChatIntakesCommand, LINE_INBOUND_TEXT_MAX_AGE_MS, purgeChatIntakesCommand, runChatIntakeSweep, type ChatIntakeSweepResult } from './sweep'
 
 /** settings.chatIntake of an organization as the chat reads it: a UAT sandbox never asks through the chat (ADR-174) */
 export async function chatIntakeSettingsOfOrganization(organizationId: string): Promise<ChatIntakeSettings> {

@@ -54,7 +54,8 @@ export const receiveChatMessageCommand = defineCommand({
     const event = stored.data
     const senderId = stored.data.userId
     // BR-LINE-01: the member is the one the signed webhook's LINE user is linked to now
-    const linked = await tx.channelIdentity.findFirst({ where: { channel: 'LINE', memberId, externalUserId: senderId, unlinkedAt: null }, select: { id: true } })
+    const provider = await tx.lineChannelConfig.findFirst({ select: { providerId: true } })
+    const linked = provider ? await tx.channelIdentity.findFirst({ where: { channel: 'LINE', providerKey: provider.providerId, memberId, externalUserId: senderId, unlinkedAt: null }, select: { id: true } }) : null
     if (!linked) return fail('FORBIDDEN', 'the message was sent by someone else')
     const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { kind: true, settings: true } })
     const settings = chatIntakeSettingsFor(org)

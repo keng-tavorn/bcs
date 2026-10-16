@@ -276,6 +276,20 @@ for k in [*S6_SET, *S6_LIST, 'numbering.BT', 'numbering.OB']:
         if not all(re.fullmatch(r'\s*\d+\s*', p_) and whole_in(int(p_), *S6_LIST[k]) for p_ in parts): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็นจำนวนเต็ม {S6_LIST[k][0]}–{S6_LIST[k][1]} คั่นด้วยจุลภาค')
 hs, he = s_(SET.get('businessHoursStart', ('', 0))[0]), s_(SET.get('businessHoursEnd', ('', 0))[0])
 if not (re.fullmatch(r'\d\d:\d\d', hs) and re.fullmatch(r'\d\d:\d\d', he) and hs < he): sp.append('businessHoursStart/End ต้องเป็น HH:MM และเริ่มก่อนเลิก')
+# S17-01: the chat and the BCS Go app, the highest value of each key = S17_SETTING_LIMITS of src/lib/s17-settings.ts
+# (tests/unit/s17-settings.test.ts reads this line) · the phase-1 file must have them all, the demo file none
+S17_MAX = {'chatIntake.windowMinutes': 1440, 'chatIntake.maxImages': 10, 'chatIntake.maxTextChars': 2000, 'chatIntake.hourlyLimit': 1000, 'chatIntake.expireHours': 168, 'chatIntake.textRetentionDays': 30, 'bcsGo.offlineRetentionDays': 30, 'bcsGo.maxPreparedPos': 200}
+for k in ['chatIntake.enabled', *S17_MAX]:
+    if k not in SET:
+        if PROFILE == 'p1': sp.append(f'ชีต Settings ไม่มีแถว {k} (ค่าตั้งของ S17)')
+        continue
+    v, r = SET[k]
+    if k == 'chatIntake.enabled':
+        if s_(v) not in ('Y', 'N'): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็น Y หรือ N')
+    elif not (isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= S17_MAX[k]): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็นจำนวนเต็ม 1–{S17_MAX[k]}')
+# BR-LINE-10: the chat window never outlasts the draft (windowMinutes <= expireHours x 60; defaults 30 and 24 as in the schema)
+_win, _exp = SET.get('chatIntake.windowMinutes', (30, 0))[0], SET.get('chatIntake.expireHours', (24, 0))[0]
+if isinstance(_win, int) and isinstance(_exp, int) and _win > _exp * 60: sp.append(f'chatIntake.windowMinutes ({_win}) ต้องไม่เกิน chatIntake.expireHours × 60 ({_exp * 60})')
 check(not sp, 'ค่าตั้งต้น (Settings)', f'{len(SET)} ค่า', '; '.join(sp), 'ระบบคำนวณ VAT เลขเอกสาร หรือ SLA ผิด', 'แก้ช่องที่ระบุในชีต Settings')
 RATE_BP = int(round(float(rate) * 10000)) if isinstance(rate, (int, float)) else 700
 

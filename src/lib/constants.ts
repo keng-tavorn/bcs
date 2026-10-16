@@ -204,3 +204,9 @@ export const LINE_NO_SHIFT = 10_000
 
 // S8-11 (FR-AP-108 AC4): tier-2 invoices the Express file takes, once ready for payment
 export const AP_EXPORTABLE_STATUSES = ['READY_FOR_PAYMENT', 'IN_PAYMENT_RUN', 'PAID'] as const
+
+// S17-01 (src/lib/s17-settings.ts): the highest value of the chat settings at 1000 or more. Text and images are the
+// CHECKs of the S17 migration (char_length counts code points); a chat window lasts a day at most
+export const CHAT_INTAKE_MAX_TEXT_CHARS = 2_000
+export const CHAT_INTAKE_MAX_WINDOW_MINUTES = 1_440
+export const CHAT_INTAKE_MAX_HOURLY_LIMIT = 1_000

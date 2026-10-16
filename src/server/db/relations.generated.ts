@@ -161,6 +161,18 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     member: { model: 'Member', list: false },
     organization: { model: 'Organization', list: false },
   },
+  ChatIntake: {
+    items: { model: 'ChatIntakeItem', list: true },
+    member: { model: 'Member', list: false },
+    organization: { model: 'Organization', list: false },
+    request: { model: 'Request', list: false },
+    requestType: { model: 'RequestType', list: false },
+  },
+  ChatIntakeItem: {
+    file: { model: 'FileObject', list: false },
+    intake: { model: 'ChatIntake', list: false },
+    organization: { model: 'Organization', list: false },
+  },
   CommandLog: {
     organization: { model: 'Organization', list: false },
   },
@@ -249,6 +261,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
   },
   FileObject: {
     apInvoiceSources: { model: 'Invoice', list: true },
+    chatIntakeItems: { model: 'ChatIntakeItem', list: true },
     configPackages: { model: 'ConfigPackage', list: true },
     exportJobs: { model: 'ExportJob', list: true },
     invoiceSources: { model: 'InvoiceConfirmation', list: true },
@@ -347,8 +360,18 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
   },
   LineChannelConfig: {
     organization: { model: 'Organization', list: false },
+    richMenuVariants: { model: 'LineRichMenuVariant', list: true },
+  },
+  LineInboundMessage: {
+    lineWebhookEvent: { model: 'LineWebhookEvent', list: false },
+    organization: { model: 'Organization', list: false },
+  },
+  LineRichMenuVariant: {
+    channelConfig: { model: 'LineChannelConfig', list: false },
+    organization: { model: 'Organization', list: false },
   },
   LineWebhookEvent: {
+    inboundMessage: { model: 'LineInboundMessage', list: false },
     organization: { model: 'Organization', list: false },
   },
   MatchException: {
@@ -376,6 +399,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     budgetTransfersSubmitted: { model: 'BudgetTransfer', list: true },
     channelIdentities: { model: 'ChannelIdentity', list: true },
     channelLinkCodes: { model: 'ChannelLinkCode', list: true },
+    chatIntakes: { model: 'ChatIntake', list: true },
     comments: { model: 'Comment', list: true },
     commentsRetracted: { model: 'Comment', list: true },
     configPackagesCreated: { model: 'ConfigPackage', list: true },
@@ -407,6 +431,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     priceAgreementsCreated: { model: 'PriceAgreement', list: true },
     primaryDepartment: { model: 'Department', list: false },
     purchaseOrdersCreated: { model: 'PurchaseOrder', list: true },
+    pushDevices: { model: 'PushDevice', list: true },
     reportSchedules: { model: 'ReportSchedule', list: true },
     requestFlagsAcknowledged: { model: 'RequestFlag', list: true },
     requestFollows: { model: 'RequestFollower', list: true },
@@ -463,6 +488,8 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     catalogItems: { model: 'CatalogItem', list: true },
     channelIdentities: { model: 'ChannelIdentity', list: true },
     channelLinkCodes: { model: 'ChannelLinkCode', list: true },
+    chatIntakeItems: { model: 'ChatIntakeItem', list: true },
+    chatIntakes: { model: 'ChatIntake', list: true },
     commandLogs: { model: 'CommandLog', list: true },
     comments: { model: 'Comment', list: true },
     configPackages: { model: 'ConfigPackage', list: true },
@@ -495,6 +522,8 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     invoiceMatches: { model: 'InvoiceMatch', list: true },
     invoices: { model: 'Invoice', list: true },
     lineChannelConfig: { model: 'LineChannelConfig', list: false },
+    lineInboundMessages: { model: 'LineInboundMessage', list: true },
+    lineRichMenuVariants: { model: 'LineRichMenuVariant', list: true },
     lineWebhookEvents: { model: 'LineWebhookEvent', list: true },
     matchExceptions: { model: 'MatchException', list: true },
     members: { model: 'Member', list: true },
@@ -515,6 +544,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     positions: { model: 'Position', list: true },
     priceAgreements: { model: 'PriceAgreement', list: true },
     purchaseOrders: { model: 'PurchaseOrder', list: true },
+    pushDevices: { model: 'PushDevice', list: true },
     reportSchedules: { model: 'ReportSchedule', list: true },
     requestFlags: { model: 'RequestFlag', list: true },
     requestFollowers: { model: 'RequestFollower', list: true },
@@ -659,6 +689,10 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     supplier: { model: 'Supplier', list: false },
     variances: { model: 'Variance', list: true },
   },
+  PushDevice: {
+    member: { model: 'Member', list: false },
+    organization: { model: 'Organization', list: false },
+  },
   RateLimit: {},
   ReportSchedule: {
     createdBy: { model: 'Member', list: false },
@@ -667,6 +701,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
   Request: {
     budgetLine: { model: 'BudgetLine', list: false },
     chargedDepartment: { model: 'Department', list: false },
+    chatIntake: { model: 'ChatIntake', list: false },
     costCenter: { model: 'CostCenter', list: false },
     currentRoute: { model: 'ApprovalRoute', list: false },
     deliverySite: { model: 'DeliverySite', list: false },
@@ -713,6 +748,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     supplier: { model: 'Supplier', list: false },
   },
   RequestType: {
+    chatIntakes: { model: 'ChatIntake', list: true },
     currentFormVersion: { model: 'FormVersion', list: false },
     formVersions: { model: 'FormVersion', list: true },
     organization: { model: 'Organization', list: false },

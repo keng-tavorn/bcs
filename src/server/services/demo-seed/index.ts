@@ -2,6 +2,7 @@ import { THAI_TIME_ZONE } from '@/core/thai/date'
 import type { Clock } from '@/lib/clock'
 import { MS_PER_DAY } from '@/lib/constants'
 import type { Env } from '@/lib/env'
+import { sandboxSettingsOf } from '@/lib/uat'
 import { checkBucket } from '@/integrations/storage'
 import { listOrganizationsForPlatform } from '@/server/db/lookups'
 import { wipeAllData } from '@/server/db/sql/staging-wipe'
@@ -92,6 +93,8 @@ export async function seedP1Sandbox(
   const uatEmail = (email: string) => email.replace(/@([^.@]+)\./, '@$1-uat.')
   const sandbox = {
     ...input,
+    // Production's settings with LINE and the chat off, as the sandbox command makes them (BR-UAT-01 · ADR-174)
+    settings: sandboxSettingsOf(input.settings),
     org: { ...input.org, code: options.rename?.code ?? sandboxCode(input.org.code), legalNameTh: `${input.org.legalNameTh} (ระบบทดลอง)`, displayName: `${input.org.displayName ?? input.org.code} UAT` },
     users: input.users.map((u) => ({ ...u, email: `${options.rename?.emailPrefix ?? ''}${uatEmail(u.email)}` })),
   }

@@ -16,6 +16,17 @@ export function digestEnabled(notificationPrefs: unknown): boolean {
   return !(notificationPrefs && typeof notificationPrefs === 'object' && (notificationPrefs as { digest?: unknown }).digest === false)
 }
 
+/**
+ * Member.notificationPrefs as stored: every key optional, missing reads as its default. appPush (S17-01, OQ-165): push
+ * in the BCS Go app instead of LINE, off unless the member turned it on in the app (BR-NOTI-05, BR-NOTI-08).
+ */
+export const StoredNotificationPrefsSchema = z.object({ digest: z.boolean().optional(), appPush: z.boolean().optional() })
+
+/** Push in the BCS Go app is off unless the member turned it on (OQ-165); another broken key does not change it */
+export function appPushEnabled(notificationPrefs: unknown): boolean {
+  return Boolean(notificationPrefs && typeof notificationPrefs === 'object' && (notificationPrefs as { appPush?: unknown }).appPush === true)
+}
+
 const PrefsInput = z.strictObject({ digest: z.boolean() })
 
 export interface NotificationPrefsDto {

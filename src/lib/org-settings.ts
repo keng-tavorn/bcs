@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { AI_CREDIT_DEFAULTS } from './ai-config'
+import { BcsGoSettingsSchema, ChatIntakeSettingsSchema } from './s17-settings'
 import { BP_WHOLE } from './constants'
 import AP_DEFAULTS from './ap-defaults.json'
 import { BASIS_POINTS_WHOLE, BUDGET_ALERT_DEFAULT_BP, BUDGET_ALERT_MAX_BP, SETTINGS_MAX_DAYS } from './constants'
@@ -134,6 +135,10 @@ export const OrgSettingsSchema = z
       })
       .strict()
       .optional(),
+    // S17: the LINE chat and the BCS Go app (./s17-settings: every key optional, missing reads as its default, so an
+    // organization saved before S17 parses as it is and keeps asking through the chat switched off)
+    chatIntake: ChatIntakeSettingsSchema.optional(),
+    bcsGo: BcsGoSettingsSchema.optional(),
   })
   .strict()
 

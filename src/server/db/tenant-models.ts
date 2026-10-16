@@ -81,6 +81,12 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'AgentAction',
   'AiAgentSetting',
   'AiCreditLedger',
+  // S17-01
+  'ChatIntake',
+  'ChatIntakeItem',
+  'LineInboundMessage',
+  'PushDevice',
+  'LineRichMenuVariant',
   // S8-01
   'Invoice',
   'InvoiceLine',

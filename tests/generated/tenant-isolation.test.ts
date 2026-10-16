@@ -59,6 +59,7 @@ const delegate = (client: unknown, model: string): any => (client as Record<stri
 // Sample values that CHECK constraints of the migrations require (the generic sample would break them)
 const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   Delegation: { endsAt: new Date('2026-10-06T03:00:00Z') }, // delegation_period: startsAt < endsAt
+  PushDevice: { tokenHash: 'a'.repeat(64) }, // push_device_token_hash: the sha256 of the token in lower-case hex (S17)
   BudgetLedgerEntry: { toBucket: 'AVAILABLE' }, // ledger_buckets_differ: fromBucket (OUTSIDE) <> toBucket
   Supplier: { isForeign: true }, // supplier_tax_id_shape: a Thai supplier needs a 13-digit tax id, a foreign one may have none
   InvoiceConfirmation: { netSatang: 1n, vatSatang: 0n, grossSatang: 1n }, // invoice_money_non_negative: gross = net + VAT

@@ -1,6 +1,6 @@
 # docs/feature-status.yaml — the only place that says what works (spec §0.5, §15.6).
 # Sales material may cite only `verified` and `live`. status: planned | in_progress | done | verified | live
-updatedAt: 2026-10-13
+updatedAt: 2026-10-16
 features:
   FR-PLT-001:
     status: done
@@ -11,11 +11,13 @@ features:
       - tests/integration/org-settings.test.ts
       - tests/integration/seed-p1-year-end.test.ts
       - tests/integration/seed-p1-year-start.test.ts
+      - tests/integration/s17-schema.test.ts
       - tests/integration/seed.test.ts
       - tests/unit/org-settings-s6.test.ts
+      - tests/unit/s17-settings.test.ts
       - tests/unit/seed-inputs.test.ts
     verifiedBy: null
-    notes: "AC1 รวมประวัติ demo ที่ seed สร้างครั้งเดียว (D-01) และไฟล์ข้อมูลระยะ 1 ที่ seed ด้วย SEED_INPUTS=p1 (P1-02) · AC2 รวมค่าตั้งของ S6 ที่ไม่บังคับพร้อมค่าเริ่มต้น (S6-01)"
+    notes: "AC1 รวมประวัติ demo ที่ seed สร้างครั้งเดียว (D-01) และไฟล์ข้อมูลระยะ 1 ที่ seed ด้วย SEED_INPUTS=p1 (P1-02) · AC2 รวมค่าตั้งของ S6 ที่ไม่บังคับพร้อมค่าเริ่มต้น (S6-01) และค่าตั้ง chatIntake bcsGo ของ S17 ที่ไม่บังคับ ปิดใน UAT sandbox (S17-01)"
   FR-PLT-002:
     status: done
     step: S1

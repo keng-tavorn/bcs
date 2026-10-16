@@ -231,7 +231,8 @@ const LIFF_PARTS: ReadonlyArray<readonly [string, LiffPartScope]> = [
   ['requests/[id]/(view)', 'liffRequest'],
   ['requests/[id]/edit', 'liffRequestForm'],
   ['delegation', 'liffDelegation'],
-  ['gr', 'liffReceiving'],
+  // S17-04: on the PO's page only; the list /liff/gr has no client words of its own
+  ['gr/[poId]', 'liffReceiving'],
 ]
 
 /** The provider of the parts of the LIFF request form that are loaded with their words (steps 2 and 3, …) */

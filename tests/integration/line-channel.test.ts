@@ -125,6 +125,7 @@ describe('[FR-ADM-006/AC2] an ORG_ADMIN saves the LINE channel; the secret and t
         liffChannelId: VALID.liffChannelId,
         richMenuLinkedId: null,
         richMenuUnlinkedId: null,
+        richMenuSetsStored: false,
         active: true,
         version: 0,
         updatedAt: expect.any(String),

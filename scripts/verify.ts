@@ -360,23 +360,32 @@ const gates: Gate[] = [
       const e2eReport = path.join(ROOT, 'test-results/e2e-results.json')
       const demoDir = 'test-results/demo'
       const demoReport = path.join(ROOT, demoDir, 'e2e-results.json')
-      rmSync(e2eReport, { force: true })
-      rmSync(demoReport, { force: true })
+      const p1demoDir = 'test-results/p1demo'
+      const p1demoReport = path.join(ROOT, p1demoDir, 'e2e-results.json')
+      for (const report of [e2eReport, demoReport, p1demoReport]) rmSync(report, { force: true })
       const readReport = (file: string) => (existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as PlaywrightJson & Record<string, unknown>) : null)
       const screens = sh('pnpm test:e2e')
       const screensReport = readReport(e2eReport)
       const screensResult = evaluatePlaywrightRun({ code: screens.code, out: screens.out, report: screensReport })
-      // The demo scenes (D-04, tests/e2e/demo) run alone on their own database with the demo history, after the screens
-      const scenes = existsSync(path.join(ROOT, 'tests/e2e/demo')) && readdirSync(path.join(ROOT, 'tests/e2e/demo')).some((f) => f.endsWith('.spec.ts'))
-      if (!scenes) return screensResult
-      const demo = sh('pnpm test:e2e', { env: { E2E_DEMO: '1', E2E_OUTPUT_DIR: demoDir } })
-      const scenesReport = readReport(demoReport)
-      const demoResult = evaluatePlaywrightRun({ code: demo.code, out: demo.out, report: scenesReport })
+      // The scenes run alone, each set on its own database with its history, after the screens: the demo scenes (D-04,
+      // tests/e2e/demo, demo workbook) and the scenes of phase 1 (P1-08, tests/e2e/p1demo, phase-1 workbook)
+      const hasScenes = (folder: string) => existsSync(path.join(ROOT, folder)) && readdirSync(path.join(ROOT, folder)).some((f) => f.endsWith('.spec.ts'))
+      const sets = [
+        { folder: 'tests/e2e/demo', flag: 'E2E_DEMO', dir: demoDir, file: demoReport, name: 'ฉาก demo (pnpm test:e2e --grep @demo)', short: 'ฉาก demo' },
+        { folder: 'tests/e2e/p1demo', flag: 'E2E_P1DEMO', dir: p1demoDir, file: p1demoReport, name: 'ฉากระยะ 1 (pnpm test:e2e --grep @p1demo)', short: 'ฉากระยะ 1' },
+      ].filter((set) => hasScenes(set.folder))
+      const runs = sets.map((set) => {
+        const run = sh('pnpm test:e2e', { env: { [set.flag]: '1', E2E_OUTPUT_DIR: set.dir } })
+        const report = readReport(set.file)
+        return { set, report, result: evaluatePlaywrightRun({ code: run.code, out: run.out, report }) }
+      })
       // One report for the traceability gate: the screens' tests and the scenes' tests of this run together
-      if (screensReport && scenesReport) writeFileSync(e2eReport, JSON.stringify(mergePlaywrightReports([screensReport, scenesReport])))
+      const runReports = [screensReport, ...runs.map((r) => r.report)].filter((r) => r !== null)
+      if (runs.length > 0 && runReports.length === runs.length + 1) writeFileSync(e2eReport, JSON.stringify(mergePlaywrightReports(runReports)))
       if (screensResult.status === 'FAIL') return screensResult
-      if (demoResult.status === 'FAIL') return { ...demoResult, detail: `ฉาก demo (pnpm test:e2e --grep @demo): ${demoResult.detail}` }
-      return { status: 'PASS', detail: `หน้าจอ: ${screensResult.detail} · ฉาก demo: ${demoResult.detail}` }
+      const failed = runs.find((r) => r.result.status === 'FAIL')
+      if (failed) return { ...failed.result, detail: `${failed.set.name}: ${failed.result.detail}` }
+      return { status: 'PASS', detail: [`หน้าจอ: ${screensResult.detail}`, ...runs.map((r) => `${r.set.short}: ${r.result.detail}`)].join(' · ') }
     },
   },
   {

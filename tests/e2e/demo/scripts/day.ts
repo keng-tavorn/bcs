@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { E2E_DB } from '../../../support/e2e-env'
+import { E2E_DB, E2E_P1DEMO } from '../../../support/e2e-env'
 
-// Run by the demo scenes (tests/e2e/demo, through support.ts) against the demo e2e database only: what the people of the
+// Run by the demo scenes (tests/e2e/demo, through support.ts) against the demo e2e database only — and by the scenes of
+// phase 1 (tests/e2e/p1demo, P1-08) against theirs, on SIMEC of the phase-1 workbook (E2E_P1DEMO): what the people of the
 // day do outside the screens, through the services as the runbook has it, and what a scene reads back from the
 // database. Prints JSON on its last line; amounts are satang as strings.
 //   prepare <code>:<lineUserId>…  the day's phones (docs/DEMO_RUNBOOK.md §1 items 3 and 4): both rich menus made as
@@ -41,8 +42,8 @@ import { E2E_DB } from '../../../support/e2e-env'
 const LINE_USER_ID = /^U[0-9a-f]{32}$/
 
 async function main(command: string | undefined, args: readonly string[]): Promise<unknown> {
-  if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the demo day scene runs in the e2e database only')
-  const [{ systemClock }, { makeCtx }, { prisma }, { deliverNotification }, { loadInputWorkbook }, { openLineChannel }, { issueLineLinkCode, linkLineAccount }] = await Promise.all([
+  if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the day scene runs in the e2e database of its scenes only')
+  const [{ systemClock }, { makeCtx }, { prisma }, { deliverNotification }, { INPUT_WORKBOOKS, loadInputWorkbook }, { openLineChannel }, { issueLineLinkCode, linkLineAccount }] = await Promise.all([
     import('@/lib/clock'),
     import('@/server/context'),
     import('@/server/db/client'),
@@ -55,7 +56,8 @@ async function main(command: string | undefined, args: readonly string[]): Promi
   // business clock of the e2e run (docs/sub-specs/D.md "นาฬิกาธุรกิจของ e2e") is not built yet; once that clock is this
   // one, the script follows it with no change
   const now = () => systemClock.now()
-  const workbook = await loadInputWorkbook()
+  // The scenes of phase 1 (P1-08, tests/e2e/p1demo/support.ts) run this script too, on SIMEC of the phase-1 workbook
+  const workbook = await loadInputWorkbook(E2E_P1DEMO ? INPUT_WORKBOOKS.p1 : undefined)
   const orgCode = workbook.keyValues('Org').get('code')?.value
   if (!orgCode) throw new Error('the Org sheet names no organization code')
   const org = await prisma.organization.findUniqueOrThrow({ where: { code: orgCode }, select: { id: true, code: true } })

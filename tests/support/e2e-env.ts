@@ -6,7 +6,12 @@
 // web server's setup (tests/e2e/prepare-db.ts), which do not see the command line, agree with the main process.
 if (process.argv.some((arg) => arg.includes('@demo'))) process.env.E2E_DEMO = '1'
 export const E2E_DEMO = process.env.E2E_DEMO === '1'
-export const E2E_DB = process.env.BCS_E2E_DB ?? (E2E_DEMO ? 'bcs_e2e_demo' : 'bcs_e2e')
+// The scenes of phase 1 (P1-08, tests/e2e/p1demo) the same way, on a database seeded with SIMEC from the phase-1
+// workbook and its history: `pnpm test:e2e --grep @p1demo` or E2E_P1DEMO=1 ("@p1demo" does not contain "@demo")
+if (process.argv.some((arg) => arg.includes('@p1demo'))) process.env.E2E_P1DEMO = '1'
+export const E2E_P1DEMO = process.env.E2E_P1DEMO === '1'
+if (E2E_DEMO && E2E_P1DEMO) throw new Error('E2E_DEMO and E2E_P1DEMO are two runs on two databases: run @demo and @p1demo one after the other')
+export const E2E_DB = process.env.BCS_E2E_DB ?? (E2E_DEMO ? 'bcs_e2e_demo' : E2E_P1DEMO ? 'bcs_e2e_p1demo' : 'bcs_e2e')
 export const E2E_PORT = Number(process.env.E2E_PORT ?? 3100)
 export const E2E_BASE_URL = `http://localhost:${E2E_PORT}`
 /** The transaction PIN the e2e seed gives every demo approver (SEED_DEV_PIN; passes the PIN rules of FR-AUTH-005 AC1) */
@@ -69,6 +74,7 @@ export function e2eEnv(env: NodeJS.ProcessEnv = process.env): Record<string, str
     LINE_DATA_API_BASE_URL: E2E_FAKE_LINE_URL,
     LIFF_MOCK: '1',
     E2E_DEMO: E2E_DEMO ? '1' : '0',
+    E2E_P1DEMO: E2E_P1DEMO ? '1' : '0',
     // AI in fixture mode (ADR-142): nothing shows while an organization keeps the AI module off, as the demo's does; the
     // AI specs switch it on for themselves (tests/e2e/ai-document-scene.ts) and play the background job there
     AI_ENABLED: 'true',

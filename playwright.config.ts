@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { defineConfig, devices } from '@playwright/test'
-import { E2E_BASE_URL as BASE_URL, E2E_DEMO, E2E_FAKE_LINE_URL, E2E_PORT as PORT, e2eEnv, fakeLineEnv } from './tests/support/e2e-env'
+import { E2E_BASE_URL as BASE_URL, E2E_DEMO, E2E_FAKE_LINE_URL, E2E_P1DEMO, E2E_PORT as PORT, e2eEnv, fakeLineEnv } from './tests/support/e2e-env'
 
 // e2e runs against a production build on its own port, build folder and database (bcs_e2e, reset and seeded by
 // tests/e2e/prepare-db.ts before the server starts) so it never clashes with the shared `next dev` on :3000.
@@ -16,6 +16,9 @@ const PHONE_SCENES = '**/s17.spec.ts'
 const DEMO_SPECS = '**/demo/**'
 /** Only the scene files run; tests/e2e/demo/support.ts and scripts/ are helpers the scenes import */
 const DEMO_SCENES = '**/demo/*.spec.ts'
+/** The scenes of phase 1 (P1-08) the same way, in their own mode on the database seeded with SIMEC (tests/support/e2e-env.ts) */
+const P1DEMO_SPECS = '**/p1demo/**'
+const P1DEMO_SCENES = '**/p1demo/*.spec.ts'
 
 const desktop = { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }
 const mobile = { ...devices['Pixel 7'], viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true }
@@ -39,10 +42,12 @@ export default defineConfig({
   // it, as on the day; a scene file picks its own device (the LIFF scenes a phone, the web scenes a desktop)
   projects: E2E_DEMO
     ? [{ name: 'demo', testMatch: DEMO_SCENES, use: desktop }]
-    : [
-        { name: 'desktop', testIgnore: [LIFF_SPECS, PHONE_SCENES, DEMO_SPECS], use: desktop },
-        { name: 'mobile', testIgnore: [DEMO_SPECS], use: mobile },
-      ],
+    : E2E_P1DEMO
+      ? [{ name: 'p1demo', testMatch: P1DEMO_SCENES, use: desktop }]
+      : [
+          { name: 'desktop', testIgnore: [LIFF_SPECS, PHONE_SCENES, DEMO_SPECS, P1DEMO_SPECS], use: desktop },
+          { name: 'mobile', testIgnore: [DEMO_SPECS, P1DEMO_SPECS], use: mobile },
+        ],
   webServer: [
     // The fake LINE server of the run (Messaging API, LIFF verify, rich menus): the app's LINE client points at it
     {
@@ -56,7 +61,8 @@ export default defineConfig({
       command: `pnpm exec tsx --env-file-if-exists=.env tests/e2e/prepare-db.ts && pnpm build && pnpm start -p ${PORT}`,
       url: BASE_URL,
       reuseExistingServer: false,
-      timeout: 600_000,
+      // The phase-1 seed with its history takes 4 to 11 minutes before the build starts (P1-08, slower under load)
+      timeout: E2E_P1DEMO ? 1_800_000 : 600_000,
       env: e2eEnv(),
     },
   ],

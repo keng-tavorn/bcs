@@ -21,10 +21,11 @@ from p1_master import (GL_ACCOUNTS, cost_center_rows, budget_rows, SITES, REQUES
 from p1_suppliers import SUPPLIERS, SUPPLIER_PAYMENT, ITEMS  # noqa: E402
 from p1_history import build, doc_samples  # noqa: E402
 from p1_texts import README, INPUTS, QUESTIONS_Q, QUESTIONS_B, SCENARIOS  # noqa: E402
+from p1_demo import COLUMNS as DEMO_COLUMNS, SCENES as DEMO_SCENES  # noqa: E402
 
 REAL, DEFAULT, SYNTH = 'real', 'default', 'synthetic'
 FILL = {REAL: '1F3864', DEFAULT: '7F7F7F', SYNTH: 'BF8F00'}
-MONEY = {'planned', 'net', 'vat', 'gross', 'unitPrice', 'refUnitPrice', 'agreedUnitPrice', 'countsAgainstBudget', 'expectedWht', 'gt', 'lte'}
+MONEY = {'planned', 'net', 'vat', 'gross', 'unitPrice', 'refUnitPrice', 'agreedUnitPrice', 'countsAgainstBudget', 'expectedWht', 'gt', 'lte', 'invoiceUnitPrice'}
 
 
 def table(ws, kind, columns, rows):
@@ -169,6 +170,7 @@ def main():
           ('quality', 'คุณภาพภาพ'), ('language', 'ภาษา'), ('notes', 'จุดที่ AI ต้องระวัง')], none(samples))
     table(sheet('Scenarios'), SYNTH, [('id', 'รหัส'), ('area', 'เรื่อง'), ('descriptionTh', 'สถานการณ์'), ('where', 'อยู่ตรงไหนในข้อมูล'), ('usedBy', 'ใช้ทดสอบ')],
           none([(f'SC-{i:02d}',) + s for i, s in enumerate(SCENARIOS, 1)]))
+    table(sheet('Demo_Script_P1'), SYNTH, DEMO_COLUMNS, none(DEMO_SCENES))
     deterministic(wb, out)
 
     if not blank:

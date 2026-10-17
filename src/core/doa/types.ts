@@ -219,6 +219,12 @@ export interface RouteCommittee {
 
 export interface RouteStep {
   readonly stepNo: number
+  /**
+   * The step's place in the rule's steps (1-based), before repeated approvers were merged (BR-DOA-07): the number a
+   * stored step keeps (ApprovalStep.doaStepNo, BR-WF-06), so the step found again when it starts is the same step of the
+   * rule however the holders of then and of now merge (BR-WF-14). stepNo is the place on the route after merging.
+   */
+  readonly ruleStepNo: number
   readonly assigneeMemberId: string
   /** The delegator when a delegate holds the task (BR-DLG-04); null otherwise */
   readonly principalMemberId: string | null

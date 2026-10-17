@@ -1,6 +1,6 @@
-import { resolveRoute, type RouteInput, type RouteStep } from '@/core/doa'
+import type { RouteInput, RouteStep } from '@/core/doa'
 import type { AppError } from '@/core/result'
-import { activateStep } from '@/core/workflow'
+import { activateStep, stepOfRoute } from '@/core/workflow'
 import type { Ctx } from '@/server/context'
 import type { TenantTx } from '@/server/db/tenant'
 import { loadBusinessCalendar, loadRoutePolicy } from '@/server/doa/policy'
@@ -11,9 +11,11 @@ import { assignStepTasks, remindShareOf, type ApprovalSubject } from './route'
 
 // The next step of a route after one is approved (spec §7.4, BR-WF-14 · OQ-111 way ก · S6-08): its approvers — one, or a
 // committee's slots — come from the rule and the DOA version the route was made with, but from the holders, the
-// departments and the delegations as they are when the step starts (activateStep of src/core/workflow). A holder who is
-// the requester or conflicts with the document escalates as at the submit, in that same version. The stored step is
-// matched to the engine's by its DOA step number (ApprovalStep.doaStepNo, BR-WF-06), never by its place in the route: a
+// departments and the delegations as they are when the step starts (activateStep of src/core/workflow), starting from
+// the route's own rule, not the one its amount chooses today. A holder who is the requester or conflicts with the
+// document escalates as at the submit, in that same version. The stored step is matched to the engine's by its DOA step
+// number (ApprovalStep.doaStepNo, BR-WF-06): its place in the rule before repeated approvers merged (RouteStep.
+// ruleStepNo), never its place in the route — the holders of now may merge differently from those of the submit, and a
 // route with a REVIEW step (S6) numbers its DOA steps one further on. When the step goes to someone else than the route
 // would have given it when it was made, approval_task.assigned says whom it was to go to (holderChangedFrom), and the
 // screens say the holder changed.
@@ -35,15 +37,16 @@ export async function assignNextStep(
   if (!next) return { ok: true, assigned: false }
   const version = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.doaVersionId }, include: { rules: true } })
   const policy = await loadRoutePolicy(tx)
-  const now = next.doaStepNo === null ? null : activateStep(input, versionSnapshotFromRows(version, version.rules), policy.org, policy.delegations, ctx.now)
+  const pinned = versionSnapshotFromRows(version, version.rules)
+  const doaStepNo = next.doaStepNo
   // A holder of now who is the requester or conflicts escalates the rule (BR-DOA-06): the rule above may have fewer steps,
-  // and its last step takes the waiting one
-  const escalated = now?.ok && now.data.ruleCode !== route.ruleCode
-  const step = now?.ok ? (now.data.steps.find((s) => s.stepNo === next.doaStepNo) ?? (escalated ? now.data.steps.at(-1) : undefined)) : undefined
+  // and its last step takes the waiting one (stepOfRoute)
+  const now = doaStepNo === null ? null : activateStep(input, pinned, policy.org, policy.delegations, ctx.now, route.ruleCode)
+  const step = now?.ok && doaStepNo !== null ? stepOfRoute(now.data, route.ruleCode, doaStepNo) : undefined
   if (!step) return { ok: false, error: { code: 'APPROVER_NOT_FOUND', message: 'the next step has no approver', details: { stepNo: next.stepNo, doaStepNo: next.doaStepNo } } }
   // Whom the route would have given the step when it was made: told apart from whom it goes to now
-  const then = resolveRoute({ ...input, at: route.createdAt }, { ...policy, versions: [{ ...versionSnapshotFromRows(version, version.rules), status: 'PUBLISHED', effectiveFrom: new Date(0), effectiveTo: null }] })
-  const before = holdersOf(then.ok ? then.data.steps.find((s) => s.stepNo === next.doaStepNo) : undefined)
+  const then = activateStep(input, pinned, policy.org, policy.delegations, route.createdAt, route.ruleCode)
+  const before = holdersOf(then.ok ? stepOfRoute(then.data, route.ruleCode, doaStepNo!) : undefined)
   const timing = { remindShare: remindShareOf(version.escalationPolicy), calendar: await loadBusinessCalendar(tx, ctx.organizationId) }
   // Every slot of a committee step gets its task at once (BR-WF-01); a step of one approver gets one
   const assigned = await assignStepTasks(tx, ctx, { stepId: next.id, stepNo: next.stepNo, routeId: route.id, slaBusinessMinutes: next.slaBusinessMinutes }, step, subject, timing)

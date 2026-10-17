@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ok, type Result } from '@/core/result'
+import { err, ok, type Result } from '@/core/result'
 import { TASK_MACHINE, transition, type TaskState } from '@/core/state-machines'
 import { stepOutcome, type SlotDecision } from '@/core/workflow'
 import type { Ctx } from '@/server/context'
@@ -41,6 +41,18 @@ export async function lockForDecision(tx: TenantTx, organizationId: string, task
   const open = await tx.approvalTask.findMany({ where: { stepId: task.stepId, status: { in: [...OPEN_STATES] } }, select: { id: true } })
   const locked = await lockRowsForUpdate(tx, 'ApprovalTask', organizationId, [taskId, ...open.map((t) => t.id)])
   return locked.includes(taskId)
+}
+
+/**
+ * Whether a member holds an open task of another slot of the step, or decided one (BR-WF-02: a member holds at most one
+ * slot of a step, acting for others included). A task is never moved to such a member — a delegation that starts, a
+ * holder assigned, a department moved — and completeStep refuses the second decision whatever moved it there.
+ */
+export async function holdsAnotherSlot(tx: TenantTx, stepId: string, slotNo: number, memberId: string): Promise<boolean> {
+  const other = await tx.approvalTask.count({
+    where: { stepId, slotNo: { not: slotNo }, OR: [{ decidedByMemberId: memberId }, { status: { in: [...OPEN_STATES] }, OR: [{ assigneeMemberId: memberId }, { principalMemberId: memberId }] }] },
+  })
+  return other > 0
 }
 
 /** What the helper needs of the task that was just decided (locked by the decide flow) */
@@ -117,7 +129,11 @@ export async function completeStep(tx: TenantTx, ctx: Ctx, decided: DecidedTask,
     where: { id: decided.stepId },
     select: { stepNo: true, routeId: true, kind: true, mode: true, quorum: true, quorumCount: true, reviewGroups: true, route: { select: { subjectType: true } } },
   })
-  const { slotNo } = await tx.approvalTask.findUniqueOrThrow({ where: { id: decided.id }, select: { slotNo: true } })
+  const { slotNo, decidedByMemberId } = await tx.approvalTask.findUniqueOrThrow({ where: { id: decided.id }, select: { slotNo: true, decidedByMemberId: true } })
+  // BR-WF-02: one member decides one slot of a step — the second decision of the same person is refused (rolled back)
+  if (decidedByMemberId && (await tx.approvalTask.count({ where: { stepId: decided.stepId, id: { not: decided.id }, slotNo: { not: slotNo }, decidedByMemberId } }))) {
+    return err('SOD_VIOLATION', 'a member decides one slot of a step', { rule: 'BR-WF-02' })
+  }
   // The slot is decided: its other open tasks close as the co-assignee's did before S6 (BR-SLA-04)
   await cancelOpenTasks(tx, ctx, decided, (n) => n === slotNo, 'CO_ASSIGNEE_DECIDED', handled, events)
 

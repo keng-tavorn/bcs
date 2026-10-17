@@ -111,6 +111,30 @@ describe('[FR-WF-101/AC4] reviewers and their fallbacks (BR-WF-08)', () => {
     const r = review([rule('RV-1')], {}, [d])
     expect(r.ok && r.data?.slots[0]!.assignees).toEqual([{ assigneeMemberId: 'asst_con', principalMemberId: 'dm_qse', resolvedFrom: 'POSITION:DM@QSE', notifyOrgAdmin: false }])
   })
+
+  it('slots are merged after delegation: two reviewers who delegated to one person give that person one slot (BR-WF-02)', () => {
+    const to = (delegatorMemberId: string): DelegationSnapshot => ({ id: `D-${delegatorMemberId}`, delegatorMemberId, delegateMemberId: 'asst_con', startsAt: new Date('2026-10-05T00:00:00Z'), endsAt: new Date('2026-10-09T00:00:00Z'), documentTypes: null, maxAmountSatang: null, status: 'ACTIVE' })
+    const both = [to('dm_qse'), to('dm_fin')]
+    // two ALL rules: one slot, held for the first, answering both groups
+    const all = review([rule('RV-1'), rule('RV-2', { sortOrder: 1, reviewers: [POS('DM', 'FIN')] })], {}, both)
+    expect(slotsOf(all)).toEqual([[1, ['RV-1', 'RV-2'], ['asst_con']]])
+    expect(all.ok && all.data?.slots[0]!.assignees[0]!.principalMemberId).toBe('dm_qse')
+    expect(groupsOf(all)).toEqual([
+      [['RV-1'], 'ALL', [1]],
+      [['RV-2'], 'ALL', [1]],
+    ])
+    // COUNT 2 of 3: the delegate holds one slot, so two people still decide
+    const count = review([rule('RV-3', { mode: 'COUNT', quorumCount: 2, fallback: null, reviewers: [POS('DM', 'QSE'), POS('DM', 'FIN'), POS('DM', 'IT')] })], {}, both)
+    expect(slotsOf(count)).toEqual([
+      [1, ['RV-3'], ['asst_con']],
+      [2, ['RV-3'], ['dm_it']],
+    ])
+    // COUNT 3 of 3 cannot be met by two people
+    expect(review([rule('RV-4', { mode: 'COUNT', quorumCount: 3, fallback: null, reviewers: [POS('DM', 'QSE'), POS('DM', 'FIN'), POS('DM', 'IT')] })], {}, both)).toMatchObject({ ok: false, error: { code: 'REVIEWER_NOT_FOUND' } })
+    // ANY: the delegate appears once among the reviewers of the slot
+    const any = review([rule('RV-5', { mode: 'ANY' }), rule('RV-6', { mode: 'ANY', sortOrder: 1, reviewers: [POS('DM', 'FIN')] })], {}, both)
+    expect(slotsOf(any)).toEqual([[1, ['RV-5', 'RV-6'], ['asst_con']]])
+  })
 })
 
 describe('[FR-WF-101/AC3] [INV-WF-02] slots and groups: one person holds one slot of the step (BR-WF-02, BR-WF-06)', () => {

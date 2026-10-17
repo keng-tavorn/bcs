@@ -14,11 +14,27 @@ import { resolveReviewer, type ReviewerSpec } from './reviewers'
 //     position or a named member does not move (GC-WF-44); a task whose new holder is missing or conflicts with the
 //     document stays where it is, for ORG_ADMIN to reassign (BR-DOA-17)
 
-/** The approvers of a step that starts at `at`: the route's version, the organization of now */
-export function activateStep(input: RouteInput, version: DoaVersionSnapshot, org: OrgSnapshot, delegations: readonly DelegationSnapshot[], at: Date): Result<RouteResult> {
+/**
+ * The approvers of a step that starts at `at`: the route's version, the organization of now. ruleCode is the route's own
+ * rule (BR-WF-14), not the one the amount would choose today: a route escalated at its submit keeps the band it was
+ * escalated to. Left out, the amount chooses. Repeated approvers are not merged again (BR-DOA-07 merged them once, when
+ * the route was made, and the stored steps are what is left): every step of the rule keeps its holder of now, so the
+ * stored step finds its own (stepOfRoute).
+ */
+export function activateStep(input: RouteInput, version: DoaVersionSnapshot, org: OrgSnapshot, delegations: readonly DelegationSnapshot[], at: Date, ruleCode?: string): Result<RouteResult> {
   // The route's version as the only one, in effect whenever: its rules decide, not the version of today
-  const pinned: DoaVersionSnapshot = { ...version, status: 'PUBLISHED', effectiveFrom: new Date(0), effectiveTo: null }
-  return resolveRoute({ ...input, at }, { versions: [pinned], org, delegations })
+  const pinned: DoaVersionSnapshot = { ...version, status: 'PUBLISHED', effectiveFrom: new Date(0), effectiveTo: null, collapseDuplicateApprovers: false }
+  return resolveRoute({ ...input, at }, { versions: [pinned], org, delegations }, ruleCode === undefined ? {} : { ruleCode })
+}
+
+/**
+ * The step of a route found again that stands for the stored step of DOA step number doaStepNo — its place in the rule
+ * (RouteStep.ruleStepNo): that step, or, on a route found again with repeated approvers merged (resolveRoute, not
+ * activateStep), the step it merged into, which has the same approver. A conflict that moved the route up a band (BR-DOA-06) gives the
+ * waiting step to the last step of the band it moved to.
+ */
+export function stepOfRoute(route: RouteResult, ruleCode: string, doaStepNo: number): RouteResult['steps'][number] | undefined {
+  return route.ruleCode !== ruleCode ? route.steps.at(-1) : route.steps.find((s) => s.ruleStepNo >= doaStepNo)
 }
 
 export interface OpenTaskOnTree {

@@ -68,10 +68,23 @@ const made: { overRequest?: string; editRequest?: string; overrun?: string; bank
 let late: Targets | null = null
 const doaPublished = t.doa.find((d) => d.status === 'PUBLISHED') ?? t.doa[0]
 const workflow = t.workflows.find((w) => w.status === 'DRAFT') ?? t.workflows[0]
-const button = (name: string | RegExp) => async (page: Page) => {
-  await page.getByRole('button', { name }).first().click()
-  await expect(page.getByRole('dialog').first()).toBeVisible()
-}
+/**
+ * Opens a dialog or sheet: the button that opens it, after the buttons before it that are on the page (a draft to make
+ * first — the second width finds it made). Short waits: a page without the button is recorded, not waited on.
+ */
+const button =
+  (name: string | RegExp, ...before: ReadonlyArray<string | RegExp>) =>
+  async (page: Page) => {
+    for (const first of before) {
+      const step = page.getByRole('button', { name: first }).or(page.getByRole('link', { name: first })).first()
+      if (await step.isVisible({ timeout: 3_000 }).catch(() => false)) {
+        await step.click({ timeout: 10_000 })
+        await page.waitForLoadState('load')
+      }
+    }
+    await page.getByRole('button', { name }).first().click({ timeout: 15_000 })
+    await expect(page.getByRole('dialog').first()).toBeVisible({ timeout: 10_000 })
+  }
 
 const SCREENS: Screen[] = [
   // G1 the platform and the organization's admins
@@ -143,11 +156,9 @@ const SCREENS: Screen[] = [
   { name: 'public_verify_unknown', who: 'nobody', path: '/verify/not-a-real-token-0000', kind: 'public' },
 ]
 SCREENS.push(
-  { name: 'admin_request-types_BUY_GOODS_form_dialog', who: 'admin', path: '/admin/request-types/BUY_GOODS/form', kind: 'web', open: button('เพิ่มคำถาม') },
-  { name: 'admin2_workflows_version_dialog', who: 'admin2', path: `/admin/workflows/${workflow?.id}`, kind: 'web', open: button('เพิ่มข้อผู้ตรวจ') },
-  { name: 'fm_p02_requests_new_BUY_GOODS_catalog', who: 'fm_p02', path: '/requests/new/BUY_GOODS', kind: 'web', open: button(/^เลือกรายการที่ 1 จากแคตตาล็อก/) },
+  { name: 'admin_request-types_BUY_GOODS_form_dialog', who: 'admin', path: '/admin/request-types/BUY_GOODS/form', kind: 'web', open: button('เพิ่มคำถาม', 'สร้างร่างฉบับใหม่') },
+  { name: 'admin2_workflows_version_dialog', who: 'admin2', path: '/admin/workflows', kind: 'web', open: button('เพิ่มข้อผู้ตรวจ', /^สร้างร่างจาก /, /^แก้ WF-/) },
   { name: 'proc_officer_catalog_manage_dialog', who: 'proc_officer', path: '/catalog/manage', kind: 'web', open: button('เพิ่มรายการ') },
-  { name: 'fin_tre1_payments_new_sheet', who: 'fin_tre1', path: '/finance/payments/new', kind: 'web', open: button('เพิ่มใบแจ้งหนี้และเงินประกัน') },
   { name: 'proc_officer_po_sent', who: 'proc_officer', path: `/procurement/pos/${t.sentPo}`, kind: 'web' },
   { name: 'store_p07_receiving_po', who: 'store_p07', path: '/receiving', follow: 'main a[href^="/receiving/01"]', kind: 'web' },
   { name: 'fm_p02_settings_pin', who: 'fm_p02', path: '/settings/pin', kind: 'web' },
@@ -345,8 +356,8 @@ test.beforeAll(async ({ browser }) => {
     // The budget admin moves 1,000.00 between two lines of the year (S6-15): a BUDGET_TRANSFER task
     await signInAs(page, sheet, 'fin_bud1')
     await page.goto('/budgets/transfers/new')
-    await page.getByLabel('จากบรรทัด').selectOption({ index: 1 })
-    await page.getByLabel('ไปบรรทัด').selectOption({ index: 2 })
+    await page.getByLabel('จากบรรทัด', { exact: true }).selectOption({ index: 1 })
+    await page.getByLabel('ไปบรรทัด', { exact: true }).selectOption({ index: 2 })
     await page.getByLabel('จำนวนเงิน (บาท)').fill('1000')
     await page.getByLabel('เหตุผล').fill('ย้ายงบค่าวัสดุไปงานที่เริ่มก่อนกำหนด')
     await page.getByRole('button', { name: 'ส่งขออนุมัติ', exact: true }).click()

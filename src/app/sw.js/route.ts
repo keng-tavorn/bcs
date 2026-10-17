@@ -18,7 +18,7 @@
 
 export const dynamic = 'force-static'
 
-const VERSION = process.env.APP_COMMIT_SHA || `build-${Date.now()}`
+const VERSION = process.env.APP_COMMIT_SHA || `build-${process.env.BCS_BUILD_STAMP}`
 const PRECACHE = ['/offline', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/maskable-512.png']
 
 const GO_SHELL = '/go/receive'

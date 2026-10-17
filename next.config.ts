@@ -22,6 +22,10 @@ const SEED_FILES = ['./docs/inputs/BCS_inputs_v1_demo.xlsx', './prisma/seed/*.ya
 const RICH_MENU_IMAGES = ['./assets/line/*.png']
 
 const nextConfig: NextConfig = {
+  // The build's own mark, fixed when it is built: the service worker's version where no commit is given (local, e2e).
+  // Read at run time instead, it changed whenever an action revalidated every page — /sw.js too — and the page then
+  // offered a "new version" of the same build (P1-09)
+  env: { BCS_BUILD_STAMP: String(Date.now()) },
   // Next 16.3+ otherwise writes a managed block into CLAUDE.md and creates AGENTS.md when it detects
   // an AI agent. S1-01 requires keeping the user's CLAUDE.md untouched.
   agentRules: false,

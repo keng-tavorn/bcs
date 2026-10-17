@@ -1453,7 +1453,7 @@
       "MEMBER": "A named-person reviewer is no longer in the organization; remove them from rule {rule}",
       "NOT_FOUND": "This version no longer exists; go back to the list",
       "NO_ANSWER": "No answer came back; check the connection and press again",
-      "NO_APPROVER": "No approver found under the DOA_CHANGE rule; check the DOA in effect and the position holders",
+      "NO_APPROVER": "No approver found under the DOA rule for DOA changes; check the DOA in effect and the position holders",
       "NO_DEPARTMENT": "The organization has no departments yet; add them to the organization chart first",
       "POSITION": "A reviewer's position or department was not found; choose again in rule {rule}",
       "REASON": "Enter a reason for the change of at least 3 characters",
@@ -1485,7 +1485,7 @@
       "who": "Reviewers and time"
     },
     "homeLink": "Back to home",
-    "intro": "Set which requests go to which reviewers before the DOA approvers. Only a draft can be edited; a new version takes effect once approved under the DOA_CHANGE rule.",
+    "intro": "Set which requests go to which reviewers before the DOA approvers. Only a draft can be edited; a new version takes effect once approved under the DOA rule for DOA changes.",
     "join": {
       "all": "Every row must match (and)",
       "any": "Any one row is enough (or)"
@@ -1642,7 +1642,7 @@
       "WITHDRAWN": "Withdrawn"
     },
     "submit": {
-      "approverError": "No approver found under the DOA_CHANGE rule; check the DOA in effect and the position holders before sending",
+      "approverError": "No approver found under the DOA rule for DOA changes; check the DOA in effect and the position holders before sending",
       "approverLine": "This version goes to {names} for approval under {ref}",
       "button": "Send for approval to publish",
       "cancel": "Back to checking",
@@ -6300,11 +6300,18 @@
       "unknownHint": "Go back to the KPI page and press the value of the measure you want."
     },
     "kinds": {
+      "BANK_ACCOUNT_CHANGE": "bank account changes",
+      "BUDGET_OVERRUN": "over-budget approvals",
+      "BUDGET_TRANSFER": "budget transfers",
       "DOA_VERSION": "DOA versions",
+      "INVOICE": "invoices",
       "ORG_AUTHORITY_CHANGE": "authority changes",
+      "PAYMENT_RUN": "payment runs",
+      "PO_CHANGE": "PO changes",
       "PURCHASE_ORDER": "purchase orders",
       "PURCHASE_REQUEST": "purchase requests",
-      "VARIANCE": "receiving variances"
+      "VARIANCE": "receiving variances",
+      "WORKFLOW_VERSION": "reviewer workflow versions"
     },
     "linkLabel": "See what is counted: {name} {value}",
     "measures": {
@@ -7965,7 +7972,7 @@
   },
   "policyWithdrawal": {
     "cancel": "Cancel",
-    "dialogText": "The request goes to the approver of the DOA_CHANGE rule. Meanwhile this version keeps its date; if that date comes before the approval, the request is cancelled.",
+    "dialogText": "The request goes to the approver of the DOA rule for DOA changes. Meanwhile this version keeps its date; if that date comes before the approval, the request is cancelled.",
     "dialogTitle": "Ask to withdraw {name}",
     "errors": {
       "ALREADY_EFFECTIVE": "This version is in effect already, so it cannot be withdrawn. Make a new draft to change it.",
@@ -7978,14 +7985,14 @@
       "NOT_FOUND": "This version is gone. Reload this page.",
       "NOT_PUBLISHED": "Only a version approved but not yet in effect can be withdrawn. Reload this page to see its status.",
       "NO_ANSWER": "No answer came back. Check your connection and send again.",
-      "NO_APPROVER": "No approver of the DOA_CHANGE rule could be found. Check the DOA in effect and its holders.",
+      "NO_APPROVER": "No approver of the DOA rule for DOA changes could be found. Check the DOA in effect and its holders.",
       "NO_DEPARTMENT": "The organization has no departments, so no approver can be found. Set up the organization first.",
       "SOD_VIOLATION": "You would approve your own request. Ask another admin to request the withdrawal.",
       "STATE": "This version has changed. Reload this page.",
       "UNAUTHENTICATED": "Your sign-in has expired. Sign in again and retry.",
       "WITHDRAWAL_PENDING": "A withdrawal of this version is already waiting. Reload this page to see where it stands."
     },
-    "intro": "{name} is approved but not yet in effect (it takes effect {time}). If it is no longer wanted, ask to withdraw it. The withdrawal is approved under the DOA_CHANGE rule, never by who asks. Once withdrawn, the version before it stays in effect.",
+    "intro": "{name} is approved but not yet in effect (it takes effect {time}). If it is no longer wanted, ask to withdraw it. The withdrawal is approved under the DOA rule for DOA changes, never by who asks. Once withdrawn, the version before it stays in effect.",
     "open": "Ask to withdraw this version",
     "pending": "{name} asked to withdraw this version on {time}",
     "pendingTitle": "Withdrawal request sent; waiting for the approver's decision",
@@ -8987,11 +8994,18 @@
     "home": "Back to home",
     "intro": "The reports the system offers: choose a period, see the result within your access, export it to Excel and have it e-mailed on a schedule.",
     "kinds": {
+      "BANK_ACCOUNT_CHANGE": "bank account changes",
+      "BUDGET_OVERRUN": "over-budget approvals",
+      "BUDGET_TRANSFER": "budget transfers",
       "DOA_VERSION": "DOA versions",
+      "INVOICE": "invoices",
       "ORG_AUTHORITY_CHANGE": "authority changes",
+      "PAYMENT_RUN": "payment runs",
+      "PO_CHANGE": "PO changes",
       "PURCHASE_ORDER": "purchase orders",
       "PURCHASE_REQUEST": "purchase requests",
-      "VARIANCE": "receiving variances"
+      "VARIANCE": "receiving variances",
+      "WORKFLOW_VERSION": "reviewer workflow versions"
     },
     "kpiHint": "The same figures as the KPI page, which explains each formula in words and opens the documents counted.",
     "kpiLink": "Open the KPI page for this period",

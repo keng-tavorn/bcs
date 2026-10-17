@@ -1,14 +1,15 @@
-import type { AppError } from '@/core/result'
+import { err, ok, type AppError, type Result } from '@/core/result'
 import { z } from 'zod'
 import { amountToSatang } from '@/core/money/dto'
 import { WORKFLOW_VERSION_MACHINE, transition, type WorkflowVersionState } from '@/core/state-machines'
 import { lintWorkflowVersion, resolveRequestRoute, resolveReviewer, workflowConditionHolds, type ReviewInput, type WorkflowRuleSnapshot, type WorkflowVersionSnapshot } from '@/core/workflow'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
+import { toJsonSafe, type Jsonified } from '@/lib/json'
 import { authorize } from '@/server/authz'
 import { systemCtx, type Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
-import type { TenantTx } from '@/server/db/tenant'
+import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { loadOrgSnapshot, loadRoutePolicy } from '@/server/doa/policy'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
@@ -269,52 +270,84 @@ export async function holdsWorkflowTask(tx: TenantTx, ctx: Ctx, versionId: strin
   return held > 0
 }
 
+type DryRunDocuments = z.output<typeof DryRunInput>['documents']
+
+/** May try documents out on the version: admin.workflow.simulate, or a task on its approval route (FR-WF-103 AC3) */
+async function mayDryRun(tx: TenantTx, ctx: Ctx, versionId: string): Promise<{ ok: false; error: AppError } | null> {
+  const allowed = await authorize(tx, ctx, 'admin.workflow.simulate')
+  return allowed.ok || (await holdsWorkflowTask(tx, ctx, versionId)) ? null : { ok: false, error: allowed.error }
+}
+
+/** The version in effect now and this version as if it were, for each document: the engine of real routing */
+async function dryRunRows(tx: TenantTx, ctx: Ctx, row: Parameters<typeof workflowVersionFromRows>[0], rules: Parameters<typeof workflowVersionFromRows>[1], documents: DryRunDocuments): Promise<DryRunRow[]> {
+  const draft = workflowVersionFromRows(row, rules)
+  const [policy, workflows] = await Promise.all([loadRoutePolicy(tx), loadWorkflowVersions(tx)])
+  // The draft as if it were the version in effect now, with the same holders, delegations and time
+  const asInEffect: WorkflowVersionSnapshot = { ...draft, status: 'PUBLISHED', effectiveFrom: ctx.now, effectiveTo: null }
+  const side = (versions: readonly WorkflowVersionSnapshot[], d: DryRunDocuments[number]): DryRunSide => {
+    const review = reviewInputOf(d)
+    const result = resolveRequestRoute(
+      { documentType: 'PURCHASE_REQUEST', amount: { netSatang: review.amountNet, vatSatang: review.amountGross - review.amountNet }, requesterMemberId: d.requesterMemberId, chargedDepartmentId: d.chargedDepartmentId, conflictMemberIds: [d.requesterMemberId], at: ctx.now },
+      review,
+      { ...policy, workflows: versions },
+    )
+    if (!result.ok) return { ok: false, review: null, approval: null, error: { code: result.error.code, ...(result.error.details ? { details: result.error.details } : {}) } }
+    return {
+      ok: true,
+      review: result.data.review?.slots.map((s) => ({ ruleCodes: s.ruleCodes, memberIds: s.assignees.map((a) => a.assigneeMemberId) })) ?? null,
+      approval: { ruleCode: result.data.approval.ruleCode, memberIds: result.data.approval.steps.flatMap((s) => (s.committee ? s.committee.slots.map((x) => x.assigneeMemberId) : [s.assigneeMemberId])) },
+      error: null,
+    }
+  }
+  return documents.map((d) => {
+    const current = side(workflows, d)
+    const next = side([asInEffect], d)
+    return { current, draft: next, changed: JSON.stringify(current) !== JSON.stringify(next) }
+  })
+}
+
+/** The dry-run of a draft: recorded, as submit asks that it ran after the last change (FR-WF-103 AC2) */
 export const dryRunWorkflowCommand = defineCommand({
   name: 'workflowVersion.dry_run',
   capability: 'admin.workflow.simulate',
   input: DryRunInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ rows: DryRunRow[] }>> {
-    const allowed = await authorize(tx, ctx, 'admin.workflow.simulate')
-    if (!allowed.ok && !(await holdsWorkflowTask(tx, ctx, input.versionId))) return { ok: false, error: allowed.error }
+    const refused = await mayDryRun(tx, ctx, input.versionId)
+    if (refused) return refused
     const [locked] = await lockRowsForUpdate(tx, 'WorkflowVersion', ctx.organizationId, [input.versionId])
     if (!locked) return fail('NOT_FOUND', 'workflow version not found')
     const row = await tx.workflowVersion.findUniqueOrThrow({ where: { id: input.versionId }, include: { rules: true } })
-    const draft = workflowVersionFromRows(row, row.rules)
-    const [policy, workflows] = await Promise.all([loadRoutePolicy(tx), loadWorkflowVersions(tx)])
-    // The draft as if it were the version in effect now, with the same holders, delegations and time
-    const asInEffect: WorkflowVersionSnapshot = { ...draft, status: 'PUBLISHED', effectiveFrom: ctx.now, effectiveTo: null }
-    const side = (versions: readonly WorkflowVersionSnapshot[], d: (typeof input.documents)[number]): DryRunSide => {
-      const review = reviewInputOf(d)
-      const result = resolveRequestRoute(
-        { documentType: 'PURCHASE_REQUEST', amount: { netSatang: review.amountNet, vatSatang: review.amountGross - review.amountNet }, requesterMemberId: d.requesterMemberId, chargedDepartmentId: d.chargedDepartmentId, conflictMemberIds: [d.requesterMemberId], at: ctx.now },
-        review,
-        { ...policy, workflows: versions },
-      )
-      if (!result.ok) return { ok: false, review: null, approval: null, error: { code: result.error.code, ...(result.error.details ? { details: result.error.details } : {}) } }
-      return {
-        ok: true,
-        review: result.data.review?.slots.map((s) => ({ ruleCodes: s.ruleCodes, memberIds: s.assignees.map((a) => a.assigneeMemberId) })) ?? null,
-        approval: { ruleCode: result.data.approval.ruleCode, memberIds: result.data.approval.steps.flatMap((s) => (s.committee ? s.committee.slots.map((x) => x.assigneeMemberId) : [s.assigneeMemberId])) },
-        error: null,
-      }
+    // A version sent on since dryRunWorkflowVersion looked: its try-out is a read (INV-EVT-02), so ask again
+    if (row.status !== 'DRAFT') return fail('INVALID_STATE_TRANSITION', 'only a draft records its dry-run', { from: row.status })
+    const rows = await dryRunRows(tx, ctx, row, row.rules, input.documents)
+    await tx.workflowVersion.update({ where: { id: row.id }, data: { dryRunAt: ctx.now } })
+    return {
+      ok: true,
+      result: { rows },
+      events: [{ type: 'workflow_version.dry_run', aggregateType: 'WorkflowVersion', aggregateId: row.id, data: { code: row.code, versionNo: row.versionNo, documents: input.documents.length } }],
     }
-    const rows = input.documents.map((d) => {
-      const current = side(workflows, d)
-      const next = side([asInEffect], d)
-      return { current, draft: next, changed: JSON.stringify(current) !== JSON.stringify(next) }
-    })
-    // Only a draft records its dry-run: submit asks that it ran after the last change
-    const events: EventDraft[] = []
-    if (row.status === 'DRAFT') {
-      await tx.workflowVersion.update({ where: { id: row.id }, data: { dryRunAt: ctx.now } })
-      events.push({ type: 'workflow_version.dry_run', aggregateType: 'WorkflowVersion', aggregateId: row.id, data: { code: row.code, versionNo: row.versionNo, documents: input.documents.length } })
-    }
-    return { ok: true, result: { rows }, events }
   },
 })
 
-export function dryRunWorkflowVersion(ctx: Ctx, input: z.input<typeof DryRunInput>, options: RunOptions) {
-  return runCommand(ctx, dryRunWorkflowCommand, input, options)
+/**
+ * Tries documents out on a version (FR-WF-103 AC2 AC3). A draft's dry-run is the command above; any other version —
+ * the one its approver reads before deciding (NEW-102) — is read only: nothing is stored, so no event and no CommandLog,
+ * as the DOA try-out and the backtest.
+ */
+export async function dryRunWorkflowVersion(ctx: Ctx, input: z.input<typeof DryRunInput>, options: RunOptions): Promise<Result<Jsonified<{ rows: DryRunRow[] }>>> {
+  const parsed = DryRunInput.safeParse(input)
+  // The command answers a bad input the way every command does
+  if (!parsed.success) return runCommand(ctx, dryRunWorkflowCommand, input, options)
+  const { versionId, documents } = parsed.data
+  const read = await forTenant(ctx.organizationId).$transaction(async (tx): Promise<Result<Jsonified<{ rows: DryRunRow[] }>> | 'DRAFT'> => {
+    const refused = await mayDryRun(tx, ctx, versionId)
+    if (refused) return refused
+    const row = await tx.workflowVersion.findFirst({ where: { id: versionId }, include: { rules: true } })
+    if (!row) return err('NOT_FOUND', 'workflow version not found')
+    if (row.status === 'DRAFT') return 'DRAFT'
+    return ok(toJsonSafe({ rows: await dryRunRows(tx, ctx, row, row.rules, documents) }) as Jsonified<{ rows: DryRunRow[] }>)
+  })
+  return read === 'DRAFT' ? runCommand(ctx, dryRunWorkflowCommand, input, options) : read
 }
 
 // ---------- submit for publishing (FR-WF-103 AC2 AC3) ----------

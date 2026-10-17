@@ -3,9 +3,10 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
+import { runCommand } from '@/server/services/_pipeline'
 import { decideTask } from '@/server/services/approvals/decide'
 import { outsideChannels } from '@/server/services/approvals/subjects'
-import { activateWorkflowVersion, draftWorkflowVersion, dryRunWorkflowVersion, submitWorkflowVersion, updateWorkflowVersion } from '@/server/services/workflow'
+import { activateWorkflowVersion, draftWorkflowVersion, dryRunWorkflowCommand, dryRunWorkflowVersion, submitWorkflowVersion, updateWorkflowVersion } from '@/server/services/workflow'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { pinStepUp } from '../support/pin'
 
@@ -121,6 +122,37 @@ describe('[FR-WF-103/AC2] the dry-run and the checks before sending (BR-WF-11)',
     expect(
       await updateWorkflowVersion(admin(), { versionId, version: (await row(versionId)).version, effectiveDate: '2026-10-01', changeReason: 'ย้อนหลัง', rules: [rule('RV-1')], testCases: [] }, key()),
     ).toMatchObject({ ok: false, error: { details: { field: 'effectiveDate', reason: 'EFFECTIVE_IN_PAST' } } })
+  })
+})
+
+describe('[FR-WF-103/AC3] the approver tries documents out on the version waiting for them, reading only (NEW-102)', () => {
+  it('the CEO, without admin.workflow.*, sees both routes; nothing is written; who holds no task is refused', async () => {
+    const { versionId } = await readyDraft()
+    ok(await submitWorkflowVersion(admin(), { versionId }, key()))
+    const before = await row(versionId)
+    const events = () => prisma.event.count({ where: { organizationId: org.organizationId, aggregateId: versionId } })
+    const logs = () => prisma.commandLog.count({ where: { organizationId: org.organizationId, commandName: 'workflowVersion.dry_run' } })
+    const [eventsBefore, logsBefore] = [await events(), await logs()]
+    const document = { requestType: 'BUY_GOODS', amountGross: '5000.00', lineCategories: ['FUEL'], requesterMemberId: org.member.req_con!, chargedDepartmentId: org.department.CON! }
+
+    // The CEO holds the task of DOA_CHANGE: no admin capability, so the try-out on version 1 is refused
+    expect(await dryRunWorkflowVersion(org.ctxOf('ceo', LATER), { versionId: v1, documents: [document] }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    const { rows } = ok(await dryRunWorkflowVersion(org.ctxOf('ceo', LATER), { versionId, documents: [document] }, key()))
+    expect(rows).toEqual([
+      {
+        current: { ok: true, review: null, approval: { ruleCode: 'PR-01', memberIds: [org.member.dm_con] }, error: null },
+        draft: { ok: true, review: [{ ruleCodes: ['RV-2'], memberIds: [org.member.dm_proc] }], approval: { ruleCode: 'PR-01', memberIds: [org.member.dm_con] }, error: null },
+        changed: true,
+      },
+    ])
+    // the submitter too (admin.workflow.simulate); a requester holds neither
+    ok(await dryRunWorkflowVersion(admin(), { versionId, documents: [document] }, key()))
+    expect(await dryRunWorkflowVersion(org.ctxOf('req_con', LATER), { versionId, documents: [document] }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    // A read: the version, its events and the command log are as they were
+    expect(await row(versionId)).toMatchObject({ status: 'PENDING_APPROVAL', version: before.version, dryRunAt: before.dryRunAt })
+    expect([await events(), await logs()]).toEqual([eventsBefore, logsBefore])
+    // The command records a draft's dry-run only: a version sent on meanwhile is refused, not an INTERNAL (INV-EVT-02)
+    expect(await runCommand(admin(), dryRunWorkflowCommand, { versionId, documents: [document] }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { from: 'PENDING_APPROVAL' } } })
   })
 })
 

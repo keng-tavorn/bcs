@@ -7,7 +7,7 @@ import { columnOf, day, expectedOf, historyOf, p1Sheet, satangOf, sceneOf, scrip
 // Scene 3 of the day of phase 1 (sheet Demo_Script_P1 · S6 · FR-WF-103): the second admin lowers the threshold of the
 // parallel reviewers of contract work in a draft of the workflow in effect, tries the draft with one request of the
 // row's amount beside the version in effect, backtests it over 90 days and sends it; the CEO — the approver of the
-// DOA's DOA_CHANGE rule — reads the change and runs the backtest, then approves it with the PIN, which the database
+// DOA's DOA_CHANGE rule — reads the change, tries the same request on it and runs the backtest, then approves it with the PIN, which the database
 // shows as a step-up grant of the CEO for this version spent on the decision. The draft is approved
 // for its default date (the first day of next month, never today), so the version in effect stays in effect for the
 // rest of the day and no later scene meets the new thresholds (expectJson.changesLaterScenes = false). Who acts, the
@@ -101,7 +101,7 @@ async function selectByLabel(select: Locator, label: string) {
   await select.selectOption({ label })
 }
 
-test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] scene 3: the second admin lowers the contract-work reviewer threshold in a draft, tries it beside the version in effect, backtests and sends it; the CEO backtests it too, approves with a PIN step-up and the draft waits for its date', async ({
+test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] [FR-WF-103/AC3] scene 3: the second admin lowers the contract-work reviewer threshold in a draft, tries it beside the version in effect, backtests and sends it; the CEO tries and backtests it too, approves with a PIN step-up and the draft waits for its date', async ({
   page,
   browser,
 }) => {
@@ -274,10 +274,10 @@ test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] scene 3: the second admin lowers t
   expect(sent.open).toEqual([expect.objectContaining({ versionNo: draftVersion, assignee: approver, ruleCode: approvalRule, doa: { code: sheet.doa.code, versionNo: sheet.doa.version } })])
   const task = sent.open[0]!
 
-  // The CEO on a computer of their own: on the version's page reads the change; on the task runs the backtest before
-  // deciding (BR-DOA-14), then approves with the PIN (BR-WF-12: every time), on the PIN path whether or not a passkey is
-  // offered beside it. The CEO's own try-out of the version waiting for them is not played: the app refuses it today
-  // with an internal error (the dry-run of a version that is not a draft writes no event · reported with P1-08)
+  // The CEO on a computer of their own: on the version's page reads the change and tries the row's request on it (FR-WF-103
+  // AC3: the holder of its task, without admin.workflow.*; a read, so the version's story below keeps one dry-run ·
+  // NEW-102); on the task runs the backtest before deciding (BR-DOA-14), then approves with the PIN (BR-WF-12: every
+  // time), on the PIN path whether or not a passkey is offered beside it
   const desk = await anotherDesk(browser)
   try {
     const ceo = await desk.newPage()
@@ -288,6 +288,7 @@ test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] scene 3: the second admin lowers t
     await expect(ceo).toHaveURL(new RegExp(`/admin/workflows/${task.versionId}$`))
     await ceo.getByRole('tab', { name: th('adminWorkflow.tabs.diff') }).click()
     for (const r of draftRules) await expect(ceo.getByText(th('adminWorkflow.diff.changed', { rule: r.rule })).first()).toBeVisible()
+    await expectTryOut(ceo)
     await ceo.goto(`/tasks/${task.taskId}`)
     await expectBacktest(ceo)
     const approve = ceo.getByRole('button', { name: th('tasks.policy.approve'), exact: true })

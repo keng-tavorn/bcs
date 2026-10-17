@@ -82,13 +82,15 @@ export function pinAttemptsLeft(failedCount: number): number {
 /**
  * Every decision on these subjects needs a step-up, whatever the amount: DOA versions and authority changes (BR-DOA-15;
  * an initial package is a DOA version), workflow versions (policy of the same kind, BR-DOA-15) and bank account changes
- * (BR-DOA-25). The only list of them: the chat button and the e-mail link refuse them through stepUpNeeded too.
+ * (BR-DOA-25). The only list of them: the chat button and the e-mail link refuse them through stepUpNeeded too, for
+ * every step but a parallel reviewer's (BR-WF-09, which only a request's route has).
  */
 export const ALWAYS_STEP_UP_SUBJECTS: readonly string[] = ['DOA_VERSION', 'ORG_AUTHORITY_CHANGE', 'WORKFLOW_VERSION', 'BANK_ACCOUNT_CHANGE']
 
 /**
- * The kind of step a task is on. Every step is an approval until S6 adds the parallel reviewers' steps (BR-WF-09,
- * INV-WF-04), whose rule for a step-up S6 writes here: the one place every decision, the LINE card and the task list ask.
+ * The kind of step a task is on, as this module knows it. A parallel reviewer's step (S6, BR-WF-09, INV-WF-04) needs
+ * no step-up whatever the amount: decideCommand, the LINE card and postback, the e-mail link and the task list each
+ * exempt step.kind REVIEW before they ask stepUpNeeded.
  */
 export type StepKind = 'APPROVAL'
 

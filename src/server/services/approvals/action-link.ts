@@ -19,7 +19,7 @@ import { outsideChannels } from './subjects'
 // security.token_misuse before anything about the task is said. A link whose task was decided — with it or anywhere
 // else, or by the other approver of its step — answers TOKEN_USED with who decided and when, as the LINE button does
 // (§9.3, FR-DOA-004 AC2, ADR-050 item 4). Anything needing a step-up (stepUpNeeded: the subjects of
-// ALWAYS_STEP_UP_SUBJECTS, or the amount at or above the version's stepUpThreshold) and any subject whose adapter keeps
+// ALWAYS_STEP_UP_SUBJECTS, or the amount at or above the version's stepUpThreshold; never a reviewer's pass, BR-WF-09) and any subject whose adapter keeps
 // the e-mail closed (BR-DOA-25) is decided in the workspace, where the second factor is asked.
 
 type LinkError = Extract<ErrorCode, 'TOKEN_INVALID' | 'TOKEN_USED' | 'TOKEN_EXPIRED'>

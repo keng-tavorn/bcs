@@ -17,7 +17,7 @@ import { outsideChannels } from './subjects'
 //  - the token must be a LINE token, issued to the actor: anyone else is refused FORBIDDEN, kept as
 //    security.token_misuse although nothing else is written;
 //  - a decision that needs a step-up (the amount the DOA counted at or above the version's stepUpThreshold, and every
-//    subject of ALWAYS_STEP_UP_SUBJECTS) is refused STEP_UP_REQUIRED, and so is a task whose subject keeps the chat
+//    subject of ALWAYS_STEP_UP_SUBJECTS — never a parallel reviewer's pass, BR-WF-09) is refused STEP_UP_REQUIRED, and so is a task whose subject keeps the chat
 //    closed (its adapter's channels, BR-DOA-25) — the card shows no approve button for either, and the server says no
 //    again;
 //  - the task is locked first, with the other open tasks of its step in one ascending-id lock (lockForDecision,

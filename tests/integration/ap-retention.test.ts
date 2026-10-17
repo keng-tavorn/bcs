@@ -143,7 +143,7 @@ describe('[FR-AP-106/AC2] [FR-AP-106/AC3] [FR-AP-106/AC4] a milestone invoice wi
     expect(await inS9(ctx, (tx) => holdInvoicesForPayment(tx, ctx, { invoiceIds: [invoiceId], paymentRunId: run }))).toMatchObject({ ok: true })
     expect(await inS9(ctx, (tx) => holdRetentionsForPayment(tx, ctx, { retentionIds: [retentionId], paymentRunId: run }))).toMatchObject({ ok: true })
     // let go and taken again: back to RELEASABLE in between
-    await inS9(ctx, (tx) => releaseRetentionsFromPayment(tx, ctx, { retentionIds: [retentionId], reason: 'แยกรอบ' }))
+    await inS9(ctx, (tx) => releaseRetentionsFromPayment(tx, ctx, { retentionIds: [retentionId], paymentRunId: run }))
     expect((await prisma.retention.findUniqueOrThrow({ where: { id: retentionId } })).status).toBe('RELEASABLE')
     await inS9(ctx, (tx) => holdRetentionsForPayment(tx, ctx, { retentionIds: [retentionId], paymentRunId: run }))
     const paymentRunItemId = await paymentItemOf(ap, ap.supplierId)

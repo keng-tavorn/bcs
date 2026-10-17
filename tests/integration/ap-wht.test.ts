@@ -109,7 +109,7 @@ describe('[FR-AP-104/AC3] [BR-AP-12] S9 holds, lets go and records a payment thr
     const runId = randomUUID()
     expect(await inS9(juristic, s9(juristic), (tx) => holdInvoicesForPayment(tx, s9(juristic), { invoiceIds: [a, b], paymentRunId: runId }))).toMatchObject({ ok: true })
     expect(await rejectInvoice(fin(juristic), { invoiceId: a, version: (await prisma.invoice.findUniqueOrThrow({ where: { id: a } })).version, reason: 'x' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION' } })
-    await inS9(juristic, s9(juristic), (tx) => releaseInvoicesFromPayment(tx, s9(juristic), { invoiceIds: [b], reason: 'ออกจากรอบ' }))
+    await inS9(juristic, s9(juristic), (tx) => releaseInvoicesFromPayment(tx, s9(juristic), { invoiceIds: [b], paymentRunId: runId }))
     expect((await prisma.invoice.findUniqueOrThrow({ where: { id: b } })).status).toBe('READY_FOR_PAYMENT')
     await inS9(juristic, s9(juristic), (tx) => holdInvoicesForPayment(tx, s9(juristic), { invoiceIds: [b], paymentRunId: runId }))
 

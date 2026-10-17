@@ -232,12 +232,24 @@ export const requestPaymentFileDownloadCommand = defineCommand({
   },
 })
 
-/** The command, then a link made now: a replay of the same request gets a fresh link, never one kept in CommandLog */
+/**
+ * The command, then a link made now: a replay of the same request gets a fresh link, never one kept in CommandLog. A
+ * replay answers from CommandLog without running the command again, so the link is made only after the same checks
+ * pass now — FINANCE with PAY on, the version in use of a run on its way to the bank (BR-BANK-08) — whatever changed
+ * since the first answer.
+ */
 export async function requestPaymentFileDownload(ctx: Ctx, input: z.input<typeof DownloadInput>, options: RunOptions): Promise<Result<{ url: string; expiresInSeconds: number; fileName: string; firstDownload: boolean }>> {
   const done = await runCommand(ctx, requestPaymentFileDownloadCommand, input, options)
   if (!done.ok) return done
-  const file = await forTenant(ctx.organizationId).paymentFile.findUniqueOrThrow({ where: { id: done.data.paymentFileId }, select: { file: { select: { storageKey: true } } } })
-  const url = await presignDownload(file.file.storageKey, { fileName: done.data.fileName, contentType: CSV, inline: false }, PRESIGN_TTL_SECONDS)
+  const now = await forTenant(ctx.organizationId).$transaction(async (tx) => {
+    const who = await finance(tx, ctx, 'paymentRun.file')
+    if (!who.ok) return who
+    const file = await tx.paymentFile.findUniqueOrThrow({ where: { id: done.data.paymentFileId }, select: { status: true, run: { select: { status: true } }, file: { select: { storageKey: true } } } })
+    if (file.status !== 'CURRENT' || (file.run.status !== 'FILE_READY' && file.run.status !== 'SENT_TO_BANK')) return fail('VALIDATION_FAILED', 'only the file in use of a run not finished is downloaded', { reason: 'FILE_NOT_CURRENT' })
+    return { ok: true as const, storageKey: file.file.storageKey }
+  })
+  if (!now.ok) return now
+  const url = await presignDownload(now.storageKey, { fileName: done.data.fileName, contentType: CSV, inline: false }, PRESIGN_TTL_SECONDS)
   return ok({ url, expiresInSeconds: PRESIGN_TTL_SECONDS, fileName: done.data.fileName, firstDownload: done.data.firstDownload })
 }
 

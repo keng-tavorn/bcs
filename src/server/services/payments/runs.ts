@@ -391,12 +391,12 @@ export const removePaymentDocumentsCommand = defineCommand({
     const events: EventDraft[] = []
     // S8 makes them ready for payment again; a draft never had a file, so the link goes with them
     if (input.invoiceIds.length) {
-      const released = await releaseInvoicesFromPayment(tx, ctx, { invoiceIds: input.invoiceIds, reason: input.reason })
+      const released = await releaseInvoicesFromPayment(tx, ctx, { invoiceIds: input.invoiceIds, paymentRunId: run.id })
       if (!released.ok) return released
       events.push(...released.events)
     }
     if (input.retentionIds.length) {
-      const released = await releaseRetentionsFromPayment(tx, ctx, { retentionIds: input.retentionIds, reason: input.reason })
+      const released = await releaseRetentionsFromPayment(tx, ctx, { retentionIds: input.retentionIds, paymentRunId: run.id })
       if (!released.ok) return released
       events.push(...released.events)
     }
@@ -411,7 +411,9 @@ export const removePaymentDocumentsCommand = defineCommand({
     const refreshed = await refreshRun(tx, ctx, run.id)
     if (!refreshed.ok) return refreshed
     const updated = await tx.paymentRun.update({ where: { id: run.id }, data: { version: { increment: 1 } }, select: { version: true, itemCount: true, totalTransferSatang: true } })
-    events.unshift({ type: 'payment_run.documents_removed', aggregateType: 'PaymentRun', aggregateId: run.id, data: { invoiceIds: input.invoiceIds, retentionIds: input.retentionIds, itemCount: updated.itemCount, totalTransferSatang: updated.totalTransferSatang.toString() } })
+    // the reason is free text: kept as a Comment of the run, never in Event.data (BR-BANK-08)
+    const comment = await tx.comment.create({ data: { organizationId: ctx.organizationId, subjectType: 'PaymentRun', subjectId: run.id, authorMemberId: who.memberId, body: input.reason }, select: { id: true } })
+    events.unshift({ type: 'payment_run.documents_removed', aggregateType: 'PaymentRun', aggregateId: run.id, data: { invoiceIds: input.invoiceIds, retentionIds: input.retentionIds, itemCount: updated.itemCount, totalTransferSatang: updated.totalTransferSatang.toString(), reasonCommentId: comment.id } })
     return { ok: true, result: { paymentRunId: run.id, version: updated.version, itemCount: updated.itemCount, totalTransferSatang: updated.totalTransferSatang.toString() }, events }
   },
 })
@@ -597,12 +599,12 @@ export async function releaseAll(tx: TenantTx, ctx: Ctx, paymentRunId: string, r
   const invoiceIds = links.flatMap((l) => (l.invoiceId ? [l.invoiceId] : []))
   const retentionIds = links.flatMap((l) => (l.retentionId ? [l.retentionId] : []))
   if (invoiceIds.length) {
-    const released = await releaseInvoicesFromPayment(tx, ctx, { invoiceIds, reason })
+    const released = await releaseInvoicesFromPayment(tx, ctx, { invoiceIds, paymentRunId })
     if (!released.ok) return released
     events.push(...released.events)
   }
   if (retentionIds.length) {
-    const released = await releaseRetentionsFromPayment(tx, ctx, { retentionIds, reason })
+    const released = await releaseRetentionsFromPayment(tx, ctx, { retentionIds, paymentRunId })
     if (!released.ok) return released
     events.push(...released.events)
   }

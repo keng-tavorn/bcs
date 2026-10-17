@@ -258,6 +258,23 @@ describe('[FR-PAY-102/AC6] the link to the file: FINANCE only, by POST, five min
     ok(await regenerate(run.runId, { confirmNotSentToBank: true }))
     expect(await download(run.runId, v1.paymentFileId)).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'FILE_NOT_CURRENT' } } })
   })
+
+  it('a resend with the same key is checked again before it gets a link: a version superseded since, or a run cancelled since, gets none (BR-BANK-08)', async () => {
+    const run = await approvedRun(1)
+    const v1 = ok(await generate(run.runId))
+    const sameKey = key()
+    const input = { paymentRunId: run.runId, paymentFileId: v1.paymentFileId }
+    ok(await requestPaymentFileDownload(fin(ap), input, sameKey))
+    // the same request again while nothing changed: a fresh link to the same version
+    expect(ok(await requestPaymentFileDownload(fin(ap), input, sameKey)).fileName).toBe(`BCS-NEUTRAL-1_NOT-A-BANK-FORMAT_${run.number}_v1.csv`)
+    const v2 = ok(await regenerate(run.runId, { confirmNotSentToBank: true }))
+    expect(await requestPaymentFileDownload(fin(ap), input, sameKey)).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'FILE_NOT_CURRENT' } } })
+
+    const v2Key = key()
+    ok(await requestPaymentFileDownload(fin(ap), { paymentRunId: run.runId, paymentFileId: v2.paymentFileId }, v2Key))
+    ok(await cancelApprovedPaymentRun(fin(ap), { paymentRunId: run.runId, version: await runVersion(run.runId), reason: 'ยกเลิกเพื่อทดสอบ', confirmNotSentToBank: true }, key()))
+    expect(await requestPaymentFileDownload(fin(ap), { paymentRunId: run.runId, paymentFileId: v2.paymentFileId }, v2Key)).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'FILE_NOT_CURRENT' } } })
+  })
 })
 
 describe('[FR-PAY-103/AC5] sent to the bank, and taken back while no result is recorded (BR-PAY-11)', () => {

@@ -62,7 +62,7 @@ defineEvents('Invoice', {
 // S8-08 (ADR-127): what S9's commands do to an invoice through ./services/ap/payment.ts, and the withholding tax
 defineEvents('Invoice', {
   'invoice.payment_held': { schema: z.object({ paymentRunId: z.uuid() }) },
-  'invoice.payment_released': { schema: z.object({ reason: z.string().min(1) }) },
+  'invoice.payment_released': { schema: z.object({ paymentRunId: z.uuid() }) },
   'invoice.paid': { schema: z.object({ paymentRunItemId: z.uuid(), paidOn: z.iso.date(), payableSatang: satang, whtSatang: satang, transferSatang: satang }) },
 })
 const whtForm = z.enum(['PND3_53', 'PND53', 'PND3'])
@@ -88,7 +88,7 @@ defineEvents('Retention', {
   'retention.released': { schema: z.object({ invoiceId: z.uuid(), amountSatang: satang, releaseDueOn: day }) },
   'retention.release_due': { schema: z.object({ invoiceId: z.uuid(), amountSatang: satang, releaseDueOn: day }) },
   'retention.payment_held': { schema: z.object({ paymentRunId: z.uuid() }) },
-  'retention.payment_released': { schema: z.object({ reason: z.string().min(1) }) },
+  'retention.payment_released': { schema: z.object({ paymentRunId: z.uuid() }) },
   'retention.paid': { schema: z.object({ paymentRunItemId: z.uuid(), paidOn: day, amountSatang: satang, whtSatang: satang, transferSatang: satang }) },
 })
 

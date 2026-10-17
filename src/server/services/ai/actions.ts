@@ -11,6 +11,7 @@ import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { checkCreditUsage } from './credits'
 import { checkCallGates, type CallPlan } from './gate'
+import { listOrganizationsForPlatform } from '@/server/db/lookups'
 
 // AgentAction (spec §12.2, docs/sub-specs/S13.md "Entity และ migration" "State machine" BR-AI-04 BR-AI-11 BR-AI-18
 // BR-AI-23). An agent service asks for a call (agent_action.request: every gate of BR-AI-11 in the same transaction as
@@ -433,6 +434,11 @@ export async function purgeChatIntakeAiContent(tx: TenantTx, ctx: Ctx, chatIntak
     await tx.agentAction.update({ where: { id }, data: { inputText: null, output: PURGED, review: PURGED, verification: PURGED, fieldConfidence: PURGED, contentPurgedAt: ctx.now } })
   }
   return rows.map(({ id }) => ({ type: 'agent_action.content_purged', aggregateType: 'AgentAction', aggregateId: id, data: { reason: 'CHAT_INTAKE_UNUSED' } }))
+}
+
+/** The organizations the job ai-actions-expire sweeps: every one, a suspended one too (what BR-AI-18 clears is cleared) */
+export async function agentActionSweepOrganizationIds(): Promise<string[]> {
+  return (await listOrganizationsForPlatform()).map((o) => o.id)
 }
 
 /** What the job ai-actions-expire runs for one organization each hour: the hour is the idempotency key */

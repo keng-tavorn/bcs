@@ -1,7 +1,6 @@
 import { systemClock } from '@/lib/clock'
 import { inngest } from '@/server/inngest'
-import { runAgentActionSweep } from '@/server/services/ai'
-import { listOrganizationsForPlatform } from '@/server/db/lookups'
+import { agentActionSweepOrganizationIds, runAgentActionSweep } from '@/server/services/ai'
 
 // Job `ai-actions-expire` (docs/sub-specs/S13.md "งานเบื้องหลัง", ADR-145): every hour, for every organization — a
 // suspended one too: what BR-AI-18 clears is cleared whatever the organization's status (as the chat sweep does) — a
@@ -10,7 +9,7 @@ import { listOrganizationsForPlatform } from '@/server/db/lookups'
 export const AI_ACTIONS_EXPIRE_CRON = 'TZ=Asia/Bangkok 17 * * * *'
 
 export const aiActionsExpire = inngest.createFunction({ id: 'ai-actions-expire', triggers: [{ cron: AI_ACTIONS_EXPIRE_CRON }] }, async ({ step }) => {
-  const organizations = await step.run('organizations', async () => (await listOrganizationsForPlatform()).map((o) => o.id))
+  const organizations = await step.run('organizations', () => agentActionSweepOrganizationIds())
   for (const organizationId of organizations) {
     await step.run(`sweep-${organizationId}`, () => runAgentActionSweep(organizationId, systemClock.now()))
   }

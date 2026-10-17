@@ -2,6 +2,7 @@
 // The agents (./agents) join as they are built; the assist contract (./assist-contract) is imported by the services of
 // the documents directly and never reaches the adapter (ADR-148).
 export {
+  agentActionSweepOrganizationIds,
   getAgentAction,
   giveAgentFeedback,
   rejectAgentAction,

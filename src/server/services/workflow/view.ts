@@ -354,7 +354,8 @@ export async function getWorkflowEditor(ctx: Ctx, versionId: string): Promise<Re
       tx.budgetLine.findMany({ where: { accountCode: { not: null } }, distinct: ['accountCode'], select: { accountCode: true }, orderBy: { accountCode: 'asc' } }),
       baselineOf(tx, row, ctx.now),
       tx.approvalRoute.findFirst({ where: { subjectType: 'WORKFLOW_VERSION', subjectId: row.id }, select: ROUTE_SELECT, orderBy: { routeNo: 'desc' } }),
-      authorize(tx, ctx, 'admin.workflow.simulate').then((r) => r.ok || approver),
+      // the try-out as dryRunWorkflowVersion allows it: an approver while their task waits for them
+      authorize(tx, ctx, 'admin.workflow.simulate').then(async (r) => r.ok || (approver && (await holdsWorkflowTask(tx, ctx, versionId, { undecided: true })))),
       authorize(tx, ctx, 'admin.workflow.submitForPublish').then((r) => r.ok),
     ])
 

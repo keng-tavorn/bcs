@@ -153,6 +153,15 @@ describe('[FR-WF-103/AC3] the approver tries documents out on the version waitin
     expect([await events(), await logs()]).toEqual([eventsBefore, logsBefore])
     // The command records a draft's dry-run only: a version sent on meanwhile is refused, not an INTERNAL (INV-EVT-02)
     expect(await runCommand(admin(), dryRunWorkflowCommand, { versionId, documents: [document] }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { from: 'PENDING_APPROVAL' } } })
+    // The read answers as the command would: a missing key, a version that is not there
+    expect(await dryRunWorkflowVersion(org.ctxOf('ceo', LATER), { versionId, documents: [document] }, { idempotencyKey: '' })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'idempotencyKey' } } })
+    expect(await dryRunWorkflowVersion(admin(), { versionId: randomUUID(), documents: [document] }, key())).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
+
+    // Once the CEO has decided, the task no longer opens the try-out (it is for deciding · NEW-102 review)
+    const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'WORKFLOW_VERSION', subjectId: versionId } } } })
+    await pinStepUp(org.organizationId, org.member.ceo!, 'WORKFLOW_VERSION', versionId)
+    ok(await decideTask(org.ctxOf('ceo', LATER), { taskId: task.id, decision: 'REJECT', reason: 'ทดลองแล้วยังไม่ใช่' }, key()))
+    expect(await dryRunWorkflowVersion(org.ctxOf('ceo', LATER), { versionId, documents: [document] }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
   })
 })
 

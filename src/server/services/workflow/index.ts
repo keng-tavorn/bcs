@@ -3,19 +3,20 @@ import { z } from 'zod'
 import { amountToSatang } from '@/core/money/dto'
 import { WORKFLOW_VERSION_MACHINE, transition, type WorkflowVersionState } from '@/core/state-machines'
 import { lintWorkflowVersion, resolveRequestRoute, resolveReviewer, workflowConditionHolds, type ReviewInput, type WorkflowRuleSnapshot, type WorkflowVersionSnapshot } from '@/core/workflow'
-import { REASON_MAX_LENGTH } from '@/lib/constants'
+import { COMMAND_TX_MAX_WAIT_MS, COMMAND_TX_TIMEOUT_MS, REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { toJsonSafe, type Jsonified } from '@/lib/json'
 import { authorize } from '@/server/authz'
 import { systemCtx, type Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
+import { setTransactionTimeouts } from '@/server/db/sql/timeouts'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { loadOrgSnapshot, loadRoutePolicy } from '@/server/doa/policy'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { loadRequestTypeFields, loadWorkflowVersions } from '@/server/workflow/policy'
 import { ConditionJson, ReviewerJson, workflowRuleJson, workflowVersionFromRows } from '@/server/workflow/snapshot'
-import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { defineCommand, isBusyTxError, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { startRoute } from '../approvals/route'
 import { cancelWithdrawalOnEffect } from '../policy-withdrawal'
 import { THAI_DATE, thaiDateStart } from '../doa/dates'
@@ -261,26 +262,37 @@ export interface DryRunRow {
 /**
  * FR-WF-103 AC3: the approver of a version — who holds a task on its approval route, or whom a delegate holds it for —
  * reads the version and tries documents out on it before deciding, without admin.workflow.* (read only: nothing they
- * do there changes the version)
+ * do there changes the version). `undecided` counts only a task still waiting for its holder: the try-out is for
+ * deciding, so a task reassigned away, cancelled or decided no longer opens it (NEW-102 review)
  */
-export async function holdsWorkflowTask(tx: TenantTx, ctx: Ctx, versionId: string): Promise<boolean> {
+export async function holdsWorkflowTask(tx: TenantTx, ctx: Ctx, versionId: string, options: { readonly undecided?: boolean } = {}): Promise<boolean> {
   if (ctx.actor.type !== 'USER') return false
   const me = ctx.actor.memberId
-  const held = await tx.approvalTask.count({ where: { OR: [{ assigneeMemberId: me }, { principalMemberId: me }], step: { route: { subjectType: 'WORKFLOW_VERSION', subjectId: versionId } } } })
+  const held = await tx.approvalTask.count({
+    where: {
+      OR: [{ assigneeMemberId: me }, { principalMemberId: me }],
+      ...(options.undecided ? { status: { in: UNDECIDED_TASK } } : {}),
+      step: { route: { subjectType: 'WORKFLOW_VERSION', subjectId: versionId } },
+    },
+  })
   return held > 0
 }
 
-type DryRunDocuments = z.output<typeof DryRunInput>['documents']
+/** A task its holder has still to decide */
+const UNDECIDED_TASK: Array<'OPEN' | 'INFO_REQUESTED'> = ['OPEN', 'INFO_REQUESTED']
 
-/** May try documents out on the version: admin.workflow.simulate, or a task on its approval route (FR-WF-103 AC3) */
+type DryRunDocuments = z.output<typeof DryRunInput>['documents']
+type VersionWithRules = Parameters<typeof workflowVersionFromRows>[0] & { readonly rules: Parameters<typeof workflowVersionFromRows>[1] }
+
+/** May try documents out on the version: admin.workflow.simulate, or a task on its route still to decide (FR-WF-103 AC3) */
 async function mayDryRun(tx: TenantTx, ctx: Ctx, versionId: string): Promise<{ ok: false; error: AppError } | null> {
   const allowed = await authorize(tx, ctx, 'admin.workflow.simulate')
-  return allowed.ok || (await holdsWorkflowTask(tx, ctx, versionId)) ? null : { ok: false, error: allowed.error }
+  return allowed.ok || (await holdsWorkflowTask(tx, ctx, versionId, { undecided: true })) ? null : { ok: false, error: allowed.error }
 }
 
 /** The version in effect now and this version as if it were, for each document: the engine of real routing */
-async function dryRunRows(tx: TenantTx, ctx: Ctx, row: Parameters<typeof workflowVersionFromRows>[0], rules: Parameters<typeof workflowVersionFromRows>[1], documents: DryRunDocuments): Promise<DryRunRow[]> {
-  const draft = workflowVersionFromRows(row, rules)
+async function dryRunRows(tx: TenantTx, ctx: Ctx, row: VersionWithRules, documents: DryRunDocuments): Promise<DryRunRow[]> {
+  const draft = workflowVersionFromRows(row, row.rules)
   const [policy, workflows] = await Promise.all([loadRoutePolicy(tx), loadWorkflowVersions(tx)])
   // The draft as if it were the version in effect now, with the same holders, delegations and time
   const asInEffect: WorkflowVersionSnapshot = { ...draft, status: 'PUBLISHED', effectiveFrom: ctx.now, effectiveTo: null }
@@ -319,7 +331,7 @@ export const dryRunWorkflowCommand = defineCommand({
     const row = await tx.workflowVersion.findUniqueOrThrow({ where: { id: input.versionId }, include: { rules: true } })
     // A version sent on since dryRunWorkflowVersion looked: its try-out is a read (INV-EVT-02), so ask again
     if (row.status !== 'DRAFT') return fail('INVALID_STATE_TRANSITION', 'only a draft records its dry-run', { from: row.status })
-    const rows = await dryRunRows(tx, ctx, row, row.rules, input.documents)
+    const rows = await dryRunRows(tx, ctx, row, input.documents)
     await tx.workflowVersion.update({ where: { id: row.id }, data: { dryRunAt: ctx.now } })
     return {
       ok: true,
@@ -336,17 +348,29 @@ export const dryRunWorkflowCommand = defineCommand({
  */
 export async function dryRunWorkflowVersion(ctx: Ctx, input: z.input<typeof DryRunInput>, options: RunOptions): Promise<Result<Jsonified<{ rows: DryRunRow[] }>>> {
   const parsed = DryRunInput.safeParse(input)
-  // The command answers a bad input the way every command does
-  if (!parsed.success) return runCommand(ctx, dryRunWorkflowCommand, input, options)
+  // The command answers a bad input or a missing key the way every command does, whatever the version
+  if (!parsed.success || !options.idempotencyKey) return runCommand(ctx, dryRunWorkflowCommand, input, options)
   const { versionId, documents } = parsed.data
-  const read = await forTenant(ctx.organizationId).$transaction(async (tx): Promise<Result<Jsonified<{ rows: DryRunRow[] }>> | 'DRAFT'> => {
-    const refused = await mayDryRun(tx, ctx, versionId)
-    if (refused) return refused
-    const row = await tx.workflowVersion.findFirst({ where: { id: versionId }, include: { rules: true } })
-    if (!row) return err('NOT_FOUND', 'workflow version not found')
-    if (row.status === 'DRAFT') return 'DRAFT'
-    return ok(toJsonSafe({ rows: await dryRunRows(tx, ctx, row, row.rules, documents) }) as Jsonified<{ rows: DryRunRow[] }>)
-  })
+  let read: Result<Jsonified<{ rows: DryRunRow[] }>> | 'DRAFT'
+  try {
+    // Bounded as a command's transaction (runCommand): a busy database answers RATE_LIMITED, not a thrown error
+    read = await forTenant(ctx.organizationId).$transaction(
+      async (tx): Promise<Result<Jsonified<{ rows: DryRunRow[] }>> | 'DRAFT'> => {
+        await setTransactionTimeouts(tx)
+        const refused = await mayDryRun(tx, ctx, versionId)
+        if (refused) return refused
+        const found = await tx.workflowVersion.findFirst({ where: { id: versionId }, select: { status: true } })
+        if (!found) return err('NOT_FOUND', 'workflow version not found')
+        if (found.status === 'DRAFT') return 'DRAFT'
+        const row = await tx.workflowVersion.findUniqueOrThrow({ where: { id: versionId }, include: { rules: true } })
+        return ok(toJsonSafe({ rows: await dryRunRows(tx, ctx, row, documents) }) as Jsonified<{ rows: DryRunRow[] }>)
+      },
+      { maxWait: COMMAND_TX_MAX_WAIT_MS, timeout: COMMAND_TX_TIMEOUT_MS },
+    )
+  } catch (error) {
+    if (isBusyTxError(error)) return err('RATE_LIMITED', 'busy: try the documents again shortly', { requestId: ctx.requestId })
+    throw error
+  }
   return read === 'DRAFT' ? runCommand(ctx, dryRunWorkflowCommand, input, options) : read
 }
 

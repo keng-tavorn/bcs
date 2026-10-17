@@ -11,6 +11,7 @@ import type { RunOptions } from '../../_pipeline'
 import { completeAgentAction, requestAgentAction } from '../actions'
 import { aiRuntime } from '../gate'
 import { runTool, toolValues, type ToolResult } from '../tools'
+import { asData, asDataValues } from '../data'
 
 // Insight Agent (FR-AI-307 AC1–AC5, FR-AI-309 AC3, BR-AI-07 BR-AI-21 BR-AI-27, ADR-144 ADR-147). A question becomes an
 // L0 AgentAction with its credits and the tools it used. The AI first names the read-only tools that answer it (at most
@@ -54,7 +55,7 @@ export async function askInsight(ctx: Ctx, rawInput: z.input<typeof AskInput>, o
   const client = getAiClient(getEnv())
   const finish = (input: Omit<Parameters<typeof completeAgentAction>[3], 'agentActionId' | 'requestedModel'>) => completeAgentAction(ctx.organizationId, ctx.now, started.data.promptVersion, { agentActionId, requestedModel: model, ...input })
 
-  const plan = await client.write({ purpose: 'QUESTION', model, schema: QuestionPlan, text: questionInputText(question) })
+  const plan = await client.write({ purpose: 'QUESTION', model, schema: QuestionPlan, text: questionInputText(asData(question)) })
   if (!plan.ok) {
     await finish({ outcome: 'FAILED', model: plan.model ?? null, errorCode: plan.errorCode, usage: plan.usage, latencyMs: plan.latencyMs })
     return err('EXTERNAL_SERVICE_ERROR', 'the assistant could not answer', { service: 'Claude', reason: plan.errorCode })
@@ -76,7 +77,7 @@ export async function askInsight(ctx: Ctx, rawInput: z.input<typeof AskInput>, o
   const values = toolValues(results)
   if (Object.keys(values).length === 0) return answer('NOT_FOUND', [], results, plan.usage, plan.latencyMs)
 
-  const written = await client.write({ purpose: 'QUESTION', model, schema: BriefText, text: insightAnswerText(question, Object.fromEntries(Object.entries(values).map(([k, v]) => [k, renderValue(v)]))) })
+  const written = await client.write({ purpose: 'QUESTION', model, schema: BriefText, text: insightAnswerText(asData(question), asDataValues(Object.fromEntries(Object.entries(values).map(([k, v]) => [k, renderValue(v)])))) })
   const usage = sum(plan.usage, written.usage)
   const latencyMs = plan.latencyMs + written.latencyMs
   if (!written.ok) return answer('TABLE', [], results, usage, latencyMs, written.errorCode)

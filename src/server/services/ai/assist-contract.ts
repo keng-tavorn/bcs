@@ -42,6 +42,12 @@ interface SubjectKind {
    *  must be confirmed in that call; false: a draft may keep fields waiting until it is sent */
   readonly final: boolean
   readonly read: AssistReader
+  /**
+   * Paths that name a place (a request's lines.<i>) move when the person adds or removes a line above: the values read
+   * are put back under the paths the AI proposed them at, so a value the AI put in is compared where it is now and still
+   * waits (BR-AI-16) instead of passing for one the person changed
+   */
+  readonly align?: (proposed: Readonly<Record<string, string>>, current: Readonly<Record<string, string>>) => Readonly<Record<string, string>>
 }
 
 const kinds = new Map<string, SubjectKind>()
@@ -92,11 +98,12 @@ export async function assertNoPendingAiReview(tx: TenantTx, _ctx: Ctx, subject: 
   })
   if (actions.length === 0) return ok(true)
   const kind = kinds.get(subject.type)
-  const current = kind ? ((await kind.read(tx, subject.id)) ?? {}) : {}
+  const read = kind ? ((await kind.read(tx, subject.id)) ?? {}) : {}
   let count = 0
   const waiting: string[] = []
   for (const a of actions) {
     const review = reviewOf(a.review)
+    const current = kind?.align ? kind.align(review.proposed, read) : read
     const { pending } = pendingOf(review, new Set(review.confirmedPaths), current)
     if (pending.length) {
       count += pending.length
@@ -145,7 +152,8 @@ export async function applyAiAssist(tx: TenantTx, ctx: Ctx, subject: AssistSubje
 
   const review = reviewOf(action.review)
   const confirmed = new Set([...review.confirmedPaths, ...input.confirmedPaths.filter((p) => Object.hasOwn(review.proposed, p))])
-  const current = (await kind.read(tx, subject.id)) ?? {}
+  const read = (await kind.read(tx, subject.id)) ?? {}
+  const current = kind.align ? kind.align(review.proposed, read) : read
   const { pending, changed } = pendingOf(review, confirmed, current)
   if (pending.length && kind.final) return pendingError(pending.length, [action.id])
 

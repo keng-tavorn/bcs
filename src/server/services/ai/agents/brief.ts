@@ -12,6 +12,7 @@ import { forTenant } from '@/server/db/tenant'
 import { poViewFacts } from '@/server/queries/receiving'
 import { budgetLineAvailable } from '../../budget/line-available'
 import { completeAgentAction, expireAgentAction, requestAgentAction } from '../actions'
+import { asDataValues } from '../data'
 import { aiRuntime } from '../gate'
 
 // Approval Brief (FR-AI-301 AC1–AC6, BR-AI-20, BR-AI-27, ADR-144 ADR-145). Facts are built by code every time they are
@@ -140,7 +141,7 @@ export async function runBrief(organizationId: string, taskId: string, now: Date
   const model = modelForPurpose('BRIEF', aiRuntime().modelEnv)
   const assignee = makeCtx({ organizationId, actor: { type: 'USER', memberId: task.assigneeMemberId }, channel: 'SYSTEM', now })
   const facts = await briefFacts(assignee, task)
-  const answer = await getAiClient(getEnv()).write({ purpose: 'BRIEF', model, schema: BriefText, text: briefInputText(plainFacts(facts)) })
+  const answer = await getAiClient(getEnv()).write({ purpose: 'BRIEF', model, schema: BriefText, text: briefInputText(asDataValues(plainFacts(facts))) })
   const finish = async (input: Omit<Parameters<typeof completeAgentAction>[3], 'agentActionId' | 'requestedModel'>) => {
     const r = await completeAgentAction(organizationId, now, started.data.promptVersion, { agentActionId: started.data.agentActionId, requestedModel: model, ...input })
     return r.ok ? (r.data.status === 'DRAFT' ? ('DRAFT' as const) : ('FAILED' as const)) : ('SKIPPED' as const)

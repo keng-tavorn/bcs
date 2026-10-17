@@ -163,7 +163,8 @@ export function createLiveClient(options: LiveOptions): AiClient {
     })
     // PDF goes as a document block, images as image blocks (the provider picks the block from the media type)
     const parts: (FilePart | { type: 'text'; text: string })[] = (request.files ?? []).map((f) => ({ type: 'file', data: f.bytes, mediaType: f.mediaType }))
-    parts.push({ type: 'text', text: `<data>\n${request.text ?? ''}\n</data>` })
+    // The fence the system prompt trusts: a <data> or </data> inside the text is broken up so it cannot close it
+    parts.push({ type: 'text', text: `<data>\n${(request.text ?? '').replace(/<(\/?)data>/gi, '<$1 data>')}\n</data>` })
 
     try {
       const result = await generateText({

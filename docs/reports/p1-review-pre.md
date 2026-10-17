@@ -76,3 +76,10 @@
 
 - `pnpm verify` (หลังรวม main `200eec7` · ก่อนแก้ property test): 15 PASS · 2 FAIL (property INV-WF-01 จากช่อง `ruleStepNo` และ coverage ที่ล้มตามเพราะรันชุดเดียวกัน) · integration 208 ไฟล์ 2,049 เคสผ่าน · หลังแก้ property: unit golden property 249 ไฟล์ 2,993 เคสผ่าน และ coverage ของ engine เงินและอำนาจ branch 100% (1,900/1,900)
 - `pnpm test:e2e --grep @demo` (ส่งชุดแรกเข้า main): 9 ฉากผ่าน (9.2 นาที)
+
+## ข้อควรรู้ตอนแชต main รวมงานนี้ (2026-10-17)
+
+ตอนส่งชุดแรก (`fbf9685`) แชต main มี commit ของ P1-08 ที่ยังไม่ push ซึ่งแยกจาก `152bc40` (ก่อนงานของ l2 l3 และสายนี้) จึงต้องรวม `origin/main` ก่อน push และจะเจอ 2 จุด:
+
+1. **เลข NEW ซ้ำ:** main ในเครื่องใช้ NEW-92 ถึง NEW-100 ส่วนสายนี้ออก NEW-92 ถึง NEW-94 ตามกติกา (ต่อจาก NEW-91 ของ `origin/main` ตอนส่ง) · ทางที่แนะนำ: คงเลขของ main (commit ของ main อ้างไว้แล้ว) และเลื่อนสามข้อของสายนี้เป็นเลขต่อจากข้อสุดท้ายของ main (เช่น NEW-101 ถึง NEW-103) แล้วแก้คำอ้างในไฟล์นี้ (หัวข้อ "ต้องให้ผู้ใช้ตัดสิน" และ "งาน go-live") และใน `docs/decisions/ADR-074.md` ไม่มี · ตรวจด้วย `pnpm spec:check` (เลขต้องต่อเนื่อง)
+2. **แก้เรื่องเดียวกันสองที่ (โค้ดสิทธิ์):** NEW-92 ของ main กับ S6-9 ของสายนี้ (`aa8bfbf`) ต่างแก้ "ผู้ตรวจกดผ่านในแชตและลิงก์อีเมลไม่ต้องใช้ PIN" (BR-WF-09) ใน `src/core/pin/index.ts` `approvals/line-postback.ts` `approvals/action-link.ts` · ผลเหมือนกัน: main ยกเว้นที่แต่ละจุดเรียก ส่วนสายนี้ใส่ `stepKind: 'REVIEW'` ใน `stepUpNeeded` ที่เดียว (ใช้กับการ์ด LINE และรายการงานด้วย · มีเทสต์ใน `tests/unit/pin.test.ts` และ `tests/integration/review-chat-button.test.ts`) · ทางที่แนะนำ: เลือกโค้ดของสายนี้ทั้งสามไฟล์ และเก็บเทสต์ที่ main เพิ่มใน `action-links.test.ts` `line-postback.test.ts` ไว้ทั้งหมด (พฤติกรรมเดียวกันจึงควรผ่าน) · เป็นโค้ดสิทธิ์ จึงให้ผู้ใช้ยืนยันก่อนตาม CLAUDE.md

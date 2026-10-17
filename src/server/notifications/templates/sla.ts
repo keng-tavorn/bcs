@@ -9,6 +9,8 @@
 // delegate whose acting period ended with tasks that could not go back hears that a new holder of the position takes
 // them (NEW-28), never that someone will move them. task.reminder lives with the board's reminder in index.ts.
 
+import type { ApprovalSubject } from '@/core/sod'
+
 type Data = Readonly<Record<string, unknown>>
 type Text = { readonly th: string; readonly en: string }
 export type SlaTemplate = (data: Data, subject: { readonly type: string | null; readonly id: string | null }) => { title: Text; body?: Text; href: string | null }
@@ -30,18 +32,27 @@ const CHANGE_KIND: Readonly<Record<string, Text>> = {
   IDENTITY_RESET: { th: 'รีเซ็ตตัวตนของผู้มีอำนาจ', en: 'identity reset' },
 }
 
-const SUBJECT_NAME: Readonly<Record<string, Text>> = {
+/** Every subject of an approval route by its kind (P1-07: the subjects of phase 1 too, checked by typecheck) */
+export const SUBJECT_NAME = {
   REQUEST: { th: 'คำขอ', en: 'Request' },
   PURCHASE_ORDER: { th: 'ใบสั่งซื้อ', en: 'Purchase order' },
   VARIANCE: { th: 'ผลต่างการตรวจรับของใบสั่งซื้อ', en: 'Receiving variance of purchase order' },
   DOA_VERSION: { th: 'DOA', en: 'DOA' },
   ORG_AUTHORITY_CHANGE: { th: 'การเปลี่ยนโครงสร้างอำนาจ', en: 'Authority change' },
-}
+  BUDGET_TRANSFER: { th: 'การโอนงบ', en: 'Budget transfer' },
+  BUDGET_OVERRUN: { th: 'การขออนุมัติเกินงบ', en: 'Over-budget approval' },
+  WORKFLOW_VERSION: { th: 'ผู้ตรวจคู่ขนานฉบับ', en: 'Reviewer workflow version' },
+  INVOICE: { th: 'ใบแจ้งหนี้', en: 'Invoice' },
+  PO_CHANGE: { th: 'การแก้ไขใบสั่งซื้อ', en: 'PO change' },
+  PAYMENT_RUN: { th: 'รอบจ่าย', en: 'Payment run' },
+  BANK_ACCOUNT_CHANGE: { th: 'การเปลี่ยนบัญชีธนาคาร', en: 'Bank account change' },
+} as const satisfies Record<ApprovalSubject, Text>
+const nameOfSubject = (type: unknown): Text | undefined => (Object.hasOwn(SUBJECT_NAME, str(type)) ? SUBJECT_NAME[str(type) as ApprovalSubject] : undefined)
 
 /** An authority change by its kind: "การเปลี่ยนโครงสร้างอำนาจ (แต่งตั้งผู้ดำรงตำแหน่ง)" */
 function changeNamed(kind: unknown): Text {
   const words = CHANGE_KIND[str(kind)]
-  const base = SUBJECT_NAME.ORG_AUTHORITY_CHANGE!
+  const base = SUBJECT_NAME.ORG_AUTHORITY_CHANGE
   return words ? { th: `${base.th} (${words.th})`, en: `${base.en} (${words.en})` } : base
 }
 
@@ -67,6 +78,21 @@ function documentHref(d: Data): string {
       return `/admin/doa/${id}`
     case 'ORG_AUTHORITY_CHANGE':
       return '/admin/org-authority'
+    case 'BUDGET_TRANSFER':
+      return `/budgets/transfers/${id}`
+    case 'BUDGET_OVERRUN':
+      return `/budgets/overruns/${id}`
+    case 'WORKFLOW_VERSION':
+      return `/admin/workflows/${id}`
+    case 'INVOICE':
+      return `/finance/invoices/${id}`
+    case 'PO_CHANGE':
+      // A change is made and settled on its purchase order's page
+      return d.poId ? `/procurement/pos/${str(d.poId)}/change` : '/tasks'
+    case 'PAYMENT_RUN':
+      return `/finance/payments/${id}`
+    case 'BANK_ACCOUNT_CHANGE':
+      return `/finance/bank-accounts/changes/${id}`
     default:
       return '/tasks'
   }
@@ -87,7 +113,7 @@ function age(minutes: number): Text {
 /** "คำขอ PR-2569-00012" / "Request PR-2569-00012" */
 function named(item: { subjectType?: unknown; label?: unknown; changeKind?: unknown }): Text {
   if (item.subjectType === 'ORG_AUTHORITY_CHANGE') return changeNamed(item.changeKind)
-  const kind = SUBJECT_NAME[str(item.subjectType)]
+  const kind = nameOfSubject(item.subjectType)
   const label = str(item.label)
   return { th: `${kind?.th ?? 'เอกสาร'} ${label}`.trim(), en: `${kind?.en ?? 'Document'} ${label}`.trim() }
 }

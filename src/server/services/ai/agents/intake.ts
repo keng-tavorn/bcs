@@ -5,6 +5,7 @@ import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import { lineNet, parseQuantity } from '@/core/money/math'
 import { err, ok, type Result } from '@/core/result'
 import { normalizeTaxId } from '@/core/thai/taxid'
+import { taxDateOf } from '@/core/vat'
 import { AI_FILE_MEDIA_TYPES, getAiClient, type AiFile, type AiFileMediaType } from '@/integrations/ai'
 import { readObject } from '@/integrations/storage'
 import { AI_LIMITS, modelForPurpose } from '@/lib/ai-config'
@@ -225,7 +226,8 @@ export async function runIntake(organizationId: string, agentActionId: string, n
   }, 0n)
   const channel = suggestChannel(
     { lines: lines.map(() => ({ itemCode: null })), amountGross: satangToAmount(gross) },
-    { asOf: now.toISOString().slice(0, 10), rules, catalog: [], pastRequests: [], reorderLookbackDays: AI_LIMITS.reorderLookbackDays },
+    // the day agreements are in force on, as the organization reads it (Thai calendar, BR-DATE-01)
+    { asOf: taxDateOf(now), rules, catalog: [], pastRequests: [], reorderLookbackDays: AI_LIMITS.reorderLookbackDays },
   )
   const outcome: IntakeOutcome = { proposed, requiredPaths: [...new Set(requiredPaths)].sort(), suggestedType, supplierText: supplierId ? null : (draft.supplier.name ?? null), channel }
   return finish({

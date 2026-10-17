@@ -17,8 +17,9 @@ const withNextIntl = createNextIntlPlugin({
 // printed PR or PO — the procurement and request pages, their downloads, and the jobs (FR-PLT-009, FR-P2P-005).
 const PDF_FILES = ['./assets/fonts/sarabun/*.ttf', './node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/standard-fonts/**/*.cjs']
 // The button on /admin/line that makes every rich menu set again reads their pictures from assets/line when it runs (§9.5, D-02, S17-04)
-// The staging seed job reads the input workbook and the seed YAML files from the project root when it runs (ADR-055)
-const SEED_FILES = ['./docs/inputs/BCS_inputs_v1_demo.xlsx', './prisma/seed/*.yaml']
+// The staging seed jobs read the input workbooks and the seed YAML files from the project root when they run (ADR-055): the
+// reset reads both workbooks — its guard names the organizations of each, and it seeds either (P1-11, ADR-073)
+const SEED_FILES = ['./docs/inputs/BCS_inputs_v1_demo.xlsx', './docs/inputs/BCS_inputs_p1.xlsx', './prisma/seed/*.yaml']
 const RICH_MENU_IMAGES = ['./assets/line/*.png']
 
 const nextConfig: NextConfig = {

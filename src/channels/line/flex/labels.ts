@@ -13,6 +13,12 @@ export const SUBJECT_KIND: Readonly<Record<string, Text>> = {
   VARIANCE: { th: 'ผลต่างการตรวจรับ', en: 'Receiving variance' },
   DOA_VERSION: { th: 'DOA ฉบับใหม่', en: 'DOA version' },
   ORG_AUTHORITY_CHANGE: { th: 'การเปลี่ยนโครงสร้างอำนาจ', en: 'Authority change' },
+  // S6 and S8 (P1-07: every subject of APPROVAL_SUBJECTS, tests/unit/subject-names.test.ts)
+  BUDGET_TRANSFER: { th: 'การโอนงบ', en: 'Budget transfer' },
+  BUDGET_OVERRUN: { th: 'การขออนุมัติเกินงบ', en: 'Over-budget approval' },
+  WORKFLOW_VERSION: { th: 'ผู้ตรวจคู่ขนานฉบับใหม่', en: 'Reviewer workflow version' },
+  INVOICE: { th: 'ใบแจ้งหนี้', en: 'Invoice' },
+  PO_CHANGE: { th: 'การแก้ไขใบสั่งซื้อ', en: 'PO change' },
   // S9 (ADR-135)
   ...PAY_SUBJECT_KINDS,
 }

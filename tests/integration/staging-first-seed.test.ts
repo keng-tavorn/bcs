@@ -16,7 +16,7 @@ import {
 import { ORG_SETTINGS_DEMO_PATH } from '@/server/seed/demo-org'
 import { SEED_FORMS_PATH } from '@/server/seed/forms'
 import { TAX_RATES_PATH } from '@/server/seed/tax-rates'
-import { INPUT_WORKBOOK_PATH } from '@/server/seed/workbook'
+import { INPUT_WORKBOOK_PATH, INPUT_WORKBOOKS } from '@/server/seed/workbook'
 import { demoHistoryStarted } from '@/server/services/demo-history'
 import { firstSeedState, type FirstSeedState } from '@/server/services/demo-seed'
 import { createOrg } from '../support/factory'
@@ -135,7 +135,10 @@ describe('the staging seed job seeds only an empty staging database (ADR-055, AD
 
   it('[EG-3] reads its files from the project root, and next.config.ts ships each of them with /api/inngest', () => {
     const config = readFileSync(path.join(ROOT, 'next.config.ts'), 'utf8')
-    expect(config).toContain("const SEED_FILES = ['./docs/inputs/BCS_inputs_v1_demo.xlsx', './prisma/seed/*.yaml']")
+    // every workbook the jobs may read (the reset's guard reads all of them, P1-11): one left out fails on Vercel only
+    const seedFiles = /const SEED_FILES = \[([^\]]*)\]/.exec(config)?.[1] ?? ''
+    for (const workbook of Object.values(INPUT_WORKBOOKS)) expect(seedFiles, workbook).toContain(`'./${workbook}'`)
+    expect(seedFiles).toContain("'./prisma/seed/*.yaml'")
     expect(config).toContain("'/api/inngest': [...PDF_FILES, ...SEED_FILES]")
     expect(INPUT_WORKBOOK_PATH).toBe('docs/inputs/BCS_inputs_v1_demo.xlsx')
     for (const file of [ORG_SETTINGS_DEMO_PATH, SEED_FORMS_PATH, TAX_RATES_PATH]) {

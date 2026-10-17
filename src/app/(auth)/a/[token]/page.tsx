@@ -10,14 +10,13 @@ import { ActionLinkForm } from '@/ui/approvals/action-link-form'
 import { Notice } from '@/ui/form/notice'
 import { getSession } from '../../../_lib/session'
 import { decideByLinkAction } from './actions'
+import { linkSubjectOf } from './subjects'
 
 export async function generateMetadata() {
   const t = await getTranslations('actionLink')
   return { title: t('metaTitle') }
 }
 
-const SUBJECTS = ['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE'] as const
-const subjectOf = (type: string) => SUBJECTS.find((s) => s === type) ?? 'REQUEST'
 
 function LinkMessage({ title, body, href, label }: { title: string; body: string; href?: string; label?: string }) {
   return (
@@ -83,7 +82,7 @@ export default async function ActionLinkPage({ params }: { params: Promise<{ tok
   const until = locale === 'en' ? formatEnglishBeDateTime(view.expiresAt) : formatThaiDateTime(view.expiresAt)
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">{t('heading', { subject: t(`subject.${subjectOf(view.subjectType)}`), label: view.label })}</h1>
+      <h1 className="text-2xl font-semibold">{t('heading', { subject: t(`subject.${linkSubjectOf(view.subjectType)}`), label: view.label })}</h1>
       <dl className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-[auto_1fr] sm:gap-y-2">
         {view.title ? (
           <>

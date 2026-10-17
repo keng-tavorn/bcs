@@ -42,7 +42,7 @@ import { quotationAmounts } from './quotations'
 
 export { budgetKeyLines } from '@/server/seed/budget-keys'
 export { DemoHistoryNetError } from './quotations'
-import { seedPaymentHistory, type PaymentHistoryReport } from './payments'
+import { PAYMENT_HISTORY_KEY, seedPaymentHistory } from './payments'
 
 // The demo history (spec D-01, §16.10 "ข้อมูล"): the requests of sheet Demo_History, made through the real services
 // with the business clock set back, so every row ends in its status with real routes, decisions, budget movements,
@@ -703,13 +703,6 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   must(row, 'close PO', await closePurchaseOrder(proc(next('po-close', MINUTES_PER_HOUR), 'po-close'), { poId: po.id }, optionsOf(row, 'po-close')))
 }
 
-/**
- * D-01: the demo history of one organization. A history made in full before is left alone; one that an earlier seed
- * stopped half way (a storage that was down, a row the routes refused) throws DemoHistoryIncompleteError rather than
- * leave the board and the dashboard with numbers the demo does not expect. `options.pin` is the PIN the seed gave the
- * demo approvers: a history that is yet to be made needs every one of them to hold it (DemoHistoryPinError otherwise).
- * null: the seed gave none, and the approvers without a PIN hold a one-time PIN only while the history runs.
- */
 /** Whether any step of the history has been made in the organization (its events, or a command still in CommandLog) */
 export async function demoHistoryStarted(organizationId: string): Promise<boolean> {
   const db = forTenant(organizationId)
@@ -717,22 +710,60 @@ export async function demoHistoryStarted(organizationId: string): Promise<boolea
   return made > 0
 }
 
-export async function seedDemoHistory(organizationId: string, rows: readonly DemoHistoryRow[], now: Date, options: DemoHistoryOptions): Promise<DemoHistoryReport> {
-  const db = forTenant(organizationId)
-  // Decided and cancelled requests first, oldest first; then what they told people is marked read; then the requests
-  // still waiting, whose task notices stay new (the board and the bell of the demo)
-  const ordered = [...rows].sort((a, b) => b.daysAgo - a.daysAgo || a.ref.localeCompare(b.ref))
-  const done = ordered.filter((r) => r.status !== 'PENDING_APPROVAL')
-  const waiting = ordered.filter((r) => r.status === 'PENDING_APPROVAL')
-  const last = [...done, ...waiting].at(-1)
-  if (!last) return { seeded: false, byStatus: {} }
-  // What the history made is read from its events, which are kept for good (CommandLog only for 90 days, §6.2): every
-  // step's events carry the step's key as their requestId. The last row's last step made → the history is whole.
-  if (await demoHistoryStarted(organizationId)) {
-    if (await db.event.count({ where: { requestId: { in: lastSteps(last).map((step) => keyOf(last, step)) } } })) return { seeded: false, byStatus: {} }
-    throw new DemoHistoryIncompleteError(last.ref)
-  }
+/**
+ * P1-11: rows of one part of the history at most, so that each part the staging reset runs as its own Inngest step ends
+ * well inside one call of /api/inngest (maxDuration 300 s): a row of phase 1 takes up to about 3 s on this machine
+ * (pnpm db:reset:p1, 2026-10-17), and a statement on staging is slower (Vercel and Neon in Singapore)
+ */
+export const HISTORY_ROWS_PER_PART = 10
 
+/**
+ * A part of the history, in the order the whole history makes them: rows decided or cancelled (oldest first) → the
+ * payment runs of the past → what those told people marked read → the rows still waiting → the invoice inbox
+ */
+export type DemoHistoryPart = { readonly kind: 'DONE' | 'WAITING'; readonly refs: readonly string[] } | { readonly kind: 'PAYMENTS' | 'READ' | 'INBOX' }
+
+/** Decided and cancelled requests first, oldest first; then the requests still waiting, whose task notices stay new */
+function orderRows(rows: readonly DemoHistoryRow[]) {
+  const ordered = [...rows].sort((a, b) => b.daysAgo - a.daysAgo || a.ref.localeCompare(b.ref))
+  return { done: ordered.filter((r) => r.status !== 'PENDING_APPROVAL'), waiting: ordered.filter((r) => r.status === 'PENDING_APPROVAL') }
+}
+
+/** The parts of a history, none for a sheet without rows */
+export function demoHistoryParts(rows: readonly DemoHistoryRow[], rowsPerPart: number = HISTORY_ROWS_PER_PART): DemoHistoryPart[] {
+  if (!Number.isInteger(rowsPerPart) || rowsPerPart < 1) throw new RangeError(`rowsPerPart must be a whole number from 1 (${rowsPerPart})`)
+  if (rows.length === 0) return []
+  const { done, waiting } = orderRows(rows)
+  const slices = (list: readonly DemoHistoryRow[], kind: 'DONE' | 'WAITING'): DemoHistoryPart[] =>
+    Array.from({ length: Math.ceil(list.length / rowsPerPart) }, (_, i) => ({ kind, refs: list.slice(i * rowsPerPart, (i + 1) * rowsPerPart).map((r) => r.ref) }))
+  return [...slices(done, 'DONE'), { kind: 'PAYMENTS' }, { kind: 'READ' }, ...slices(waiting, 'WAITING'), { kind: 'INBOX' }]
+}
+
+/** A part of the history was made before, in full or in part: only a fresh reset gives the demo its numbers again */
+export class DemoHistoryPartMadeError extends Error {
+  constructor(readonly part: number) {
+    super(`part ${part + 1} of the demo history was made before (in full or in part): reset staging again`)
+    this.name = 'DemoHistoryPartMadeError'
+  }
+}
+
+/** Whether any step of this part has been made: the idempotency keys of its steps, in its events or CommandLog */
+async function partStarted(organizationId: string, part: DemoHistoryPart): Promise<boolean> {
+  const db = forTenant(organizationId)
+  if (part.kind === 'INBOX') {
+    // the inbox mails of a row are keyed demo-history:<ref>:inbox
+    const inbox = { startsWith: escapeLike(HISTORY_KEY), endsWith: ':inbox' }
+    return (await db.event.count({ where: { requestId: inbox } })) + (await db.commandLog.count({ where: { idempotencyKey: { contains: escapeLike(HISTORY_KEY), endsWith: ':inbox' } } })) > 0
+  }
+  const prefixes = 'refs' in part ? part.refs.map((ref) => `${HISTORY_KEY}${ref}:`) : part.kind === 'PAYMENTS' ? [PAYMENT_HISTORY_KEY] : [`${HISTORY_KEY}read:`]
+  const events = await db.event.count({ where: { OR: prefixes.map((p) => ({ requestId: { startsWith: escapeLike(p) } })) } })
+  const commands = await db.commandLog.count({ where: { OR: prefixes.map((p) => ({ idempotencyKey: { contains: escapeLike(p) } })) } })
+  return events + commands > 0
+}
+
+/** Reads the organization, checks every row and builds what the parts of the history share; writes nothing */
+async function historyContext(organizationId: string, rows: readonly DemoHistoryRow[], now: Date, options: DemoHistoryOptions): Promise<Context> {
+  const db = forTenant(organizationId)
   const calendar = await db.$transaction((tx) => loadBusinessCalendar(tx, organizationId))
   // A row that names a budget key needs the lines of each key by fiscal year: without them every row would be refused
   // as if sheet Budget lacked its line
@@ -783,13 +814,20 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
   // whole baht (HistoryRow), and a net that is not is refused here with DemoHistoryNetError, before anything is written,
   // rather than half way through the history (quotations.ts)
   for (const row of rows) quotationAmounts(row)
+  return c
+}
 
+/**
+ * Runs `make` with what every part needs before it writes: the approvers holding the PIN they step up with, the bucket
+ * answering, and POs of the past sent nowhere; the one-time PINs (no SEED_DEV_PIN) are taken back whatever happens
+ */
+async function withHistoryReady<T>(c: Context, options: DemoHistoryOptions, make: () => Promise<T>): Promise<T> {
   // Without the seed's PIN, the approvers without a PIN hold the one-time PIN until the history returns or stops
   let oneTime: OneTimePins = new Map()
   try {
-    if (options.pin === null) oneTime = await giveOneTimePins(organizationId, c.pin, now)
+    if (options.pin === null) oneTime = await giveOneTimePins(c.organizationId, c.pin, c.now)
     // The approvers step up with that PIN for their high-amount decisions (FR-AUTH-005 AC2): every one of them holds it
-    const withoutPin = await approversWithoutPin(organizationId, c.pin, now)
+    const withoutPin = await approversWithoutPin(c.organizationId, c.pin, c.now)
     if (withoutPin.length > 0) throw new DemoHistoryPinError(withoutPin)
 
     // Quotations and the PDFs of POs are files: the bucket has to answer before anything is written
@@ -801,33 +839,98 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
 
     // POs of the past go nowhere
     setEmailProvider({ send: async () => ({ messageId: 'demo-history' }) })
-    const byStatus: Record<string, number> = {}
-    let payments: PaymentHistoryReport | null = null
     try {
-      for (const row of done) {
-        await replay(c, row)
-        byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
-      }
-      // S9-10: the invoices the sheet marks PAID, paid by the weekly runs of the past (before their notices are read)
-      if (await db.orgModule.count({ where: { module: 'PAY', enabled: true } })) {
-        const paid = done.flatMap((row) => (row.invoice?.paymentStatus === 'PAID' && row.invoice.scenario !== 'MISSING' && row.supplier ? [{ supplierCode: row.supplier, invoiceNo: row.invoice.invoiceNo ?? `INV-${row.ref}` }] : []))
-        payments = await seedPaymentHistory(c, paid)
-      }
-      for (const [code] of c.members) {
-        const marked = await markNotificationsRead(memberCtx(c, code, now, 'WEB', `${HISTORY_KEY}read:${code}`), { all: true }, { idempotencyKey: `${HISTORY_KEY}read:${code}`, sender: null, suppressOutbox: true })
-        if (!marked.ok && marked.error.code !== 'NOT_FOUND') throw new Error(`Demo_History: marking ${code}'s notifications read: ${marked.error.code}`)
-      }
-      for (const row of waiting) {
-        await replay(c, row)
-        byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
-      }
-      // S8-12: what waits in the invoice inbox, after the history so FINANCE sees it as new
-      if (await db.orgModule.count({ where: { module: 'PAY', enabled: true } })) await historyInbox(c, done)
+      return await make()
     } finally {
       setEmailProvider(null)
     }
-    return { seeded: true, byStatus, ...(payments ? { paymentRuns: payments.runs, paidInvoices: payments.invoices, unpaidInvoices: payments.left } : {}) }
   } finally {
-    await takeBackOneTimePins(organizationId, oneTime)
+    await takeBackOneTimePins(c.organizationId, oneTime)
   }
+}
+
+/** Makes one part; `done` are every row decided or cancelled, in order (the payment runs and the inbox look at them all) */
+async function makePart(c: Context, part: DemoHistoryPart, rows: readonly DemoHistoryRow[], done: readonly DemoHistoryRow[]): Promise<DemoHistoryReport> {
+  const db = forTenant(c.organizationId)
+  const byStatus: Record<string, number> = {}
+  if (part.kind === 'DONE' || part.kind === 'WAITING') {
+    const byRef = new Map(rows.map((r) => [r.ref, r]))
+    for (const ref of part.refs) {
+      const row = byRef.get(ref)
+      if (!row) throw new Error(`Demo_History: part names row ${ref}, which the sheet does not have`)
+      await replay(c, row)
+      byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
+    }
+    return { seeded: true, byStatus }
+  }
+  if (part.kind === 'PAYMENTS') {
+    // S9-10: the invoices the sheet marks PAID, paid by the weekly runs of the past (before their notices are read)
+    if (!(await db.orgModule.count({ where: { module: 'PAY', enabled: true } }))) return { seeded: true, byStatus }
+    const paid = done.flatMap((row) => (row.invoice?.paymentStatus === 'PAID' && row.invoice.scenario !== 'MISSING' && row.supplier ? [{ supplierCode: row.supplier, invoiceNo: row.invoice.invoiceNo ?? `INV-${row.ref}` }] : []))
+    const payments = await seedPaymentHistory(c, paid)
+    return { seeded: true, byStatus, paymentRuns: payments.runs, paidInvoices: payments.invoices, unpaidInvoices: payments.left }
+  }
+  if (part.kind === 'READ') {
+    for (const [code] of c.members) {
+      const marked = await markNotificationsRead(memberCtx(c, code, c.now, 'WEB', `${HISTORY_KEY}read:${code}`), { all: true }, { idempotencyKey: `${HISTORY_KEY}read:${code}`, sender: null, suppressOutbox: true })
+      if (!marked.ok && marked.error.code !== 'NOT_FOUND') throw new Error(`Demo_History: marking ${code}'s notifications read: ${marked.error.code}`)
+    }
+    return { seeded: true, byStatus }
+  }
+  // S8-12: what waits in the invoice inbox, after the history so FINANCE sees it as new
+  if (await db.orgModule.count({ where: { module: 'PAY', enabled: true } })) await historyInbox(c, done)
+  return { seeded: true, byStatus }
+}
+
+/** The reports of the parts as one: statuses added up, the payment runs from the part that made them */
+export function joinHistoryReports(reports: readonly DemoHistoryReport[]): DemoHistoryReport {
+  const byStatus: Record<string, number> = {}
+  let payments: Pick<DemoHistoryReport, 'paymentRuns' | 'paidInvoices' | 'unpaidInvoices'> = {}
+  for (const report of reports) {
+    for (const [status, n] of Object.entries(report.byStatus)) byStatus[status] = (byStatus[status] ?? 0) + n
+    if (report.paymentRuns !== undefined) payments = { paymentRuns: report.paymentRuns, paidInvoices: report.paidInvoices ?? 0, unpaidInvoices: report.unpaidInvoices ?? 0 }
+  }
+  return { seeded: reports.some((r) => r.seeded), byStatus, ...payments }
+}
+
+/**
+ * D-01: the demo history of one organization. A history made in full before is left alone; one that an earlier seed
+ * stopped half way (a storage that was down, a row the routes refused) throws DemoHistoryIncompleteError rather than
+ * leave the board and the dashboard with numbers the demo does not expect. `options.pin` is the PIN the seed gave the
+ * demo approvers: a history that is yet to be made needs every one of them to hold it (DemoHistoryPinError otherwise).
+ * null: the seed gave none, and the approvers without a PIN hold a one-time PIN only while the history runs.
+ */
+export async function seedDemoHistory(organizationId: string, rows: readonly DemoHistoryRow[], now: Date, options: DemoHistoryOptions): Promise<DemoHistoryReport> {
+  const db = forTenant(organizationId)
+  const { done, waiting } = orderRows(rows)
+  const last = [...done, ...waiting].at(-1)
+  if (!last) return { seeded: false, byStatus: {} }
+  // What the history made is read from its events, which are kept for good (CommandLog only for 90 days, §6.2): every
+  // step's events carry the step's key as their requestId. The last row's last step made → the history is whole.
+  if (await demoHistoryStarted(organizationId)) {
+    if (await db.event.count({ where: { requestId: { in: lastSteps(last).map((step) => keyOf(last, step)) } } })) return { seeded: false, byStatus: {} }
+    throw new DemoHistoryIncompleteError(last.ref)
+  }
+  const c = await historyContext(organizationId, rows, now, options)
+  return withHistoryReady(c, options, async () => {
+    const reports: DemoHistoryReport[] = []
+    for (const part of demoHistoryParts(rows)) reports.push(await makePart(c, part, rows, done))
+    return joinHistoryReports(reports)
+  })
+}
+
+/**
+ * P1-11: part `index` of demoHistoryParts(rows) alone, for the staging reset, which runs each part as its own Inngest
+ * step. Every part takes the same `now` (the reset's), so the rows fall on the days the whole history gives them. A part
+ * is made once: the first part refuses an organization whose history has started, any other part one whose steps it
+ * finds (DemoHistoryPartMadeError, say a step Inngest ran again after its call died); the parts run in order because
+ * the job awaits each step before the next.
+ */
+export async function seedDemoHistoryPart(organizationId: string, rows: readonly DemoHistoryRow[], now: Date, options: DemoHistoryOptions, index: number): Promise<DemoHistoryReport> {
+  const parts = demoHistoryParts(rows)
+  const part = parts[index]
+  if (!part) throw new RangeError(`the demo history has ${parts.length} parts, not part ${index + 1}`)
+  if (index === 0 ? await demoHistoryStarted(organizationId) : await partStarted(organizationId, part)) throw new DemoHistoryPartMadeError(index)
+  const c = await historyContext(organizationId, rows, now, options)
+  return withHistoryReady(c, options, () => makePart(c, part, rows, orderRows(rows).done))
 }

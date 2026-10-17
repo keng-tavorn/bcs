@@ -1,0 +1,1977 @@
+[
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/platform_tenants-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/platform_tenants-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "platform_tenants",
+    "who": "platform",
+    "kind": "platform",
+    "path": "/platform/tenants",
+    "status": 200,
+    "landed": "/platform/tenants",
+    "h1": "องค์กรลูกค้า"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/platform_tenant-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/platform_tenant-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "platform_tenant",
+    "who": "platform",
+    "kind": "platform",
+    "path": "/platform/tenants/01a14bab-06ef-7046-a80c-8c8c60cabc29",
+    "status": 200,
+    "landed": "/platform/tenants/01a14bab-06ef-7046-a80c-8c8c60cabc29",
+    "h1": "ตัวอย่าง E&C"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/platform_tenant_modules-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/platform_tenant_modules-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "platform_tenant_modules",
+    "who": "platform",
+    "kind": "platform",
+    "path": "/platform/tenants/01a14bab-06ef-7046-a80c-8c8c60cabc29/modules",
+    "status": 200,
+    "landed": "/platform/tenants/01a14bab-06ef-7046-a80c-8c8c60cabc29/modules",
+    "h1": "โมดูลของ ตัวอย่าง E&C"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/platform_tenant_ai-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/platform_tenant_ai-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "platform_tenant_ai",
+    "who": "platform",
+    "kind": "platform",
+    "path": "/platform/tenants/01a14bab-06ef-7046-a80c-8c8c60cabc29/ai",
+    "status": 200,
+    "landed": "/platform/tenants/01a14bab-06ef-7046-a80c-8c8c60cabc29/ai",
+    "h1": "credits ของ AI ของ ตัวอย่าง E&C"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/admin_ai-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/admin_ai-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "admin_ai",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/ai",
+    "status": 200,
+    "landed": "/admin/ai",
+    "h1": "ผู้ช่วย AI"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/admin_config-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/admin_config-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "admin_config",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/config",
+    "status": 200,
+    "landed": "/admin/config",
+    "h1": "ชุดค่าตั้ง"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/admin_doa-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/admin_doa-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "admin_doa",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/doa",
+    "status": 200,
+    "landed": "/admin/doa",
+    "h1": "อำนาจอนุมัติ (DOA)"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/admin_doa_version-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/admin_doa_version-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "admin_doa_version",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/doa/01a14bab-38e1-749b-8df7-9a20814c6e10",
+    "status": 200,
+    "landed": "/admin/doa/01a14bab-38e1-749b-8df7-9a20814c6e10",
+    "h1": "DOA-SIMEC ฉบับ 1"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/admin_doa_version_simulate-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/admin_doa_version_simulate-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "admin_doa_version_simulate",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/doa/01a14bab-38e1-749b-8df7-9a20814c6e10/simulate",
+    "status": 200,
+    "landed": "/admin/doa/01a14bab-38e1-749b-8df7-9a20814c6e10/simulate",
+    "h1": "ทดลองส่งกับ DOA-SIMEC ฉบับ 1"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/admin_doa_ai-draft-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/admin_doa_ai-draft-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "admin_doa_ai-draft",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/doa/ai-draft",
+    "status": 200,
+    "landed": "/admin/doa/ai-draft",
+    "h1": "ร่าง DOA จากระเบียบ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/admin_request-types_BUY_GOODS-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/admin_request-types_BUY_GOODS-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "admin_request-types_BUY_GOODS",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/request-types/BUY_GOODS",
+    "status": 200,
+    "landed": "/admin/request-types/BUY_GOODS",
+    "h1": "ซื้อของ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/admin_request-types_BUY_GOODS_form-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/admin_request-types_BUY_GOODS_form-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "admin_request-types_BUY_GOODS_form",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/request-types/BUY_GOODS/form",
+    "status": 200,
+    "landed": "/admin/request-types/BUY_GOODS/form",
+    "h1": "ตัวสร้างฟอร์มของ ซื้อของ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/admin2_workflows-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/admin2_workflows-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "admin2_workflows",
+    "who": "admin2",
+    "kind": "web",
+    "path": "/admin/workflows",
+    "status": 200,
+    "landed": "/admin/workflows",
+    "h1": "ผู้ตรวจคู่ขนาน (workflow)"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/admin2_workflows_version-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/admin2_workflows_version-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "admin2_workflows_version",
+    "who": "admin2",
+    "kind": "web",
+    "path": "/admin/workflows/01a14bc1-9d2c-74f7-8691-ec903ee76158",
+    "status": 200,
+    "landed": "/admin/workflows/01a14bc1-9d2c-74f7-8691-ec903ee76158",
+    "h1": "WF-SIMEC ฉบับ 2"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fm_p02_requests_new_BUY_GOODS-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fm_p02_requests_new_BUY_GOODS-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fm_p02_requests_new_BUY_GOODS",
+    "who": "fm_p02",
+    "kind": "web",
+    "path": "/requests/new/BUY_GOODS",
+    "status": 200,
+    "landed": "/requests/new/BUY_GOODS",
+    "h1": "คำขอใหม่: ซื้อของ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fm_p02_requests_edit-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fm_p02_requests_edit-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fm_p02_requests_edit",
+    "who": "fm_p02",
+    "kind": "web",
+    "path": "/requests/01a14bea-9131-7643-94a7-971add7c810d/edit",
+    "status": 200,
+    "landed": "/requests/01a14bea-9131-7643-94a7-971add7c810d/edit",
+    "h1": "ร่างคำขอ: ซื้อของ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/requester_requests_flagged-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/requester_requests_flagged-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "requester_requests_flagged",
+    "who": "se_p06a",
+    "kind": "web",
+    "path": "/requests/01a14bc2-8faa-7035-9f16-68260c81701a",
+    "status": 200,
+    "landed": "/requests/01a14bc2-8faa-7035-9f16-68260c81701a",
+    "h1": "ลวดผูกเหล็ก 500 กก. งานตอม่อ · สะพานข้ามแยกลำลูกกา"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/mkt_requests_over-budget-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/mkt_requests_over-budget-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "mkt_requests_over-budget",
+    "who": "mkt_01",
+    "kind": "web",
+    "path": "/requests/01a14bea-90e3-7143-bf17-584c43277386",
+    "status": 200,
+    "landed": "/requests/01a14bea-90e3-7143-bf17-584c43277386",
+    "h1": "ค่าจัดบูธงานแสดงสินค้า (ตรวจดีไซน์)"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/mkt_budgets_overrun-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/mkt_budgets_overrun-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "mkt_budgets_overrun",
+    "who": "mkt_01",
+    "kind": "web",
+    "path": "/budgets/overruns/01a14bea-9dad-720e-b57f-7b4fc8127b6d",
+    "status": 200,
+    "landed": "/budgets/overruns/01a14bea-9dad-720e-b57f-7b4fc8127b6d",
+    "h1": "ขออนุมัติเกินงบ OB-2569-00001"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_bud1_budgets-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_bud1_budgets-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_bud1_budgets",
+    "who": "fin_bud1",
+    "kind": "web",
+    "path": "/budgets",
+    "status": 200,
+    "landed": "/budgets",
+    "h1": "งบประมาณ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_bud1_budgets_transfers-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_bud1_budgets_transfers-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_bud1_budgets_transfers",
+    "who": "fin_bud1",
+    "kind": "web",
+    "path": "/budgets/transfers",
+    "status": 200,
+    "landed": "/budgets/transfers",
+    "h1": "การโอนและปรับงบ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_bud1_budgets_transfers_new-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_bud1_budgets_transfers_new-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_bud1_budgets_transfers_new",
+    "who": "fin_bud1",
+    "kind": "web",
+    "path": "/budgets/transfers/new",
+    "status": 200,
+    "landed": "/budgets/transfers/new",
+    "h1": "โอนหรือปรับงบ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_bud1_budgets_transfer-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_bud1_budgets_transfer-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_bud1_budgets_transfer",
+    "who": "fin_bud1",
+    "kind": "web",
+    "path": "/budgets/transfers/01a14bc2-3f97-7346-8952-48a0c1028d1d",
+    "status": 200,
+    "landed": "/budgets/transfers/01a14bc2-3f97-7346-8952-48a0c1028d1d",
+    "h1": "โอนระหว่างบรรทัด BT-2569-00001"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/proc_officer_catalog_manage-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/proc_officer_catalog_manage-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "proc_officer_catalog_manage",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/catalog/manage",
+    "status": 200,
+    "landed": "/catalog/manage",
+    "h1": "จัดการแคตตาล็อก"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/se_p06a_catalog-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/se_p06a_catalog-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "se_p06a_catalog",
+    "who": "se_p06a",
+    "kind": "web",
+    "path": "/catalog",
+    "status": 200,
+    "landed": "/catalog",
+    "h1": "แคตตาล็อก"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_tre1_bank-accounts-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_tre1_bank-accounts-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_tre1_bank-accounts",
+    "who": "fin_tre1",
+    "kind": "web",
+    "path": "/finance/bank-accounts",
+    "status": 200,
+    "landed": "/finance/bank-accounts",
+    "h1": "บัญชีธนาคาร"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_tre1_bank-accounts_change-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_tre1_bank-accounts_change-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_tre1_bank-accounts_change",
+    "who": "fin_tre1",
+    "kind": "web",
+    "path": "/finance/bank-accounts/changes/01a14bea-ac3f-740c-8b36-6c6f3111b2e2",
+    "status": 200,
+    "landed": "/finance/bank-accounts/changes/01a14bea-ac3f-740c-8b36-6c6f3111b2e2",
+    "h1": "เปลี่ยนบัญชี SP0001 · บริษัท เกียรติไพศาลค้าวัสดุ จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_invoices-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_invoices-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_ap1_invoices",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/finance/invoices",
+    "status": 200,
+    "landed": "/finance/invoices",
+    "h1": "ใบแจ้งหนี้"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_invoices_inbox-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_invoices_inbox-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_ap1_invoices_inbox",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/finance/invoices/inbox",
+    "status": 200,
+    "landed": "/finance/invoices/inbox",
+    "h1": "กล่องรับใบแจ้งหนี้"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_invoices_new-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_invoices_new-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_ap1_invoices_new",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/finance/invoices/new",
+    "status": 200,
+    "landed": "/finance/invoices/new",
+    "h1": "บันทึกใบแจ้งหนี้ใหม่"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_invoice_exception-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_invoice_exception-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_ap1_invoice_exception",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/finance/invoices/01a14bb0-3850-74a9-83e3-d6e03db46da3",
+    "status": 200,
+    "landed": "/finance/invoices/01a14bb0-3850-74a9-83e3-d6e03db46da3",
+    "h1": "ใบแจ้งหนี้ AP-2569-00131"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_invoice_draft-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_invoice_draft-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_ap1_invoice_draft",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/finance/invoices/01a14bb1-b517-77c9-819c-40b7eec32546",
+    "status": 200,
+    "landed": "/finance/invoices/01a14bb1-b517-77c9-819c-40b7eec32546",
+    "h1": "ร่างใบแจ้งหนี้"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_invoice_ready-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_invoice_ready-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_ap1_invoice_ready",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/finance/invoices/01a14bc3-c08e-751b-9be1-4716e87d1bad",
+    "status": 200,
+    "landed": "/finance/invoices/01a14bc3-c08e-751b-9be1-4716e87d1bad",
+    "h1": "ใบแจ้งหนี้ AP-2569-00135"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_tre1_payments-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_tre1_payments-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_tre1_payments",
+    "who": "fin_tre1",
+    "kind": "web",
+    "path": "/finance/payments",
+    "status": 200,
+    "landed": "/finance/payments",
+    "h1": "รอบจ่าย"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_tre1_payments_new-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_tre1_payments_new-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_tre1_payments_new",
+    "who": "fin_tre1",
+    "kind": "web",
+    "path": "/finance/payments/new",
+    "status": 200,
+    "landed": "/finance/payments/new",
+    "h1": "เตรียมรอบจ่าย"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_tre1_payment-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_tre1_payment-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_tre1_payment",
+    "who": "fin_tre1",
+    "kind": "web",
+    "path": "/finance/payments/01a14bc4-5ab5-76c1-b925-0cbf5704d86b",
+    "status": 200,
+    "landed": "/finance/payments/01a14bc4-5ab5-76c1-b925-0cbf5704d86b",
+    "h1": "รอบจ่าย PAY-2569-00018"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_retentions-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_retentions-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_ap1_retentions",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/finance/retentions",
+    "status": 200,
+    "landed": "/finance/retentions",
+    "h1": "เงินประกันผลงาน"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_wht-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_wht-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_ap1_wht",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/finance/wht",
+    "status": 200,
+    "landed": "/finance/wht",
+    "h1": "ภาษีหัก ณ ที่จ่าย"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_wht_types-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_wht_types-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_ap1_wht_types",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/finance/wht/types",
+    "status": 200,
+    "landed": "/finance/wht/types",
+    "h1": "ประเภทเงินได้และอัตราภาษี"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/proc_officer_invoice-exceptions-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/proc_officer_invoice-exceptions-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "proc_officer_invoice-exceptions",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/procurement/invoice-exceptions",
+    "status": 200,
+    "landed": "/procurement/invoice-exceptions",
+    "h1": "ใบแจ้งหนี้ที่ราคาหรือจำนวนเกิน PO"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/proc_officer_pos-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/proc_officer_pos-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "proc_officer_pos",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/procurement/pos",
+    "status": 200,
+    "landed": "/procurement/pos",
+    "h1": "ใบสั่งซื้อ (PO)"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/proc_officer_po-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/proc_officer_po-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "proc_officer_po",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/procurement/pos/01a14bb0-33e4-7764-bc56-c3e8cbe2d657",
+    "status": 200,
+    "landed": "/procurement/pos/01a14bb0-33e4-7764-bc56-c3e8cbe2d657",
+    "h1": "บริษัท สามพรานวัสดุค้าวัสดุ จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/proc_officer_po_change-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/proc_officer_po_change-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "proc_officer_po_change",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/procurement/pos/01a14bb0-b6a3-755f-bc58-849a46fbbd40/change",
+    "status": 200,
+    "landed": "/procurement/pos/01a14bb0-b6a3-755f-bc58-849a46fbbd40/change",
+    "h1": "แก้ไข PO PO-2569-00175"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/store_p07_receiving-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/store_p07_receiving-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "store_p07_receiving",
+    "who": "store_p07",
+    "kind": "web",
+    "path": "/receiving",
+    "status": 200,
+    "landed": "/receiving",
+    "h1": "ตรวจรับ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/ceo_insights-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/ceo_insights-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "ceo_insights",
+    "who": "ceo",
+    "kind": "web",
+    "path": "/insights",
+    "status": 200,
+    "landed": "/insights",
+    "h1": "สรุปผู้บริหาร"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/dm_fin_reports-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/dm_fin_reports-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "dm_fin_reports",
+    "who": "dm_fin",
+    "kind": "web",
+    "path": "/reports",
+    "status": 200,
+    "landed": "/reports",
+    "h1": "รายงาน"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/dm_fin_reports_workflow-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/dm_fin_reports_workflow-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "dm_fin_reports_workflow",
+    "who": "dm_fin",
+    "kind": "web",
+    "path": "/reports/workflow",
+    "status": 200,
+    "landed": "/reports/workflow",
+    "h1": "เวลาและคอขวดของการอนุมัติ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/ceo_settings_notifications-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/ceo_settings_notifications-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "ceo_settings_notifications",
+    "who": "ceo",
+    "kind": "web",
+    "path": "/settings/notifications",
+    "status": 200,
+    "landed": "/settings/notifications",
+    "h1": "ตั้งค่าการแจ้งเตือน"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/passkey_settings_pin-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/passkey_settings_pin-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "passkey_settings_pin",
+    "who": "ceo",
+    "kind": "web",
+    "path": "/settings/pin",
+    "status": 200,
+    "landed": "/settings/pin",
+    "h1": "PIN ยืนยันธุรกรรม"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_supplier-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fin_ap1_supplier-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fin_ap1_supplier",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/suppliers/01a14bab-4036-7364-8812-1966cfe7fcc4",
+    "status": 200,
+    "landed": "/suppliers/01a14bab-4036-7364-8812-1966cfe7fcc4",
+    "h1": "บริษัท เกียรติไพศาลค้าวัสดุ จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/se_p06a_supplier-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/se_p06a_supplier-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "se_p06a_supplier",
+    "who": "se_p06a",
+    "kind": "web",
+    "path": "/suppliers/01a14bab-4036-7364-8812-1966cfe7fcc4",
+    "status": 200,
+    "landed": "/suppliers/01a14bab-4036-7364-8812-1966cfe7fcc4",
+    "h1": "บริษัท เกียรติไพศาลค้าวัสดุ จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/ceo_home-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/ceo_home-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "ceo_home",
+    "who": "ceo",
+    "kind": "web",
+    "path": "/",
+    "status": 200,
+    "landed": "/",
+    "h1": "สวัสดี คุณปิยะนุช วันนี้ต้องการทำอะไร"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/ceo_ask-ai-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/ceo_ask-ai-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "ceo_ask-ai",
+    "who": "ceo",
+    "kind": "web",
+    "path": "/",
+    "status": 200,
+    "landed": "/",
+    "h1": "สวัสดี คุณปิยะนุช วันนี้ต้องการทำอะไร"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/store_p07_go_receive-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/store_p07_go_receive-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "store_p07_go_receive",
+    "who": "store_p07",
+    "kind": "go",
+    "path": "/go/receive",
+    "status": 200,
+    "landed": "/go/receive",
+    "h1": "ตรวจรับหน้างาน"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/store_p07_liff_gr-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/store_p07_liff_gr-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "store_p07_liff_gr",
+    "who": "store_p07",
+    "kind": "liff",
+    "path": "/liff/gr",
+    "status": 200,
+    "landed": "/liff/gr",
+    "h1": "ตรวจรับ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/ceo_liff_home-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/ceo_liff_home-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "ceo_liff_home",
+    "who": "ceo",
+    "kind": "liff",
+    "path": "/liff/home",
+    "status": 200,
+    "landed": "/liff/home",
+    "h1": "หน้าแรก"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/se_p01a_liff_home-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/se_p01a_liff_home-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "se_p01a_liff_home",
+    "who": "se_p01a",
+    "kind": "liff",
+    "path": "/liff/home",
+    "status": 200,
+    "landed": "/liff/home",
+    "h1": "หน้าแรก"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/proc_officer_liff_procurement-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/proc_officer_liff_procurement-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "proc_officer_liff_procurement",
+    "who": "proc_officer",
+    "kind": "liff",
+    "path": "/liff/procurement",
+    "status": 200,
+    "landed": "/liff/procurement",
+    "h1": "งานจัดซื้อ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/requester_liff_request-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/requester_liff_request-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "requester_liff_request",
+    "who": "se_p06a",
+    "kind": "liff",
+    "path": "/liff/requests/01a14bc2-8faa-7035-9f16-68260c81701a",
+    "status": 200,
+    "landed": "/liff/requests/01a14bc2-8faa-7035-9f16-68260c81701a",
+    "h1": "PR-2569-00243"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/se_p01a_liff_requests_new-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/se_p01a_liff_requests_new-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "se_p01a_liff_requests_new",
+    "who": "se_p01a",
+    "kind": "liff",
+    "path": "/liff/requests/new",
+    "status": 200,
+    "landed": "/liff/requests/new",
+    "h1": "ขอซื้อ / ขอจ้าง"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/public_verify-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/public_verify-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "public_verify",
+    "who": "nobody",
+    "kind": "public",
+    "path": "/verify/oh34mR0zpLGDjzt_6ERZv3io6gSopZ4Cg-oE4fOK4Kk",
+    "status": 200,
+    "landed": "/verify/oh34mR0zpLGDjzt_6ERZv3io6gSopZ4Cg-oE4fOK4Kk",
+    "h1": "ใบขอซื้อนี้ออกโดยระบบจริง"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/public_verify_unknown-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/public_verify_unknown-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "public_verify_unknown",
+    "who": "nobody",
+    "kind": "public",
+    "path": "/verify/not-a-real-token-0000",
+    "status": 200,
+    "landed": "/verify/not-a-real-token-0000",
+    "h1": "ไม่พบเอกสาร"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/admin_request-types_BUY_GOODS_form_dialog-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/admin_request-types_BUY_GOODS_form_dialog-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "admin_request-types_BUY_GOODS_form_dialog",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/request-types/BUY_GOODS/form",
+    "status": 200,
+    "landed": "/admin/request-types/BUY_GOODS/form",
+    "h1": "ตัวสร้างฟอร์มของ ซื้อของ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/admin2_workflows_version_dialog-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/admin2_workflows_version_dialog-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "admin2_workflows_version_dialog",
+    "who": "admin2",
+    "kind": "web",
+    "path": "/admin/workflows",
+    "status": 200,
+    "landed": "/admin/workflows/01a14bef-f049-7012-a134-0f3c669ad52e",
+    "h1": "WF-SIMEC ฉบับ 3"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/proc_officer_catalog_manage_dialog-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/proc_officer_catalog_manage_dialog-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "proc_officer_catalog_manage_dialog",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/catalog/manage",
+    "status": 200,
+    "landed": "/catalog/manage",
+    "h1": "จัดการแคตตาล็อก"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/proc_officer_po_sent-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/proc_officer_po_sent-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "proc_officer_po_sent",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/procurement/pos/01a14bb0-b6a3-755f-bc58-849a46fbbd40",
+    "status": 200,
+    "landed": "/procurement/pos/01a14bb0-b6a3-755f-bc58-849a46fbbd40",
+    "h1": "ห้างหุ้นส่วนจำกัด เกียรติไพศาลการโยธา"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/store_p07_receiving_po-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/store_p07_receiving_po-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "store_p07_receiving_po",
+    "who": "store_p07",
+    "kind": "web",
+    "path": "/receiving/01a14bab-abca-7012-86b4-7b38e40296e7",
+    "status": 200,
+    "landed": "/receiving/01a14bab-abca-7012-86b4-7b38e40296e7",
+    "h1": "ตรวจรับ PO-2569-00004"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fm_p02_settings_pin-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fm_p02_settings_pin-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fm_p02_settings_pin",
+    "who": "fm_p02",
+    "kind": "web",
+    "path": "/settings/pin",
+    "status": 200,
+    "landed": "/settings/pin",
+    "h1": "PIN ยืนยันธุรกรรม"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/fm_p02_liff_requests_edit-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/fm_p02_liff_requests_edit-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "fm_p02_liff_requests_edit",
+    "who": "fm_p02",
+    "kind": "liff",
+    "path": "/liff/requests/01a14bea-9131-7643-94a7-971add7c810d/edit",
+    "status": 200,
+    "landed": "/liff/requests/01a14bea-9131-7643-94a7-971add7c810d/edit",
+    "h1": "ร่างคำขอ: ซื้อของ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/tasks_REQUEST-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/tasks_REQUEST-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "tasks_REQUEST",
+    "who": "vp_ops",
+    "kind": "web",
+    "path": "/tasks/01a14bc6-e907-73c8-a967-a74a5ac080cf",
+    "status": 200,
+    "landed": "/tasks/01a14bc6-e907-73c8-a967-a74a5ac080cf",
+    "h1": "ขอซื้อเหล็กข้ออ้อย DB25 1 ตัน ส่งไซต์พระราม 9"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/liff_tasks_REQUEST-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/liff_tasks_REQUEST-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "liff_tasks_REQUEST",
+    "who": "vp_ops",
+    "kind": "liff",
+    "path": "/liff/tasks/01a14bc6-e907-73c8-a967-a74a5ac080cf",
+    "status": 200,
+    "landed": "/liff/tasks/01a14bc6-e907-73c8-a967-a74a5ac080cf",
+    "h1": "ขอซื้อเหล็กข้ออ้อย DB25 1 ตัน ส่งไซต์พระราม 9"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/tasks_BUDGET_TRANSFER-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/tasks_BUDGET_TRANSFER-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "tasks_BUDGET_TRANSFER",
+    "who": "dm_conb",
+    "kind": "web",
+    "path": "/tasks/01a14bea-b88c-7155-b953-7d83f352dd89",
+    "status": 200,
+    "landed": "/tasks/01a14bea-b88c-7155-b953-7d83f352dd89",
+    "h1": "โอนระหว่างบรรทัด BT-2569-00002"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/liff_tasks_BUDGET_TRANSFER-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/liff_tasks_BUDGET_TRANSFER-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "liff_tasks_BUDGET_TRANSFER",
+    "who": "dm_conb",
+    "kind": "liff",
+    "path": "/liff/tasks/01a14bea-b88c-7155-b953-7d83f352dd89",
+    "status": 200,
+    "landed": "/liff/tasks/01a14bea-b88c-7155-b953-7d83f352dd89",
+    "h1": "งานอนุมัติ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/tasks_BUDGET_OVERRUN-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/tasks_BUDGET_OVERRUN-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "tasks_BUDGET_OVERRUN",
+    "who": "vp_bd",
+    "kind": "web",
+    "path": "/tasks/01a14bea-9dff-721f-8fe1-3bde39a21221",
+    "status": 200,
+    "landed": "/tasks/01a14bea-9dff-721f-8fe1-3bde39a21221",
+    "h1": "ขออนุมัติเกินงบ OB-2569-00001"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/liff_tasks_BUDGET_OVERRUN-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/liff_tasks_BUDGET_OVERRUN-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "liff_tasks_BUDGET_OVERRUN",
+    "who": "vp_bd",
+    "kind": "liff",
+    "path": "/liff/tasks/01a14bea-9dff-721f-8fe1-3bde39a21221",
+    "status": 200,
+    "landed": "/liff/tasks/01a14bea-9dff-721f-8fe1-3bde39a21221",
+    "h1": "งานอนุมัติ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/tasks_PO_CHANGE-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/tasks_PO_CHANGE-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "tasks_PO_CHANGE",
+    "who": "coo",
+    "kind": "web",
+    "path": "/tasks/01a14bea-c6b6-7739-85f5-dec8270ee51a",
+    "status": 200,
+    "landed": "/tasks/01a14bea-c6b6-7739-85f5-dec8270ee51a",
+    "h1": "ห้างหุ้นส่วนจำกัด เกียรติไพศาลการโยธา"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/liff_tasks_PO_CHANGE-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/liff_tasks_PO_CHANGE-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "liff_tasks_PO_CHANGE",
+    "who": "coo",
+    "kind": "liff",
+    "path": "/liff/tasks/01a14bea-c6b6-7739-85f5-dec8270ee51a",
+    "status": 200,
+    "landed": "/liff/tasks/01a14bea-c6b6-7739-85f5-dec8270ee51a",
+    "h1": "ห้างหุ้นส่วนจำกัด เกียรติไพศาลการโยธา"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/tasks_BANK_ACCOUNT_CHANGE-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/tasks_BANK_ACCOUNT_CHANGE-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "tasks_BANK_ACCOUNT_CHANGE",
+    "who": "cfo",
+    "kind": "web",
+    "path": "/tasks/01a14bea-ae11-733f-b53c-eba4cd690595",
+    "status": 200,
+    "landed": "/finance/bank-accounts/changes/01a14bea-ac3f-740c-8b36-6c6f3111b2e2",
+    "h1": "เปลี่ยนบัญชี SP0001 · บริษัท เกียรติไพศาลค้าวัสดุ จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/p1/pages/liff_tasks_BANK_ACCOUNT_CHANGE-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "1440": {
+      "picture": "docs/design-review/p1/pages/liff_tasks_BANK_ACCOUNT_CHANGE-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0,
+      "smallTargets": []
+    },
+    "name": "liff_tasks_BANK_ACCOUNT_CHANGE",
+    "who": "cfo",
+    "kind": "liff",
+    "path": "/liff/tasks/01a14bea-ae11-733f-b53c-eba4cd690595",
+    "status": 200,
+    "landed": "/liff/tasks/01a14bea-ae11-733f-b53c-eba4cd690595",
+    "h1": "BAC-2569-00001"
+  }
+]

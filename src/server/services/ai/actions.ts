@@ -389,7 +389,8 @@ export const purgeContentCommand = defineCommand({
         // A row with no subject yet counts too (NOT on its own would drop the NULLs)
         AND: [
           { OR: [{ subjectType: null }, { subjectType: { not: 'CHAT_INTAKE' } }] },
-          { OR: [{ purpose: 'QUESTION' }, { level: 'L1', status: { in: ['REJECTED', 'EXPIRED', 'FAILED'] } }, { purpose: 'BRIEF' }] },
+          // L0 of any agent (Insight, Briefs, and an agent an ORG_ADMIN set to L0) is never applied to a document
+          { OR: [{ purpose: 'QUESTION' }, { level: 'L0' }, { level: 'L1', status: { in: ['REJECTED', 'EXPIRED', 'FAILED'] } }, { purpose: 'BRIEF' }] },
           // A Brief stays while its task is open; filtered here, so open ones never fill the batch
           { OR: [{ NOT: { purpose: 'BRIEF' } }, { subjectId: null }, { NOT: { subjectId: { in: openTaskIds } } }] },
         ],
@@ -410,7 +411,8 @@ export const purgeContentCommand = defineCommand({
       // has no diff to keep)
       await tx.agentAction.update({
         where: { id: t.id },
-        data: { inputText: null, output: PURGED, review: PURGED, verification: PURGED, fieldConfidence: PURGED, contentPurgedAt: ctx.now },
+        // the member's note on a result is what they typed about it: it goes with the content
+        data: { inputText: null, output: PURGED, review: PURGED, verification: PURGED, fieldConfidence: PURGED, feedbackNote: null, contentPurgedAt: ctx.now },
       })
       events.push({ type: 'agent_action.content_purged', aggregateType: 'AgentAction', aggregateId: t.id, data: { reason: t.reason } })
     }

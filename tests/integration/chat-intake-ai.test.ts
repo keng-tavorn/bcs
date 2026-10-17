@@ -273,3 +273,21 @@ describe('[FR-LINE-301/AC7] BR-LINE-11: what the AI read of a chat draft goes wi
     expect(await prisma.agentAction.count({ where: { organizationId: org.organizationId, subjectType: 'REQUEST', contentPurgedAt: { not: null } } })).toBe(0)
   })
 })
+
+describe('[FR-LINE-301/AC5] a full chat draft is read within what the Intake Agent takes (ADR-073 pre-review)', () => {
+  it('seven photos and 2,000 characters ending with an emoji: the reading takes the first five photos and the text cut to 2,000 UTF-16 units', async () => {
+    // 2,000 characters as LINE and the chat draft count them (code points), 2,001 UTF-16 units as the agent counts them
+    const kept = 'ข'.repeat(1_999)
+    const { intakeId } = await chatDraft(`${kept}🙂`)
+    for (let n = 0; n < 7; n++) {
+      const item = await prisma.chatIntakeItem.create({ data: { organizationId: org.organizationId, intakeId, seq: n + 2, kind: 'IMAGE', lineMessageId: lineId(), fetchStatus: 'PENDING', receivedAt: NOW } })
+      await storePhoto(intakeId, item.id)
+    }
+    const calls = sent.length
+    expect(await run(intakeId)).toMatchObject({ status: 'LINKED' })
+    expect(sent.length).toBe(calls + 1)
+    expect(sent.at(-1)!.files).toHaveLength(5)
+    expect(String(sent.at(-1)!.text)).toContain(kept)
+    expect(String(sent.at(-1)!.text)).not.toContain('🙂')
+  })
+})

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AGENT_ACTION_MACHINE, agentActionTransition, creditPeriodMonth, redactForAi, REDACTED } from '@/core/ai-checks'
+import { AGENT_ACTION_MACHINE, agentActionTransition, creditPeriodMonth, mapQuotation, redactForAi, REDACTED } from '@/core/ai-checks'
 
 // The pure parts of the AI module that are not golden suites: the AgentAction state machine (docs/sub-specs/S13.md
 // "State machine"), the month of a credit (Thai time), and the redactor of BR-AI-18.
@@ -42,5 +42,17 @@ describe('[BR-AI-18] the redactor hides account numbers and personal ids', () =>
   it('keeps the tax id of a juristic person, amounts, dates and short numbers', () => {
     const text = 'ผู้ขาย 0105512345678 ยอด 129,684.00 บาท วันที่ 2026-10-13 จำนวน 25 วัน เลขที่ INV-00373'
     expect(redactForAi(text)).toBe(text)
+  })
+})
+
+describe('[BR-AI-25] a total that is not an amount fills nothing instead of failing the reading (ADR-073 pre-review)', () => {
+  const ctx = { fileId: 'F', vatRateBp: 700, registry: [], normalized: { lines: [], discountTotal: null } }
+  it('a delivery note read in the quotation place, its net "-" or "1,200 บาท": no amount, AMOUNT_UNVERIFIED; "1,200.50" is read', () => {
+    for (const net of ['-', '1,200 บาท', '12.345']) {
+      const got = mapQuotation({ docType: 'DELIVERY_NOTE', net, lines: [] }, {}, ctx)
+      expect(got.quotation?.amount, net).toBeNull()
+      expect(got.flags, net).toContain('AMOUNT_UNVERIFIED')
+    }
+    expect(mapQuotation({ docType: 'QUOTATION', net: '1,200.50', lines: [] }, {}, ctx).quotation?.amount).toBe('1200.50')
   })
 })

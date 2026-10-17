@@ -447,3 +447,15 @@ describe('[BR-AI-17] the hourly sweep never expires a draft applied while it ran
     expect(await prisma.event.count({ where: { aggregateId: id, type: 'agent_action.expired' } })).toBe(0)
   })
 })
+
+describe('[BR-AI-18] what a member typed about a result is cleared with it (ADR-073 pre-review)', () => {
+  it('the note of a feedback goes when the content of an unused L0 result is cleared after its retention', async () => {
+    const org = await setup()
+    const insight = await ask(org, 'req_con', 'QUESTION')
+    if (!insight.ok) throw new Error('setup')
+    await answer(org, insight.data.agentActionId, { input: 10, output: 1 })
+    expect((await giveAgentFeedback(org.ctx('req_con'), { agentActionId: insight.data.agentActionId, feedback: 'NOT_HELPFUL', note: 'ตอบไม่ตรงคำถาม' }, key())).ok).toBe(true)
+    await runAgentActionSweep(org.organizationId, new Date(NOW.getTime() + 91 * 86_400_000))
+    expect(await prisma.agentAction.findUniqueOrThrow({ where: { id: insight.data.agentActionId } })).toMatchObject({ feedbackNote: null, feedback: 'NOT_HELPFUL', output: { purged: true } })
+  })
+})

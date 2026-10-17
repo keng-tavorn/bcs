@@ -37,9 +37,13 @@ export interface PoFacts {
     readonly netSatang: string
     readonly budgetLineId: string
     readonly budgetLineCode: string
+    /** The budget line's account code */
     readonly accountCode: string | null
     readonly costCenter: string
     readonly department: string
+    readonly categoryCode: string | null
+    /** BR-AP-10's history for an invoice of the PO dated today: each code used, how often, the day it was last used */
+    readonly codingHistory: ReadonlyArray<{ readonly accountCode: string; readonly count: number; readonly last: string }>
   }>
   readonly balances: Readonly<Record<string, Balance>>
 }
@@ -99,6 +103,25 @@ export function poOfHistory(ref: string): PoFacts {
   expect(po.poCount, `${ref}: the history ordered its request on one PO`).toBe(1)
   expect(po.poNumber, `${ref}: the PO has its number`).not.toBeNull()
   return po
+}
+
+/** What the coding form proposes for a line (BR-AP-10): the account code, or null, and the source written beside it */
+export interface Proposal {
+  readonly accountCode: string | null
+  readonly from: string
+}
+
+/**
+ * BR-AP-10 from the database's facts, for each line of an invoice of the PO dated today: the code the supplier's history
+ * of the line's category used most often (the latest when tied), else the budget line's, else nothing to propose
+ */
+export function proposalsFor(po: PoFacts): Proposal[] {
+  return po.lines.map((l) => {
+    const best = [...l.codingHistory].sort((a, b) => b.count - a.count || b.last.localeCompare(a.last))[0]
+    if (best) return { accountCode: best.accountCode, from: th('apInvoice.coding.from.HISTORY', { count: best.count }) }
+    if (l.accountCode) return { accountCode: l.accountCode, from: th('apInvoice.coding.from.BUDGET_LINE') }
+    return { accountCode: null, from: th('apInvoice.coding.noSuggestion') }
+  })
 }
 
 export function invoiceOf(supplier: string, invoiceNo: string, sinceSeq: string): InvoiceFacts {
@@ -202,6 +225,16 @@ export const h1 = (page: Page) => page.getByRole('heading', { level: 1 })
 /** The element of this layout: tables show from md up, a list of cards below it */
 export const shown = (page: Page, text: string) => page.getByText(text, { exact: true }).filter({ visible: true }).first()
 
+/** A fact of the document's header, the one with the page's title ("ยอดโอน" → its value) */
+export function headerFigure(page: Page, label: string): Locator {
+  return page
+    .locator('header')
+    .filter({ has: h1(page) })
+    .locator('dt')
+    .filter({ hasText: new RegExp(`^${literally(label)}$`) })
+    .locator('xpath=following-sibling::dd[1]')
+}
+
 /** A figure of the invoice's amounts panel ("ยอดที่ต้องจ่าย" → its value) */
 export function figure(page: Page, label: string): Locator {
   return page
@@ -253,35 +286,42 @@ export async function saveHeader(page: Page, h: { readonly invoiceNo: string; re
 }
 
 /**
- * The coding of every line (FR-AP-108): each line's account code is the one the row expects — the form proposes it from
- * the history or the budget line; picked when it is missing — and, when given, the income type withheld on each line.
- * Confirmed, then the page read again so the submit carries the draft's new version.
+ * The coding of every line (FR-AP-108, BR-AP-10): the form proposes each line's account code (`proposals`, one per line
+ * in order, from proposalsFor) with its source beside it, and the picker shows the proposal already — it must be the
+ * code the row expects. Only a line with nothing to propose starts empty, and then the code is picked (the row's stepsTh
+ * tells the presenter to pick it). When given, the income type withheld on each line is picked. Confirmed, then the page
+ * read again so the submit carries the draft's new version.
  */
-export async function confirmCoding(page: Page, accountCode: string, incomeType?: { readonly label: RegExp }) {
+export async function confirmCoding(page: Page, c: { readonly accountCode: string; readonly proposals: readonly Proposal[]; readonly incomeType?: { readonly label: RegExp } }) {
   const coding = page.getByRole('region', { name: th('apInvoice.coding.title') })
-  const pickers = coding.getByRole('combobox', { name: new RegExp(`^${literally(th('apInvoice.coding.accountCode', { no: 'X' })).replace('X', '\\d+')}$`) })
-  const count = await pickers.count()
-  expect(count, 'the draft has lines to code').toBeGreaterThan(0)
-  for (let i = 0; i < count; i++) {
-    const picker = pickers.nth(i)
-    if ((await picker.innerText()).startsWith(`${accountCode} `)) continue
-    await picker.click()
-    await page.getByRole('option', { name: new RegExp(`^${literally(accountCode)} `) }).click()
-    await expect(picker).toContainText(accountCode)
-  }
-  if (incomeType) {
-    const types = coding.getByRole('combobox', { name: new RegExp(`^${literally(th('apInvoice.coding.incomeType', { no: 'X' })).replace('X', '\\d+')}$`) })
-    for (let i = 0; i < (await types.count()); i++) {
-      await types.nth(i).click()
-      await page.getByRole('option', { name: incomeType.label }).click()
-      await expect(types.nth(i)).toHaveText(incomeType.label)
+  const lines = coding.getByRole('list', { name: th('apInvoice.coding.title') }).getByRole('listitem')
+  await expect(lines, 'the draft has a line to code for each line of the PO').toHaveCount(c.proposals.length)
+  for (const [i, proposal] of c.proposals.entries()) {
+    const no = i + 1
+    const line = lines.nth(i)
+    const picker = line.getByRole('combobox', { name: th('apInvoice.coding.accountCode', { no }), exact: true })
+    if (proposal.accountCode === null) {
+      await expect(line).toContainText(th('apInvoice.coding.noSuggestion'))
+      await expect(picker, `line ${no}: nothing to propose, the picker is empty`).toHaveText(th('apInvoice.coding.pickCode'))
+      await picker.click()
+      await page.getByRole('option', { name: new RegExp(`^${literally(c.accountCode)} `) }).click()
+    } else {
+      expect(proposal.accountCode, `line ${no}: BR-AP-10 proposes ${proposal.accountCode} (${proposal.from}), the row codes ${c.accountCode}`).toBe(c.accountCode)
+      await expect(line).toContainText(`${th('apInvoice.coding.suggested', { code: proposal.accountCode })} · ${proposal.from}`)
+    }
+    await expect(picker, `line ${no} is coded ${c.accountCode}`).toHaveText(new RegExp(`^${literally(c.accountCode)} `))
+    if (c.incomeType) {
+      const type = line.getByRole('combobox', { name: th('apInvoice.coding.incomeType', { no }), exact: true })
+      await type.click()
+      await page.getByRole('option', { name: c.incomeType.label }).click()
+      await expect(type).toHaveText(c.incomeType.label)
     }
   }
   await coding.getByRole('button', { name: th('apInvoice.coding.confirm') }).click()
   await expect(coding.getByText(th('apInvoice.coding.done'))).toBeVisible({ timeout: 30_000 })
   await page.reload()
   const confirmed = page.getByRole('region', { name: th('apInvoice.coding.title') }).getByText(th('apInvoice.coding.confirmed'), { exact: true })
-  await expect(confirmed).toHaveCount(count)
+  await expect(confirmed).toHaveCount(c.proposals.length)
 }
 
 /**

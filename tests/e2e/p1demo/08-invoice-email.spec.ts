@@ -1,7 +1,7 @@
 import { formatThaiDay } from '../../../src/core/thai/day'
 import { literally, th } from '../demo/support'
 import { expect, test } from '../fixtures'
-import { confirmCoding, dayAfter, eventSeq, expectAmounts, expectBudgetMoved, expectEvents, expectRunDate, h1, invoiceOf, poOfHistory, s8, sheetSatang, shown, submitDraft } from './money-steps'
+import { confirmCoding, dayAfter, eventSeq, expectAmounts, expectBudgetMoved, expectEvents, expectRunDate, h1, invoiceOf, poOfHistory, proposalsFor, s8, sheetSatang, shown, submitDraft } from './money-steps'
 import { columnOf, expectedOf, expectedSatang, historyOf, p1Sheet, sceneOf, signInAs, todayInBangkok, userOf } from './support'
 
 // Scene 8 of the day of phase 1 (P1-08 · S8 · INVOICE_EMAIL): the supplier e-mails the e-Tax invoice of a delivery the
@@ -41,6 +41,8 @@ test('@p1demo [FR-AP-101/AC2] [FR-AP-102/AC3] scene 8: an e-Tax invoice e-mailed
   for (const l of po.lines) expect(Number(l.received), `line ${l.lineNo} of ${po.poNumber} is received in full`).toBe(Number(l.quantity))
   const budgetLine = po.lines[0]!.budgetLineId
   const before = po.balances[budgetLine]!
+  // what the coding form will propose for each line (BR-AP-10): the supplier's history of the category, else the budget line's
+  const proposals = proposalsFor(po)
   const since = eventSeq()
   const mail = s8<{ inbox: string; from: string; subject: string; issueDate: string; poNumber: string }>('mail', String(scene.scene))
   expect(mail.from, 'from the address sheet Suppliers gives the supplier').toBe(sheet.suppliers.get(supplier)!.email)
@@ -68,8 +70,8 @@ test('@p1demo [FR-AP-101/AC2] [FR-AP-102/AC3] scene 8: an e-Tax invoice e-mailed
   await expect(page.getByRole('link', { name: th('apInvoice.header.poLink', { number: mail.poNumber }) })).toBeVisible()
   await expect(page.getByRole('link', { name: th('apInvoice.header.supplierName', { name: sheet.suppliers.get(supplier)!.nameTh, code: supplier }) })).toBeVisible()
 
-  // Every line's coding confirmed, then submitted: three-way match, ready for payment
-  await confirmCoding(page, accountCode)
+  // Every line's coding — the account proposed, the row's — confirmed, then submitted: three-way match, ready for payment
+  await confirmCoding(page, { accountCode, proposals })
   const number = await submitDraft(page, 'READY_FOR_PAYMENT')
   await expectAmounts(page, { payable, wht, transfer, due, dueText: formatThaiDay(due)! })
 

@@ -9,10 +9,11 @@ import { budgetLineOf, columnOf, countedOf, day, expectedOf, p1Sheet, ruleOf, sc
 // quotation (DocSamples); the account answers with the button "ตรวจและส่งคำขอ" only (none of what was typed: BR-LINE-06).
 // The button opens the chat draft in LIFF, which says the AI is reading; the jobs the e2e app has no Inngest for are
 // played by the scene script (./scripts/chat.ts): the photo is fetched from LINE and kept, and the Intake Agent reads the
-// words and the photo (AI_MODE=fixture: the recorded answer tests/fixtures/ai/INTAKE/<key>.json, named by the words, the
-// photo and the organization's types and sites — so the row's chatText must stay as recorded). LIFF then shows the
-// reading with the badge "เติมโดย AI โปรดตรวจ" and the type it suggests picked; the draft takes the AI's values, the photo
-// as an OTHER attachment, and the values BR-AI-16 names wait to be confirmed one by one before the request may go. The
+// words and the photo once — a retry of the job reads nothing again, and nothing is said in the chat (AI_MODE=fixture:
+// the recorded answer tests/fixtures/ai/INTAKE/<key>.json, named by the words, the photo and the organization's types
+// and sites — so the row's chatText must stay as recorded). LIFF then shows the reading with the badge "เติมโดย AI
+// โปรดตรวจ" and the type it suggests picked; the draft takes the AI's values, the photo as an OTHER attachment, and the
+// values BR-AI-16 names wait to be confirmed one by one: request.submit refuses (AI_REVIEW_PENDING) until they are. The
 // requester picks the row's budget line of this fiscal year, checks the amounts of the row and the route the DOA gives
 // (the row's rule and approver), and sends it in LIFF: the approver's task notice goes out as the approval card in LINE
 // (played job notification-deliver). Without AI the same works on (EG-1): proven by @s17 scene 6 [FR-LINE-301/AC6] on the
@@ -37,7 +38,19 @@ interface Chat {
 interface ChatJobs {
   readonly images: readonly string[]
   readonly ai: { readonly status: string; readonly agentActionId?: string; readonly reason?: string }
+  /** The same job once more, as a retry of its event would run it */
+  readonly again: { readonly status: string; readonly agentActionId?: string; readonly reason?: string }
+  /** The AgentAction rows reading the draft, and the one the draft keeps */
+  readonly readings: number
+  readonly kept: string | null
   readonly action: { readonly status: string; readonly errorCode: string | null } | null
+  /** Notices queued for the writer while the jobs ran */
+  readonly notices: number
+}
+
+interface Refusal {
+  readonly code: string | null
+  readonly count: number | null
 }
 
 interface Drafted {
@@ -55,7 +68,7 @@ function waitingLabel(path: string): string {
   return th(`liffChat.review.path.${['title', 'deliverySiteId', 'suggestedSupplierId', 'requestTypeCode'].includes(path) ? path : 'other'}`)
 }
 
-test('@p1demo [FR-LINE-301/AC1] [FR-LINE-301/AC3] [FR-LINE-301/AC4] [FR-LINE-301/AC5] scene 15: the requester asks in the LINE chat with the quotation\'s photo; LIFF shows what the AI read, the money and the quantity are confirmed one by one, and the request goes to the approver of the DOA, who gets the card in LINE', async ({
+test('@p1demo [FR-LINE-301/AC1] [FR-LINE-301/AC3] [FR-LINE-301/AC4] [FR-LINE-301/AC5] scene 15: the requester asks in the LINE chat with the quotation\'s photo; LIFF shows what the AI read, the money, the quantity and the supplier are confirmed one by one, and the request goes to the approver of the DOA, who gets the card in LINE', async ({
   page,
   context,
 }) => {
@@ -123,8 +136,18 @@ test('@p1demo [FR-LINE-301/AC1] [FR-LINE-301/AC3] [FR-LINE-301/AC4] [FR-LINE-301
     const { key } = script<{ key: string }>('scripts/chat.ts', 'ai-key', String(s.scene))
     throw new Error(`no recorded answer for the reading of scene ${s.scene}: record tests/fixtures/ai/${key}.json (its words, photo or the organization's types and sites changed)`)
   }
-  expect(jobs).toEqual({ images: Array(photos).fill('STORED'), ai: { status: 'LINKED', agentActionId: expect.any(String) }, action: { status: 'DRAFT', errorCode: null } })
-  // Nothing is said in the chat when the reading ends (AC5): LIFF shows it
+  // A retry of the job's event reads nothing again: the draft keeps its one reading (the model is not called twice).
+  // Nothing is said in the chat when the reading ends (AC5): LIFF shows it — no notice is queued for the requester
+  // (notices: 0) and nothing is pushed to their LINE
+  expect(jobs).toEqual({
+    images: Array(photos).fill('STORED'),
+    ai: { status: 'LINKED', agentActionId: expect.any(String) },
+    again: { status: 'SKIPPED', reason: 'READ_ALREADY' },
+    readings: 1,
+    kept: jobs.ai.agentActionId,
+    action: { status: 'DRAFT', errorCode: null },
+    notices: 0,
+  })
   expect((await pushesTo(actor.code)).length, 'no push to the requester once the AI has read').toBe(pushesBefore)
 
   // LIFF: the words typed in the chat as a reference, the photo kept, and what the AI read with its badge; the type it
@@ -145,12 +168,17 @@ test('@p1demo [FR-LINE-301/AC1] [FR-LINE-301/AC3] [FR-LINE-301/AC4] [FR-LINE-301
   // AC4: the requester makes the draft in LIFF (nothing is sent from the chat)
   await page.getByRole('button', { name: th('liffChat.make'), exact: true }).click()
   await expect(page).toHaveURL(/\/liff\/requests\/[0-9a-f-]{36}\/edit$/)
+  const requestId = /\/liff\/requests\/([0-9a-f-]{36})\/edit$/.exec(new URL(page.url()).pathname)![1]!
 
-  // BR-AI-16 (AC5): the values the row names — the quantity and the unit price, among others — wait to be confirmed one by
-  // one before the request may go; the requester ticks each and confirms
+  // BR-AI-16 (AC5): the values the row names — the quantity, the unit price and the supplier, among others — wait to be
+  // confirmed one by one before the request may go. Sent before that, request.submit (the command of LIFF's send)
+  // refuses with AI_REVIEW_PENDING, counting each value still waiting; then the requester ticks each and confirms
   const waiting = page.getByRole('region', { name: new RegExp(`^${literally(th('liffChat.review.heading'))}`) })
   await expect(waiting.getByText(th('liffChat.ai.badge'))).toBeVisible()
   for (const path of mustConfirm) await expect(waiting.getByText(waitingLabel(path), { exact: true }), `${path} waits to be confirmed`).toBeVisible()
+  const early = script<Refusal>('scripts/chat.ts', 'send-unconfirmed', requestId)
+  expect(early, 'nothing is sent while values the AI filled wait').toEqual({ code: 'AI_REVIEW_PENDING', count: expect.any(Number) })
+  await expect(waiting.getByRole('checkbox'), 'one box for each value request.submit counts as waiting').toHaveCount(early.count!)
   for (const box of await waiting.getByRole('checkbox').all()) await box.check()
   await waiting.getByRole('button', { name: th('liffChat.review.confirm') }).click()
   await expect(page.getByRole('region', { name: new RegExp(`^${literally(th('liffChat.review.heading'))}`) })).toHaveCount(0)
@@ -160,10 +188,15 @@ test('@p1demo [FR-LINE-301/AC1] [FR-LINE-301/AC3] [FR-LINE-301/AC4] [FR-LINE-301
   await page.getByLabel(th('requestForm.budget.line')).selectOption({ label: th('requestForm.budget.option', { code: budgetLine.code, name: budgetLine.nameTh }) })
   await page.getByRole('button', { name: 'ไปขั้นถัดไป: รายการที่ขอ' }).click()
 
-  // Step 2: the AI's line, and the row's amounts before VAT, VAT and with it
+  // Step 2: the AI's line, and the row's amounts in the totals, each beside its label: before VAT, VAT at the rate of
+  // sheet Settings (a fraction: "0.07" is written "VAT 7%") and with VAT
   await expect(page.getByRole('heading', { level: 2, name: /^ขั้นที่ 2 จาก 3: / })).toBeVisible()
   await expect(page.getByRole('group', { name: 'รายการที่ 1' }).getByLabel('สิ่งที่ขอ')).toHaveValue(line.description)
-  for (const amount of [net, vat, gross]) await expect(page.getByText(`${baht(amount)} บาท`).first()).toBeVisible()
+  const vatRate = Number(sheet.settings.get('vatRate'))
+  if (!Number.isFinite(vatRate)) throw new Error('sheet Settings gives no vatRate')
+  const totals = page.getByRole('region', { name: th('requestForm.totals.title'), exact: true })
+  await expect(totals.getByRole('term')).toHaveText([th('requestForm.totals.net'), th('requestForm.totals.vat', { rate: Math.round(vatRate * 10_000) / 100 }), th('requestForm.totals.gross')])
+  await expect(totals.getByRole('definition')).toHaveText([net, vat, gross].map((amount) => th('requestForm.totals.baht', { amount: baht(amount) })))
   await page.getByRole('button', { name: 'ไปขั้นถัดไป: ตรวจและส่ง' }).click()
 
   // Step 3: the route the DOA expects — the row's approver, the position the rule names, the rule — then the send
@@ -203,13 +236,15 @@ test('@p1demo [FR-LINE-301/AC1] [FR-LINE-301/AC3] [FR-LINE-301/AC4] [FR-LINE-301
   expect(open).toHaveLength(1)
   expect(open[0]).toMatchObject({ assignee: approver.code, principal: null, resolvedFrom: `POSITION:${held}` })
   for (const type of ['request.drafted', 'request.submitted']) expect(facts.events.find((e) => e.type === type)?.channel, `${type} was made in ${submitChannel}`).toBe(submitChannel)
-  // The chat draft made this request, with the AI's values and the photo, and its suggested supplier is the row's
+  // The chat draft made this request in LIFF (AC4), with the AI's values and the photo, and its suggested supplier is the
+  // row's
+  expect(requestId, 'the request LIFF made of the chat draft').toBe(facts.id)
   expect(script<Drafted>('scripts/chat.ts', 'drafted', chat.intakeId)).toMatchObject({
     status: 'DRAFTED',
     requestId: facts.id,
     number: facts.number,
     supplier: columnOf(s, 'supplier'),
-    event: { images: photos, aiAssisted: true },
+    event: { channel: submitChannel, images: photos, aiAssisted: true },
   })
 
   // The approver's task notice goes out (played job notification-deliver): as the approval card in LINE, its summary only

@@ -1,5 +1,6 @@
 import { formatThaiDay } from '../../../src/core/thai/day'
 import { scannedInvoicePdf } from '../../../src/server/seed/etax-sample'
+import { E2E_PIN } from '../../support/e2e-env'
 import { baht, th, typed } from '../demo/support'
 import { expect, test } from '../fixtures'
 import {
@@ -14,6 +15,7 @@ import {
   h1,
   invoiceOf,
   poOfHistory,
+  proposalsFor,
   saveHeader,
   shown,
   submitDraft,
@@ -25,9 +27,10 @@ import { approverByRule, columnOf, expectedOf, expectedSatang, historyOf, p1Shee
 // delivery the history received in full, types its number, date and VAT, and its unit price — higher than the PO's,
 // beyond the tolerance of sheet Settings — and submits it: the match sends the difference to procurement. Procurement
 // asks for the variance to be approved; the DOA routes it by the variance with its VAT to the rule and the approver the
-// row names (no PIN below the stepUpThreshold); once approved the invoice is ready for payment and the budget line holds
-// the extra and moves the invoice to actual. Who, the amounts, the invoice number and what follows are the row's (sheet
-// Demo_Script_P1) and its expectJson's; the PO is found from the history row, never typed.
+// row names (the PIN only at or above the stepUpThreshold: the row's stepUp); once approved the invoice is ready for
+// payment and the budget line holds the extra and moves the invoice to actual. Who, the amounts, the invoice number and
+// what follows are the row's (sheet Demo_Script_P1) and its expectJson's; the PO is found from the history row, never
+// typed.
 
 test('@p1demo [FR-AP-101/AC1] [FR-AP-103/AC2] [FR-AP-105/AC2] [FR-AP-105/AC3] scene 9: a paper invoice over the PO price goes to procurement, its variance is approved by the DOA, and it is ready for payment', async ({ page, browser }) => {
   test.setTimeout(10 * 60_000)
@@ -54,6 +57,7 @@ test('@p1demo [FR-AP-101/AC1] [FR-AP-103/AC2] [FR-AP-105/AC2] [FR-AP-105/AC3] sc
   const rule = expectedOf<string>(scene, 'varianceRule')
   const approver = expectedOf<string>(scene, 'varianceApprover')
   const reason = expectedOf<string>(scene, 'varianceReasonTh')
+  const stepUp = expectedOf<boolean>(scene, 'stepUp')
   const payable = expectedSatang(scene, 'payable')
   const wht = expectedSatang(scene, 'expectedWht')
   const today = todayInBangkok()
@@ -71,7 +75,7 @@ test('@p1demo [FR-AP-101/AC1] [FR-AP-103/AC2] [FR-AP-105/AC2] [FR-AP-105/AC3] sc
   expect((doaRule.gt === null || counted > doaRule.gt) && (doaRule.lte === null || counted <= doaRule.lte), `${baht(counted)} is within rule ${rule}`).toBe(true)
   const budgetDepartment = [...(sheet.budget.get(columnOf(scene, 'budgetKey'))?.values() ?? [])][0]?.department ?? null
   expect(approverByRule(sheet, rule, budgetDepartment ?? '').code, `rule ${rule} names ${approver} for the department of the budget line`).toBe(approver)
-  expect(expectedOf<boolean>(scene, 'stepUp')).toBe(counted >= sheet.doa.stepUpThreshold)
+  expect(stepUp, 'the PIN is asked at or above the stepUpThreshold').toBe(counted >= sheet.doa.stepUpThreshold)
 
   // Before the scene: the delivery is received in full and waits for its invoice
   const po = poOfHistory(history.ref)
@@ -84,6 +88,8 @@ test('@p1demo [FR-AP-101/AC1] [FR-AP-103/AC2] [FR-AP-105/AC2] [FR-AP-105/AC3] sc
   expect(line.unitPriceSatang).toBe(columnOf(scene, 'unitPrice').toString())
   expect(line.department).toBe(budgetDepartment)
   const before = po.balances[line.budgetLineId]!
+  // what the coding form will propose for the line (BR-AP-10): the supplier's history of the category, else the budget line's
+  const proposals = proposalsFor(po)
   const since = eventSeq()
 
   // FINANCE: the PO, the scanned invoice, a draft typed from the paper
@@ -99,7 +105,7 @@ test('@p1demo [FR-AP-101/AC1] [FR-AP-103/AC2] [FR-AP-105/AC2] [FR-AP-105/AC3] sc
   await expect(lines.getByText(th('apInvoice.lines.saved'))).toBeVisible({ timeout: 30_000 })
   await page.reload()
   await expect(page.getByRole('region', { name: th('apInvoice.amounts.title') })).toContainText(baht(invoiceNet))
-  await confirmCoding(page, accountCode)
+  await confirmCoding(page, { accountCode, proposals })
   const number = await submitDraft(page, 'EXCEPTION')
 
   // The difference, on which line, how much and to whom
@@ -144,7 +150,7 @@ test('@p1demo [FR-AP-101/AC1] [FR-AP-103/AC2] [FR-AP-105/AC2] [FR-AP-105/AC3] sc
   expect(asked.routes[0]!.amountSatang).toBe(counted.toString())
   expect(asked.routes[0]!.tasks).toEqual([{ assignee: approver, status: 'OPEN', decision: null, channel: null }])
 
-  // The approver decides it on the task's page: below the stepUpThreshold no PIN is asked
+  // The approver decides it on the task's page: the PIN is asked only when the row's stepUp says so
   const decider = await deskAs(browser, sheet, approver)
   await decider.goto('/tasks')
   await decider.getByRole('link', { name: new RegExp(number) }).first().click()
@@ -152,7 +158,9 @@ test('@p1demo [FR-AP-101/AC1] [FR-AP-103/AC2] [FR-AP-105/AC2] [FR-AP-105/AC3] sc
   await decider.getByRole('button', { name: th('tasks.decide.approve'), exact: true }).click()
   const confirmApprove = decider.getByRole('button', { name: th('tasks.decide.confirm') })
   await expect(confirmApprove).toBeVisible()
-  await expect(decider.getByLabel(th('tasks.decide.pin'))).toHaveCount(0)
+  const pin = decider.getByLabel(th('tasks.decide.pin'), { exact: true })
+  await expect(pin, stepUp ? 'the PIN is asked' : 'no PIN is asked').toHaveCount(stepUp ? 1 : 0)
+  if (stepUp) await pin.fill(E2E_PIN)
   await confirmApprove.click()
   await expect(decider.getByRole('status').filter({ hasText: th('tasks.decide.approved') }).first()).toBeVisible({ timeout: 30_000 })
   await decider.context().close()

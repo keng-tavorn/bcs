@@ -14,11 +14,18 @@ import { E2E_BASE_URL, E2E_DB } from '../../../support/e2e-env'
 //                         chat draft of the member left OPEN by an aborted try is closed first ("ไม่ใช่คำขอ"), so the
 //                         chat opens a draft of its own. Prints the draft, its counts and the account's replies
 //   chat-jobs <intakeId>  job chat-intake-image for each photo still to fetch (fetchChatImage), then job chat-intake-ai
-//                         (the Intake Agent reads the words and the stored photo; AI_MODE=fixture: tests/fixtures/ai/INTAKE)
+//                         (the Intake Agent reads the words and the stored photo; AI_MODE=fixture: tests/fixtures/ai/INTAKE),
+//                         then that job once more as a retry of the same event would run it. Prints what each run gave,
+//                         the readings of the draft (AgentAction rows) and the one it keeps, and the notices queued for
+//                         the writer while the jobs ran (Notification rows: what notification-deliver would send)
 //   ai-key <scene>        the name of the recorded answer that reading looks for, as the fixture client names it: SIMEC's
 //                         types and sites as the agent lists them, the row's words and photo (a FIXTURE_MISSING aid)
+//   send-unconfirmed <requestId>
+//                         request.submit as the send of LIFF calls it — by the request's requester, on the LIFF channel —
+//                         while values the AI filled still wait to be confirmed. Prints the refusal's code and count; a
+//                         refused send writes nothing (its transaction is rolled back)
 //   drafted <intakeId>    the chat draft once LIFF made the request of it: its status, the request (number, suggested
-//                         supplier's code) and the data of its chat_intake.drafted event (photos attached, AI-assisted)
+//                         supplier's code) and its chat_intake.drafted event (its channel, photos attached, AI-assisted)
 
 const LINE_USER_ID = /^U[0-9a-f]{32}$/
 /** The kinds of file the AI client takes (src/integrations/ai) */
@@ -111,19 +118,44 @@ async function main(mode: string | undefined, arg: string | undefined): Promise<
     return { intakeId: intake.id, lineUserId, messageCount: intake.messageCount, imageCount: intake.imageCount, replies }
   }
 
-  function intakeIdOf(value: string | undefined): string {
-    if (!value || !/^[0-9a-f-]{36}$/.test(value)) throw new Error('give the chat draft id')
+  function idOf(value: string | undefined, what: string): string {
+    if (!value || !/^[0-9a-f-]{36}$/.test(value)) throw new Error(`give the ${what} id`)
     return value
   }
 
   async function chatJobs(value: string | undefined) {
-    const intakeId = intakeIdOf(value)
+    const intakeId = idOf(value, 'chat draft')
     const [{ fetchChatImage, pendingChatImages }, { chatIntakeAiRun }] = await Promise.all([import('@/server/services/chat-intake'), import('@/server/jobs/chat-intake-ai')])
+    const { memberId } = await prisma.chatIntake.findFirstOrThrow({ where: { organizationId: org.id, id: intakeId }, select: { memberId: true } })
+    // Notices are written in the transaction of the command that gives them (src/server/notifications/create.ts): counted
+    // here, not on the fake LINE server, as e2e has no Inngest to deliver them
+    const notices = () => prisma.notification.count({ where: { organizationId: org.id, recipientMemberId: memberId } })
+    const noticesBefore = await notices()
     const images: string[] = []
     for (const itemId of await pendingChatImages(org.id, intakeId)) images.push((await fetchChatImage(org.id, itemId, systemClock.now())).status)
-    const ai = await chatIntakeAiRun({ data: { organizationId: org.id, aggregateId: intakeId } }, { run: (_id, fn) => fn() })
-    const intake = await prisma.chatIntake.findFirstOrThrow({ where: { organizationId: org.id, id: intakeId }, select: { agentAction: { select: { status: true, errorCode: true } } } })
-    return { images, ai, action: intake.agentAction }
+    const event = { data: { organizationId: org.id, aggregateId: intakeId } }
+    const ai = await chatIntakeAiRun(event, { run: (_id, fn) => fn() })
+    const again = await chatIntakeAiRun(event, { run: (_id, fn) => fn() })
+    const intake = await prisma.chatIntake.findFirstOrThrow({ where: { organizationId: org.id, id: intakeId }, select: { agentAction: { select: { id: true, status: true, errorCode: true } } } })
+    const readings = await prisma.agentAction.count({ where: { organizationId: org.id, subjectType: 'CHAT_INTAKE', subjectId: intakeId } })
+    return {
+      images,
+      ai,
+      again,
+      readings,
+      kept: intake.agentAction?.id ?? null,
+      action: intake.agentAction ? { status: intake.agentAction.status, errorCode: intake.agentAction.errorCode } : null,
+      notices: (await notices()) - noticesBefore,
+    }
+  }
+
+  async function sendUnconfirmed(value: string | undefined) {
+    const requestId = idOf(value, 'request')
+    const { submitRequest } = await import('@/server/services/requests')
+    const { requesterMemberId } = await prisma.request.findFirstOrThrow({ where: { organizationId: org.id, id: requestId }, select: { requesterMemberId: true } })
+    const ctx = makeCtx({ organizationId: org.id, actor: { type: 'USER', memberId: requesterMemberId }, channel: 'LIFF', now: systemClock.now() })
+    const sent = await submitRequest(ctx, { requestId }, { idempotencyKey: randomUUID() })
+    return sent.ok ? { code: null, count: null } : { code: sent.error.code, count: sent.error.details?.count ?? null }
   }
 
   /** What the Intake Agent is given for the row's chat, as runIntake builds it (src/server/services/ai/agents/intake.ts) */
@@ -138,7 +170,7 @@ async function main(mode: string | undefined, arg: string | undefined): Promise<
   }
 
   async function drafted(value: string | undefined) {
-    const intakeId = intakeIdOf(value)
+    const intakeId = idOf(value, 'chat draft')
     const intake = await prisma.chatIntake.findFirstOrThrow({
       where: { organizationId: org.id, id: intakeId },
       select: { status: true, requestId: true, request: { select: { number: true, suggestedSupplier: { select: { code: true } } } } },
@@ -162,10 +194,12 @@ async function main(mode: string | undefined, arg: string | undefined): Promise<
         return await chatJobs(arg)
       case 'ai-key':
         return await aiKey(arg)
+      case 'send-unconfirmed':
+        return await sendUnconfirmed(arg)
       case 'drafted':
         return await drafted(arg)
       default:
-        throw new Error(`unknown mode ${mode ?? '(none)'}: chat | chat-jobs | ai-key | drafted`)
+        throw new Error(`unknown mode ${mode ?? '(none)'}: chat | chat-jobs | ai-key | send-unconfirmed | drafted`)
     }
   } finally {
     await prisma.$disconnect()

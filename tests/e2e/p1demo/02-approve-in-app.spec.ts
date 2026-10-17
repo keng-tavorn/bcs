@@ -12,6 +12,10 @@ import { columnOf, countedOf, day, expectedOf, p1Sheet, sceneOf, script, scriptW
 // channel is the app's (FR-PLT-301 AC1), and the route and the history of the request say "แอป BCS Go". The request ends
 // as expectJson.requestStatusAfter says. The phone is the mobile browser with BCS Go's mark in its user agent (the
 // native halves are tried on a phone, docs/runbooks/bcs-go-demo.md); the delivery job is played by the scene.
+// For the scenes after this one: the approver keeps the ANDROID push device registered here, with "รับแจ้งเตือนในแอป"
+// on, so the notification route tries push first for them (golden notification-route). A later scene that delivers the
+// approver's notices must play the job with the fake FCM — scriptWith(FAKE_PUSH_ENV, …), as deliver-push does here —
+// not with a bare day('deliver', …), which runs without FAKE_PUSH_ENV. Today no later scene delivers to this approver.
 
 interface RequestFacts {
   readonly id: string
@@ -46,11 +50,13 @@ test('@p1demo [FR-PLT-301/AC1] [FR-PLT-301/AC3] scene 2: the approver gets the p
   const approver = userOf(sheet, scene.actor)
   expect(approver.code).toBe(scene.expectedApprover)
   const requester = userOf(sheet, asked.actor)
-  const gross = columnOf(asked, 'gross')
+  const [net, gross] = [columnOf(asked, 'net'), columnOf(asked, 'gross')]
+  const supplierName = sheet.suppliers.get(columnOf(asked, 'supplier'))?.nameTh
+  if (!supplierName) throw new Error(`sheet Suppliers has no ${asked.supplier}`)
   // The premise of the passkey: the amount the DOA counts reaches stepUpThreshold (sheet DOA_Policy)
   expect(countedOf(sheet, asked) >= sheet.doa.stepUpThreshold, `${baht(countedOf(sheet, asked))} needs a step-up (stepUpThreshold ${baht(sheet.doa.stepUpThreshold)})`).toBe(true)
 
-  const request = day<RequestFacts | null>('latest', asked.actor, columnOf(asked, 'net').toString())
+  const request = day<RequestFacts | null>('latest', asked.actor, net.toString())
   if (!request) throw new Error(`scene ${asked.scene} sent no request: run the p1demo scenes in order`)
   expect({ requestType: request.requestType, gross: request.gross, rule: request.route?.ruleCode, status: request.status }).toEqual({
     requestType: asked.requestType,
@@ -73,13 +79,14 @@ test('@p1demo [FR-PLT-301/AC1] [FR-PLT-301/AC3] scene 2: the approver gets the p
     await signInAs(page, sheet, approver.code)
     // Before the day: the approver's passkey, added in the app after the password again (FR-PLT-301 AC4)
     await page.goto('/settings/pin')
-    await page.getByRole('button', { name: 'เพิ่ม passkey บนเครื่องนี้' }).click()
-    const form = page.locator('form').filter({ has: page.getByRole('heading', { name: 'ยืนยันตัวตนก่อนเพิ่ม passkey' }) })
-    if (await form.getByRole('radio').count()) await form.getByRole('radio').first().check()
-    await form.locator('#passkey-password').fill(process.env.SEED_DEV_PASSWORD!)
-    await form.getByLabel('ชื่อเครื่อง').fill(expectedOf<string>(scene, 'passkeyDeviceLabel'))
-    await form.getByRole('button', { name: 'ยืนยันและเพิ่ม passkey' }).click()
-    await expect(page.getByText('เพิ่ม passkey แล้ว ระบบส่งอีเมลแจ้งคุณด้วย')).toBeVisible()
+    await page.getByRole('button', { name: th('pinSettings.passkey.add') }).click()
+    const form = page.getByRole('form', { name: th('pinSettings.passkey.addTitle') })
+    // A member with an authenticator app (sheet Users) chooses between the two proofs: the password here
+    if (approver.twoFactor) await form.getByRole('radio', { name: th('pinSettings.prove.PASSWORD'), exact: true }).check()
+    await form.getByLabel(th('pinSettings.prove.password'), { exact: true }).fill(process.env.SEED_DEV_PASSWORD!)
+    await form.getByLabel(th('pinSettings.passkey.label'), { exact: true }).fill(expectedOf<string>(scene, 'passkeyDeviceLabel'))
+    await form.getByRole('button', { name: th('pinSettings.passkey.addSubmit') }).click()
+    await expect(page.getByText(th('pinSettings.passkey.added'))).toBeVisible()
 
     let path = `/tasks/${task.id}`
     if (expectedOf<boolean>(scene, 'push')) {
@@ -92,14 +99,15 @@ test('@p1demo [FR-PLT-301/AC1] [FR-PLT-301/AC3] scene 2: the approver gets the p
       // BR-NOTI-06: a title, the document's number, the page to open — no amount, no name, no subject
       expect(push).toMatchObject({ title: th(`push.${template}.title`), body: request.number, data: expect.objectContaining({ path: `/tasks/${task.id}` }) })
       const shown = JSON.stringify(push)
-      for (const secret of [baht(gross), gross.toString().slice(0, -2), request.title, requester.nameTh, approver.nameTh]) expect(shown, 'the push names no amount, subject or person').not.toContain(secret)
+      const amounts = [net, gross].flatMap((amount) => [baht(amount), amount.toString().slice(0, -2)])
+      for (const secret of [...amounts, request.title, requester.nameTh, approver.nameTh, supplierName]) expect(shown, 'the push names no amount, subject, person or supplier').not.toContain(secret)
       path = push!.data.path!
     }
 
     // The tap opens the task in the app; from stepUpThreshold the approval asks for a step-up: the fingerprint gives it
     await page.goto(path)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(request.title)
-    await expect(page.getByText(`คำขอ ${request.number}`, { exact: true })).toBeVisible()
+    await expect(page.getByText(th('tasks.detail.requestLabel', { number: request.number }), { exact: true })).toBeVisible()
     await page.getByRole('button', { name: th('tasks.decide.approve'), exact: true }).click()
     const confirm = page.getByRole('group', { name: new RegExp(`^${th('tasks.decide.approve')} ${request.number} `) })
     await expect(confirm).toContainText(baht(gross))
@@ -121,7 +129,7 @@ test('@p1demo [FR-PLT-301/AC1] [FR-PLT-301/AC3] scene 2: the approver gets the p
     const approverStep = page.getByRole('list', { name: th('document.steps.list') }).getByRole('listitem').filter({ hasText: approver.nameTh })
     await expect(approverStep.first()).toContainText(th('tasks.decide.approved'))
     await expect(approverStep.first()).toContainText(channel)
-    await page.getByRole('tab', { name: 'ประวัติ' }).click()
+    await page.getByRole('tab', { name: th('document.tabs.history') }).click()
     await expect(page).toHaveURL(/[?&]tab=history/)
     const history = page.getByRole('list', { name: th('document.history.table') }).getByRole('listitem').filter({ hasText: approver.nameTh }).filter({ hasText: th('tasks.decide.approve') })
     await expect(history.first()).toContainText(channel)

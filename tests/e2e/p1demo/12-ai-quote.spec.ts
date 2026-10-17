@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { baht, literally, th } from '../demo/support'
-import { addDays, confirmAiValues, docSampleFile, intakeFieldLabel, moneyValue, recordedAnswerOf, s13, seedFormOf } from './ai-steps'
+import { addDays, confirmAiValues, docSampleFile, intakeFieldLabel, moneyValue, recordedAnswerOf, s13, seedFormOf, startedAiAction } from './ai-steps'
 import { approverByRule, budgetLineOf, columnOf, countedOf, day, expectedOf, p1Sheet, satangOf, sceneOf, signInAs, todayInBangkok, userOf } from './support'
 
 // Scene 12 of phase 1 (sheet Demo_Script_P1, area AI_QUOTE · S13 · FR-AI-302 FR-AI-303 · BR-AI-02 BR-AI-16): the row's
@@ -122,6 +122,7 @@ test('@p1demo [FR-AI-302/AC1] [FR-AI-302/AC2] [FR-AI-303/AC1] [FR-AI-303/AC3] sc
     await expect(step0.getByText(th('aiAssist.intake.fileAttached', { name: file.name }), { exact: true })).toBeVisible()
     await step0.getByRole('button', { name: th('aiAssist.intake.start'), exact: true }).click()
     await expect(step0.getByRole('status').filter({ hasText: th('aiAssist.reading') })).toBeVisible()
+    await startedAiAction(scene.scene, 'INTAKE')
     const played = s13<IntakePlayed>('intake', String(scene.scene), String(startedAt))
     expect(played, 'the Intake Agent read what the foreman gave it').toMatchObject({ pending: 1, drafted: 1, failed: [] })
     await expect(step0.getByRole('status').filter({ hasText: th('aiAssist.reading') })).toHaveCount(0, { timeout: 30_000 })
@@ -183,9 +184,12 @@ test('@p1demo [FR-AI-302/AC1] [FR-AI-302/AC2] [FR-AI-303/AC1] [FR-AI-303/AC3] sc
   const quote = page.getByRole('group', { name: th('requestForm.quotations.item', { n: 1 }) })
   await quote.locator('input[type="file"]').setInputFiles(file)
   await expect(quote.getByText(th('requestForm.quotations.file', { name: file.name }))).toBeVisible()
+  // A draft of this form exists, so the reading is asked for this request (subject REQUEST, found on it below). The line
+  // may stand from an earlier save of this form: it does not prove the save of the file, which nothing here needs
   await expect(savedLine(page)).toBeVisible({ timeout: 30_000 })
   await quote.getByRole('button', { name: th('aiAssist.readQuotation', { n: 1 }), exact: true }).click()
   await expect(quote.getByRole('status').filter({ hasText: th('aiAssist.reading') })).toBeVisible()
+  await startedAiAction(scene.scene, 'QUOTATION_READ')
   const read = s13<ReadPlayed>('read', String(scene.scene))
   expect(read, 'the Document Agent read the quotation from its recorded answer').toMatchObject({ drafted: 1, failed: [] })
   const quoteBox = quote.getByRole('region', { name: th('aiAssist.quotationTitle', { n: 1 }) })
@@ -263,7 +267,7 @@ test('@p1demo [FR-AI-302/AC1] [FR-AI-302/AC2] [FR-AI-303/AC1] [FR-AI-303/AC3] sc
       includesVat: quotation.includesVat,
       net: String(satangOf(quotation.net)),
       selected: true,
-      file: { fileName: file.name, mimeType: file.mimeType, sha256: request!.quotations[0]?.file?.sha256 === null ? null : upload.sha256 },
+      file: { fileName: file.name, mimeType: file.mimeType, sha256: upload.sha256 },
     },
   ])
   // Both AI actions end ACCEPTED on this request: every value confirmed and none changed (BR-AI-02)

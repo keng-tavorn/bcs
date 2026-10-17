@@ -18,6 +18,16 @@ const ROOT = path.resolve(import.meta.dirname, '../../..')
 /** ./scripts/s13.ts: plays the AI jobs of the e2e app (no Inngest) and reads what the database says */
 export const s13 = <T>(...args: string[]): T => script<T>('scripts/s13.ts', ...args)
 
+/**
+ * Waits until the screen's start call made the AI action the job will answer: the screen says "กำลังอ่านเอกสาร" before
+ * the call returns (src/ui/ai/use-ai-read.ts), so the played job could otherwise find nothing PENDING yet
+ */
+export async function startedAiAction(scene: number, purpose: 'INTAKE' | 'QUOTATION_READ') {
+  await expect
+    .poll(() => s13<{ pending: number }>('pending', String(scene), purpose).pending, { message: `the ${purpose} action the screen started`, timeout: 30_000 })
+    .toBe(1)
+}
+
 // ---------- the documents of sheet DocSamples ----------
 
 interface ManifestFile {
@@ -128,7 +138,7 @@ export function addDays(day: string, days: number): string {
 
 /** Asks BCS AI from the search of the shell (⌘K): the question's own row, then the chat sheet it opens (FR-AI-309 AC2) */
 export async function askBcsAi(page: Page, question: string): Promise<Locator> {
-  await page.getByRole('button', { name: /ค้นหา/ }).first().click()
+  await page.getByRole('button', { name: th('shell.search.trigger'), exact: true }).first().click()
   await page.getByRole('combobox').fill(question)
   await page.getByRole('option', { name: th('aiAssist.ask.paletteRow', { question }) }).click()
   const sheet = page.getByRole('dialog', { name: th('aiAssist.ask.title') })

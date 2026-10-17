@@ -7,8 +7,10 @@ import { E2E_DB } from '../../../support/e2e-env'
 // screens do not say and day.ts's request facts leave out: the steps of the route with their kind, status, SLA and the
 // quorum of their groups; each task with the workflow rules it answers for and its decision's channel; the request's
 // form answers, its lines (catalogue items), quotations, flags (BR-DUP-05), questions and answers, its own events and
-// those of its steps; the price reference of its lines (BR-PRC-01, as the approver's card reads it); and the task
-// notices about it with their status. Prints JSON on its last line; amounts are satang as strings.
+// those of its steps; the price reference of its lines (BR-PRC-01, as the approver's card reads it); and the notices
+// about it with their status — of its tasks (task.assigned, task.review_assigned) and of its questions
+// (request.info_requested to the requester, request.info_provided to the one who asked · FR-INT-009 AC3). Prints JSON on
+// its last line; amounts are satang as strings.
 //   facts <requestId>
 
 async function main(command: string | undefined, args: readonly string[]): Promise<unknown> {
@@ -79,7 +81,7 @@ async function main(command: string | undefined, args: readonly string[]): Promi
       select: { taskId: true, question: true, answer: true, askedById: true, answeredById: true },
     })
     const notices = await prisma.notification.findMany({
-      where: { organizationId: org.id, subjectId: r.id, templateKey: { in: ['task.assigned', 'task.review_assigned'] } },
+      where: { organizationId: org.id, subjectId: r.id, templateKey: { in: ['task.assigned', 'task.review_assigned', 'request.info_requested', 'request.info_provided'] } },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: { templateKey: true, status: true, data: true, recipientMemberId: true },
     })

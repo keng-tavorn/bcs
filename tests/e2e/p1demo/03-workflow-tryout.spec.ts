@@ -1,4 +1,4 @@
-import { type Locator } from '@playwright/test'
+import { type Locator, type Page } from '@playwright/test'
 import { E2E_PIN } from '../../support/e2e-env'
 import { anotherDesk, baht, th, typed } from '../demo/support'
 import { expect, test } from '../fixtures'
@@ -7,10 +7,28 @@ import { columnOf, day, expectedOf, historyOf, p1Sheet, satangOf, sceneOf, scrip
 // Scene 3 of the day of phase 1 (sheet Demo_Script_P1 · S6 · FR-WF-103): the second admin lowers the threshold of the
 // parallel reviewers of contract work in a draft of the workflow in effect, tries the draft with one request of the
 // row's amount beside the version in effect, backtests it over 90 days and sends it; the CEO — the approver of the
-// DOA's DOA_CHANGE rule — reads the change and approves it with the PIN. The draft is approved for its default date (the
-// first day of next month, never today), so the version in effect stays in effect for the rest of the day and no later
-// scene meets the new thresholds (expectJson.changesLaterScenes = false). Who acts, the workflow, the rules and their
-// thresholds, the try-out request, the backtest's answer and the approver come from the row and the sheets it names.
+// DOA's DOA_CHANGE rule — reads the change and runs the backtest, then approves it with the PIN, which the database
+// shows as a step-up grant of the CEO for this version spent on the decision. The draft is approved
+// for its default date (the first day of next month, never today), so the version in effect stays in effect for the
+// rest of the day and no later scene meets the new thresholds (expectJson.changesLaterScenes = false). Who acts, the
+// workflow, the rules and their thresholds, the try-out request, the backtest's answer and the approver come from the
+// row and the sheets it names.
+
+interface TaskNow {
+  readonly id: string
+  readonly status: string
+  readonly decision: string | null
+  readonly assignee: string | null
+  readonly decided: { readonly channel: string; readonly by: string | null; readonly doaRuleCode: string | null; readonly stepUp: boolean } | null
+  readonly stepUpGrant: { readonly method: string; readonly by: string | null; readonly subjectType: string; readonly subjectId: string; readonly used: boolean } | null
+}
+
+interface RouteNow {
+  readonly ruleCode: string
+  readonly status: string
+  readonly doa: { readonly code: string; readonly versionNo: number }
+  readonly tasks: readonly TaskNow[]
+}
 
 interface VersionFacts {
   readonly id: string
@@ -64,6 +82,18 @@ function firstOfNextMonth(today: string): string {
   return new Date(`${next.y}-${String(next.m).padStart(2, '0')}-01T00:00:00+07:00`).toISOString()
 }
 
+/**
+ * A plural message of messages/th.json ("{n, plural, =0 {…} other {… # …}}", which th() leaves as it is) for a count:
+ * its "=count" branch, else its "other" branch with # as the count
+ */
+function plural(key: string, count: number): string {
+  const words = th(key)
+  const branch = (selector: string) => new RegExp(`(?:^|\\s)${selector} \\{([^{}]*)\\}`).exec(words)?.[1]
+  const text = branch(`=${count}`) ?? branch('other')
+  if (text === undefined) throw new Error(`${key} is not a plural message of messages/th.json`)
+  return text.replace(/#/g, String(count))
+}
+
 const nameOf = (sheet: P1Sheet, code: string) => userOf(sheet, code).nameTh
 
 async function selectByLabel(select: Locator, label: string) {
@@ -71,7 +101,7 @@ async function selectByLabel(select: Locator, label: string) {
   await select.selectOption({ label })
 }
 
-test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] [FR-WF-103/AC3] scene 3: the second admin lowers the contract-work reviewer threshold in a draft, tries it beside the version in effect, backtests and sends it; the CEO approves with the PIN and the draft waits for its date', async ({
+test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] scene 3: the second admin lowers the contract-work reviewer threshold in a draft, tries it beside the version in effect, backtests and sends it; the CEO backtests it too, approves with a PIN step-up and the draft waits for its date', async ({
   page,
   browser,
 }) => {
@@ -119,6 +149,45 @@ test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] [FR-WF-103/AC3] scene 3: the secon
   })
   expect(changedDocs).toHaveLength(backtest.changed)
 
+  // The try-out on the draft's page (FR-WF-103 AC2): the row's request type and amount with VAT, its requester and
+  // department — the version in effect sends it straight to the DOA, the draft through the three reviewers first
+  async function expectTryOut(p: Page) {
+    await p.getByRole('tab', { name: th('adminWorkflow.tabs.dryRun') }).click()
+    await selectByLabel(p.getByLabel(th('adminWorkflow.document.requestType'), { exact: true }), sheet.requestTypes.get(dryRun.requestType)!)
+    await p.getByLabel(th('adminWorkflow.document.amountGross'), { exact: true }).fill(typed(satangOf(dryRun.amountGross)!))
+    await selectByLabel(p.getByLabel(th('adminWorkflow.dryRun.requester'), { exact: true }), nameOf(sheet, dryRun.requester))
+    const department = p.getByLabel(th('adminWorkflow.dryRun.department'), { exact: true })
+    const departmentValue = await department.locator('option', { hasText: `(${dryRun.department})` }).first().getAttribute('value')
+    await department.selectOption(departmentValue!)
+    await p.getByRole('button', { name: th('adminWorkflow.dryRun.run'), exact: true }).click()
+    await expect(p.getByText(th('adminWorkflow.dryRun.changed'))).toBeVisible()
+    const current = p.getByRole('region', { name: th('adminWorkflow.dryRun.currentTitle', { name: v1 }) })
+    const draft = p.getByRole('region', { name: th('adminWorkflow.dryRun.draftTitle', { name: v2 }) })
+    if (liveReviewers.length === 0) await expect(current).toContainText(th('adminWorkflow.dryRun.noReview'))
+    for (const r of liveReviewers) await expect(current).toContainText(th('adminWorkflow.dryRun.slot', { rules: r.rule, names: nameOf(sheet, r.member) }))
+    const doaLine = th('adminWorkflow.dryRun.approvalLine', { rule: doaRule, names: nameOf(sheet, doaApprover) })
+    await expect(current).toContainText(doaLine)
+    for (const r of draftReviewers) await expect(draft).toContainText(th('adminWorkflow.dryRun.slot', { rules: r.rule, names: nameOf(sheet, r.member) }))
+    await expect(draft).toContainText(doaLine)
+    await expect(draft).toContainText(th('adminWorkflow.dryRun.differs'))
+  }
+
+  // The 90-day backtest (FR-WF-103 AC2, BR-WF-13; BR-DOA-14 for the approver, before deciding): the requests of the
+  // history the draft would route otherwise, with the draft's reviewers
+  async function expectBacktest(p: Page) {
+    await p.getByRole('button', { name: th('backtest.run'), exact: true }).click()
+    await expect(p.getByText(plural('backtest.changedCount', backtest.changed))).toBeVisible()
+    const changed = p.getByRole('region', { name: th('backtest.rowsTitle', { count: backtest.changed }) })
+    const rows = changed.getByRole('list', { name: th('backtest.rowsLabel') }).getByRole('listitem')
+    await expect(rows).toHaveCount(backtest.changed)
+    for (const doc of changedDocs) {
+      const row = rows.filter({ hasText: `${doc.number} ${doc.title}` })
+      await expect(row).toBeVisible()
+      await expect(row).toContainText(th('backtest.noReviewers'))
+      for (const r of draftReviewers) await expect(row).toContainText(nameOf(sheet, r.member))
+    }
+  }
+
   // Before: the workflow has the version of the seed only, in effect, with the rules of sheet Workflow_Reviewers
   const before = workflowOf(code)
   expect(before.versions.map((v) => [v.versionNo, v.status])).toEqual([[fromVersion, 'PUBLISHED']])
@@ -140,6 +209,9 @@ test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] [FR-WF-103/AC3] scene 3: the secon
   const v1Item = versions.getByRole('listitem').filter({ hasText: v1 })
   await expect(v1Item).toContainText(th('adminWorkflow.status.IN_EFFECT'))
   await expect(v1Item).toContainText(th('adminWorkflow.rulesCount', { count: ruleCount }))
+  // The editor offers the first day of the month after the day the draft is made: the day now, or the next one should
+  // the scene cross midnight before the draft is saved
+  const dayOfDraft = todayInBangkok()
   await page
     .getByRole('region', { name: th('adminWorkflow.list.startTitle') })
     .getByRole('button', { name: th('adminWorkflow.list.create', { name: v1 }) })
@@ -174,42 +246,12 @@ test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] [FR-WF-103/AC3] scene 3: the secon
   await expect(page.getByText(th('adminWorkflow.submit.needDryRun'))).toBeVisible()
   await expect(page.getByRole('button', { name: th('adminWorkflow.submit.button'), exact: true })).toBeDisabled()
 
-  // The try-out (FR-WF-103 AC2): the row's request type and amount with VAT, its requester and department — the version
-  // in effect sends it straight to the DOA, the draft through the three reviewers first
-  await page.getByRole('tab', { name: th('adminWorkflow.tabs.dryRun') }).click()
-  await selectByLabel(page.getByLabel(th('adminWorkflow.document.requestType'), { exact: true }), sheet.requestTypes.get(dryRun.requestType)!)
-  await page.getByLabel(th('adminWorkflow.document.amountGross'), { exact: true }).fill(typed(satangOf(dryRun.amountGross)!))
-  await selectByLabel(page.getByLabel(th('adminWorkflow.dryRun.requester'), { exact: true }), nameOf(sheet, dryRun.requester))
-  const department = page.getByLabel(th('adminWorkflow.dryRun.department'), { exact: true })
-  const departmentValue = await department.locator('option', { hasText: `(${dryRun.department})` }).first().getAttribute('value')
-  await department.selectOption(departmentValue!)
-  await page.getByRole('button', { name: th('adminWorkflow.dryRun.run'), exact: true }).click()
-  await expect(page.getByText(th('adminWorkflow.dryRun.changed'))).toBeVisible()
-  const current = page.getByRole('region', { name: th('adminWorkflow.dryRun.currentTitle', { name: v1 }) })
-  const draft = page.getByRole('region', { name: th('adminWorkflow.dryRun.draftTitle', { name: v2 }) })
-  if (liveReviewers.length === 0) await expect(current).toContainText(th('adminWorkflow.dryRun.noReview'))
-  for (const r of liveReviewers) await expect(current).toContainText(th('adminWorkflow.dryRun.slot', { rules: r.rule, names: nameOf(sheet, r.member) }))
-  const doaLine = th('adminWorkflow.dryRun.approvalLine', { rule: doaRule, names: nameOf(sheet, doaApprover) })
-  await expect(current).toContainText(doaLine)
-  for (const r of draftReviewers) await expect(draft).toContainText(th('adminWorkflow.dryRun.slot', { rules: r.rule, names: nameOf(sheet, r.member) }))
-  await expect(draft).toContainText(doaLine)
-  await expect(draft).toContainText(th('adminWorkflow.dryRun.differs'))
-
-  // The 90-day backtest (FR-WF-103 AC2, BR-WF-13): the requests of the history the draft would route otherwise
+  // The try-out (FR-WF-103 AC2), then the 90-day backtest on its tab
+  await expectTryOut(page)
   await page.getByRole('tab', { name: th('adminWorkflow.tabs.backtest') }).click()
-  await page.getByRole('button', { name: th('backtest.run'), exact: true }).click()
-  await expect(page.getByText(`เปลี่ยนเส้นทาง ${backtest.changed} ฉบับ`)).toBeVisible()
-  const changed = page.getByRole('region', { name: th('backtest.rowsTitle', { count: backtest.changed }) })
-  const rows = changed.getByRole('list', { name: th('backtest.rowsLabel') }).getByRole('listitem')
-  await expect(rows).toHaveCount(backtest.changed)
-  for (const doc of changedDocs) {
-    const row = rows.filter({ hasText: `${doc.number} ${doc.title}` })
-    await expect(row).toBeVisible()
-    await expect(row).toContainText(th('backtest.noReviewers'))
-    for (const r of draftReviewers) await expect(row).toContainText(nameOf(sheet, r.member))
-  }
+  await expectBacktest(page)
 
-  // The send (FR-WF-103 AC3): open now, every warning ticked, to the approver of DOA_CHANGE under the DOA in effect
+  // The send (BR-WF-12): open now, every warning ticked, to the approver of DOA_CHANGE under the DOA in effect
   await page.getByRole('tab', { name: th('adminWorkflow.tabs.check') }).click()
   await expect(page.getByRole('listitem').filter({ hasText: th('adminWorkflow.submit.dryRunDone') })).toContainText(th('adminWorkflow.submit.met'))
   for (const box of await page.getByRole('group', { name: th('adminWorkflow.submit.warningsTitle') }).getByRole('checkbox').all()) await box.check()
@@ -225,14 +267,17 @@ test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] [FR-WF-103/AC3] scene 3: the secon
   // Waiting for the CEO under DOA_CHANGE's rule; the draft as saved: the three thresholds and the reason
   const sent = workflowOf(code)
   const pending = sent.versions.find((v) => v.versionNo === draftVersion)!
-  expect(pending).toMatchObject({ status: 'PENDING_APPROVAL', submittedBy: scene.actor, changeReason: reason, effectiveFrom: firstOfNextMonth(todayInBangkok()) })
+  expect(pending).toMatchObject({ status: 'PENDING_APPROVAL', submittedBy: scene.actor, changeReason: reason })
+  expect([dayOfDraft, todayInBangkok()].map(firstOfNextMonth), 'the editor\'s default start').toContain(pending.effectiveFrom)
   for (const r of draftRules) expect(pending.rules.find((x) => x.code === r.rule)?.when).toEqual({ field: r.field, op: r.op, value: r.to })
   expect(pending.rules).toHaveLength(ruleCount)
   expect(sent.open).toEqual([expect.objectContaining({ versionNo: draftVersion, assignee: approver, ruleCode: approvalRule, doa: { code: sheet.doa.code, versionNo: sheet.doa.version } })])
   const task = sent.open[0]!
 
-  // The CEO on a computer of their own: reads the change, then approves it with the PIN (BR-WF-12: every time), on the
-  // PIN path whether or not a passkey is offered beside it
+  // The CEO on a computer of their own: on the version's page reads the change; on the task runs the backtest before
+  // deciding (BR-DOA-14), then approves with the PIN (BR-WF-12: every time), on the PIN path whether or not a passkey is
+  // offered beside it. The CEO's own try-out of the version waiting for them is not played: the app refuses it today
+  // with an internal error (the dry-run of a version that is not a draft writes no event · reported with P1-08)
   const desk = await anotherDesk(browser)
   try {
     const ceo = await desk.newPage()
@@ -244,6 +289,7 @@ test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] [FR-WF-103/AC3] scene 3: the secon
     await ceo.getByRole('tab', { name: th('adminWorkflow.tabs.diff') }).click()
     for (const r of draftRules) await expect(ceo.getByText(th('adminWorkflow.diff.changed', { rule: r.rule })).first()).toBeVisible()
     await ceo.goto(`/tasks/${task.taskId}`)
+    await expectBacktest(ceo)
     const approve = ceo.getByRole('button', { name: th('tasks.policy.approve'), exact: true })
     const approveForm = ceo.locator('form').filter({ has: approve })
     await approveForm.getByLabel(th('tasks.policy.pin'), { exact: true }).fill(E2E_PIN)
@@ -253,11 +299,27 @@ test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] [FR-WF-103/AC3] scene 3: the secon
     await desk.close()
   }
 
+  // Decided on the web under the row's rule by the CEO with a step-up (BR-WF-12, BR-DOA-15): the decision used a
+  // grant of the CEO for this version, of the PIN (expectJson.pin), and spent it
+  const routes = script<{ routes: readonly RouteNow[] }>(S6, 'subject-task', 'WORKFLOW_VERSION', task.versionId).routes
+  expect(routes).toHaveLength(1)
+  expect(routes[0]).toMatchObject({ ruleCode: approvalRule, status: 'COMPLETED', doa: { code: sheet.doa.code, versionNo: sheet.doa.version } })
+  expect(routes[0]!.tasks).toEqual([
+    expect.objectContaining({
+      id: task.taskId,
+      status: 'APPROVED',
+      decision: 'APPROVE',
+      assignee: approver,
+      decided: { channel: scene.channel, by: approver, doaRuleCode: approvalRule, stepUp: true },
+      stepUpGrant: { method: 'PIN', by: approver, subjectType: 'WORKFLOW_VERSION', subjectId: task.versionId, used: true },
+    }),
+  ])
+
   // Approved for its date: version 2 waits for it, version 1 stays in effect until then — no later scene of the day
   // meets the new thresholds
   const after = workflowOf(code)
   const [one, two] = [after.versions.find((v) => v.versionNo === fromVersion)!, after.versions.find((v) => v.versionNo === draftVersion)!]
-  expect(two).toMatchObject({ status: 'PUBLISHED', approvedBy: approver, effectiveFrom: firstOfNextMonth(todayInBangkok()) })
+  expect(two).toMatchObject({ status: 'PUBLISHED', approvedBy: approver, effectiveFrom: pending.effectiveFrom })
   expect(one).toMatchObject({ status: 'PUBLISHED', effectiveTo: two.effectiveFrom })
   expect(new Date(two.effectiveFrom).getTime()).toBeGreaterThan(new Date(after.now).getTime())
   expect(after.inEffectVersionNo).toBe(fromVersion)

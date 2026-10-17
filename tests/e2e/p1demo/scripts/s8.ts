@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { E2E_DB } from '../../../support/e2e-env'
@@ -10,7 +11,8 @@ import { E2E_DB } from '../../../support/e2e-env'
 //   seq                          the newest event's seq: a scene reads the events written after it
 //   po <ref>                     the PO the history made for a row of sheet Request_History (the row's draft event carries
 //                                its key, demo-history:<ref>:draft): number, status, supplier, lines with their budget
-//                                line (code, account, cost center) and what is received, each budget line's balance
+//                                line (code, account, cost center) and what is received, each budget line's balance, and
+//                                for each line the history BR-AP-10 proposes an account from on an invoice dated today
 //   mail <scene>                 the supplier's e-mail of a Demo_Script_P1 row with channel EMAIL: first the messages to
 //                                the organization's inbox address are deleted from Mailpit (only those: Mailpit is shared
 //                                by every run of this machine), then the e-Tax XML of the row's invoice (its number,
@@ -23,6 +25,11 @@ import { E2E_DB } from '../../../support/e2e-env'
 // Loads the app's modules only when tsx runs it.
 
 const MAILPIT_API = 'http://localhost:8025/api/v1'
+/** The days of history BR-AP-10 looks back over: the app's default of OQ-128 (src/lib/ap-defaults.json) */
+const CODING_WINDOW_DAYS =
+  (JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../src/lib/ap-defaults.json'), 'utf8')) as { coding?: { windowDays?: number } }).coding?.windowDays ?? 365
+/** BR-AP-10: the invoices whose coded lines are history — ready for payment or later */
+const CODED_HISTORY_STATUSES = ['READY_FOR_PAYMENT', 'IN_PAYMENT_RUN', 'PAID'] as const
 
 async function main(command: string | undefined, args: readonly string[]): Promise<unknown> {
   if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the S8 scene script runs in the e2e database only')
@@ -68,12 +75,13 @@ async function main(command: string | undefined, args: readonly string[]): Promi
         status: true,
         kind: true,
         paymentTermDays: true,
-        supplier: { select: { code: true } },
+        supplier: { select: { code: true, taxId: true } },
         lines: {
           orderBy: { lineNo: 'asc' },
           select: {
             id: true,
             lineNo: true,
+            categoryCode: true,
             quantity: true,
             receivedQuantity: true,
             unitPriceSatang: true,
@@ -86,6 +94,32 @@ async function main(command: string | undefined, args: readonly string[]): Promi
     const po = pos[0]
     if (!po) throw new Error(`no PO orders the request of ${ref}`)
     const invoices = await prisma.invoice.count({ where: { organizationId, poId: po.id, status: { notIn: ['CANCELLED', 'REJECTED'] } } })
+    // BR-AP-10's history for an invoice of this PO dated today (the scenes date theirs today): the confirmed account codes
+    // of the lines of the supplier's invoices (by tax id) ready for payment or later, dated within the window before today
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date())
+    const to = new Date(`${today}T00:00:00Z`)
+    const coded = po.supplier.taxId
+      ? await prisma.invoiceLine.findMany({
+          where: {
+            organizationId,
+            accountCode: { not: null },
+            codingConfirmedAt: { not: null },
+            invoice: { status: { in: [...CODED_HISTORY_STATUSES] }, supplier: { taxId: po.supplier.taxId }, invoiceDate: { gte: new Date(to.getTime() - CODING_WINDOW_DAYS * 86_400_000), lte: to } },
+          },
+          select: { accountCode: true, poLine: { select: { categoryCode: true } }, invoice: { select: { invoiceDate: true } } },
+        })
+      : []
+    /** Each code the history of a category used: how many times, and the day it was last used */
+    const historyOf = (categoryCode: string | null) => {
+      const uses = new Map<string, { count: number; last: string }>()
+      for (const c of coded) {
+        if (c.poLine.categoryCode !== categoryCode) continue
+        const at = day(c.invoice.invoiceDate)!
+        const u = uses.get(c.accountCode!) ?? { count: 0, last: '' }
+        uses.set(c.accountCode!, { count: u.count + 1, last: at > u.last ? at : u.last })
+      }
+      return [...uses].map(([accountCode, u]) => ({ accountCode, ...u }))
+    }
     return {
       ref,
       requestId: drafted.aggregateId,
@@ -109,6 +143,8 @@ async function main(command: string | undefined, args: readonly string[]): Promi
         accountCode: l.budgetLine.accountCode,
         costCenter: l.budgetLine.costCenter.code,
         department: l.budgetLine.department.code,
+        categoryCode: l.categoryCode,
+        codingHistory: historyOf(l.categoryCode),
       })),
       balances: await balances([...new Set(po.lines.map((l) => l.budgetLine.id))]),
     }

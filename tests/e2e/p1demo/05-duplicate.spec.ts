@@ -1,5 +1,5 @@
 import { type Page } from '@playwright/test'
-import { anotherDesk, baht, lineUserOf, phoneOf, th, typed } from '../demo/support'
+import { anotherDesk, baht, cardRow, cardTo, cardWord, lineUserOf, literally, phoneOf, th, typed, wordsOf } from '../demo/support'
 import { expect, test } from '../fixtures'
 import { budgetLineOf, columnOf, countedOf, day, expectedOf, historyOf, p1Sheet, ruleOf, sceneOf, script, signInAs, userOf, type P1Scene, type P1Sheet } from './support'
 
@@ -7,10 +7,12 @@ import { budgetLineOf, columnOf, countedOf, day, expectedOf, historyOf, p1Sheet,
 // row's tie wire from the catalogue on the web — sent with no warning, since the pair of the same wire in the history
 // is older than the duplicate window — then presses "ขอซ้ำ" on it and sends the copy. The second send is refused with
 // an inline panel that links the first request; with the reason box empty nothing goes, with the reason it goes, and the
-// approver of the row's DOA rule sees the duplicate badge with the requester's reason on the task, on the web and on
-// the LIFF task page of their phone (linked to LINE after both sends, as every phone of the day). Neither request is
-// decided here: both wait at that approver (scene 4 finds its own task by its number). Who acts, the item, quantity,
-// price, line, site, supplier, title, reason and what follows come from the row and the sheets it names.
+// approver of the row's DOA rule sees the duplicate badge with the requester's reason on the task, on the web, and on
+// their phone (linked to LINE after both sends): the badge in a few words on the task's LINE card and with the reason
+// on the LIFF task page. Neither request is decided here: both stay waiting at that approver for the rest of the day,
+// beside the history's open tasks, so a later scene at the same approver (scene 15) finds its own task by its own
+// request. Who acts, the item, quantity, price, line, site, supplier, title, reason and what follows come from the row
+// and the sheets it names.
 
 interface TaskFacts {
   readonly id: string
@@ -40,6 +42,7 @@ interface FlagFacts {
   readonly id: string
   readonly number: string
   readonly source: string | null
+  readonly drafted: { readonly source: unknown; readonly channel: string; readonly by: string | null } | null
   readonly budgetLine: string | null
   readonly site: string | null
   readonly supplier: string | null
@@ -74,7 +77,7 @@ async function expectRouteBeforeSend(page: Page, sheet: P1Sheet, scene: P1Scene)
   await expect(route).toContainText(th('timeline.doaRef', { code: sheet.doa.code, version: sheet.doa.version, rule: columnOf(scene, 'expectedRule') }))
 }
 
-test('@p1demo [FR-INT-103/AC2] [FR-INT-103/AC3] [FR-INT-101/AC1] scene 5: the engineer sends the catalogue tie wire, presses ขอซ้ำ and sends the copy; it waits for a reason, then goes, and the approver sees the duplicate badge with the reason', async ({
+test('@p1demo [FR-INT-103/AC2] [FR-INT-101/AC1] scene 5: the engineer sends the catalogue tie wire, presses ขอซ้ำ and sends the copy; it waits for a reason, then goes, and the approver sees the duplicate badge on the task with the reason and on the LINE card', async ({
   page,
   browser,
 }) => {
@@ -85,11 +88,11 @@ test('@p1demo [FR-INT-103/AC2] [FR-INT-103/AC3] [FR-INT-101/AC1] scene 5: the en
   expect(scene.expectedOutcome).toBe('ROUTED')
   const title = expectedOf<string>(scene, 'requestTitleTh')
   expect(expectedOf<number>(scene, 'sendTimes')).toBe(2)
-  expect(expectedOf<string>(scene, 'secondHow')).toBe('REORDER')
+  const secondHow = expectedOf<string>(scene, 'secondHow')
   expect(expectedOf<boolean>(scene, 'lineFromCatalog')).toBe(true)
   const firstFlags = expectedOf<string[]>(scene, 'firstFlags')
   const flag = expectedOf<string>(scene, 'flag')
-  expect(expectedOf<string>(scene, 'refusalReason')).toBe('DUPLICATE_UNACKNOWLEDGED')
+  const refusalReason = expectedOf<string>(scene, 'refusalReason')
   const reason = expectedOf<string>(scene, 'reasonTh')
   const windowDays = expectedOf<number>(scene, 'windowDays')
   const pairOutside = expectedOf<string[]>(scene, 'historyPairOutsideWindow')
@@ -141,7 +144,8 @@ test('@p1demo [FR-INT-103/AC2] [FR-INT-103/AC3] [FR-INT-101/AC1] scene 5: the en
   await expect(first.getByLabel(new RegExp(`^${th('requestForm.lines.uom')}`))).toHaveValue(item.unit)
   await expect(first).toContainText(th('requestForm.catalog.fromCatalog', { code: columnOf(scene, 'itemCode'), name: item.nameTh }))
   await first.getByLabel(new RegExp(`^${th('requestForm.lines.quantity')}`)).fill(columnOf(scene, 'qty'))
-  await first.getByLabel(new RegExp(`^ราคาต่อหน่วย`)).fill(typed(columnOf(scene, 'unitPrice')))
+  // The row's price is before VAT, as the form takes it by default (its label then says so)
+  await first.getByLabel(new RegExp(`^${literally(th('requestForm.lines.unitPriceNet'))}`)).fill(typed(columnOf(scene, 'unitPrice')))
   await expect(first).toContainText(th('requestForm.lines.amount', { amount: baht(columnOf(scene, 'net')) }))
   for (const amount of [columnOf(scene, 'net'), columnOf(scene, 'vat'), columnOf(scene, 'gross')]) await expect(page.getByText(th('requestForm.totals.baht', { amount: baht(amount) })).first()).toBeVisible()
   await page.getByRole('button', { name: `${th('requestForm.wizard.next')}: ${th('requestForm.wizard.supplier')}`, exact: true }).click()
@@ -170,6 +174,8 @@ test('@p1demo [FR-INT-103/AC2] [FR-INT-103/AC3] [FR-INT-101/AC1] scene 5: the en
   expect(one.tasks.filter((t) => t.status === 'OPEN').map((t) => t.assignee)).toEqual([scene.expectedApprover])
   const oneFlags = flagsOf(one.number)
   expect(oneFlags.flags.map((f) => f.kind)).toEqual(firstFlags)
+  // Typed in by hand on the web: request.drafted says MANUAL (not ขอซ้ำ, a renewal or the chat)
+  expect(oneFlags.drafted).toEqual({ source: 'MANUAL', channel: scene.channel, by: scene.actor })
   expect(oneFlags.lines).toEqual([{ item: scene.itemCode, description: item.nameTh, quantity: expect.stringMatching(new RegExp(`^${scene.qty}(\\.0+)?$`)), uom: item.unit, unitPrice: columnOf(scene, 'unitPrice').toString(), net: columnOf(scene, 'net').toString() }])
   expect(oneFlags.supplier).toBe(supplier.code)
 
@@ -189,7 +195,14 @@ test('@p1demo [FR-INT-103/AC2] [FR-INT-103/AC3] [FR-INT-101/AC1] scene 5: the en
   await expect(copied.getByLabel(th('requestForm.lines.description'))).toHaveValue(item.nameTh)
   await expect(copied).toContainText(th('requestForm.lines.amount', { amount: baht(columnOf(scene, 'net')) }))
   const again = await toReview(page)
+  // The send is the form's server action that names the request's version and whether it is sent again: the server's
+  // answer to it is read as it came, for the reason it refused with
+  const sendAnswer = page.waitForResponse((r) => {
+    const request = r.request()
+    return request.method() === 'POST' && request.headers()['next-action'] !== undefined && (request.postData() ?? '').includes('"resubmit"')
+  })
   await again.click()
+  expect(await (await sendAnswer).text(), `the server refused the copy with ${refusalReason}`).toContain(`"reason":"${refusalReason}"`)
 
   // FR-INT-103 AC2: an inline panel, not a pop-up, linking the first request, with an empty reason box
   const panel = page.getByRole('status').filter({ has: page.getByRole('heading', { name: th('requestForm.duplicate.title') }) })
@@ -217,9 +230,11 @@ test('@p1demo [FR-INT-103/AC2] [FR-INT-103/AC3] [FR-INT-101/AC1] scene 5: the en
   const waiting = two.tasks.filter((t) => t.status === 'OPEN')
   expect(waiting.map((t) => t.assignee)).toEqual([scene.expectedApprover])
   expect(two.events.map((e) => e.type)).toContain('request.flagged')
-  // FR-INT-103 AC3: the flag with the first request and the reason; no split on either request
+  // BR-DUP-05: the flag with the first request and the reason; no split on either request
   const twoFlags = flagsOf(two.number)
   expect(twoFlags.source).toBe(one.number)
+  // FR-INT-101 AC1: the draft ขอซ้ำ made says so in its request.drafted
+  expect(twoFlags.drafted).toEqual({ source: secondHow, channel: scene.channel, by: scene.actor })
   expect(twoFlags.lines).toEqual(oneFlags.lines)
   expect(twoFlags.supplier).toBe(supplier.code)
   expect(twoFlags.flags).toEqual([{ kind: flag, routeNo: 1, matched: [one.number], acknowledgedReason: reason, acknowledgedBy: scene.actor }])
@@ -241,9 +256,18 @@ test('@p1demo [FR-INT-103/AC2] [FR-INT-103/AC3] [FR-INT-101/AC1] scene 5: the en
     await desk.close()
   }
 
-  // And on the approver's phone, in LINE: the same badge and reason on the LIFF task page, the first request opening its
-  // LIFF page (ADR-052). The phone is linked now, after both sends, as on the day (a member linked already is left alone)
+  // And on the approver's phone, in LINE. The phone is linked now, after both sends, as on the day (a member linked
+  // already is left alone); the notification job then sends the copy's task to their LINE (played here: e2e has no
+  // Inngest). BR-DUP-05: its card carries the badge in a few words — not what it buys (BR-NOTI-01)
   day('prepare', `${approver.code}:${lineUserOf(approver.code)}`)
+  const delivered = day<Array<{ templateKey: string; outcome: { status: string; channel?: string } }>>('deliver', approver.code, two.id)
+  expect(delivered.map((n) => ({ templateKey: n.templateKey, status: n.outcome.status, channel: n.outcome.channel }))).toContainEqual({ templateKey: 'task.assigned', status: 'SENT', channel: 'LINE' })
+  const card = wordsOf(await cardTo(approver.code, two.number))
+  expect(card).toContain(cardRow('number', two.number))
+  expect(card.split('\n'), 'the badge is a line of its own on the card').toContain(approverSees.badgeTh)
+  expect(cardWord('flagDuplicate')).toBe(approverSees.badgeTh)
+  expect(card).not.toContain(item.nameTh)
+  // The same badge and reason on the LIFF task page, the first request opening its LIFF page (ADR-052)
   const phone = await phoneOf(browser, approver.code)
   try {
     const liff = await phone.newPage()

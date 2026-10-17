@@ -13,6 +13,7 @@ import {
   invoiceOf,
   moneySheet,
   poOfHistory,
+  proposalsFor,
   saveHeader,
   sheetSatang,
   submitDraft,
@@ -66,6 +67,8 @@ test('@p1demo [FR-AP-104/AC2] scene 10: a rent invoice is coded with the income 
   expect(po.lines.reduce((a, l) => a + BigInt(l.netSatang), 0n)).toBe(net)
   const budgetLine = po.lines[0]!.budgetLineId
   const before = po.balances[budgetLine]!
+  // what the coding form will propose for each line (BR-AP-10): the supplier's history of the category, else the budget line's
+  const proposals = proposalsFor(po)
   const since = eventSeq()
 
   // FINANCE: the PO, the scanned invoice, its header typed from the paper; the lines are the PO's as received
@@ -86,7 +89,7 @@ test('@p1demo [FR-AP-104/AC2] scene 10: a rent invoice is coded with the income 
   await expect(typePickers.first()).toBeVisible()
   for (let i = 0; i < (await typePickers.count()); i++) await expect(typePickers.nth(i)).toHaveText(typeOf(draft.defaultIncomeType))
   expect(expectedOf<boolean>(scene, 'whtPickedInCoding')).toBe(draft.defaultIncomeType === null)
-  await confirmCoding(page, accountCode, { label: new RegExp(`^${literally(typeOf(incomeType))}$`) })
+  await confirmCoding(page, { accountCode, proposals, incomeType: { label: new RegExp(`^${literally(typeOf(incomeType))}$`) } })
   const number = await submitDraft(page, 'READY_FOR_PAYMENT')
 
   // Ready: the payable, the tax expected to be withheld and the transfer expected, due after the supplier's terms

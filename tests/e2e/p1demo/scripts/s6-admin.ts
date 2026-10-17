@@ -10,11 +10,13 @@ import { E2E_DB } from '../../../support/e2e-env'
 //                              rules' conditions), the open approval task of a version waiting for approval (the task,
 //                              its holder and DOA rule), the versions' own events, and the version in effect now
 //   subject-task <type> <id>   the approval route of a document (BUDGET_TRANSFER, WORKFLOW_VERSION …): its DOA rule and
-//                              amount, and every task with its holder, status and decision's event
+//                              amount, and every task with its holder, status, decision's event and the step-up grant
+//                              that decision used (whose, for which document, by what proof, spent)
 //   transfer <id>              a budget transfer: number, kind, status, amount, its lines (planned and balance now, and
 //                              what this transfer moved on each in the ledger), its route and the events of its story
 //   flags <requestNumber>      a request's flags (kind, the requests matched by number, the reason given, route number),
-//                              its lines as sent (catalogue item, quantity, unit, price), its source request and supplier
+//                              its lines as sent (catalogue item, quantity, unit, price), its source request, how its
+//                              draft was made (request.drafted: source, channel, who) and supplier
 // To the p1demo project of playwright.config.ts only the *.spec.ts files of tests/e2e/p1demo are test files: this one
 // does its work only when tsx runs it, and loads the app's modules only then.
 
@@ -68,9 +70,19 @@ async function main(command: string | undefined, args: readonly string[]): Promi
       where: { organizationId, type: 'approval_task.decided', aggregateType: 'ApprovalTask', aggregateId: { in: taskIds } },
       select: { aggregateId: true, channel: true, actorMemberId: true, doaRuleCode: true, data: true },
     })
+    const grantIdOf = (data: unknown) => {
+      const id = (data ?? {}) as { stepUpGrantId?: unknown }
+      return typeof id.stepUpGrantId === 'string' ? id.stepUpGrantId : null
+    }
+    // The step-up grants the decisions used (BR-DOA-15): whose, for which document, by what proof, and spent
+    const grants = await prisma.stepUpGrant.findMany({
+      where: { organizationId, id: { in: decided.map((e) => grantIdOf(e.data)).filter((id): id is string => id !== null) } },
+      select: { id: true, memberId: true, subjectType: true, subjectId: true, method: true, usedAt: true },
+    })
     const codeOf = await codesOf([
       ...routes.flatMap((r) => r.steps.flatMap((s) => s.tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId, t.decidedByMemberId]))),
       ...decided.map((e) => e.actorMemberId),
+      ...grants.map((g) => g.memberId),
     ])
     return routes.map((r) => ({
       id: r.id,
@@ -83,7 +95,8 @@ async function main(command: string | undefined, args: readonly string[]): Promi
       tasks: r.steps.flatMap((s) =>
         s.tasks.map((t) => {
           const event = decided.find((e) => e.aggregateId === t.id)
-          const data = (event?.data ?? {}) as { stepUpGrantId?: unknown }
+          const grantId = event ? grantIdOf(event.data) : null
+          const grant = grants.find((g) => g.id === grantId)
           return {
             id: t.id,
             stepNo: s.stepNo,
@@ -95,7 +108,8 @@ async function main(command: string | undefined, args: readonly string[]): Promi
             assignee: codeOf(t.assigneeMemberId),
             principal: codeOf(t.principalMemberId),
             decidedBy: codeOf(t.decidedByMemberId),
-            decided: event ? { channel: event.channel, by: codeOf(event.actorMemberId), doaRuleCode: event.doaRuleCode, stepUp: typeof data.stepUpGrantId === 'string' } : null,
+            decided: event ? { channel: event.channel, by: codeOf(event.actorMemberId), doaRuleCode: event.doaRuleCode, stepUp: grantId !== null } : null,
+            stepUpGrant: grant ? { method: grant.method, by: codeOf(grant.memberId), subjectType: grant.subjectType, subjectId: grant.subjectId, used: grant.usedAt !== null } : null,
           }
         }),
       ),
@@ -224,14 +238,17 @@ async function main(command: string | undefined, args: readonly string[]): Promi
     const matched = await prisma.request.findMany({ where: { organizationId, id: { in: rows.flatMap((r) => r.matchedRequestIds) } }, select: { id: true, number: true } })
     const numberOf = new Map(matched.map((m) => [m.id, m.number] as const))
     const source = request.sourceRequestId ? await prisma.request.findFirst({ where: { organizationId, id: request.sourceRequestId }, select: { number: true } }) : null
-    const codeOf = await codesOf(rows.map((r) => r.acknowledgedById))
     const flagged = await prisma.event.findMany({ where: { organizationId, aggregateType: 'Request', aggregateId: request.id, type: 'request.flagged' }, orderBy: { seq: 'asc' }, select: { data: true } })
+    // How the draft was made (FR-INT-101 AC1): request.drafted names its source when it is not typed in by hand
+    const drafted = await prisma.event.findFirst({ where: { organizationId, aggregateType: 'Request', aggregateId: request.id, type: 'request.drafted' }, orderBy: { seq: 'asc' }, select: { channel: true, actorMemberId: true, data: true } })
+    const codeOf = await codesOf([...rows.map((r) => r.acknowledgedById), drafted?.actorMemberId])
     return {
       id: request.id,
       number: request.number,
       status: request.status,
       title: request.title,
       source: source?.number ?? null,
+      drafted: drafted ? { source: ((drafted.data ?? {}) as { source?: unknown }).source ?? null, channel: drafted.channel, by: codeOf(drafted.actorMemberId) } : null,
       budgetLine: request.budgetLine?.code ?? null,
       site: request.deliverySite?.code ?? null,
       supplier: request.suggestedSupplier?.code ?? null,

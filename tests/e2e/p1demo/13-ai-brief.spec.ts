@@ -74,7 +74,7 @@ test('@p1demo [FR-AI-301/AC1] [FR-AI-301/AC2] [FR-AI-301/AC3] scene 13: the appr
   expect(facts.get('budgetRemaining'), 'the budget left after the request').toBe(baht(BigInt(brief.db.budgetAvailable!)))
   for (const key of expectedOf<string[]>(scene, 'factsFromDb')) expect(facts.has(key), `fact ${key}`).toBe(true)
   expect(facts.get('supplierPoCount')).toBe(String(brief.db.supplierPoCount))
-  expect(brief.db.supplierPoCount, `the POs of ${asked.supplier} the history made`).toBeGreaterThanOrEqual(expectedOf<number>(scene, 'supplierPoCountFromHistory'))
+  expect(brief.db.supplierPoCount, `the POs of ${asked.supplier} the history made`).toBe(expectedOf<number>(scene, 'supplierPoCountFromHistory'))
   expect(facts.get('supplierLastPoAmount')).toBe(baht(BigInt(brief.db.supplierLastPoGross!)))
   const hoursLeft = Number(facts.get('slaHoursLeft'))
   expect(Number.isInteger(hoursLeft) && hoursLeft >= 0, 'hours left of the SLA').toBe(true)
@@ -91,7 +91,7 @@ test('@p1demo [FR-AI-301/AC1] [FR-AI-301/AC2] [FR-AI-301/AC3] scene 13: the appr
   // The approver on the web: their tasks, the request of scene 12, the box on the decision bar
   await signInAs(page, sheet, approver.code)
   await page.goto('/tasks')
-  const row = rowWith(page.getByRole('list', { name: 'งานรออนุมัติของคุณ' }), brief.number)
+  const row = rowWith(page.getByRole('list', { name: th('tasks.listLabel') }), brief.number)
   await expect(row).toContainText(baht(columnOf(asked, 'gross')))
   await row.getByRole('link').click()
   await expect(page).toHaveURL(new RegExp(`/tasks/${brief.taskId}$`))

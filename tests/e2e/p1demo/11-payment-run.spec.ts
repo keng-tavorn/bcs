@@ -4,8 +4,8 @@ import { E2E_PIN } from '../../support/e2e-env'
 import { messagesTo } from '../../support/mailpit'
 import { baht, cardTo, expectCardButtons, lineUserOf, liffPathOf, literally, phoneOf, th, typed, type Delivered } from '../demo/support'
 import { expect, test } from '../fixtures'
-import { deskAs, h1, moneySheet, s9, sheetSatang } from './money-steps'
-import { approverByRule, columnOf, day, expectedOf, expectedSatang, p1Sheet, ruleOf, sceneOf, signInAs, todayInBangkok } from './support'
+import { deskAs, h1, headerFigure, moneySheet, s9, sheetSatang } from './money-steps'
+import { approverByRule, columnOf, day, expectedOf, expectedSatang, p1Sheet, ruleOf, sceneOf, signInAs, todayInBangkok, userOf } from './support'
 
 // Scene 11 of the day of phase 1 (P1-08 · S9 · PAYMENT_RUN): the invoices of scenes 8, 9 and 10 are paid in one run.
 // First another FINANCE member (expectJson.parkFirst) keeps in a draft of her own every invoice of the history due by
@@ -199,10 +199,12 @@ test('@p1demo [FR-PAY-101/AC2] [FR-PAY-101/AC7] [FR-PAY-101/AC9] [FR-PAY-102/AC1
   await sheetPanel.getByRole('button', { name: th('payRun.sheet.submit', { count: docs.length }) }).click()
   await expect(page.getByText(th('payRun.sheet.added')).first()).toBeVisible({ timeout: 30_000 })
 
-  // One item per supplier with its tax withheld and its transfer; no flag
+  // One item per supplier with its tax withheld and its transfer; no flag. The run's header totals them
   await page.reload()
-  await expect(page.getByText(th('payRun.run.suppliersValue', { count: suppliers.length, documents: docs.length }))).toBeVisible()
-  for (const amount of [payable, wht, transfer]) await expect(page.getByText(baht(amount), { exact: true }).first()).toBeVisible()
+  await expect(headerFigure(page, th('payRun.run.suppliers'))).toHaveText(th('payRun.run.suppliersValue', { count: suppliers.length, documents: docs.length }))
+  await expect(headerFigure(page, th('payRun.run.payable'))).toHaveText(baht(payable))
+  await expect(headerFigure(page, th('payRun.run.wht'))).toHaveText(baht(wht))
+  await expect(headerFigure(page, th('payRun.run.transfer'))).toHaveText(baht(transfer))
   const filled = s9<RunFacts>('run', runId)
   expect([filled.totalPayableSatang, filled.totalWhtSatang, filled.totalTransferSatang]).toEqual([payable, wht, transfer].map(String))
   expect([filled.itemCount, filled.documentCount]).toEqual([suppliers.length, docs.length])
@@ -251,7 +253,8 @@ test('@p1demo [FR-PAY-101/AC2] [FR-PAY-101/AC7] [FR-PAY-101/AC9] [FR-PAY-102/AC1
   await expect(confirm).toBeVisible()
   await confirm.getByLabel(th('tasks.decide.pin')).fill(E2E_PIN)
   await confirm.getByRole('button', { name: th('tasks.decide.confirm') }).click()
-  await expect(liff.getByRole('status').filter({ hasText: 'อนุมัติแล้วโดย' })).toBeVisible({ timeout: 30_000 })
+  const approvedBy = new RegExp(literally(th('tasks.state.APPROVE', { name: userOf(sheet, approver).nameTh, time: '@' })).replace('@', '\\S.*'))
+  await expect(liff.getByRole('status').filter({ hasText: approvedBy })).toBeVisible({ timeout: 30_000 })
   await phone.close()
   const approved = s9<RunFacts>('run', runId)
   expect(approved.status).toBe('APPROVED')
@@ -275,7 +278,7 @@ test('@p1demo [FR-PAY-101/AC2] [FR-PAY-101/AC7] [FR-PAY-101/AC9] [FR-PAY-102/AC1
   const read = readNeutralFile(text)
   for (const part of [read.header, read.details, read.trailer]) expect(part).toEqual({ count: fileRows, totalSatang: transfer })
   const company = money.companyAccounts.get(payer)!
-  expect(text.replace(/^﻿/, '').startsWith(`H,${fileTemplate},NOT-A-BANK-FORMAT,${number},1,${approved.payDate},${company.bankCode},${company.accountNo},${fileRows},${typed(transfer)}\r\n`)).toBe(true)
+  expect(text.replace(/^\uFEFF/, '').startsWith(`H,${fileTemplate},NOT-A-BANK-FORMAT,${number},1,${approved.payDate},${company.bankCode},${company.accountNo},${fileRows},${typed(transfer)}\r\n`)).toBe(true)
   for (const d of docs) {
     const account = money.supplierAccounts.get(d.supplier)!
     expect(text, `${d.supplier}'s row: its account and its transfer`).toMatch(new RegExp(`\\r\\nD,\\d+,${account.bankCode},${account.accountNo},.*,${literally(typed(d.transferSatang))},${d.supplier},${literally(number)}-\\d{3}\\r\\n`))

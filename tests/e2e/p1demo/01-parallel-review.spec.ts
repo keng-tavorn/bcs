@@ -10,10 +10,11 @@ import { approverByRule, budgetLineOf, columnOf, countedOf, day, expectedOf, p1S
 // the row's rule and no reviewer (the reviewers are no DOA step). Sent, the request waits for the parallel reviewers of
 // the workflow in effect — the row's expectedReviewers, every one at once (FR-WF-101 AC1) — and the DOA step behind
 // them. Each reviewer decides as expectJson.reviewDecisions says, in that order: one passes in the LINE chat from the
-// card (AC5: a reviewer needs no PIN whatever the amount), one asks the requester first (FR-INT-009 AC3) and passes once
-// answered, one passes on the web (AC2: no rejection, no PIN). Once all have passed, the request waits for the row's
-// approver at the DOA step (expectJson.afterReviews) — whose notice the scene leaves undelivered: scene 2 plays it on the
-// approver's phone in BCS Go.
+// card's button (AC5), one asks the requester first — who is told, answers, and the task is the same reviewer's again
+// (FR-INT-009 AC3) — and passes, one passes on the web (AC5). A reviewer never rejects and needs no PIN whatever the
+// amount (review.decide · BR-WF-09). The DOA step gets no task while any reviewer has still to pass (AC2); once all have
+// passed, the request waits for the row's approver at the DOA step (expectJson.afterReviews) — whose notice the scene
+// leaves undelivered: scene 2 plays it on the approver's phone in BCS Go.
 
 /** The facts of tests/e2e/p1demo/scripts/review.ts */
 interface ReviewFacts {
@@ -197,7 +198,9 @@ test('@p1demo [FR-WF-101/AC1] [FR-WF-101/AC2] [FR-WF-101/AC5] [FR-INT-009/AC3] s
   )
   // BR-DUP-05: not a duplicate of the requester's earlier road work (expectJson.notDuplicateOf), no flag at all
   expect(sentFacts.flags.map((f) => f.kind)).toEqual(expectedOf<string[]>(scene, 'flags'))
-  expect(sentFacts.flags.flatMap((f) => f.matched)).not.toContain(day<{ number: string } | null>('history', expectedOf<string>(scene, 'notDuplicateOf'))?.number)
+  const earlier = day<{ number: string } | null>('history', expectedOf<string>(scene, 'notDuplicateOf'))
+  if (!earlier) throw new Error(`the seed made no request for Request_History ${expectedOf<string>(scene, 'notDuplicateOf')}`)
+  expect(sentFacts.flags.flatMap((f) => f.matched)).not.toContain(earlier.number)
   // BR-PRC-01: the price reference of the item (expectJson.priceRef)
   const priceRef = expectedOf<{ item: string; count: number; median: string; status: string }>(scene, 'priceRef')
   expect(priceRef.item).toBe(scene.itemCode)
@@ -228,7 +231,7 @@ test('@p1demo [FR-WF-101/AC1] [FR-WF-101/AC2] [FR-WF-101/AC5] [FR-INT-009/AC3] s
   // ---------- the reviewers decide, in the row's order ----------
   const contexts = []
   try {
-    for (const d of decisions) {
+    for (const [i, d] of decisions.entries()) {
       const task = taskOf(d.member)
       if (d.channel === 'LINE_CHAT') {
         // The notification job sends the review card to their LINE (played here: e2e has no Inngest)
@@ -239,7 +242,7 @@ test('@p1demo [FR-WF-101/AC1] [FR-WF-101/AC2] [FR-WF-101/AC5] [FR-INT-009/AC3] s
         expect(words).toContain(cardWord('reviewHeader'))
         expect(words).toContain(cardRow('number', number))
         expect(words).toContain(cardRow('reviewRules', d.rule))
-        // AC5: a reviewer passes in the chat whatever the amount — no PIN line, the postback "ผ่าน"
+        // AC5: the reviewer passes with the card's postback "ผ่าน"; BR-WF-09: whatever the amount, no PIN line
         expect(words).not.toContain(cardWord('pinNeeded'))
         const pass = actionsOf(card).filter((a) => a.label === cardWord('pass'))
         expect(pass).toHaveLength(1)
@@ -257,7 +260,7 @@ test('@p1demo [FR-WF-101/AC1] [FR-WF-101/AC2] [FR-WF-101/AC5] [FR-INT-009/AC3] s
         await desk.goto('/tasks')
         await expect(desk.getByRole('listitem').filter({ hasText: number }).first()).toContainText(th('tasks.item.review'))
         await desk.goto(`/tasks/${task.id}`)
-        // AC2: a reviewer passes, returns or asks — never rejects, and needs no PIN
+        // review.decide · BR-WF-09: a reviewer passes, returns or asks — never rejects, and needs no PIN
         await expect(desk.getByText(th('tasks.decide.rejectOption'), { exact: true })).toHaveCount(0)
         await expect(desk.getByText(th('tasks.decide.pin'))).toHaveCount(0)
         if (d.decision === 'ASK_INFO_THEN_PASS') {
@@ -279,8 +282,13 @@ test('@p1demo [FR-WF-101/AC1] [FR-WF-101/AC2] [FR-WF-101/AC5] [FR-INT-009/AC3] s
         await desk.getByRole('button', { name: th('tasks.decide.review.confirm') }).click()
         await expect(desk.getByRole('status').filter({ hasText: new RegExp(`^${literally(th('tasks.decide.review.approved'))}$`) })).toBeVisible()
       }
-      const now = facts().steps[0]!.tasks.find((t) => t.id === task.id)!
-      expect(now, `${d.member} passed ${d.rule} on ${d.channel}`).toMatchObject({ status: 'APPROVED', decision: 'APPROVE', channel: d.channel, decidedOn: d.channel })
+      const now = facts()
+      expect(now.steps[0]!.tasks.find((t) => t.id === task.id), `${d.member} passed ${d.rule} on ${d.channel}`).toMatchObject({ status: 'APPROVED', decision: 'APPROVE', channel: d.channel, decidedOn: d.channel })
+      if (i < decisions.length - 1) {
+        // AC2: while a reviewer has still to pass, the reviewers' step stays open and the DOA's step has no task
+        expect(now.steps[0], `after ${d.member}'s pass`).toMatchObject({ kind: 'REVIEW', status: 'ACTIVE' })
+        expect(now.steps.find((s) => s.stepNo === after.stepNo), `after ${d.member}'s pass`).toMatchObject({ kind: 'APPROVAL', status: 'WAITING', tasks: [] })
+      }
     }
   } finally {
     for (const context of contexts) await context.close()
@@ -294,6 +302,10 @@ test('@p1demo [FR-WF-101/AC1] [FR-WF-101/AC2] [FR-WF-101/AC5] [FR-INT-009/AC3] s
   if (ask) {
     expect(done.questions).toEqual([{ taskId: taskOf(ask.member).id, by: ask.member, question: ask.questionTh, answer: ask.answerTh, answeredBy: requester.code }])
     expect(done.events.map((e) => e.type)).toEqual(expect.arrayContaining(['request.info_requested', 'request.info_provided']))
+    // FR-INT-009 AC3: the requester was told of the question, and the answer went back to the reviewer who asked
+    const about = (templateKey: string) => done.notices.filter((n) => n.templateKey === templateKey).map(({ recipient, taskId }) => ({ recipient, taskId }))
+    expect(about('request.info_requested'), 'the requester is told of the question').toEqual([{ recipient: requester.code, taskId: taskOf(ask.member).id }])
+    expect(about('request.info_provided'), 'the reviewer who asked is told of the answer').toEqual([{ recipient: ask.member, taskId: taskOf(ask.member).id }])
   }
   const waiting = done.steps.find((s) => s.stepNo === after.stepNo)!
   expect(waiting).toMatchObject({ kind: 'APPROVAL', status: 'ACTIVE' })

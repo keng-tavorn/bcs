@@ -1,16 +1,18 @@
-import { th } from '../demo/support'
+import { baht, literally, th, typed } from '../demo/support'
 import { expect, test } from '../fixtures'
 import { appPhone, pending, photo } from './go-steps'
 import { columnOf, day, expectedOf, historyOf, p1Sheet, sceneOf, script, signInAs, userOf } from './support'
 
 // Scene 7 of the day of phase 1 (P1-08 · S17 · sheet Demo_Script_P1 row of scene 7): the row's receiver takes the goods
 // of a PO of the past (the row's Request_History row, its PO sent to the supplier) at the site, in BCS Go, without a
-// signal. With the signal the app prepares the POs the receiver may take offline (as many as the service offers); then,
-// offline, the receiver finds the PO by its number (the camera's QR is tried on a phone), records the row's quantity,
-// the delivery note of expectJson and its photos, and keeps it on the phone: nothing reaches the server. With the signal
-// back the photo goes up and the receipt goes by itself (FR-PLT-301 AC5 to AC8); expectJson.lostAnswers of its answers are
-// lost on the way, so the page sends it again with the same idempotency key, and the server keeps one receipt. The PO is
-// then as expectJson says, with its receipt captured offline on the app's channel.
+// signal. With the signal the app prepares the POs the receiver may take offline (as many as the service offers): copies
+// without a price — neither the copy the phone keeps nor the PO found and its form carry the row's unit price, net or
+// gross (FR-PLT-301 AC5). Then, offline, the receiver finds the PO by its number (the camera's QR is tried on a phone),
+// records the row's quantity, the delivery note of expectJson and its photos, and keeps it on the phone: nothing reaches
+// the server (AC6 AC7). With the signal back the photo goes up and the receipt goes by itself (AC8);
+// expectJson.lostAnswers of its answers are lost on the way, so the page sends it again with the same idempotency key,
+// and the server keeps one receipt. The PO is then as expectJson says, with its receipt captured offline on the app's
+// channel.
 
 interface PoFacts {
   readonly id: string
@@ -59,6 +61,10 @@ test('@p1demo [FR-PLT-301/AC5] [FR-PLT-301/AC6] [FR-PLT-301/AC7] [FR-PLT-301/AC8
   const deliveryNote = expectedOf<string>(scene, 'deliveryNoteNo')
   const photos = expectedOf<number>(scene, 'photos')
   const lost = expectedOf<number>(scene, 'lostAnswers')
+  // FR-PLT-301 AC5: the row's unit price, net and gross as a page or a copy could write them — "2780.00", "2,780.00" and,
+  // from 1,000 baht, whole baht with its thousands ("2,780"); never a bare number, which a PO's number could hold
+  const prices = [columnOf(scene, 'unitPrice'), columnOf(scene, 'net'), columnOf(scene, 'gross')]
+  const written = prices.flatMap((amount) => [typed(amount), baht(amount), ...(amount >= 100_000n ? [(amount / 100n).toLocaleString('en-US')] : [])])
 
   // The PO of the history row, found by the row (the seed's events carry its key), never by a number typed here
   const history = day<{ number: string } | null>('history', row.ref)
@@ -87,9 +93,18 @@ test('@p1demo [FR-PLT-301/AC5] [FR-PLT-301/AC6] [FR-PLT-301/AC7] [FR-PLT-301/AC8
     await page.getByRole('link', { name: th('receiving.list.goReceive') }).click()
     await expect(page).toHaveURL(/\/go\/receive$/)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(th('goReceive.title'))
+    // What the phone keeps is the page's answer from the service (the page also asks once by itself when it opens)
+    const prepared = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/go/receiving/prepare' && r.request().method() === 'GET' && r.ok())
     await page.getByRole('button', { name: th('goReceive.prepare.button') }).click()
     await expect(page.getByText(th('goReceive.prepare.done', { count: copies.count }))).toBeVisible()
     await expect(page.getByRole('button', { name: th('goReceive.prepare.record', { number: po.number }) })).toBeVisible()
+    // AC5: the copy of the PO the phone keeps has no price — no key that names one, none of the row's amounts
+    const kept = ((await (await prepared).json()) as { copies: Array<{ number: string | null }> }).copies.find((c) => c.number === po.number)
+    expect(kept, `the phone keeps a copy of ${po.number}`).toBeDefined()
+    const keptText = JSON.stringify(kept)
+    expect(keptText, 'no key of the copy names a price, amount, VAT or total').not.toMatch(/"\w*(?:price|amount|satang|vat|gross|net|total)\w*":/i)
+    for (const amount of prices) expect(keptText, 'the copy carries none of the row\'s amounts in satang').not.toMatch(new RegExp(`[":]${amount}[",}]`))
+    for (const shape of written) expect(keptText, 'the copy carries none of the row\'s amounts in baht').not.toContain(shape)
 
     // The server records the receipt; the first answers never reach the phone
     const keys: string[] = []
@@ -109,14 +124,22 @@ test('@p1demo [FR-PLT-301/AC5] [FR-PLT-301/AC6] [FR-PLT-301/AC7] [FR-PLT-301/AC8
       await page.getByRole('button', { name: th('goReceive.find.typedButton') }).click()
       const found = page.getByRole('dialog', { name: po.number })
       await expect(found).toContainText(th('goReceive.prepare.lines', { count: po.lines.length }))
+      // AC5: the PO found shows no price
+      for (const shape of written) await expect(found, 'the PO found shows none of the row\'s amounts').not.toContainText(shape)
       await found.getByRole('button', { name: th('goReceive.prepare.record', { number: po.number }) }).click()
-      await expect(page.getByRole('heading', { name: th('goReceive.form.title', { number: po.number }) })).toBeVisible()
-      await expect(page.getByText(item.nameTh).first()).toBeVisible()
-      await page.getByLabel(/รับรอบนี้/).first().fill(qty)
-      await page.getByLabel('เลขที่ใบส่งของ').fill(deliveryNote)
-      for (let n = 1; n <= photos; n++) await page.locator('input[type=file]').setInputFiles({ name: `receipt-${n}.jpg`, mimeType: 'image/jpeg', buffer: await photo(page) })
-      await expect(page.getByRole('button', { name: /^เอารูป .+ ออก$/ })).toHaveCount(photos)
-      await page.getByRole('button', { name: th('goReceive.form.save') }).click()
+      const form = page.getByRole('region', { name: th('goReceive.form.title', { number: po.number }) })
+      await expect(form.getByRole('heading', { name: th('goReceive.form.title', { number: po.number }) })).toBeVisible()
+      await expect(form.getByText(item.nameTh).first()).toBeVisible()
+      // AC5: nor does its form
+      for (const shape of written) await expect(form, 'the receipt form shows none of the row\'s amounts').not.toContainText(shape)
+      // Each field by the line it belongs to (the label names the line for a screen reader)
+      await form.getByLabel(`${item.nameTh}: ${th('receiving.form.receivedLabel', { uom: item.unit })}`).fill(qty)
+      await form.getByLabel(th('receiving.form.deliveryNoteLabel'), { exact: true }).fill(deliveryNote)
+      for (let n = 1; n <= photos; n++) await form.locator('input[type=file]').setInputFiles({ name: `receipt-${n}.jpg`, mimeType: 'image/jpeg', buffer: await photo(page) })
+      for (let n = 1; n <= photos; n++) await expect(form.getByRole('button', { name: th('receiving.form.removePhoto', { name: `receipt-${n}.jpg` }), exact: true })).toBeVisible()
+      const removable = new RegExp(`^${literally(th('receiving.form.removePhoto')).replace(literally('{name}'), '.+')}$`)
+      await expect(form.getByRole('button', { name: removable })).toHaveCount(photos)
+      await form.getByRole('button', { name: th('goReceive.form.save') }).click()
       await expect(page.getByText(th('goReceive.form.saved'))).toBeVisible()
       await expect(pending(page, th('goReceive.queue.waiting'))).toHaveText('1')
       // Nothing reached the server

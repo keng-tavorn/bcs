@@ -607,7 +607,7 @@ SCENES = [
             "photos": 1,
             "aiType": "BUY_GOODS",
             "line": {"description": "เหล็กข้ออ้อย DB25 SD40", "unit": "ตัน"},
-            "mustConfirm": ["lines.0.quantity", "lines.0.unitPrice"],
+            "mustConfirm": ["lines.0.quantity", "lines.0.unitPrice", "suggestedSupplierId"],
             "attachments": ["OTHER"],
             "submitChannel": "LIFF",
             "approverCard": True,

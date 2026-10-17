@@ -16,6 +16,9 @@ import { E2E_DB } from '../../../support/e2e-env'
 // The organization is the one of sheet Org of the phase-1 workbook; every object is found by the values of the sheet
 // (the actor's code, the request type and title of the row), never by an id typed in a test. Prints JSON on its last
 // line; amounts are satang as strings.
+//   pending <scene> <purpose> how many PENDING AI actions of that purpose (INTAKE, QUOTATION_READ) the scene's actor has
+//                            asked for (read only: the scene waits on it before it plays a job, as the screen's start
+//                            call may still be on its way when the screen already says it is reading)
 //   intake <scene> [sinceMs]  answers every PENDING Intake action the scene's actor asked for; prints how many, and how
 //                            many Intake actions the actor asked for since sinceMs (epoch ms)
 //   read <scene>              answers every PENDING quotation read the scene's actor asked for (the recorded answer)
@@ -26,7 +29,8 @@ import { E2E_DB } from '../../../support/e2e-env'
 //                            by the row's expectedApprover (the job's work), then reads it as that member reads it
 //                            (approvalBriefOf); with what the database says beside it: the budget line's balance and the
 //                            supplier's POs of the last 365 days
-//   line <budgetKey>          the budget line of that key in the fiscal year of today (sheet Budget): id and code
+//   line <code>               the budget line of that code (the scene picks it from sheet Budget for the fiscal year of
+//                            today, support.ts budgetLineOf): id and code
 //   question <code>           the newest question the member asked BCS AI: status, the tools it used, the kind of answer
 // Loads the app's modules only when tsx runs it.
 
@@ -78,6 +82,15 @@ async function main(command: string | undefined, args: readonly string[]): Promi
       return member
     }
     const noUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+
+    // ---------- the AI actions a screen started and no job has answered yet ----------
+
+    const PLAYED_PURPOSES = new Set(['INTAKE', 'QUOTATION_READ'])
+    async function pending(scene: string | undefined, purpose: string | undefined) {
+      if (!purpose || !PLAYED_PURPOSES.has(purpose)) throw new Error(`a purpose the scenes play (${[...PLAYED_PURPOSES].join(' ')}), not ${purpose ?? '(none)'}`)
+      const member = await memberOf(sceneRow(scene).values.actor)
+      return { pending: await prisma.agentAction.count({ where: { organizationId, purpose: purpose as 'INTAKE' | 'QUOTATION_READ', status: 'PENDING', requestedById: member.id } }) }
+    }
 
     // ---------- step 0: the Intake Agent, answered with the row's reading of the quotation ----------
 
@@ -253,15 +266,14 @@ async function main(command: string | undefined, args: readonly string[]): Promi
       }
     }
 
-    // ---------- the budget line of a key this fiscal year, and the questions to BCS AI ----------
+    // ---------- the budget line of a code, and the questions to BCS AI ----------
 
-    async function line(key: string | undefined) {
-      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(now)
-      const fiscalYear = `FY${Number(today.slice(0, 4)) + 543}`
-      const row = workbook.table('Budget').find((r) => r.values.budgetKey === key && r.values.fiscalYear === fiscalYear)
-      if (!row?.values.code) throw new Error(`sheet Budget has no line of key ${key ?? '(none)'} in ${fiscalYear}`)
-      const found = await prisma.budgetLine.findFirstOrThrow({ where: { organizationId, code: row.values.code }, select: { id: true, code: true } })
-      return { ...found, fiscalYear }
+    async function line(code: string | undefined) {
+      if (!code || !workbook.table('Budget').some((r) => r.values.code === code)) throw new Error(`sheet Budget has no line ${code ?? '(none)'}`)
+      // A code is unique within a fiscal year; the sheet's codes carry their year, so one line answers
+      const found = await prisma.budgetLine.findMany({ where: { organizationId, code }, select: { id: true, code: true } })
+      if (found.length !== 1) throw new Error(`the organization ${orgCode} has ${found.length} budget lines ${code}`)
+      return found[0]!
     }
 
     async function question(code: string | undefined) {
@@ -273,6 +285,8 @@ async function main(command: string | undefined, args: readonly string[]): Promi
     }
 
     switch (command) {
+      case 'pending':
+        return await pending(args[0], args[1])
       case 'intake':
         return await intake(args[0], args[1])
       case 'read':

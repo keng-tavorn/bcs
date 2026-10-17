@@ -26,6 +26,13 @@ interface Asked {
   readonly errorCode: string | null
 }
 
+/** A decimal written as text in units of 10^-places, with integer math ("0.1", 4 → 1000n; "10", 2 → 1000n) */
+function decimalIn(text: string | undefined, places: number): bigint {
+  const m = new RegExp(`^(\\d+)(?:\\.(\\d{1,${places}}))?$`).exec(text ?? '')
+  if (!m) throw new Error(`not a decimal of at most ${places} places: ${text ?? '(empty)'}`)
+  return BigInt(m[1]!) * 10n ** BigInt(places) + BigInt((m[2] ?? '').padEnd(places, '0'))
+}
+
 test('@p1demo [FR-AI-307/AC2] [FR-AI-307/AC4] [FR-AI-309/AC2] [FR-AI-309/AC3] scene 14: the CEO asks BCS AI which budget is running out and gets the lines from the system, the lowest first with its link; a member without budget rights gets nothing', async ({
   page,
 }) => {
@@ -35,10 +42,10 @@ test('@p1demo [FR-AI-307/AC2] [FR-AI-307/AC4] [FR-AI-309/AC2] [FR-AI-309/AC3] sc
   const question = expectedOf<string>(scene, 'questionTh')
   const denied = userOf(sheet, expectedOf<string>(scene, 'deniedMember'))
   expect(scene.others, 'the member without budget rights is the other one who acts').toEqual([denied.code])
-  // The low mark is the organization's (sheet Settings digest.budgetLowPct, a fraction) in percent
+  // The low mark is the organization's (sheet Settings digest.budgetLowPct, a fraction) in percent, in bp without floats
   const lowPct = expectedOf<number>(scene, 'lowPct')
-  expect(Number(sheet.settings.get('digest.budgetLowPct')) * 100).toBe(lowPct)
-  const lowBp = BigInt(lowPct * 100)
+  const lowBp = decimalIn(sheet.settings.get('digest.budgetLowPct'), 4)
+  expect(lowBp, `digest.budgetLowPct is ${lowPct}%`).toBe(decimalIn(String(lowPct), 2))
 
   // The lines of this fiscal year as the database has them now, ordered by what is left (rounded down, in bp)
   const fiscalYear = fiscalYearOf(todayInBangkok())
@@ -53,7 +60,7 @@ test('@p1demo [FR-AI-307/AC2] [FR-AI-307/AC4] [FR-AI-309/AC2] [FR-AI-309/AC3] sc
     const code = budgetLineOf(sheet, key).code
     expect(lines.find((l) => l.code === code)?.low, `${code} is below ${lowPct}% left`).toBe(true)
   }
-  const target = s13<{ id: string; code: string }>('line', expectedOf<string>(scene, 'firstRowKey'))
+  const target = s13<{ id: string; code: string }>('line', first.code)
   expect(target.code).toBe(first.code)
 
   // The CEO asks from ⌘K: the tool's rows come back as the table, the lowest line first with its link (FR-AI-309 AC2 AC3)

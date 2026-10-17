@@ -10,7 +10,7 @@ import { budgetLineOf, columnOf, day, expectedOf, expectedSatang, fiscalYearOf, 
 // budget dashboard then shows, for each line, how it came to its planned amount: the initial budget of sheet Budget, the
 // transfer out or in, and the planned amount now. Who acts, the lines, the amount, the reason, the rule and the approver
 // come from the row and the sheets it names; the transfer and its task are found by what the form sent, never by a
-// typed number — scene 5 leaves other tasks at the same approver.
+// typed number or by place in the inbox — the approver holds other open tasks already, of the history's requests.
 
 interface LineNow {
   readonly code: string
@@ -28,6 +28,7 @@ interface TaskNow {
   readonly assignee: string | null
   readonly resolvedFrom: string
   readonly decided: { readonly channel: string; readonly by: string | null; readonly doaRuleCode: string | null; readonly stepUp: boolean } | null
+  readonly stepUpGrant: { readonly method: string; readonly by: string | null; readonly subjectType: string; readonly subjectId: string; readonly used: boolean } | null
 }
 
 interface TransferNow {
@@ -169,11 +170,19 @@ test('@p1demo [FR-BUD-103/AC1] [FR-BUD-103/AC3] scene 4: the budget officer tran
     await desk.close()
   }
 
-  // Approved under the row's rule on the web with the PIN: the amount left the source and entered the destination
+  // Approved under the row's rule on the web with the PIN — a step-up grant of the VP for this transfer, spent on the
+  // decision: the amount left the source and entered the destination
   const done = transferNow(transferId)
   expect(done.status).toBe('APPROVED')
   expect(done.routes[0]!.tasks).toEqual([
-    expect.objectContaining({ id: taskId, status: 'APPROVED', decision: 'APPROVE', assignee: approver, decided: { channel: 'WEB', by: approver, doaRuleCode: rule, stepUp: true } }),
+    expect.objectContaining({
+      id: taskId,
+      status: 'APPROVED',
+      decision: 'APPROVE',
+      assignee: approver,
+      decided: { channel: scene.channel, by: approver, doaRuleCode: rule, stepUp: true },
+      stepUpGrant: { method: 'PIN', by: approver, subjectType: 'BUDGET_TRANSFER', subjectId: transferId, used: true },
+    }),
   ])
   expect(done.events.map((e) => e.type)).toEqual(expect.arrayContaining(events))
   expect(done.events.filter((e) => events.includes(e.type)).map((e) => e.type)).toEqual(events)

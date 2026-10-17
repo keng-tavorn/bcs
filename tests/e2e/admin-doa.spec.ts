@@ -6,6 +6,7 @@ import { type Locator, type Page, type TestInfo } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
+import { settled } from './settled'
 
 // S2-13: the DOA pages of ORG_ADMIN — every version with its status and effective period, a published version that has
 // no edit control (FR-DOA-001 AC3), importing a version from YAML and downloading it in the same shape (AC2), and
@@ -23,6 +24,7 @@ const version2 = (versionNo: number, edit: (text: string) => string = (t) => t) 
 async function expectNoBlockingAxe(page: Page) {
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`)).toEqual([])

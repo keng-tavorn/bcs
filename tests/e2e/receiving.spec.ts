@@ -4,6 +4,7 @@ import type { Browser, Locator, Page, TestInfo } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { E2E_BASE_URL, e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
+import { settled } from './settled'
 
 // S4-07 receiving on the web and on a phone (FR-P2P-006, FR-P2P-007, FR-P2P-010 AC2; demo scene 8). Each test makes its
 // own sent PO through the services (tests/e2e/receiving-scene.ts) for a fresh requester of the construction department.
@@ -23,6 +24,7 @@ function scene(mode: 'demo' | 'sod' | 'variance' | 'closeShort', testInfo: TestI
 async function expectNoBlockingAxe(page: Page) {
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`)).toEqual([])
@@ -241,14 +243,25 @@ test('[FR-P2P-006/AC1] [FR-P2P-006/AC2] @demo scene 8 — on site with a phone t
   const held = new Promise<void>((resolve) => {
     release = resolve
   })
+  // The PUT goes out only once the browser has prepared the photo and the server has given its address. On the CI runner
+  // preparing it took over 5 s once (NEW-91: Chromium encodes a canvas in idle time), so the bytes are let go once they
+  // are on their way, not after a guess at how long that takes
+  let sending: () => void = () => undefined
+  const onTheWay = new Promise<void>((resolve) => {
+    sending = resolve
+  })
   await page.route(PRESIGNED, async (route) => {
-    if (route.request().method() === 'PUT') await held
+    if (route.request().method() === 'PUT') {
+      sending()
+      await held
+    }
     await route.continue()
   })
   await camera.setInputFiles({ name: 'site-delivery.jpg', mimeType: 'image/jpeg', buffer: picture })
   await expect(page.getByText('กำลังอัปโหลด site-delivery.jpg', { exact: true })).toBeVisible()
   await expect(wait).toBeVisible()
   await expect(toReview).toBeDisabled()
+  await onTheWay
   release()
   await expect(page.getByText('รูป site-delivery.jpg', { exact: true })).toBeVisible()
   await page.unroute(PRESIGNED)

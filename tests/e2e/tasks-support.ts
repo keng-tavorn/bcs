@@ -6,6 +6,7 @@ import { type BrowserContext, type Locator, type Page, type TestInfo } from '@pl
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { e2eEnv } from '../support/e2e-env'
 import { expect } from './fixtures'
+import { settled } from './settled'
 
 // Shared steps of the S2-12 e2e specs (tasks*.spec.ts, request-view*.spec.ts): signing in as a seeded member, axe,
 // screenshots at the project's width (§9.9 step 4), and the fixture scripts that add activity through the services.
@@ -66,6 +67,7 @@ export function castOf(testInfo: TestInfo) {
 export async function expectNoBlockingAxe(page: Page) {
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`)).toEqual([])

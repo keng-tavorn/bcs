@@ -6,6 +6,7 @@ import { type Page, type TestInfo } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { e2eEnv } from '../support/e2e-env'
 import { expect } from './fixtures'
+import { settled } from './settled'
 
 // Shared steps of unit i's e2e specs (board*.spec.ts, audit*.spec.ts, kpi*.spec.ts, reports*.spec.ts; S4-10, S4-11,
 // S5-12, demo scene 9): the scene that builds their data through the services (tests/e2e/insight-scene.ts), signing in,
@@ -95,6 +96,7 @@ export async function pickDay(page: Page, label: string, day: string) {
 export async function expectNoBlockingAxe(page: Page) {
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`)).toEqual([])

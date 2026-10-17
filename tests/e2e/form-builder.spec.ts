@@ -4,6 +4,7 @@ import type { Page, TestInfo } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
+import { settled } from './settled'
 
 // S6-14: the no-code form builder (FR-INT-104 · BR-FORM-09). ORG_ADMIN opens the builder of a request type, makes a
 // draft of the form in use, adds a question, sees it in the preview of the real form, saves and publishes it; a request
@@ -17,6 +18,7 @@ const TYPE = 'NEW_SUPPLIER'
 async function expectNoBlockingAxe(page: Page) {
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help}`)).toEqual([])

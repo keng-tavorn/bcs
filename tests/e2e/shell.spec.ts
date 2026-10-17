@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { type Page } from '@playwright/test'
 import { expect, test } from './fixtures'
+import { settled } from './settled'
 
 // S1-09 and S16-04: the workspace shell — Thai by default, English on request (FR-PLT-002 AC2), the menu of §9.10 and
 // the frame of FR-PLT-013 AC2–AC4: a sidebar that collapses to icons (a button or Ctrl B, remembered by the browser,
@@ -10,6 +11,7 @@ import { expect, test } from './fixtures'
 async function expectNoBlockingAxe(page: Page, where = '') {
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help} at ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`), where).toEqual([])

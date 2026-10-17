@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { type Page } from '@playwright/test'
 import { expect, test } from './fixtures'
+import { settled } from './settled'
 
 // FR-PLT-004 in a real browser against local S3 (RustFS): uploads go straight to the private bucket through presigned
 // URLs (CORS), photos are prepared in the browser (AC3) and refusals are shown in Thai (AC1).
@@ -112,6 +113,7 @@ test('[FR-PLT-004/AC1] other file types and renamed files are refused with a Tha
   await expect(page.getByRole('status').filter({ hasText: 'แนบ ใบเสนอราคา.pdf แล้ว' })).toBeVisible()
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   expect(results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)).toEqual([])
 })

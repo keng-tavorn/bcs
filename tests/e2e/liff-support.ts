@@ -9,6 +9,7 @@ import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { LIFF_MOCK_USER_COOKIE } from '../../src/app/liff/_lib/mock-cookie'
 import { E2E_BASE_URL, E2E_FAKE_LINE_URL, e2eEnv } from '../support/e2e-env'
 import { expect } from './fixtures'
+import { settled } from './settled'
 
 // Shared steps of the LIFF e2e specs (liff-shell.spec.ts, liff-link.spec.ts; S5-06, §9.4): which LINE user a LIFF page
 // stands for (LIFF_MOCK: the mock cookie; the ID token then comes from the fake LINE server of the run and the sign-in is
@@ -91,6 +92,7 @@ export const totpOf = (employeeCode: string) => totp(deriveSeedTotpSecret(proces
 export async function expectNoBlockingAxe(page: Page) {
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`)).toEqual([])

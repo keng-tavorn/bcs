@@ -4,6 +4,7 @@ import type { Page, TestInfo } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
+import { settled } from './settled'
 
 // S13-07 (FR-AI-303 AC1 AC3 AC4 AC8, docs/sub-specs/S13.md "หน้าจอ"): the Document Agent on the request form's quotation
 // step and on the receiving page, and (S13-20, AC6) on S8's new-invoice page and invoice draft. The demo organization keeps the AI module off — no AI button anywhere (AC8) — and each
@@ -24,6 +25,7 @@ const ai = <T>(mode: SceneMode, extra: Record<string, string> = {}) => scene<T>(
 
 async function check(page: Page, testInfo: TestInfo, name: string) {
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(' | ')})`)).toEqual([])

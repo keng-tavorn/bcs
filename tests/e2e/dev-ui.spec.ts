@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { type Page } from '@playwright/test'
 import { expect, test } from './fixtures'
+import { settled } from './settled'
 
 // S16-02 · FR-PLT-013 AC1 · §9.9 step 4–5: the component sheet of the workspace (/dev/ui, APP_ENV=local) in a real
 // browser at 375 and 1440 px — every shadcn/ui component of §9.10 drawn with the BCS tokens, no page that scrolls
@@ -16,6 +17,7 @@ async function signIn(page: Page) {
 }
 
 async function blockingViolations(page: Page) {
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   return results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
 }

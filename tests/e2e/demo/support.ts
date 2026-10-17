@@ -15,6 +15,7 @@ import { expect } from '../fixtures'
 import { checkScreen as checkWorkspaceScreen, exportedFile, percent, sha256, sheetRows, shownChecksum, signIn } from '../insight-support'
 import { anotherPhone, BARS_IN_PLACE, checkScreen as checkPhoneScreen, openAsLineUser, pointerAway } from '../liff-support'
 import { actions, budgetRegion, chooseSupplier, closeMenu, consolidateNow, expectPdfLink, header, nowBlock, openTab, pdfMenuItem, poHistory, poMails, poNumberOf, poolGroup, poTimeline, requestsRegion } from '../procurement-support'
+import { settled } from '../settled'
 import { rowWith } from '../tasks-support'
 
 // Shared steps of the demo scenes (D-04, spec §16.10, docs/DEMO_RUNBOOK.md, docs/sub-specs/D.md). The scenes read who
@@ -525,28 +526,6 @@ function noteScreen(page: Page, testInfo: TestInfo, name: string, kind: 'web' | 
   const journal = testInfo.outputPath('design-review.jsonl')
   mkdirSync(path.dirname(journal), { recursive: true })
   appendFileSync(journal, `${JSON.stringify({ name, path: new URL(page.url()).pathname, kind })}\n`, 'utf8')
-}
-
-/**
- * The page at rest: its document loaded (no navigation under way), its fonts ready, every transition or animation that
- * ends run to its end, and laid out again. Axe reads colours as they are drawn at that moment: a sidebar's group label
- * still fading out as a document page collapses the sidebar (src/ui/shell/shell-frame.tsx) reads as text too faint
- * (NEW-77). An animation that never ends (a spinner) is not waited for; a round that starts more is waited for in turn.
- */
-async function settled(page: Page) {
-  await page.waitForLoadState('load')
-  await page.evaluate(async () => {
-    await document.fonts.ready
-    const frames = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
-    for (let round = 0; round < 5; round += 1) {
-      await frames()
-      const ending = document.getAnimations().filter((a) => a.playState === 'running' && Number.isFinite(a.effect?.getComputedTiming().endTime))
-      if (ending.length === 0) return
-      // A cancelled one (its element gone) rejects: it is done too
-      await Promise.all(ending.map((a) => a.finished.catch(() => undefined)))
-    }
-    await frames()
-  })
 }
 
 /**

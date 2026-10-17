@@ -4,6 +4,7 @@ import { type Locator, type Page, type TestInfo } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
+import { settled } from './settled'
 
 // S2-13: the organization structure (FR-ADM-002) and the authority changes (FR-DOA-010 AC1) as ORG_ADMIN sees them.
 // Each project changes its own records (codes and positions per project) so desktop and mobile never collide in the
@@ -15,6 +16,7 @@ import { expect, test } from './fixtures'
 async function expectNoBlockingAxe(page: Page) {
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`)).toEqual([])

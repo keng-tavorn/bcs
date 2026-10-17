@@ -4,6 +4,7 @@ import type { Page, TestInfo } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { e2eEnv } from '../support/e2e-env'
 import { expect } from './fixtures'
+import { settled } from './settled'
 
 // Shared steps of the finance e2e specs (unit g): the scene script, signing in, and the checks of every page state —
 // axe, no sideways scrolling, and pictures at the project's width (375 px or 1440 px, §9.9 step 4).
@@ -37,6 +38,7 @@ export async function signIn(page: Page, code: string, withTotp: boolean) {
 async function expectNoBlockingAxe(page: Page) {
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`)).toEqual([])

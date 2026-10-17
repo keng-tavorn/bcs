@@ -228,8 +228,18 @@ test('[FR-LINE-003/AC1] [FR-LINE-003/AC3] [FR-P2P-006/AC1] [FR-P2P-006/AC2] demo
   const held = new Promise<void>((resolve) => {
     release = resolve
   })
+  // The PUT goes out only once the browser has prepared the photo and the server has given its address. On the CI runner
+  // preparing it took over 5 s once (NEW-91: Chromium encodes a canvas in idle time), so the bytes are let go once they
+  // are on their way, not after a guess at how long that takes
+  let sending: () => void = () => undefined
+  const onTheWay = new Promise<void>((resolve) => {
+    sending = resolve
+  })
   await page.route(PRESIGNED, async (route) => {
-    if (route.request().method() === 'PUT') await held
+    if (route.request().method() === 'PUT') {
+      sending()
+      await held
+    }
     await route.continue()
   })
   await camera.setInputFiles({ name: 'site-delivery.jpg', mimeType: 'image/jpeg', buffer: original })
@@ -238,6 +248,7 @@ test('[FR-LINE-003/AC1] [FR-LINE-003/AC3] [FR-P2P-006/AC1] [FR-P2P-006/AC2] demo
   await expect(toReview).toBeDisabled()
   await expect(page.getByLabel('ถ่ายรูป', { exact: true })).toBeDisabled()
   await firstScreen(page, testInfo, 'liff-gr-photo-sending')
+  await onTheWay
   release()
   await expect(page.getByText('รูป site-delivery.jpg', { exact: true })).toBeVisible()
   await page.unroute(PRESIGNED)

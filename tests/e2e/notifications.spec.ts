@@ -4,6 +4,7 @@ import { type Page } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
+import { settled } from './settled'
 
 // S2-14 (FR-NOTI-001 AC1): the bell shows an approver's new tasks with a link to each, opening one marks it read, and
 // "mark all as read" clears the count. tests/e2e/seed-activity.ts gave vp_ops and vp_sup two tasks each.
@@ -11,6 +12,7 @@ import { expect, test } from './fixtures'
 async function expectNoBlockingAxe(page: Page) {
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help}`)).toEqual([])

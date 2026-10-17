@@ -10,6 +10,7 @@ import { formatSatang } from '../../src/core/money/format'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { E2E_BASE_URL, E2E_PIN, e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
+import { settled } from './settled'
 import { PIN_LABEL } from './tasks-support'
 
 // S3-09 · the DOA editor (FR-DOA-001 AC1), the comparison with the version in effect and the boundary table, ticked by
@@ -41,6 +42,7 @@ function scene<T>(...args: string[]): T {
 async function expectNoBlockingAxe(page: Page) {
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`)).toEqual([])

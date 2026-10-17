@@ -4,6 +4,7 @@ import { type Page, type TestInfo } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
+import { settled } from './settled'
 
 // S6-06 · the reviewers' step on screen (FR-WF-101, ADR-103): pm_p07's contract work of 2,642,900.00 VAT included waits
 // for the DM of LEG, QSE and FIN at once — the request page shows the step as one group of three stamps, "ผ่านแล้ว 0 ใน
@@ -29,6 +30,7 @@ function scene<T>(...args: string[]): T {
 
 async function review(page: Page, testInfo: TestInfo, name: string) {
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`)).toEqual([])

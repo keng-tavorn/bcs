@@ -3,6 +3,7 @@ import { type Page, type TestInfo } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { E2E_PLATFORM_ADMIN } from './platform-admin'
 import { expect, test } from './fixtures'
+import { settled } from './settled'
 
 // S13-04 (docs/sub-specs/S13.md "หน้าจอ" and "ฐานของโมดูล" AC1 AC2): the organization admin switches AI assistants and
 // sets the lowest confidence at /admin/ai; the BCS team grants AI credits with a contract reference at
@@ -12,6 +13,7 @@ import { expect, test } from './fixtures'
 
 async function expectNoBlockingAxe(page: Page) {
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help}`)).toEqual([])

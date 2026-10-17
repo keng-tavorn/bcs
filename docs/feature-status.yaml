@@ -1,6 +1,6 @@
 # docs/feature-status.yaml — the only place that says what works (spec §0.5, §15.6).
 # Sales material may cite only `verified` and `live`. status: planned | in_progress | done | verified | live
-updatedAt: 2026-10-16
+updatedAt: 2026-10-17
 features:
   FR-PLT-001:
     status: done
@@ -520,6 +520,7 @@ features:
     status: done
     step: S2
     evidence:
+      - tests/e2e/p1demo/01-parallel-review.spec.ts
       - tests/generated/state-machines.test.ts
       - tests/integration/request-budget.test.ts
       - tests/integration/requests.test.ts

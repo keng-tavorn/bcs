@@ -23,8 +23,9 @@ jobs:
     concurrency:
       group: ci-verify-${{ github.ref }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-    # The full e2e suite takes some 50 minutes on a 2-core runner
-    timeout-minutes: 120
+    # The full e2e suite takes some 50 minutes on a 2-core runner; the scenes of phase 1 (P1-08) add a seed of SIMEC
+    # with its history (4 to 11 minutes on a developer machine), a build and their scenes
+    timeout-minutes: 180
     env:
       # The checks run like a developer machine: local services only, never a shared database (§4.12)
       APP_ENV: local

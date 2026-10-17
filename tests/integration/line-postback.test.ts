@@ -1,9 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { POST } from '@/app/api/webhooks/line/[channelKey]/route'
+import { fund } from '@/core/budget'
+import { stepUpNeeded } from '@/core/pin'
 import { MS_PER_HOUR, MS_PER_MINUTE } from '@/lib/constants'
-import { makeCtx } from '@/server/context'
+import { applyBudget } from '@/server/budget/ledger'
+import { makeCtx, systemCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
+import { forTenant } from '@/server/db/tenant'
+import { appendEvents } from '@/server/events/append'
 import { getDefaultOutboxSender, setDefaultOutboxSender, type OutboxMessage, type OutboxSender } from '@/server/events/outbox'
 import { processQueuedLineWebhookEvents, receiveLineWebhook } from '@/server/jobs/line-webhook'
 import { linePostbackActions } from '@/server/line/webhook'
@@ -15,11 +20,15 @@ import { createDelegation } from '@/server/services/delegations'
 import { openLineChannel, saveLineChannelSettings } from '@/server/services/line-channel'
 import { cancelRequest, createDraft, submitRequest } from '../support/requests'
 import { escalateTask, startDelegationWindow } from '@/server/services/sla'
+import { loadSeedForms } from '@/server/seed/forms'
+import { seedWorkflow } from '@/server/seed/workflow'
 import { emailLinkSecret } from '@/server/tokens/action-tokens'
 import { buildLineWebhook, lineEvents, newLineUserId, signLineWebhook } from '../../scripts/line-simulate'
+import { workflowFixture } from '../golden/workflow-fixtures'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { TEST_ACCESS_TOKEN, TEST_CHANNEL_SECRET, withFakeLine } from '../support/fake-line'
 import { p2p } from '../support/p2p'
+import { pinStepUp } from '../support/pin'
 
 // S5-05 · deciding from the approval card in the chat (spec §9.3, BR-TOK-01 to BR-TOK-05, INV-TOK-01, FR-LINE-002 AC2
 // AC3, FR-LINE-007 AC2). The card reaches the approver through delivery, the postback comes back as a webhook signed
@@ -493,6 +502,171 @@ describe('[FR-LINE-002/AC2] at or above stepUpThreshold, and for every policy ta
     expect(row).toMatchObject({ status: 'PROCESSED', error: 'STEP_UP_REQUIRED' })
     expect(await prisma.actionToken.findUniqueOrThrow({ where: { id: token.id } })).toMatchObject({ usedAt: null })
     expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ status: 'OPEN' })
+  })
+})
+
+// S6 · NEW-92 (FR-WF-101 AC5, BR-WF-09): a reviewer needs no step-up whatever the amount, so the reviewer's card offers
+// "ผ่าน" in the chat and the postback passes the review step; the DOA approver of the same request still approves with
+// the PIN in LIFF only (BR-TOK-05). The organization is review-step.test.ts's: the S6 fixture under the §7.4 DOA
+// (stepUpThreshold 100,000.00), whose contract work above 1,000,000.00 goes to the DM of LEG, QSE and FIN at once
+// (RV-03 to RV-05, ALL), then to the CEO.
+
+/** review-step.test.ts's setup: the contract work type with the demo's form, 100,000,000.00 more on CON's line and the reviewers of workflow-versions.yaml */
+async function withReviewers(target: DoaOrg) {
+  const organizationId = target.organizationId
+  const type = await prisma.requestType.create({ data: { organizationId, code: 'CONTRACT_WORK', nameTh: 'จ้างเหมา', documentType: 'PURCHASE_REQUEST' } })
+  const form = await prisma.formVersion.create({ data: { organizationId, requestTypeId: type.id, versionNo: 1, schema: loadSeedForms().get('CONTRACT_WORK')! as object, status: 'PUBLISHED', publishedAt: NOW } })
+  await prisma.requestType.update({ where: { id: type.id }, data: { currentFormVersionId: form.id } })
+  const budgetLine = await prisma.budgetLine.findFirstOrThrow({ where: { organizationId, departmentId: target.department.CON! } })
+  const importId = randomUUID()
+  await forTenant(organizationId).$transaction(async (tx) => {
+    const ctx = systemCtx(organizationId, NOW, 'seed')
+    const funded = await applyBudget(tx, ctx, [{ budgetLineId: budgetLine.id, document: { type: 'IMPORT' as const, id: importId }, run: (s) => fund(s, 10_000_000_000n, importId) }])
+    if (!funded.ok) throw new Error(funded.error.code)
+    await appendEvents(tx, ctx, funded.events)
+  })
+  const fixture = workflowFixture(['fixtures/workflow-versions.yaml']).versions[0]!
+  expect(await seedWorkflow(organizationId, { code: fixture.code, rules: fixture.rules.map((r) => ({ ...r, descriptionTh: null })) }, NOW)).toEqual({ created: true, rules: 9 })
+}
+
+/** pm_p07's contract work of 2,470,000.00 before VAT (review-step.test.ts) with the three quotations ATT-QUOTES asks, sent at NOW; its route with the DOA version's stepUpThreshold */
+async function contractWork(target: DoaOrg) {
+  const draft = ok(
+    await createDraft(
+      target.ctxOf('req_con', NOW),
+      { requestTypeCode: 'CONTRACT_WORK', title: 'งานเหมาก่อสร้างอาคารเก็บของ', formData: { scopeOfWork: 'ก่อสร้างอาคารเก็บของ 1 หลัง', milestones: '3 งวด', site: 'ไซต์ P07' }, lines: [{ description: 'งานเหมาก่อสร้าง', quantity: '1', uom: 'งาน', unitPrice: '2470000.00' }] },
+      key(),
+    ),
+  )
+  for (let i = 0; i < 3; i++) {
+    const file = await prisma.fileObject.create({ data: { organizationId: target.organizationId, storageKey: `test/${randomUUID()}.pdf`, fileName: 'q.pdf', mimeType: 'application/pdf', sizeBytes: 1, status: 'AVAILABLE', uploadedById: target.member.req_con! } })
+    await prisma.fileLink.create({ data: { organizationId: target.organizationId, fileId: file.id, subjectType: 'Request', subjectId: draft.requestId, kind: 'QUOTATION' } })
+  }
+  ok(await submitRequest(target.ctxOf('req_con', NOW), { requestId: draft.requestId }, key()))
+  const request = await prisma.request.findUniqueOrThrow({ where: { id: draft.requestId } })
+  const route = await prisma.approvalRoute.findFirstOrThrow({ where: { subjectId: draft.requestId }, orderBy: { routeNo: 'desc' }, include: { doaVersion: { select: { stepUpThresholdSatang: true } } } })
+  // The amount the DOA counted is at or above the version's stepUpThreshold: an approver of this route steps up
+  expect(route.amountSatang! >= route.doaVersion.stepUpThresholdSatang!).toBe(true)
+  expect(stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang })).toBe(true)
+  return { requestId: draft.requestId, number: request.number!, route }
+}
+
+describe('[FR-WF-101/AC5] a reviewer passes from the "ผ่าน" button of the card at or above stepUpThreshold, with no PIN; the DOA approver of the same request is still not approved from the chat (BR-WF-09, BR-TOK-05)', () => {
+  let review: DoaOrg
+  let target: { readonly organizationId: string; readonly channelKey: string }
+  const reviewLineUser: Record<string, string> = {}
+  const codeOf = (memberId: string) => Object.entries(review.member).find(([, id]) => id === memberId)![0]
+  const openTasks = (requestId: string) =>
+    prisma.approvalTask.findMany({ where: { status: 'OPEN', step: { route: { subjectId: requestId } } }, include: { step: { select: { kind: true } } }, orderBy: [{ slotNo: 'asc' }, { id: 'asc' }] })
+
+  beforeAll(async () => {
+    review = await createDoaOrg({ fixtures: { org: 'fixtures/org-s6.yaml', versions: 'fixtures/doa-versions.yaml' } })
+    const organizationId = review.organizationId
+    await prisma.roleAssignment.create({ data: { organizationId, memberId: review.member.admin!, role: 'ORG_ADMIN', grantedAt: NOW } })
+    target = { organizationId, channelKey: ok(await saveLineChannelSettings(review.ctxOf('admin', NOW), { ...CHANNEL, active: true }, key())).channelKey }
+    await withReviewers(review)
+    // The three reviewers and the CEO are linked to LINE, so each task comes with a LINE button (BR-TOK-01)
+    for (const code of ['dm_leg', 'dm_qse', 'dm_fin', 'ceo']) {
+      const lineUserId = newLineUserId()
+      await prisma.channelIdentity.create({ data: { organizationId, memberId: review.member[code]!, channel: 'LINE', providerKey: PROVIDER, externalUserId: lineUserId, linkedAt: NOW } })
+      reviewLineUser[code] = lineUserId
+    }
+  })
+
+  it('the reviewer\'s card offers "ผ่าน" in the chat; the signed tap passes the review step on LINE_CHAT with no step-up grant, the button used once', async () => {
+    const { requestId, number, route } = await contractWork(review)
+    const tasks = await openTasks(requestId)
+    expect(tasks.map((t) => [t.step.kind, codeOf(t.assigneeMemberId)])).toEqual([
+      ['REVIEW', 'dm_leg'],
+      ['REVIEW', 'dm_qse'],
+      ['REVIEW', 'dm_fin'],
+    ])
+    const task = tasks.find((t) => t.assigneeMemberId === review.member.dm_qse)!
+    const button = await prisma.actionToken.findFirstOrThrow({ where: { taskId: task.id, channel: 'LINE' } })
+    expect(button).toMatchObject({ memberId: review.member.dm_qse, allowedActions: ['APPROVE'], usedAt: null, revokedAt: null })
+
+    // The reviewer's card: the review header and "ผ่าน" as the postback of the button, no PIN asked
+    const notice = await prisma.notification.findFirstOrThrow({ where: { templateKey: 'task.review_assigned', recipientMemberId: review.member.dm_qse, data: { path: ['taskId'], equals: task.id } } })
+    expect(await deliverNotification(review.organizationId, notice.id, NOW, { openChannel: openLineChannel })).toEqual({ status: 'SENT', channel: 'LINE' })
+    const card = line.fake.messages().find((m) => m.kind === 'push' && m.retryKey === notice.id)!
+    expect(card.to).toBe(reviewLineUser.dm_qse)
+    expect(textOf(card.messages[0]!).split('\n')[0]).toBe('โปรดตรวจก่อนอนุมัติ')
+    const buttons = JSON.stringify(card.messages[0])
+    expect(buttons).toContain(`"type":"postback","label":"ผ่าน","data":"${approveData(button.id)}"`)
+    expect(buttons).toContain(`"displayText":"ผ่าน ${number}"`)
+    expect(buttons).not.toContain('ยืนยัน PIN')
+    expect(buttons).not.toContain('ยืนยันด้วย PIN')
+
+    // The tap, signed as LINE signs it, through the webhook's own entry
+    const { row, replies } = await tap(reviewLineUser.dm_qse!, approveData(button.id), LATER, undefined, target)
+    expect(row).toMatchObject({ status: 'PROCESSED', error: null })
+    expect(textOf(replies[0]!.messages[0]!).split('\n')[0]).toBe('ผ่านแล้ว')
+    expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ status: 'APPROVED', decision: 'APPROVE', channel: 'LINE_CHAT', decidedByMemberId: review.member.dm_qse })
+    // The button was used at the tap (the webhook's clock started at LATER and runs on)
+    const usedAt = (await prisma.actionToken.findUniqueOrThrow({ where: { id: button.id } })).usedAt!
+    expect(usedAt.getTime() - LATER.getTime()).toBeGreaterThanOrEqual(0)
+    expect(usedAt.getTime() - LATER.getTime()).toBeLessThan(MS_PER_MINUTE)
+    // One decision, with the workflow's reference (INV-WF-04) and no step-up grant behind it; none was given or used
+    const [decided, ...more] = await decidedEvents(task.id)
+    expect(more).toEqual([])
+    expect(decided).toMatchObject({
+      channel: 'LINE_CHAT',
+      actorType: 'USER',
+      actorMemberId: review.member.dm_qse,
+      doaVersionId: route.doaVersionId,
+      doaRuleCode: route.ruleCode,
+      data: expect.objectContaining({ decision: 'APPROVE', channel: 'LINE_CHAT', slotNo: task.slotNo, workflowVersionId: route.workflowVersionId, workflowRuleCodes: task.workflowRuleCodes }),
+    })
+    expect(decided!.data).not.toHaveProperty('stepUpGrantId')
+    expect(await prisma.stepUpGrant.count({ where: { memberId: review.member.dm_qse, subjectId: requestId } })).toBe(0)
+    // The other two reviewers still have their tasks; the request waits for them
+    expect((await openTasks(requestId)).map((t) => codeOf(t.assigneeMemberId))).toEqual(['dm_leg', 'dm_fin'])
+    expect(await prisma.request.findUniqueOrThrow({ where: { id: requestId } })).toMatchObject({ status: 'PENDING_APPROVAL' })
+
+    // The same button again: who passed it and when; nothing is decided again
+    const again = await tap(reviewLineUser.dm_qse!, approveData(button.id), new Date(LATER.getTime() + MS_PER_MINUTE), undefined, target)
+    expect(again.row).toMatchObject({ status: 'PROCESSED', error: 'TOKEN_USED' })
+    expect(textOf(again.replies[0]!.messages[0]!).split('\n')[0]).toBe('รายการนี้ดำเนินการแล้วโดย ผู้ใช้ dm_qse เมื่อ 6 ต.ค. 2569 09:01 น.')
+    expect(await decidedEvents(task.id)).toHaveLength(1)
+  })
+
+  it('once the three reviewers passed from the chat, the CEO\'s approval task of the same amount is refused STEP_UP_REQUIRED from the chat, even with a live PIN step-up, and stays open', async () => {
+    const { requestId, route } = await contractWork(review)
+    let at = LATER.getTime()
+    for (const task of await openTasks(requestId)) {
+      const code = codeOf(task.assigneeMemberId)
+      const button = await prisma.actionToken.findFirstOrThrow({ where: { taskId: task.id, channel: 'LINE' } })
+      at += MS_PER_MINUTE
+      expect((await tap(reviewLineUser[code]!, approveData(button.id), new Date(at), undefined, target)).row, code).toMatchObject({ status: 'PROCESSED', error: null })
+    }
+    const steps = await prisma.approvalStep.findMany({ where: { routeId: route.id }, orderBy: { stepNo: 'asc' } })
+    expect(steps.map((s) => [s.kind, s.status])).toEqual([
+      ['REVIEW', 'DONE'],
+      ['APPROVAL', 'ACTIVE'],
+    ])
+    const [ceoTask, ...others] = await openTasks(requestId)
+    expect(others).toEqual([])
+    expect([ceoTask!.step.kind, codeOf(ceoTask!.assigneeMemberId)]).toEqual(['APPROVAL', 'ceo'])
+    const button = await prisma.actionToken.findFirstOrThrow({ where: { taskId: ceoTask!.id, channel: 'LINE' } })
+
+    // The card the CEO gets has no button that approves in the chat
+    const notice = await prisma.notification.findFirstOrThrow({ where: { templateKey: 'task.assigned', recipientMemberId: review.member.ceo, data: { path: ['taskId'], equals: ceoTask!.id } } })
+    expect(await deliverNotification(review.organizationId, notice.id, NOW, { openChannel: openLineChannel })).toEqual({ status: 'SENT', channel: 'LINE' })
+    const card = JSON.stringify(line.fake.messages().find((m) => m.retryKey === notice.id)!.messages)
+    expect(card).not.toContain('"type":"postback"')
+    expect(card).toContain(`"label":"อนุมัติ (ยืนยัน PIN)","uri":"${LIFF}/tasks/${ceoTask!.id}?action=approve"`)
+
+    // The postback sent anyway is refused, with the LIFF page to approve with the PIN
+    const first = await tap(reviewLineUser.ceo!, approveData(button.id), new Date(at + MS_PER_MINUTE), undefined, target)
+    expect(first.row).toMatchObject({ status: 'PROCESSED', error: 'STEP_UP_REQUIRED' })
+    expect(textOf(first.replies[0]!.messages[0]!)).toBe(`รายการนี้ต้องยืนยันด้วย PIN โปรดเปิดรายการเพื่อยืนยัน\n${LIFF}/tasks/${ceoTask!.id}?action=approve`)
+    // A live PIN step-up for the request changes nothing in the chat, and the chat does not use it
+    const grantId = await pinStepUp(review.organizationId, review.member.ceo!, 'REQUEST', requestId)
+    expect((await tap(reviewLineUser.ceo!, approveData(button.id), new Date(at + 2 * MS_PER_MINUTE), undefined, target)).row).toMatchObject({ status: 'PROCESSED', error: 'STEP_UP_REQUIRED' })
+    expect(await prisma.stepUpGrant.findUniqueOrThrow({ where: { id: grantId } })).toMatchObject({ usedAt: null })
+    expect(await prisma.actionToken.findUniqueOrThrow({ where: { id: button.id } })).toMatchObject({ usedAt: null, revokedAt: null })
+    expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: ceoTask!.id } })).toMatchObject({ status: 'OPEN' })
+    expect(await decidedEvents(ceoTask!.id)).toEqual([])
   })
 })
 

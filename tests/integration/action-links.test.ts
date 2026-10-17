@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { makeCtx } from '@/server/context'
+import { fund } from '@/core/budget'
+import { formatSatang } from '@/core/money/format'
+import { stepUpNeeded } from '@/core/pin'
+import { applyBudget } from '@/server/budget/ledger'
+import { makeCtx, systemCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
+import { forTenant } from '@/server/db/tenant'
+import { appendEvents } from '@/server/events/append'
 import { deliverNotification } from '@/server/notifications/deliver'
 import { decideTask } from '@/server/services/approvals/decide'
 import { decideByActionLink, viewActionLink } from '@/server/services/approvals/action-link'
@@ -9,10 +15,14 @@ import { decideByLinePostback } from '@/server/services/approvals/line-postback'
 import { deactivateMember } from '@/server/services/members'
 import { cancelRequest, createDraft, submitRequest } from '../support/requests'
 import { escalateTask } from '@/server/services/sla'
+import { loadSeedForms } from '@/server/seed/forms'
+import { seedWorkflow } from '@/server/seed/workflow'
 import { emailLinkPath, emailLinkSecret, hashLinkSecret, parseEmailLink } from '@/server/tokens/action-tokens'
+import { workflowFixture } from '../golden/workflow-fixtures'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { messagesTo } from '../support/mailpit'
 import { p2p } from '../support/p2p'
+import { pinStepUp } from '../support/pin'
 
 // S4-06 (spec §4.9 BR-TOK-01 to BR-TOK-04, INV-TOK-01, FR-NOTI-002 AC1 AC2): a task assigned gets an e-mail token whose
 // link decides it once; the e-mail goes out with the link; opening the link changes nothing; the decision is a POST by
@@ -227,5 +237,144 @@ describe('[FR-DOA-004/AC2] a link whose task was decided elsewhere says who deci
     ok(await cancelRequest(org.ctxOf('req_con', NOW), { requestId, reason: 'ไม่ต้องใช้แล้ว' }, key()))
     const refused = await decideByActionLink(emailCtx('dm_con', LATER), { link, decision: 'APPROVE' }, key())
     expect(refused).toEqual({ ok: false, error: { code: 'TOKEN_INVALID', message: 'the link was revoked' } })
+  })
+})
+
+// S6 · NEW-92 (FR-WF-101 AC5, BR-WF-09): a reviewer needs no step-up whatever the amount, so the reviewer's e-mail link
+// passes the review step instead of pointing to the workspace; the DOA approver of the same request still decides in
+// the workspace with the second factor (BR-TOK-05). The organization is review-step.test.ts's: the S6 fixture under the
+// §7.4 DOA (stepUpThreshold 100,000.00), whose contract work above 1,000,000.00 goes to the DM of LEG, QSE and FIN at
+// once (RV-03 to RV-05, ALL), then to the CEO.
+describe('[FR-WF-101/AC5] a reviewer passes by the e-mail link at or above stepUpThreshold, with no step-up; the DOA approver of the same request still decides in the workspace only (BR-WF-09, BR-TOK-05)', () => {
+  let review: DoaOrg
+  const reviewCodeOf = (memberId: string) => Object.entries(review.member).find(([, id]) => id === memberId)![0]
+  const openTasks = (requestId: string) =>
+    prisma.approvalTask.findMany({ where: { status: 'OPEN', step: { route: { subjectId: requestId } } }, include: { step: { select: { kind: true } } }, orderBy: [{ slotNo: 'asc' }, { id: 'asc' }] })
+  const linkOf = async (taskId: string) => {
+    const token = await prisma.actionToken.findFirstOrThrow({ where: { taskId, channel: 'EMAIL' } })
+    return { token, link: `${token.id}.${emailLinkSecret(token.id)}` }
+  }
+  const decidedEvents = (taskId: string) => prisma.event.findMany({ where: { type: 'approval_task.decided', aggregateId: taskId } })
+
+  /** pm_p07's contract work of 2,470,000.00 before VAT (review-step.test.ts) with the three quotations ATT-QUOTES asks, sent at NOW; its route with the DOA version's stepUpThreshold */
+  async function contractWork() {
+    const draft = ok(
+      await createDraft(
+        review.ctxOf('req_con', NOW),
+        { requestTypeCode: 'CONTRACT_WORK', title: 'งานเหมาก่อสร้างอาคารเก็บของ', formData: { scopeOfWork: 'ก่อสร้างอาคารเก็บของ 1 หลัง', milestones: '3 งวด', site: 'ไซต์ P07' }, lines: [{ description: 'งานเหมาก่อสร้าง', quantity: '1', uom: 'งาน', unitPrice: '2470000.00' }] },
+        key(),
+      ),
+    )
+    for (let i = 0; i < 3; i++) {
+      const file = await prisma.fileObject.create({ data: { organizationId: review.organizationId, storageKey: `test/${randomUUID()}.pdf`, fileName: 'q.pdf', mimeType: 'application/pdf', sizeBytes: 1, status: 'AVAILABLE', uploadedById: review.member.req_con! } })
+      await prisma.fileLink.create({ data: { organizationId: review.organizationId, fileId: file.id, subjectType: 'Request', subjectId: draft.requestId, kind: 'QUOTATION' } })
+    }
+    ok(await submitRequest(review.ctxOf('req_con', NOW), { requestId: draft.requestId }, key()))
+    const route = await prisma.approvalRoute.findFirstOrThrow({ where: { subjectId: draft.requestId }, orderBy: { routeNo: 'desc' }, include: { doaVersion: { select: { stepUpThresholdSatang: true } } } })
+    // The amount the DOA counted is at or above the version's stepUpThreshold: an approver of this route steps up
+    expect(route.amountSatang! >= route.doaVersion.stepUpThresholdSatang!).toBe(true)
+    expect(stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang })).toBe(true)
+    return { requestId: draft.requestId, route }
+  }
+
+  beforeAll(async () => {
+    // review-step.test.ts's setup: the contract work type with the demo's form, 100,000,000.00 more on CON's line and
+    // the reviewers of workflow-versions.yaml
+    review = await createDoaOrg({ fixtures: { org: 'fixtures/org-s6.yaml', versions: 'fixtures/doa-versions.yaml' } })
+    const organizationId = review.organizationId
+    const type = await prisma.requestType.create({ data: { organizationId, code: 'CONTRACT_WORK', nameTh: 'จ้างเหมา', documentType: 'PURCHASE_REQUEST' } })
+    const form = await prisma.formVersion.create({ data: { organizationId, requestTypeId: type.id, versionNo: 1, schema: loadSeedForms().get('CONTRACT_WORK')! as object, status: 'PUBLISHED', publishedAt: NOW } })
+    await prisma.requestType.update({ where: { id: type.id }, data: { currentFormVersionId: form.id } })
+    const budgetLine = await prisma.budgetLine.findFirstOrThrow({ where: { organizationId, departmentId: review.department.CON! } })
+    const importId = randomUUID()
+    await forTenant(organizationId).$transaction(async (tx) => {
+      const ctx = systemCtx(organizationId, NOW, 'seed')
+      const funded = await applyBudget(tx, ctx, [{ budgetLineId: budgetLine.id, document: { type: 'IMPORT' as const, id: importId }, run: (s) => fund(s, 10_000_000_000n, importId) }])
+      if (!funded.ok) throw new Error(funded.error.code)
+      await appendEvents(tx, ctx, funded.events)
+    })
+    const fixture = workflowFixture(['fixtures/workflow-versions.yaml']).versions[0]!
+    expect(await seedWorkflow(organizationId, { code: fixture.code, rules: fixture.rules.map((r) => ({ ...r, descriptionTh: null })) }, NOW)).toEqual({ created: true, rules: 9 })
+  })
+
+  it('the reviewer\'s link opens for deciding though the amount needs a step-up, passes only, and the POST passes the review step on EMAIL with no step-up grant, once', async () => {
+    const { requestId, route } = await contractWork()
+    const tasks = await openTasks(requestId)
+    expect(tasks.map((t) => [t.step.kind, reviewCodeOf(t.assigneeMemberId)])).toEqual([
+      ['REVIEW', 'dm_leg'],
+      ['REVIEW', 'dm_qse'],
+      ['REVIEW', 'dm_fin'],
+    ])
+    const task = tasks.find((t) => t.assigneeMemberId === review.member.dm_fin)!
+    const { token, link } = await linkOf(task.id)
+    const asReviewer = review.ctxOf('dm_fin', NOW, 'EMAIL')
+
+    // Opening the link: the task of the amount that needs a step-up, decided here, by passing only
+    expect(ok(await viewActionLink(asReviewer, link))).toMatchObject({
+      state: 'OPEN',
+      taskId: task.id,
+      subjectType: 'REQUEST',
+      subjectId: requestId,
+      amount: formatSatang(route.amountSatang!),
+      actions: ['APPROVE'],
+      inWorkspaceOnly: false,
+    })
+    // A reviewer never rejects: the link refuses it and stays usable
+    expect(await decideByActionLink(asReviewer, { link, decision: 'REJECT', reason: 'ขาดร่างสัญญาที่ฝ่ายกฎหมายตรวจแล้ว' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'decision' } } })
+    expect(await prisma.actionToken.findUniqueOrThrow({ where: { id: token.id } })).toMatchObject({ usedAt: null, revokedAt: null })
+
+    // The POST passes the slot on EMAIL; the request waits for the other reviewers
+    expect(ok(await decideByActionLink(asReviewer, { link, decision: 'APPROVE' }, key()))).toMatchObject({ taskId: task.id, documentStatus: 'PENDING_APPROVAL' })
+    expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ status: 'APPROVED', decision: 'APPROVE', channel: 'EMAIL', decidedByMemberId: review.member.dm_fin })
+    expect(await prisma.actionToken.findUniqueOrThrow({ where: { id: token.id } })).toMatchObject({ usedAt: NOW, revokedAt: null })
+    expect((await openTasks(requestId)).map((t) => reviewCodeOf(t.assigneeMemberId))).toEqual(['dm_leg', 'dm_qse'])
+    // One decision, with the workflow's reference (INV-WF-04) and no step-up grant behind it; none was given or used
+    const [decided, ...more] = await decidedEvents(task.id)
+    expect(more).toEqual([])
+    expect(decided).toMatchObject({
+      channel: 'EMAIL',
+      actorMemberId: review.member.dm_fin,
+      doaVersionId: route.doaVersionId,
+      doaRuleCode: route.ruleCode,
+      data: expect.objectContaining({ decision: 'APPROVE', channel: 'EMAIL', slotNo: task.slotNo, workflowVersionId: route.workflowVersionId, workflowRuleCodes: task.workflowRuleCodes }),
+    })
+    expect(decided!.data).not.toHaveProperty('stepUpGrantId')
+    expect(await prisma.stepUpGrant.count({ where: { memberId: review.member.dm_fin, subjectId: requestId } })).toBe(0)
+
+    // The link decides once: again it says who passed it and when
+    expect(await decideByActionLink(asReviewer, { link, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'TOKEN_USED', details: { name: 'ผู้ใช้ dm_fin', time: NOW.toISOString() } } })
+    expect(ok(await viewActionLink(asReviewer, link))).toMatchObject({ state: 'CLOSED', taskId: task.id })
+    expect(await decidedEvents(task.id)).toHaveLength(1)
+  })
+
+  it('once the three reviewers passed by their links, the CEO\'s approval task of the same amount stays workspace-only, even with a live PIN step-up', async () => {
+    const { requestId, route } = await contractWork()
+    for (const task of await openTasks(requestId)) {
+      const code = reviewCodeOf(task.assigneeMemberId)
+      const { link } = await linkOf(task.id)
+      expect(ok(await viewActionLink(review.ctxOf(code, NOW, 'EMAIL'), link)), code).toMatchObject({ state: 'OPEN', inWorkspaceOnly: false })
+      ok(await decideByActionLink(review.ctxOf(code, NOW, 'EMAIL'), { link, decision: 'APPROVE' }, key()))
+    }
+    const steps = await prisma.approvalStep.findMany({ where: { routeId: route.id }, orderBy: { stepNo: 'asc' } })
+    expect(steps.map((s) => [s.kind, s.status])).toEqual([
+      ['REVIEW', 'DONE'],
+      ['APPROVAL', 'ACTIVE'],
+    ])
+    const [ceoTask, ...others] = await openTasks(requestId)
+    expect(others).toEqual([])
+    expect([ceoTask!.step.kind, reviewCodeOf(ceoTask!.assigneeMemberId)]).toEqual(['APPROVAL', 'ceo'])
+    const { token, link } = await linkOf(ceoTask!.id)
+    const asCeo = review.ctxOf('ceo', NOW, 'EMAIL')
+
+    // The CEO's link only points to the workspace, and its POST is refused
+    expect(ok(await viewActionLink(asCeo, link))).toMatchObject({ state: 'OPEN', taskId: ceoTask!.id, inWorkspaceOnly: true })
+    expect(await decideByActionLink(asCeo, { link, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED' } })
+    // A live PIN step-up for the request changes nothing by the link, and the link does not use it
+    const grantId = await pinStepUp(review.organizationId, review.member.ceo!, 'REQUEST', requestId)
+    expect(await decideByActionLink(asCeo, { link, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED' } })
+    expect(await prisma.stepUpGrant.findUniqueOrThrow({ where: { id: grantId } })).toMatchObject({ usedAt: null })
+    expect(await prisma.actionToken.findUniqueOrThrow({ where: { id: token.id } })).toMatchObject({ usedAt: null, revokedAt: null })
+    expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: ceoTask!.id } })).toMatchObject({ status: 'OPEN' })
+    expect(await decidedEvents(ceoTask!.id)).toEqual([])
   })
 })

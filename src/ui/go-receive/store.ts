@@ -102,8 +102,13 @@ export type StoredItem = Omit<QueueItem, 'photos'> & {
 
 const PREPARED = 'prepared'
 const QUEUE = 'queue'
-/** The PO versions the phone's own receipts were answered with (BR-APP-06); a copy prepared never writes here */
+/**
+ * The PO versions each member's own receipts were answered with (BR-APP-06), kept by member: on a shared phone one
+ * member's receipt never lifts another member's receipt, recorded on an older copy, past CONFLICT_VERSION (the same
+ * goods received twice). A copy prepared never writes here.
+ */
 const KNOWN = 'sent-versions'
+type KnownByMember = Record<string, Record<string, number>>
 const photoKey = (localId: string) => `photo:${localId}`
 
 let store: UseStore | null = null
@@ -133,8 +138,17 @@ export function updateQueue(change: (items: readonly StoredItem[]) => readonly S
   queueTurn = turn.catch(() => undefined)
   return turn
 }
-export const readKnown = () => safe(async () => (await get<Record<string, number>>(KNOWN, db())) ?? {}, {} as Record<string, number>)
-export const writeKnown = (known: Readonly<Record<string, number>>) => safe(async () => (await set(KNOWN, known, db()), true), false)
+/** Every member's map; a map of the shape before members (versions by PO alone) is read as none: CONFLICT_VERSION at worst */
+async function readAllKnown(): Promise<KnownByMember> {
+  const all = await safe(async () => (await get<unknown>(KNOWN, db())) ?? {}, {} as unknown)
+  if (!all || typeof all !== 'object') return {}
+  return Object.fromEntries(Object.entries(all as Record<string, unknown>).filter(([, v]) => v !== null && typeof v === 'object')) as KnownByMember
+}
+export const readKnown = async (memberId: string): Promise<Record<string, number>> => (await readAllKnown())[memberId] ?? {}
+export async function writeKnown(memberId: string, known: Readonly<Record<string, number>>): Promise<boolean> {
+  const all = await readAllKnown()
+  return safe(async () => (await set(KNOWN, { ...all, [memberId]: known }, db()), true), false)
+}
 export const readPhoto = (localId: string) => safe(async () => (await get<Blob>(photoKey(localId), db())) ?? null, null)
 export const writePhoto = (localId: string, blob: Blob) => safe(async () => (await set(photoKey(localId), blob, db()), true), false)
 export const deletePhoto = (localId: string) => safe(async () => (await del(photoKey(localId), db()), true), false)
@@ -147,6 +161,8 @@ export async function dropPhotosOf(items: readonly StoredItem[]): Promise<void> 
 /** Signing out with the receiver's confirmation: their queue, copies and photos go (BR-APP-09) */
 export async function forgetMember(memberId: string): Promise<void> {
   await forgetItems((i) => i.by === memberId)
+  const { [memberId]: _gone, ...others } = await readAllKnown()
+  await safe(async () => (await set(KNOWN, others, db()), true), false)
   const prepared = await readPrepared()
   if (prepared?.memberId === memberId) await safe(async () => (await del(PREPARED, db()), true), false)
 }

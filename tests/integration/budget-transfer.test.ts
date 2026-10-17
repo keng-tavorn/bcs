@@ -6,7 +6,7 @@ import { listMyTasks } from '@/server/queries/tasks'
 import { decideTask } from '@/server/services/approvals/decide'
 import { budgetDashboard } from '@/server/services/budget/dashboard'
 import { budgetLineDetail } from '@/server/services/budget/line-detail'
-import { getBudgetTransfer } from '@/server/services/budget/transfer-view'
+import { getBudgetTransfer, getTransferForm } from '@/server/services/budget/transfer-view'
 import { cancelBudgetTransfer, createBudgetTransfer, submitBudgetTransfer } from '@/server/services/budget/transfers'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { createP1Org } from '../support/p1-org'
@@ -151,5 +151,16 @@ describe('[FR-BUD-103/AC4] a DOA with no BUDGET_TRANSFER rule refuses a transfer
     expect(await forTenant(demo.organizationId).budgetLineBalance.findUniqueOrThrow({ where: { budgetLineId: line } })).toMatchObject({ reservedSatang: 0n, availableSatang: 10_000_000n })
     expect(await prisma.budgetTransfer.findUniqueOrThrow({ where: { id: draft.transferId } })).toMatchObject({ status: 'DRAFT', number: null })
     expect(ok(await budgetDashboard(demo.ctxOf('fin_officer', NOW))).can.transfer).toBe(false)
+  })
+})
+
+describe('[FR-BUD-103/AC1] the transfer form shows a balance only to whoever may view that budget (§2.4 · ADR-073 pre-review)', () => {
+  it('the DM of IT sees IT\'s balance, not CON\'s; a BUDGET_ADMIN sees both', async () => {
+    const asHead = ok(await getTransferForm(org.ctxOf('dm_it', NOW)))
+    const of = (form: typeof asHead, id: string) => form.lines.find((l) => l.id === id)!
+    expect(of(asHead, it2)).toMatchObject({ canGive: true, available: expect.objectContaining({ amount: expect.any(String) }) })
+    expect(of(asHead, con)).toMatchObject({ canGive: false, available: null })
+    const asAdmin = ok(await getTransferForm(org.ctxOf('fin_officer', NOW)))
+    expect(of(asAdmin, con).available).not.toBeNull()
   })
 })

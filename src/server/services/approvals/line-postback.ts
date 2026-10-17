@@ -17,7 +17,7 @@ import { outsideChannels } from './subjects'
 //  - the token must be a LINE token, issued to the actor: anyone else is refused FORBIDDEN, kept as
 //    security.token_misuse although nothing else is written;
 //  - a decision that needs a step-up (the amount the DOA counted at or above the version's stepUpThreshold, and every
-//    subject of ALWAYS_STEP_UP_SUBJECTS — never a parallel reviewer's pass, BR-WF-09) is refused STEP_UP_REQUIRED, and so is a task whose subject keeps the chat
+//    subject of ALWAYS_STEP_UP_SUBJECTS) is refused STEP_UP_REQUIRED, and so is a task whose subject keeps the chat
 //    closed (its adapter's channels, BR-DOA-25) — the card shows no approve button for either, and the server says no
 //    again;
 //  - the task is locked first, with the other open tasks of its step in one ascending-id lock (lockForDecision,
@@ -73,9 +73,8 @@ export const decideByLinePostbackCommand = defineCommand({
       select: { step: { select: { kind: true, route: { select: { subjectType: true, subjectId: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
     })
     const route = task.step.route
-    // BR-TOK-05, BR-DOA-25: approved in LIFF with the PIN, never from the chat · a reviewer passes from the chat whatever
-    // the amount, as the card offers it (BR-WF-09, FR-WF-101 AC5; decideCommand asks no PIN of a review task either)
-    const stepUp = task.step.kind !== 'REVIEW' && stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang })
+    // BR-TOK-05, BR-DOA-25: approved in LIFF with the PIN, never from the chat; a reviewer passes from the chat (BR-WF-09)
+    const stepUp = stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang, stepKind: task.step.kind })
     if (stepUp || !(await outsideChannels(tx, route.subjectType, route.subjectId)).chatButton) {
       return { ok: false, error: { code: 'STEP_UP_REQUIRED', message: 'this task is approved with the PIN in LIFF', details: { taskId: token.taskId } } }
     }

@@ -417,3 +417,33 @@ describe('[BR-AI-05] the phase-1 seed switches every agent on and grants the mon
     expect(await prisma.aiCreditLedger.count({ where: { organizationId: org.organizationId, source: 'MONTHLY' } })).toBe(1)
   })
 })
+
+describe('[BR-AI-17] the hourly sweep never expires a draft applied while it ran (ADR-073 pre-review)', () => {
+  it('a draft applied under its row lock while the sweep waits for the lock stays DRAFT and applied', async () => {
+    const org = await setup()
+    const drafted = await ask(org)
+    if (!drafted.ok) throw new Error('setup')
+    await answer(org, drafted.data.agentActionId, { input: 10, output: 1 })
+    const id = drafted.data.agentActionId
+    const later = new Date(NOW.getTime() + 25 * 3600_000)
+    let release!: () => void
+    const held = new Promise<void>((r) => (release = r))
+    // the member's apply: the row locked and applied, not committed until the sweep reached the row
+    const applying = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "AgentAction" WHERE id = ${id}::uuid FOR UPDATE`
+        await tx.agentAction.update({ where: { id }, data: { appliedAt: later } })
+        await held
+      },
+      { timeout: 30_000 },
+    )
+    await new Promise((r) => setTimeout(r, 100))
+    const sweeping = runAgentActionSweep(org.organizationId, later)
+    await new Promise((r) => setTimeout(r, 500))
+    release()
+    await applying
+    await sweeping
+    expect(await prisma.agentAction.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: 'DRAFT', appliedAt: later })
+    expect(await prisma.event.count({ where: { aggregateId: id, type: 'agent_action.expired' } })).toBe(0)
+  })
+})

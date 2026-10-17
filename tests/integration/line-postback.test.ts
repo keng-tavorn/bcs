@@ -505,7 +505,7 @@ describe('[FR-LINE-002/AC2] at or above stepUpThreshold, and for every policy ta
   })
 })
 
-// S6 · NEW-92 (FR-WF-101 AC5, BR-WF-09): a reviewer needs no step-up whatever the amount, so the reviewer's card offers
+// S6 · NEW-95 (FR-WF-101 AC5, BR-WF-09): a reviewer needs no step-up whatever the amount, so the reviewer's card offers
 // "ผ่าน" in the chat and the postback passes the review step; the DOA approver of the same request still approves with
 // the PIN in LIFF only (BR-TOK-05). The organization is review-step.test.ts's: the S6 fixture under the §7.4 DOA
 // (stepUpThreshold 100,000.00), whose contract work above 1,000,000.00 goes to the DM of LEG, QSE and FIN at once

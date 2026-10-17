@@ -1,6 +1,6 @@
 import { resolveRoute, type DoaDocumentType } from '@/core/doa'
 import { businessMinutesBetween } from '@/core/sla'
-import { resolveRequestRoute } from '@/core/workflow'
+import { resolveRequestRoute, stepOfRoute } from '@/core/workflow'
 import type { TenantTx } from '@/server/db/tenant'
 import { loadBusinessCalendar, loadRoutePolicy } from '@/server/doa/policy'
 import { routeInputOf } from '@/server/doa/route-inputs'
@@ -187,9 +187,10 @@ export async function collectKpis(
         const again = resolveRequestRoute(input, facts, { ...policy, workflows })
         holders = again.ok ? (again.data.review?.slots.find((s) => s.slotNo === task.slotNo)?.assignees ?? []) : []
       } else {
-        // A DOA step is the engine's step of its DOA step number (BR-WF-06): a route with reviewers numbers it one on
-        const again = resolveRoute(input, policy)
-        const step = again.ok ? again.data.steps.find((s) => s.stepNo === (task.step.doaStepNo ?? task.step.stepNo)) : undefined
+        // A DOA step is the engine's step of its DOA step number, its place in the route's own rule (BR-WF-06): a route
+        // with reviewers numbers it one on in the route
+        const again = resolveRoute(input, policy, { ruleCode: task.step.route.ruleCode })
+        const step = again.ok ? stepOfRoute(again.data, task.step.route.ruleCode, task.step.doaStepNo ?? task.step.stepNo) : undefined
         // A committee step allows every slot's holder (S6 · FR-WF-102): each decides their own slot
         holders = step ? (step.committee?.slots ?? [step]) : []
       }

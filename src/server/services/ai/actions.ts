@@ -323,8 +323,12 @@ export const expireAgentActionsCommand = defineCommand({
     const events: EventDraft[] = []
     let expired = 0
     let failed = 0
-    const expire = async (id: string, reason: 'SUPERSEDED' | 'SUBJECT_CLOSED' | 'STALE') => {
-      await tx.agentAction.update({ where: { id }, data: { status: 'EXPIRED', expireReason: reason, version: { increment: 1 } } })
+    // Every move is conditional on the state it was read in: a draft applied, or a call completed, while the sweep read
+    // it (the row lock of the other command waited for) is left as it is — never EXPIRED with its pending values applied
+    // (BR-AI-16, BR-AI-17), never a charged answer turned FAILED
+    const expire = async (id: string, reason: 'SUPERSEDED' | 'SUBJECT_CLOSED' | 'STALE', still: { status: AgentActionState; appliedAt?: null }) => {
+      const moved = await tx.agentAction.updateMany({ where: { id, ...still }, data: { status: 'EXPIRED', expireReason: reason, version: { increment: 1 } } })
+      if (moved.count === 0) return
       events.push({ type: 'agent_action.expired', aggregateType: 'AgentAction', aggregateId: id, data: { reason } })
       expired++
     }
@@ -332,12 +336,13 @@ export const expireAgentActionsCommand = defineCommand({
       const row = await tx.agentAction.findFirst({ where: { id: input.agentActionId }, select: { id: true, status: true } })
       if (!row) return fail('NOT_FOUND', 'no such AgentAction')
       if (!agentActionTransition(row.status, 'agent_action.expire').ok) return fail('INVALID_STATE_TRANSITION', `AgentAction is ${row.status}`)
-      await expire(row.id, input.reason)
+      await expire(row.id, input.reason, { status: row.status as AgentActionState })
     } else {
       const pendingBefore = new Date(ctx.now.getTime() - AI_LIMITS.pendingTimeoutMinutes * MS_PER_MINUTE)
       const timedOut = await tx.agentAction.findMany({ where: { status: 'PENDING', createdAt: { lt: pendingBefore } }, select: { id: true }, orderBy: { id: 'asc' }, take: SWEEP_BATCH })
       for (const { id } of timedOut) {
-        await tx.agentAction.update({ where: { id }, data: { status: 'FAILED', errorCode: 'TIMEOUT', version: { increment: 1 } } })
+        const moved = await tx.agentAction.updateMany({ where: { id, status: 'PENDING' }, data: { status: 'FAILED', errorCode: 'TIMEOUT', version: { increment: 1 } } })
+        if (moved.count === 0) continue
         events.push({
           type: 'agent_action.failed',
           aggregateType: 'AgentAction',
@@ -348,7 +353,7 @@ export const expireAgentActionsCommand = defineCommand({
       }
       const staleBefore = new Date(ctx.now.getTime() - AI_LIMITS.staleDraftHours * MS_PER_HOUR)
       const stale = await tx.agentAction.findMany({ where: { status: 'DRAFT', level: 'L1', appliedAt: null, createdAt: { lt: staleBefore } }, select: { id: true }, orderBy: { id: 'asc' }, take: SWEEP_BATCH })
-      for (const { id } of stale) await expire(id, 'STALE')
+      for (const { id } of stale) await expire(id, 'STALE', { status: 'DRAFT', appliedAt: null })
     }
     if (events.length === 0) return fail('NOT_FOUND', 'nothing to expire')
     return { ok: true, result: { expired, failed }, events }

@@ -12,7 +12,8 @@ defineEvents('PaymentRun', {
   'payment_run.drafted': { schema: z.object({ payDate: day, payerBankAccountId: z.uuid() }) },
   'payment_run.updated': { schema: z.object({ fields: z.array(z.enum(['payDate', 'payerBankAccountId'])).min(1) }) },
   'payment_run.documents_added': { schema: z.object({ invoiceIds: z.array(z.uuid()), retentionIds: z.array(z.uuid()), itemCount: z.number().int().min(0), totalTransferSatang: satang }) },
-  'payment_run.documents_removed': { schema: z.object({ invoiceIds: z.array(z.uuid()), retentionIds: z.array(z.uuid()), itemCount: z.number().int().min(0), totalTransferSatang: satang }) },
+  // the reason documents were taken out is a Comment of the run (reasonCommentId)
+  'payment_run.documents_removed': { schema: z.object({ invoiceIds: z.array(z.uuid()), retentionIds: z.array(z.uuid()), itemCount: z.number().int().min(0), totalTransferSatang: satang, reasonCommentId: z.uuid() }) },
   'payment_run.submitted': { schema: z.object({ number: z.string().min(1), routeId: z.uuid(), payDate: day, itemCount: z.number().int().min(1), totalTransferSatang: satang, flaggedItems: z.number().int().min(0) }) },
   'payment_run.resubmitted': { schema: z.object({ number: z.string().min(1), routeId: z.uuid(), payDate: day, itemCount: z.number().int().min(1), totalTransferSatang: satang, flaggedItems: z.number().int().min(0) }) },
   // S9-06: the decision of DOA PAYMENT_RUN (flagsKey: the flags the approver was shown, BR-PAY-07)

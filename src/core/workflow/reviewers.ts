@@ -174,6 +174,11 @@ export function resolveReviewStep(versions: readonly WorkflowVersionSnapshot[], 
   if (matched.length === 0) return ok(null)
   const bySort = (a: WorkflowRuleSnapshot, b: WorkflowRuleSnapshot) => a.sortOrder - b.sortOrder
   const notFound = (rule: WorkflowRuleSnapshot, spec: ReviewerSpec) => err('REVIEWER_NOT_FOUND', 'no reviewer or fallback for the rule', { rule: rule.code, ...reviewerText(spec) })
+  const context = { documentType: 'PURCHASE_REQUEST' as const, basisAmountSatang: input.basisAmountSatang, at: input.at, conflictMemberIds: input.conflictMemberIds }
+  const active = (memberId: string) => org.members.find((m) => m.id === memberId)?.active === true
+  const holding = (f: Draft['found'][number]) => delegateFor({ memberId: f.found.memberId, viaPosition: f.found.viaPosition }, context, delegations, active)
+  // BR-WF-02: the same person is the one who holds the slot after delegation (BR-DLG-01 to 05), not the one found
+  const held = (f: Draft['found'][number]) => holding(f).assigneeMemberId
 
   const drafts: Draft[] = []
   const groups: Array<{ ruleCodes: string[]; quorum: Quorum; quorumCount: number | null }> = []
@@ -189,7 +194,7 @@ export function resolveReviewStep(versions: readonly WorkflowVersionSnapshot[], 
     for (const rule of anyRules) {
       const one = reviewerOrFallback(rule, rule.reviewers[0]!, input, org)
       if (!one) return notFound(rule, rule.reviewers[0]!)
-      if (!found.some((f) => f.found.memberId === one.found.memberId)) found.push(one)
+      if (!found.some((f) => held(f) === held(one))) found.push(one)
     }
     groups.push({ ruleCodes: anyRules.map((r) => r.code), quorum: 'ANY', quorumCount: null })
     drafts.push({ ruleCodes: anyRules.map((r) => r.code), found, sla: Math.min(...anyRules.map((r) => r.slaBusinessMinutes)), groups: new Set([groups.length - 1]) })
@@ -198,7 +203,7 @@ export function resolveReviewStep(versions: readonly WorkflowVersionSnapshot[], 
     const own: Draft[] = []
     for (const spec of rule.reviewers) {
       const one = reviewerOrFallback(rule, spec, input, org)
-      if (one && !own.some((d) => d.found[0]!.found.memberId === one.found.memberId)) own.push({ ruleCodes: [rule.code], found: [one], sla: rule.slaBusinessMinutes, groups: new Set() })
+      if (one && !own.some((d) => held(d.found[0]!) === held(one))) own.push({ ruleCodes: [rule.code], found: [one], sla: rule.slaBusinessMinutes, groups: new Set() })
     }
     if (own.length < (rule.quorumCount ?? rule.reviewers.length)) return notFound(rule, rule.reviewers[0]!)
     groups.push({ ruleCodes: [rule.code], quorum: 'COUNT', quorumCount: rule.quorumCount })
@@ -210,17 +215,17 @@ export function resolveReviewStep(versions: readonly WorkflowVersionSnapshot[], 
   // it; a person in the slot of the ANY rules who holds a slot of their own leaves it, and their slot counts for the ANY
   // group too (an ANY group may then have several slots, decided by the first)
   const merged: Draft[] = []
-  const holderOf = (person: string) => merged.find((m) => m.found.length === 1 && m.found[0]!.found.memberId === person)
+  const holderOf = (person: string) => merged.find((m) => m.found.length === 1 && held(m.found[0]!) === person)
   for (const d of drafts) {
     const own: Draft = { ...d, ruleCodes: [...d.ruleCodes], found: [...d.found], groups: new Set(d.groups) }
     for (const f of [...own.found]) {
-      const holder = own.found.length > 1 || d.found.length > 1 ? holderOf(f.found.memberId) : undefined
+      const holder = own.found.length > 1 || d.found.length > 1 ? holderOf(held(f)) : undefined
       if (!holder) continue
       own.found = own.found.filter((x) => x !== f)
       for (const g of own.groups) holder.groups.add(g)
     }
     if (own.found.length === 0) continue
-    const person = own.found.length === 1 && d.found.length === 1 ? own.found[0]!.found.memberId : null
+    const person = own.found.length === 1 && d.found.length === 1 ? held(own.found[0]!) : null
     const into = person ? holderOf(person) : undefined
     if (into) {
       into.ruleCodes.push(...own.ruleCodes.filter((code) => !into.ruleCodes.includes(code)))
@@ -231,8 +236,8 @@ export function resolveReviewStep(versions: readonly WorkflowVersionSnapshot[], 
     if (person) {
       // A person in an earlier slot of several (the ANY rules) leaves it for this slot of their own
       for (const m of merged) {
-        if (m.found.length > 1 && m.found.some((x) => x.found.memberId === person)) {
-          m.found = m.found.filter((x) => x.found.memberId !== person)
+        if (m.found.length > 1 && m.found.some((x) => held(x) === person)) {
+          m.found = m.found.filter((x) => held(x) !== person)
           for (const g of m.groups) own.groups.add(g)
         }
       }
@@ -240,12 +245,10 @@ export function resolveReviewStep(versions: readonly WorkflowVersionSnapshot[], 
     merged.push(own)
   }
 
-  const context = { documentType: 'PURCHASE_REQUEST' as const, basisAmountSatang: input.basisAmountSatang, at: input.at, conflictMemberIds: input.conflictMemberIds }
-  const active = (memberId: string) => org.members.find((m) => m.id === memberId)?.active === true
   const slots: ReviewSlot[] = merged.map((d, i) => ({
     slotNo: i + 1,
     ruleCodes: d.ruleCodes,
-    assignees: d.found.map((f) => ({ ...delegateFor({ memberId: f.found.memberId, viaPosition: f.found.viaPosition }, context, delegations, active), resolvedFrom: f.found.resolvedFrom })),
+    assignees: d.found.map((f) => ({ ...holding(f), resolvedFrom: f.found.resolvedFrom })),
     fallback: d.found.length === 1 ? d.found[0]!.fallback : null,
     slaBusinessMinutes: d.sla,
   }))

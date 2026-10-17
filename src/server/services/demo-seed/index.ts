@@ -8,6 +8,7 @@ import { listOrganizationsForPlatform } from '@/server/db/lookups'
 import { wipeAllData } from '@/server/db/sql/staging-wipe'
 import { forTenant } from '@/server/db/tenant'
 import { fiscalYearDates, seedBudget } from '@/server/seed/budget'
+import { budgetLineOn } from '@/server/seed/budget-keys'
 import { restoreLineChannelRow } from '@/server/seed/line-channel-restore'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
@@ -15,7 +16,7 @@ import { seedP1Ai } from '@/server/seed/p1-ai'
 import { seedP1Modules } from '@/server/seed/p1-modules'
 import { approversWithoutPin, seedDevPins } from '@/server/seed/pins'
 import { linkHistoryToCatalog, seedCatalog } from '@/server/seed/catalog'
-import { parseBudget, parseCatalogItems, parseCostCenters, parseDemoHistory, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
+import { parseBudget, parseCatalogItems, parseCostCenters, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedAccountCodes } from '@/server/seed/account-codes'
 import { parseApProfile, seedApProfile } from '@/server/seed/ap-profile'
@@ -23,7 +24,7 @@ import { parseBankAccounts, seedBankAccounts } from '@/server/seed/bank-accounts
 import { seedTaxRates } from '@/server/seed/tax-rates'
 import { parseWorkflowReviewers, seedWorkflow } from '@/server/seed/workflow'
 import { INPUT_WORKBOOKS, loadInputWorkbook, type InputProfile } from '@/server/seed/workbook'
-import { budgetKeyLines, demoHistoryStarted, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
+import { budgetKeyLines, demoHistoryParts, demoHistoryStarted, seedDemoHistory, seedDemoHistoryPart, type DemoHistoryPart, type DemoHistoryReport } from '@/server/services/demo-history'
 import { seedLineChannel } from '@/server/services/line-channel'
 import { openLineSecret, sealLineSecret } from '@/server/services/line-channel/secrets'
 
@@ -33,12 +34,13 @@ import { openLineSecret, sealLineSecret } from '@/server/services/line-channel/s
 // docs/inputs/BCS_inputs_v1_demo.xlsx — then the requests of the past of sheet Demo_History through the real services
 // (D-01). The base is safe to run again (nothing is duplicated); the history refuses to finish one a run left half done.
 // The callers check APP_ENV and SEED_DEV_PASSWORD and turn errors into words. `pnpm db:seed` may name the synthetic
-// workbook of phase 1 instead (profile p1, P1-02: organization SIMEC, two fiscal years, sheet Request_History); the staging job
-// keeps the demo workbook.
+// workbook of phase 1 instead (profile p1, P1-02: organization SIMEC, two fiscal years, sheet Request_History); the first seed
+// of staging keeps the demo workbook, and its reset seeds either (P1-11, ADR-073).
 
 export type DemoSeedBase = Awaited<ReturnType<typeof seedDemoBase>>
 
-export async function seedDemoBase(env: Env, password: string, clock: Clock, profile: InputProfile = 'demo') {
+/** `sandbox: false` leaves out the UAT sandbox of phase 1, which the staging reset makes in a step of its own (seedP1Sandbox, P1-11) */
+export async function seedDemoBase(env: Env, password: string, clock: Clock, profile: InputProfile = 'demo', options: { readonly sandbox?: boolean } = {}) {
   const taxRates = await seedTaxRates()
   const workbook = await loadInputWorkbook(INPUT_WORKBOOKS[profile])
   const input = parseDemoOrgInput(workbook, loadOrgSettingsYaml())
@@ -71,7 +73,7 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const pins = seedPin ? await seedDevPins(report.organizationId, seedPin, clock.now()) : null
   const pinless = seedPin ? await approversWithoutPin(report.organizationId, seedPin, clock.now()) : []
   // S6-21 (BR-UAT-01 BR-UAT-04): SIMEC-UAT, the UAT sandbox of the phase-1 organization, on this machine
-  const sandbox = profile === 'p1' ? await seedP1Sandbox(report.organizationId, { password, ...(totpKey ? { totpKey } : {}), pin: seedPin, now: clock.now() }) : null
+  const sandbox = profile === 'p1' && options.sandbox !== false ? await seedP1Sandbox(report.organizationId, { password, ...(totpKey ? { totpKey } : {}), pin: seedPin, now: clock.now() }) : null
   return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, workflow, ai, budget, suppliers, accountCodes, catalog, apProfile, bankAccounts, lineChannel, pins, pinless, sandbox }
 }
 
@@ -116,6 +118,23 @@ export async function seedDemoHistoryFromInputs(organizationId: string, env: Env
   return report
 }
 
+/** P1-11: the parts the history of a workbook is made in (seedDemoHistoryPart) */
+export async function demoHistoryPartsFromInputs(profile: InputProfile): Promise<DemoHistoryPart[]> {
+  return demoHistoryParts(parseHistory(await loadInputWorkbook(INPUT_WORKBOOKS[profile])))
+}
+
+/**
+ * P1-11: part `index` of the history of a workbook, made for the organization of the base with every part's `now` the
+ * same; the last part also points the history's lines at the catalogue, as seedDemoHistoryFromInputs does
+ */
+export async function seedDemoHistoryPartFromInputs(organizationId: string, env: Env, now: Date, profile: InputProfile, index: number): Promise<DemoHistoryReport> {
+  const workbook = await loadInputWorkbook(INPUT_WORKBOOKS[profile])
+  const rows = parseHistory(workbook)
+  const report = await seedDemoHistoryPart(organizationId, rows, now, { pin: env.SEED_DEV_PIN ?? null, budgetKeys: budgetKeyLines(parseBudget(workbook)) }, index)
+  if (index === demoHistoryParts(rows).length - 1) await linkHistoryToCatalog(organizationId)
+  return report
+}
+
 /** What the staging seed job looks at before it writes anything (ADR-055) */
 export interface FirstSeedState {
   /** Organizations in the database, of every tenant */
@@ -157,16 +176,34 @@ export class DemoYearError extends Error {
 /**
  * What has to work before a staging seed job writes or wipes anything: the input workbook reads (organization and
  * history), today lies inside the fiscal year of every budget line the history uses, and the bucket answers — so the
- * likeliest failures stop the job while the database is untouched
+ * likeliest failures stop the job while the database is untouched. A row of phase 1 names a budget key (P1-11): its
+ * key has a line in the fiscal year of its first day and of today.
  */
-export async function firstSeedPreflight(now: Date): Promise<void> {
-  const workbook = await loadInputWorkbook()
+export async function firstSeedPreflight(now: Date, profile: InputProfile = 'demo'): Promise<void> {
+  const workbook = await loadInputWorkbook(INPUT_WORKBOOKS[profile])
   parseDemoOrgInput(workbook, loadOrgSettingsYaml())
-  const history = parseDemoHistory(workbook)
-  const yearOfLine = new Map(parseBudget(workbook).map((line) => [line.code, line.fiscalYear]))
+  const history = parseHistory(workbook)
+  const budget = parseBudget(workbook)
+  const yearOfLine = new Map(budget.map((line) => [line.code, line.fiscalYear]))
   const today = thaiDay(now)
+  const keyLines = {
+    budgetLines: new Map<string, string>(),
+    linesByYear: new Map(budget.map((line) => [`${line.fiscalYear}|${line.code}`, line.code])),
+    fiscalYears: [...new Set(budget.map((line) => line.fiscalYear))].map((code) => {
+      const { startsOn, endsOn } = fiscalYearDates(code)
+      return { code, startsOn: startsOn.toISOString().slice(0, 10), endsOn: endsOn.toISOString().slice(0, 10) }
+    }),
+    budgetKeys: budgetKeyLines(budget),
+  }
   for (const row of history) {
-    const code = 'line' in row.budget ? yearOfLine.get(row.budget.line) : undefined
+    if ('key' in row.budget) {
+      const firstDay = thaiDay(new Date(now.getTime() - row.daysAgo * MS_PER_DAY))
+      for (const day of [firstDay, today]) {
+        if (budgetLineOn(keyLines, row.budget, day) === undefined) throw new DemoYearError(day, keyLines.fiscalYears.find((y) => y.startsOn <= day && day <= y.endsOn)?.code ?? '-', row.ref)
+      }
+      continue
+    }
+    const code = yearOfLine.get(row.budget.line)
     if (!code) continue
     const { startsOn, endsOn } = fiscalYearDates(code)
     const [first, last] = [startsOn.toISOString().slice(0, 10), endsOn.toISOString().slice(0, 10)]
@@ -179,9 +216,23 @@ export async function firstSeedPreflight(now: Date): Promise<void> {
 
 // ---------- staging demo reset (ADR-056) ----------
 
-/** The demo organization's code, from the input workbook the seed reads (never from code, NG-12) */
-export async function demoOrgCode(): Promise<string> {
-  return parseDemoOrgInput(await loadInputWorkbook(), loadOrgSettingsYaml()).org.code
+/** The organization's code of an input workbook (the demo one unless named), read from it (never from code, NG-12) */
+export async function demoOrgCode(profile: InputProfile = 'demo'): Promise<string> {
+  return parseDemoOrgInput(await loadInputWorkbook(INPUT_WORKBOOKS[profile]), loadOrgSettingsYaml()).org.code
+}
+
+/**
+ * P1-11 (ADR-073, the user approved 2026-10-17): the codes of every organization the seed makes from the input workbooks —
+ * the organization of each workbook, and the UAT sandbox seedDemoBase makes for the phase-1 one (SIMEC and SIMEC-UAT next
+ * to the demo organization). Staging may hold these and nothing else for its reset to wipe it.
+ */
+export async function sampleOrgCodes(): Promise<string[]> {
+  const codes: string[] = []
+  for (const profile of Object.keys(INPUT_WORKBOOKS) as InputProfile[]) {
+    const code = await demoOrgCode(profile)
+    codes.push(code, ...(profile === 'p1' ? [sandboxCode(code)] : []))
+  }
+  return [...new Set(codes)]
 }
 
 /** The day of an instant in Thai time, as YYYY-MM-DD */
@@ -194,22 +245,23 @@ export function demoResetConfirmation(orgCode: string, now: Date): string {
   return `${orgCode}-${thaiDay(now)}`
 }
 
-/** Codes of the organizations in the database that are not the demo organization: the reset refuses while there is one */
-export async function otherOrganizations(demoCode: string): Promise<string[]> {
-  return (await listOrganizationsForPlatform()).map((o) => o.code).filter((code) => code !== demoCode)
+/** Codes of the organizations in the database that are not sample ones (sampleOrgCodes): the reset refuses while there is one */
+export async function otherOrganizations(sampleCodes: readonly string[]): Promise<string[]> {
+  const samples = new Set(sampleCodes)
+  return (await listOrganizationsForPlatform()).map((o) => o.code).filter((code) => !samples.has(code))
 }
 
 /**
  * Empties every table but the migration record, as the migrator, refusing in the same transaction while an organization
- * other than the demo one exists; the caller has checked APP_ENV and the confirmation
+ * that is not a sample one exists; the caller has checked APP_ENV and the confirmation
  */
-export async function wipeDemoData(env: Env, demoCode: string): Promise<number> {
-  return wipeAllData(env.DIRECT_URL, demoCode)
+export async function wipeDemoData(env: Env, sampleCodes: readonly string[]): Promise<number> {
+  return wipeAllData(env.DIRECT_URL, sampleCodes)
 }
 
-/** The id of the demo organization when it exists */
-export async function demoOrganizationId(demoCode: string): Promise<string | null> {
-  return (await listOrganizationsForPlatform()).find((o) => o.code === demoCode)?.id ?? null
+/** The id of the organization of this code when it exists */
+export async function demoOrganizationId(code: string): Promise<string | null> {
+  return (await listOrganizationsForPlatform()).find((o) => o.code === code)?.id ?? null
 }
 
 /**

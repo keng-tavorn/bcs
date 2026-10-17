@@ -107,13 +107,23 @@ function resolveRule(rule: DoaRuleSnapshot, input: RouteInput, org: OrgSnapshot)
   return { kind: 'ok', steps, conflicting, escalate }
 }
 
+/** The rule of a route already made, by its code (BR-WF-14): none of that code for the document type is NO_RULE */
+function ruleOfCode(version: DoaVersionSnapshot, documentType: RouteInput['documentType'], code: string): RuleChoice {
+  const rule = version.rules.find((r) => r.code === code && r.documentType === documentType)
+  return rule ? { kind: 'rule', rule } : { kind: 'none' }
+}
+
 function ruleChoiceError(choice: Exclude<RuleChoice, { kind: 'rule' }>, input: RouteInput): Result<never> {
   return choice.kind === 'ambiguous'
     ? err('DOA_AMBIGUOUS', 'more than one DOA rule ranks first', { documentType: input.documentType, rules: choice.rules.map((r) => r.code) })
     : err('DOA_NOT_CONFIGURED', 'no DOA rule matches the document', { documentType: input.documentType, reason: 'NO_RULE' })
 }
 
-export function resolveRoute(input: RouteInput, policy: RoutePolicy): Result<RouteResult> {
+/**
+ * options.ruleCode: the rule to start from instead of the one the amount chooses — the rule of a route already made,
+ * whose waiting step finds its approvers when it starts (BR-WF-14) — still moved up a band by a conflict (BR-DOA-06)
+ */
+export function resolveRoute(input: RouteInput, policy: RoutePolicy, options: { readonly ruleCode?: string } = {}): Result<RouteResult> {
   const version = versionAt(policy.versions, input.at)
   const basisAmount = version ? basisAmountOf(input, version) : null
   const traits = DOC_TYPE_TRAITS[input.documentType]
@@ -130,7 +140,7 @@ export function resolveRoute(input: RouteInput, policy: RoutePolicy): Result<Rou
   }
   if (!version) return err('DOA_NOT_CONFIGURED', 'no DOA version is in effect', { documentType: input.documentType, reason: 'NO_VERSION', at: input.at.toISOString() })
 
-  const first = chooseRule(version, input.documentType, basisAmount)
+  const first: RuleChoice = options.ruleCode === undefined ? chooseRule(version, input.documentType, basisAmount) : ruleOfCode(version, input.documentType, options.ruleCode)
   if (first.kind !== 'rule') return ruleChoiceError(first, input)
 
   let rule = first.rule
@@ -166,9 +176,10 @@ export function resolveRoute(input: RouteInput, policy: RoutePolicy): Result<Rou
   const active = (memberId: string) => policy.org.members.find((m) => m.id === memberId)?.active === true
   const holderOf = (a: ApproverFound) => delegateFor({ memberId: a.memberId, viaPosition: a.viaPosition }, context, policy.delegations, active)
   let steps: Omit<RouteStep, 'stepNo'>[] = []
-  for (const step of resolved.steps) {
+  for (const [i, step] of resolved.steps.entries()) {
+    const ruleStepNo = i + 1
     if (step.kind === 'single') {
-      steps.push({ ...holderOf(step.approver), resolvedFrom: step.approver.resolvedFrom, slaBusinessMinutes: step.slaBusinessMinutes })
+      steps.push({ ...holderOf(step.approver), ruleStepNo, resolvedFrom: step.approver.resolvedFrom, slaBusinessMinutes: step.slaBusinessMinutes })
       continue
     }
     // BR-WF-02: each slot is delegated on its own (BR-DLG-01 to 05), then a person holding two slots keeps the first
@@ -182,6 +193,7 @@ export function resolveRoute(input: RouteInput, policy: RoutePolicy): Result<Rou
     }
     const first = slots[0]!
     steps.push({
+      ruleStepNo,
       assigneeMemberId: first.assigneeMemberId,
       principalMemberId: first.principalMemberId,
       resolvedFrom: first.resolvedFrom,

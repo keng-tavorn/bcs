@@ -12,6 +12,7 @@ import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome } from '../_pipeline'
 import type { ApprovalSubject } from '../approvals/route'
+import { holdsAnotherSlot } from '../approvals/step-complete'
 import { markDelegationWindow } from '../delegations'
 import { refusalOf, type StepRefusal } from './step-result'
 import { subjectData, subjectFacts } from './subject'
@@ -154,8 +155,10 @@ async function moveToDelegate(tx: TenantTx, ctx: Ctx, d: DelegationRow): Promise
   const tasks = await lockedOpenTasks(tx, ctx, { assigneeMemberId: d.delegatorMemberId, principalMemberId: null, resolvedFrom: { startsWith: escapeLike('POSITION:') } })
   const window = [snapshotOf(d, 'ACTIVE')]
   for (const task of tasks) {
-    // The delegate already decides this step (for example as its co-assignee): there is nothing to hand over
+    // The delegate already decides this step (for example as its co-assignee): there is nothing to hand over. Nor to a
+    // delegate who decided another slot of it: one member holds one slot of a step (BR-WF-02)
     if (await tx.approvalTask.count({ where: { stepId: task.stepId, status: { in: [...OPEN_STATES] }, OR: [{ assigneeMemberId: d.delegateMemberId }, { principalMemberId: d.delegateMemberId }] } })) continue
+    if (await holdsAnotherSlot(tx, task.stepId, task.slotNo, d.delegateMemberId)) continue
     const subject = await subjectFacts(tx, task.step.route.subjectType as ApprovalSubject, task.step.route.subjectId)
     const holder = delegateFor({ memberId: d.delegatorMemberId, viaPosition: true }, contextOf(task, subject, ctx.now), window)
     if (holder.notifyOrgAdmin) notifications.push(...(await conflictNotices(tx, task, subject)))

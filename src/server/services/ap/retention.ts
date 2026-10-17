@@ -139,12 +139,12 @@ export async function holdRetentionsForPayment(tx: TenantTx, ctx: Ctx, input: { 
   return { ok: true, events: locked.rows.map((r) => ({ type: 'retention.payment_held', aggregateType: 'Retention', aggregateId: r.id, data: { paymentRunId: input.paymentRunId } })) }
 }
 
-export async function releaseRetentionsFromPayment(tx: TenantTx, ctx: Ctx, input: { readonly retentionIds: readonly string[]; readonly reason: string }): Promise<Moved> {
-  if (!input.reason.trim()) return fail('VALIDATION_FAILED', 'a reason is needed', { field: 'reason', reason: 'REQUIRED' })
+/** The run lets them go: RELEASABLE again; the event names the run, never why (free text the run keeps · BR-BANK-08) */
+export async function releaseRetentionsFromPayment(tx: TenantTx, ctx: Ctx, input: { readonly retentionIds: readonly string[]; readonly paymentRunId: string }): Promise<Moved> {
   const locked = await lockRetentions(tx, ctx, input.retentionIds, 'retention.release_from_payment')
   if (!locked.ok) return locked
   await tx.retention.updateMany({ where: { id: { in: locked.rows.map((r) => r.id) } }, data: { status: 'RELEASABLE', version: { increment: 1 } } })
-  return { ok: true, events: locked.rows.map((r) => ({ type: 'retention.payment_released', aggregateType: 'Retention', aggregateId: r.id, data: { reason: input.reason.trim() } })) }
+  return { ok: true, events: locked.rows.map((r) => ({ type: 'retention.payment_released', aggregateType: 'Retention', aggregateId: r.id, data: { paymentRunId: input.paymentRunId } })) }
 }
 
 export function releaseRetention(ctx: Ctx, input: z.input<typeof ReleaseInput>, options: RunOptions) {

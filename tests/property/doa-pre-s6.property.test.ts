@@ -6,7 +6,8 @@ import { resolveRoute as resolveRouteBeforeS6 } from '../support/doa-pre-s6/reso
 
 // INV-WF-01 (spec §7.17, S6-02): a DOA without PARALLEL steps routes every document exactly as before S6. The engine
 // with committees is compared with a frozen copy of the engine of before S6 (tests/support/doa-pre-s6) on 1,000
-// random documents of the demo and phase-1 fixtures: every field of the route, or the same refusal.
+// random documents of the demo and phase-1 fixtures: every field of the route (but ruleStepNo, which it never had), or
+// the same refusal.
 
 const FIXTURES = [
   { org: 'fixtures/org-demo.yaml', versions: 'fixtures/doa-versions.yaml' },
@@ -65,8 +66,17 @@ describe('[FR-WF-102/AC4] [INV-WF-01] the engine with committees routes a DOA wi
           at: new Date(c.at),
         }
         const policy = { versions: vs, org: orgSnapshot([...c.vacate], f.org), delegations }
-        // The fixtures have no committee, so their versions are versions of the old engine too
-        expect(resolveRoute(input, policy)).toEqual(resolveRouteBeforeS6(input, policy as Parameters<typeof resolveRouteBeforeS6>[1]))
+        // The fixtures have no committee, so their versions are versions of the old engine too. ruleStepNo (the step's place
+        // in the rule, added by the ADR-073 pre-review for doaStepNo) is the only field the old engine never had: it is
+        // taken out for the comparison and checked on its own — rising with the route, never before the step's place on it
+        const now = resolveRoute(input, policy)
+        const before = resolveRouteBeforeS6(input, policy as Parameters<typeof resolveRouteBeforeS6>[1])
+        if (now.ok) {
+          const places = now.data.steps.map((s) => s.ruleStepNo)
+          expect(places.every((p, i) => p >= i + 1 && (i === 0 || p > places[i - 1]!))).toBe(true)
+        }
+        const withoutPlaces = now.ok ? { ...now, data: { ...now.data, steps: now.data.steps.map(({ ruleStepNo: _place, ...step }) => step) } } : now
+        expect(withoutPlaces).toEqual(before)
       }),
       { numRuns: 1000, seed: 6_02 },
     )

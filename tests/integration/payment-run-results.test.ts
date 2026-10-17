@@ -89,6 +89,11 @@ describe('[FR-PAY-103/AC1] results by hand, item by item or "paid, all but these
     const failedEvent = await prisma.event.findFirstOrThrow({ where: { aggregateId: b!.id, type: 'payment_run_item.failed' } })
     expect(JSON.stringify(failedEvent.data)).not.toContain('บัญชีปิด')
     expect(JSON.stringify((await prisma.event.findFirstOrThrow({ where: { aggregateId: a!.id, type: 'payment_run_item.paid' } })).data)).not.toContain('TRX-778812')
+    // nor in the events S8 writes for the documents it lets go: they name the run (BR-BANK-08 · a reason may hold a number)
+    const docs = await prisma.paymentRunDocument.findMany({ where: { paymentRunItemId: b!.id } })
+    const released = await prisma.event.findMany({ where: { aggregateId: { in: docs.flatMap((d) => [d.invoiceId, d.retentionId].filter((x): x is string => !!x)) }, type: { in: ['invoice.payment_released', 'retention.payment_released'] } } })
+    expect(released.length).toBe(docs.length)
+    for (const e of released) expect(e.data).toEqual({ paymentRunId: run.runId })
 
     expect(ok(await record(run.runId, [{ paymentRunItemId: c!.id, outcome: 'PAID', paidOn: '2026-10-19' }]))).toMatchObject({ completed: true })
     expect(await runOf(run.runId)).toMatchObject({ status: 'COMPLETED', completedAt: LATER })

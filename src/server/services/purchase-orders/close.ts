@@ -11,6 +11,7 @@ import type { AppError } from '@/core/result'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { poBudgetLines, releaseClosedPo } from './budget'
 import { completeFinishedRequests } from './requests'
+import { setRetentionsDue } from '../ap/retention'
 
 // Closing a PO (spec §6.4 po.close, BR-BUD-06, FR-P2P-010 AC2 AC3, ADR-038 ข้อ 10): every line must have come in full,
 // or its shortfall be given up by an approved CLOSE_SHORT variance (its quantity then counts as cancelled). What each
@@ -48,10 +49,20 @@ async function receivedNotInvoiced(tx: TenantTx, poId: string): Promise<Map<stri
   return keep
 }
 
+/**
+ * A change of the PO not finished (BR-POC-01: one at a time): while it waits, the PO is neither cancelled nor closed —
+ * the change reserved its difference on the PO's lines, and approving it later would commit money on a PO that can no
+ * longer be closed
+ */
+export async function hasOpenChange(tx: TenantTx, poId: string): Promise<boolean> {
+  return (await tx.poChange.count({ where: { poId, status: { in: ['DRAFT', 'PENDING_APPROVAL'] } } })) > 0
+}
+
 /** Closes a PO the caller has locked, with its source requests locked after it (INV-PLT-03) */
 export async function closePoInTx(tx: TenantTx, ctx: Ctx, po: { id: string; status: string }, via: 'PROCUREMENT' | 'CLOSE_SHORT'): Promise<{ ok: true; status: string; events: EventDraft[] } | Fail> {
   const moved = transition(PO_MACHINE, po.status as PoState, 'po.close')
   if (!moved.ok) return { ok: false, error: { code: 'INVALID_STATE_TRANSITION', message: `po.close is not allowed from ${po.status}`, details: { from: po.status, command: 'po.close' } } }
+  if (await hasOpenChange(tx, po.id)) return { ok: false, error: { code: 'PO_CHANGE_OPEN', message: 'the purchase order has a change that is not finished' } }
   // FR-P2P-010 AC2: a shortfall needs an approved CLOSE_SHORT
   if ((await unsettledLines(tx, po.id)).length) return { ok: false, error: { code: 'INVALID_STATE_TRANSITION', message: 'some lines are not received in full', details: { from: po.status, command: 'po.close', reason: 'SHORT_NOT_APPROVED' } } }
   const requests = await tx.request.findMany({ where: { lines: { some: { poSources: { some: { poLine: { poId: po.id } } } } } }, select: { id: true } })
@@ -69,6 +80,8 @@ export async function closePoInTx(tx: TenantTx, ctx: Ctx, po: { id: string; stat
   const heldAfter = await tx.budgetAllocation.findMany({ where: { sourceType: 'PO_LINE', sourceId: { in: lines.map((l) => l.poLineId) } }, select: { committedSatang: true } })
   const sum = (rows: { committedSatang: bigint }[]) => rows.reduce((s, r) => s + r.committedSatang, 0n)
   await tx.purchaseOrder.update({ where: { id: po.id }, data: { status: moved.to, closedAt: ctx.now, version: { increment: 1 } } })
+  // BR-RET-04: a PO closed short (CLOSE_SHORT) never reaches RECEIVED: its held retentions get their due date now
+  await setRetentionsDue(tx, po.id)
   const completed = await completeFinishedRequests(tx, requestIds)
   return {
     ok: true,

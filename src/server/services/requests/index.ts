@@ -3,7 +3,7 @@ import { evaluateCondition, evaluateForm } from '@/core/forms'
 import { formDataSchema } from '@/core/forms/fields'
 import { FORM_TEXTAREA_MAX_LENGTH, FORM_TEXT_MAX_LENGTH } from '@/core/money/constants'
 import { chargedDepartmentOf } from '@/core/budget'
-import { documentTotals, lineNet, lineNetsBeforeVat } from '@/core/money/math'
+import { documentTotals, lineNet, lineNetsBeforeVat, parseQuantity } from '@/core/money/math'
 import { REQUEST_MACHINE, SUPPLIER_REQUEST_MACHINE, transition, type RequestCommand, type RequestState, type SupplierRequestState } from '@/core/state-machines'
 import type { AppError, Result } from '@/core/result'
 import { rateFor, taxDateOf } from '@/core/vat'
@@ -155,8 +155,9 @@ async function amountOrLineChanges(
   if (!(await tx.budgetOverrun.count({ where: { requestId: request.id, status: 'PENDING_APPROVAL' } }))) return false
   // S6-17: a line moved to another budget line changes what the overrun was asked for too
   if (lineBudgetLineIds.some((id, i) => id !== undefined && id !== (request.lines[i]?.budgetLineId ?? null))) return true
-  const before = request.lines.map((l) => [Number(l.quantity.toString()), l.unitPriceSatang.toString(), l.vatable].join('|'))
-  const after = lines.map((l) => [Number(l.quantity), l.unitPriceSatang.toString(), l.vatable].join('|'))
+  // quantities as exact numbers (parseQuantity), never JS numbers: 18 digits do not fit a float (CLAUDE.md §10)
+  const before = request.lines.map((l) => [parseQuantity(l.quantity.toString()), l.unitPriceSatang.toString(), l.vatable].join('|'))
+  const after = lines.map((l) => [parseQuantity(l.quantity), l.unitPriceSatang.toString(), l.vatable].join('|'))
   return priceIncludesVat !== request.priceIncludesVat || (budgetLineId !== undefined && budgetLineId !== request.budgetLineId) || before.join('/') !== after.join('/')
 }
 

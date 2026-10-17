@@ -223,7 +223,8 @@ export async function approveOverrun(tx: TenantTx, ctx: Ctx, overrunId: string):
       { type: 'budget_overrun.approved', aggregateType: 'BudgetOverrun', aggregateId: row.id, data: { requestId: row.requestId, budgetLineId: row.budgetLineId, number: row.number, shortfallSatang: row.shortfallSatang.toString(), lapsesAt: lapsesAt.toISOString() } },
       ...applied.events,
     ],
-    notifications: [decidedNotice(row, 'APPROVED', ctx, lapsesAt.toISOString().slice(0, 10))],
+    // the day it lapses as the organization reads it (Thai calendar), not the UTC date
+    notifications: [decidedNotice(row, 'APPROVED', ctx, taxDateOf(lapsesAt))],
   }
 }
 
@@ -273,7 +274,7 @@ export const lapseOverrunsCommand = defineCommand({
       notifications.push({
         recipientMemberId: row.submittedById,
         templateKey: 'budget.overrun_lapsing',
-        data: { overrunId: row.id, number: row.number, requestId: row.requestId, lapsesOn: row.lapsesAt.toISOString().slice(0, 10) },
+        data: { overrunId: row.id, number: row.number, requestId: row.requestId, lapsesOn: taxDateOf(row.lapsesAt) },
         urgency: 'IMMEDIATE',
         dedupeKey: `budget.overrun_lapsing:${row.id}`,
         subjectType: 'BUDGET_OVERRUN',

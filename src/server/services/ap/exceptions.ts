@@ -11,7 +11,7 @@ import { startRoute } from '../approvals/route'
 import { requireModule } from '../modules'
 import { fail, guard, lockedInvoice } from './common'
 import { invoiceScopes, openRolesOf, resolvesInvoice } from './file-policy'
-import { runMatch, type MatchRunOutcome } from './match-run'
+import { matchRefusal, runMatch, type MatchRunOutcome } from './match-run'
 import { enqueueSupplierNotice, SUPPLIER_TEMPLATES, type SupplierNoticeEffects } from '@/server/notifications/supplier-notices'
 
 // What happens to an invoice the match did not pass (spec §7.14 BR-MATCH-09, BR-MATCH-10, FR-AP-103, FR-AP-105): it is
@@ -90,7 +90,7 @@ export const recheckInvoiceCommand = defineCommand({
     if (!allowed.ok) return allowed
     const trigger = ctx.actor.type === 'SYSTEM' ? 'SYSTEM' : 'USER'
     const run = await runMatch(tx, ctx, input.invoiceId, trigger)
-    if (!run.ok) return run.refusal.code === 'TAX_RATE_NOT_CONFIGURED' ? fail('TAX_RATE_NOT_CONFIGURED', 'no VAT rate covers the invoice date', { date: run.refusal.date }) : fail('DUPLICATE_INVOICE', 'the supplier already has an invoice with this number', { invoiceNo: run.refusal.invoiceNo })
+    if (!run.ok) return matchRefusal(run.refusal)
     const after = await afterMatch(tx, ctx, input.invoiceId, run.data, trigger)
     return {
       ok: true,
@@ -134,6 +134,8 @@ export const rejectInvoiceCommand = defineCommand({
     if (!who.ok) return who
     const locked = await lockedInvoice(tx, ctx, input.invoiceId, 'invoice.reject', input.version)
     if (!locked.ok) return locked
+    // A draft is rejected once it was sent (reopened, invoice.reopen); one never sent has no number and is cancelled
+    if (locked.invoice.status === 'DRAFT' && locked.invoice.number === null) return fail('INVALID_STATE_TRANSITION', 'a draft never sent is cancelled, not rejected', { from: 'DRAFT', command: 'invoice.reject', reason: 'NEVER_SUBMITTED' })
     await tx.matchException.updateMany({ where: { invoiceId: input.invoiceId, status: { in: ['OPEN', 'ACCEPT_REQUESTED'] } }, data: { status: 'CLOSED', resolvedAt: ctx.now, version: { increment: 1 } } })
     await tx.invoice.update({ where: { id: input.invoiceId }, data: { status: locked.to, rejectedById: who.memberId, rejectedAt: ctx.now, rejectReason: input.reason, version: { increment: 1 } } })
     const invoice = locked.invoice
@@ -177,7 +179,7 @@ export const dismissExceptionCommand = defineCommand({
       return { ok: true, result: { invoiceId: exception.invoiceId, status: 'EXCEPTION', exceptions: open.map((e) => ({ type: e.type, amount: satangToAmount(e.amountSatang), lineNo: e.invoiceLine?.lineNo ?? null })) }, events }
     }
     const run = await runMatch(tx, ctx, exception.invoiceId, 'USER')
-    if (!run.ok) return run.refusal.code === 'TAX_RATE_NOT_CONFIGURED' ? fail('TAX_RATE_NOT_CONFIGURED', 'no VAT rate covers the invoice date', { date: run.refusal.date }) : fail('DUPLICATE_INVOICE', 'the supplier already has an invoice with this number', { invoiceNo: run.refusal.invoiceNo })
+    if (!run.ok) return matchRefusal(run.refusal)
     const after = await afterMatch(tx, ctx, exception.invoiceId, run.data, 'USER')
     return {
       ok: true,
@@ -207,7 +209,7 @@ export const requestVarianceCommand = defineCommand({
     if (!locked.ok) return locked
     // A fresh match first: another invoice may have taken the received quantity since (BR-MATCH-10, INV-AP-01)
     const run = await runMatch(tx, ctx, input.invoiceId, 'USER')
-    if (!run.ok) return run.refusal.code === 'TAX_RATE_NOT_CONFIGURED' ? fail('TAX_RATE_NOT_CONFIGURED', 'no VAT rate covers the invoice date', { date: run.refusal.date }) : fail('DUPLICATE_INVOICE', 'the supplier already has an invoice with this number', { invoiceNo: run.refusal.invoiceNo })
+    if (!run.ok) return matchRefusal(run.refusal)
     if (run.data.status === 'READY_FOR_PAYMENT') {
       const after = await afterMatch(tx, ctx, input.invoiceId, run.data, 'USER')
       return { ok: true, result: { invoiceId: input.invoiceId, status: 'READY_FOR_PAYMENT', routeId: null }, events: after.events, notifications: after.notifications, outbox: after.outbox }

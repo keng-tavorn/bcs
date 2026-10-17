@@ -15,6 +15,8 @@ import { boundaryTableRequiredFor } from '../doa/boundary'
 import { isInitialPackageRoute } from '../doa/initial-package'
 import { approveOrgChange, rejectOrgChange } from '../org-authority'
 import { rejectWithdrawal, withdrawalPending, withdrawalTooLate, withdrawApprovedVersion } from '../policy-withdrawal'
+import { subjectFacts } from '../sla/subject'
+import { assignNextStep } from './next-step'
 import { closeRoute } from './route'
 import { completeStep, decidedEvent } from './step-complete'
 
@@ -146,9 +148,33 @@ export async function decidePolicyTask(
   const outcome = step.data.outcome
   const notifications: NotificationDraft[] = []
   if (outcome === 'OPEN') return { ok: true, result: { taskId: task.id, documentStatus: 'PENDING_APPROVAL' }, events, notifications }
-  const waiting = await tx.approvalStep.count({ where: { routeId: route.id, status: 'WAITING' } })
-  if (outcome === 'APPROVED' && waiting > 0) {
-    return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'policy routes with more than one step arrive with parallel approval (S6)', details: { reason: 'MULTI_STEP' } } }
+  if (outcome === 'APPROVED') {
+    // A DOA_CHANGE or ORG_AUTHORITY_CHANGE rule of several steps (S6): the next step finds its approver as every other
+    // document's does (assignNextStep), with the input the route was made with — the submitter's department, the
+    // submitter (or who asked for the withdrawal) and the change's beneficiary in conflict
+    const facts = await subjectFacts(tx, subjectType, route.subjectId)
+    const requester = submitter ?? facts.ownerMemberId
+    const made = await tx.approvalRoute.findUniqueOrThrow({ where: { id: route.id }, select: { createdAt: true } })
+    const member = requester ? await tx.member.findUnique({ where: { id: requester }, select: { primaryDepartmentId: true } }) : null
+    const root = await tx.department.findFirst({ where: { parentId: null }, select: { id: true } })
+    const departmentId = member?.primaryDepartmentId ?? root?.id
+    if (requester && departmentId) {
+      const next = await assignNextStep(
+        tx,
+        ctx,
+        { id: route.id, createdAt: made.createdAt, doaVersionId: route.doaVersionId, ruleCode: route.ruleCode },
+        { type: subjectType, id: route.subjectId, label: facts.title ?? facts.changeKind ?? subjectType },
+        {
+          documentType: subjectType === 'DOA_VERSION' ? 'DOA_CHANGE' : 'ORG_AUTHORITY_CHANGE',
+          requesterMemberId: requester,
+          chargedDepartmentId: departmentId,
+          conflictMemberIds: withdrawal ? [requester] : [...new Set([requester, ...facts.conflictMemberIds])],
+          at: made.createdAt,
+        },
+      )
+      if (!next.ok) return { ok: false, error: next.error }
+      if (next.assigned) return { ok: true, result: { taskId: task.id, documentStatus: 'PENDING_APPROVAL' }, events: [...events, ...next.events], notifications: [...notifications, ...next.notifications] }
+    }
   }
   events.push(...(await closeRoute(tx, { type: subjectType, id: route.subjectId }, outcome === 'APPROVED' ? 'COMPLETED' : 'CANCELLED', 'DOCUMENT_DECIDED')))
   let documentStatus: string

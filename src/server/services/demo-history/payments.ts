@@ -59,7 +59,9 @@ export interface PaidInvoiceRef {
   readonly invoiceNo: string
 }
 
-const KEY = 'demo-history:pay:'
+/** Every idempotency key of the payment runs of the past starts so (the history's PAYMENTS part, P1-11) */
+export const PAYMENT_HISTORY_KEY = 'demo-history:pay:'
+const KEY = PAYMENT_HISTORY_KEY
 
 function must<T>(day: string, what: string, result: Result<T>): T {
   if (!result.ok) throw new Error(`Demo_History payment run of ${day}: ${what} was refused (${result.error.code}${result.error.details ? ` ${JSON.stringify(result.error.details)}` : ''})`)

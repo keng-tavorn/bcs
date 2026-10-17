@@ -9,6 +9,7 @@ import { formatQuantity } from '@/core/receiving'
 import { PO_CHANGE_MACHINE, transition, type PoChangeState } from '@/core/state-machines'
 import { PO_NOTE_MAX_LENGTH, REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
+import { uatSubject } from '@/lib/uat'
 import { EmailSendError, getEmailProvider } from '@/integrations/email-provider'
 import { putObject } from '@/integrations/storage'
 import { authorize } from '@/server/authz'
@@ -27,7 +28,7 @@ import type { SubjectDecided, SubjectDecision } from '../approvals/subjects'
 import { fail, type Fail } from '../ap/common'
 import { INVOICED_STATUSES } from '../ap/match-run'
 import { releasableFor, requestLineBasis } from '../procurement/pool'
-import { issueDocumentVerification } from '../documents/verification'
+import { issueDocumentVerification, verifyUrlOf } from '../documents/verification'
 import { completeFinishedRequests, reorderSourceLine } from './requests'
 
 // Changes to a sent PO (ADR-125, BR-POC-01 to BR-POC-05, OQ-126, FR-AP-107), in module CORE: PROCUREMENT drafts a change
@@ -77,6 +78,8 @@ const LineChange = z.strictObject({
 /** BR-POC-01 against the PO as it is now: the new lines and totals, or the refusal */
 function checkChange(locked: Locked, changes: ReadonlyArray<{ poLineId: string; newQuantity: bigint; newUnitPriceSatang: Satang }>) {
   const { po } = locked
+  // The PO may have been cancelled or closed since the change was drafted or sent: it changes no more (BR-POC-01)
+  if (!(CHANGEABLE_PO as readonly string[]).includes(po.status)) return fail('INVALID_STATE_TRANSITION', `a ${po.status} purchase order is not changed`, { from: po.status, command: 'po_change' })
   // A change moves no PO status (S8 sub-spec): a PO received in full takes no more quantity (gr.post never opens it
   // again), and a PO partly received is not cut down to what came in — po.close_short is the way to stop waiting, and
   // it makes the PO RECEIVED with its retentions due. TODO(OQ-126): let the status follow if the customer wants that
@@ -88,6 +91,9 @@ function checkChange(locked: Locked, changes: ReadonlyArray<{ poLineId: string; 
     const c = changes.find((x) => x.poLineId === l.id)
     const ordered = parseQuantity(l.quantity.toString())
     const quantityChanged = c ? c.newQuantity !== ordered : false
+    // A line closed short (CLOSE_SHORT gave back the quantity not received) changes no quantity: its difference was
+    // released already, and a change would release or commit it a second time
+    if (quantityChanged && parseQuantity(l.cancelledQuantity.toString()) > 0n) return fail('PO_CHANGE_BELOW_PROGRESS', 'a line closed short changes no quantity', { reason: 'CLOSED_SHORT', poLineId: l.id })
     if (quantityChanged && l.sources.length !== 1) return fail('VALIDATION_FAILED', 'the quantity of a line ordered for several request lines does not change', { field: 'lines', reason: 'MERGED_LINE', poLineId: l.id })
     // what is left of the request line beyond what every PO orders now
     const source = l.sources[0]
@@ -430,7 +436,8 @@ export const sendRevisionCommand = defineCommand({
     if (po.revisionNo === 0 || !change) return fail('INVALID_STATE_TRANSITION', 'the purchase order has no revision to send', { from: `revision ${po.revisionNo}`, command: 'po.sendRevision' })
     const to = po.supplier.email?.trim()
     if (!to) return fail('VALIDATION_FAILED', 'the supplier has no e-mail address', { field: 'supplierEmail', reason: 'MISSING' })
-    const printable = await printablePurchaseOrder(tx, ctx.organizationId, po.id, ctx.now)
+    // BR-QR-01, BR-POC-04: the revised PDF carries the QR of the revision's verification, as po.send's does
+    const printable = { ...(await printablePurchaseOrder(tx, ctx.organizationId, po.id, ctx.now)), verifyUrl: await verifyUrlOf(tx, { subjectType: 'PURCHASE_ORDER', subjectId: po.id }) }
     const pdf = await renderPdf(printable)
     const pdfFileId = newId()
     const storageKey = `org/${ctx.organizationId}/${pdfFileId}`
@@ -441,7 +448,9 @@ export const sendRevisionCommand = defineCommand({
     const sender = await tx.member.findUniqueOrThrow({ where: { id: actor }, select: { displayNameTh: true, email: true } })
     const mail = poEmail({ supplierName: po.supplier.nameTh, organizationName: printable.organization.name, poNumber: `${printable.number} (แก้ไขครั้งที่ ${po.revisionNo})`, gross: formatSatang(po.grossSatang), senderName: sender.displayNameTh, resend: true })
     try {
-      await getEmailProvider().send({ to, replyTo: sender.email, ...mail, attachments: [{ filename: fileName, content: pdf, contentType: PDF_MIME }] })
+      // BR-UAT-01: a revision sent from a UAT sandbox says so in its subject, as po.send does
+      const sandbox = (await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { kind: true } })).kind === 'SANDBOX'
+      await getEmailProvider().send({ to, replyTo: sender.email, ...mail, ...(sandbox ? { subject: uatSubject(mail.subject) } : {}), attachments: [{ filename: fileName, content: pdf, contentType: PDF_MIME }] })
     } catch (error) {
       return fail('EXTERNAL_SERVICE_ERROR', 'the e-mail was not sent', { service: 'email', code: error instanceof EmailSendError ? error.code : 'UNKNOWN' })
     }

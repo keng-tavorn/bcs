@@ -51,6 +51,7 @@
     "lineDecrease": "บรรทัดที่ปรับลด",
     "choose": "เลือกบรรทัดงบ",
     "lineOption": "{code} · {name} ({department}) คงเหลือ {available} บาท",
+    "lineOptionNoAmount": "{code} · {name} ({department})",
     "available": "คงเหลือที่ใช้ได้ {amount} บาท",
     "amount": "จำนวนเงิน (บาท)",
     "amountHint": "ไม่มี VAT · ใส่ทศนิยมได้ 2 ตำแหน่ง เช่น 300000 หรือ 300000.50",

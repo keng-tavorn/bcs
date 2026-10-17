@@ -22,6 +22,7 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, isBusyTxError, runCommand, type CommandFailure, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { enabledModules } from '../modules'
 import { startRoute } from '../approvals/route'
+import { holdsAnotherSlot } from '../approvals/step-complete'
 import { warningKey } from '../doa/lint-view'
 import { openTasksOnTree } from './reparent'
 import { revokeMemberPasskeys } from '../self/passkeys'
@@ -523,11 +524,14 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
   }
   /**
    * One pending task to another member, in the same slot and with the same DOA reference: it keeps its due times and its
-   * open question; the resolvedFrom is the one the move found (a department move may find the position higher up)
+   * open question; the resolvedFrom is the one the move found (a department move may find the position higher up). A
+   * member who holds or decided another slot of the step gets none (BR-WF-02): the task stays where it is, for ORG_ADMIN
+   * to reassign (BR-DOA-17), and false says so.
    */
-  async function moveOne(task: Awaited<ReturnType<typeof tx.approvalTask.findUniqueOrThrow>>, toMember: string, resolvedFrom: string) {
+  async function moveOne(task: Awaited<ReturnType<typeof tx.approvalTask.findUniqueOrThrow>>, toMember: string, resolvedFrom: string): Promise<boolean> {
+    if (await holdsAnotherSlot(tx, task.stepId, task.slotNo, toMember)) return false
     const reassigned = transition(TASK_MACHINE, task.status as TaskState, 'task.reassign')
-    if (!reassigned.ok) return
+    if (!reassigned.ok) return false
     await tx.approvalTask.update({ where: { id: task.id }, data: { status: reassigned.to, version: { increment: 1 } } })
     const moved = await tx.approvalTask.create({
       data: {
@@ -550,6 +554,7 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
     })
     if (task.status === 'INFO_REQUESTED') await tx.infoRequest.updateMany({ where: { taskId: task.id, answeredAt: null }, data: { taskId: moved.id } })
     events.push({ type: 'approval_task.reassigned', aggregateType: 'ApprovalTask', aggregateId: moved.id, data: { fromTaskId: task.id, fromMemberId: task.assigneeMemberId, toMemberId: toMember, why: 'ORG_AUTHORITY_CHANGE', changeId: change.id } })
+    return true
   }
 
   switch (change.kind) {
@@ -587,10 +592,13 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
         if (!locked.has(r.task)) continue
         const task = await tx.approvalTask.findUniqueOrThrow({ where: { id: r.task } })
         if (task.status !== 'OPEN' && task.status !== 'INFO_REQUESTED') continue
-        await moveOne(task, r.to, r.resolvedFrom)
+        if (!(await moveOne(task, r.to, r.resolvedFrom))) {
+          reparentStuck++
+          continue
+        }
         told.add(task.assigneeMemberId).add(r.to)
       }
-      if (found.stuck.length) reparentStuck = found.stuck.length
+      reparentStuck += found.stuck.length
       break
     }
     case 'DELEGATION_ON_BEHALF': {

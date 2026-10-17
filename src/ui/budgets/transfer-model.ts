@@ -17,7 +17,8 @@ export interface TransferLineOption {
   readonly code: string
   readonly nameTh: string
   readonly departmentCode: string
-  readonly available: { readonly amount: string }
+  /** null: the member may not view the line's budget */
+  readonly available: { readonly amount: string } | null
   /** The member may give from it (TRANSFER, DECREASE) */
   readonly canGive: boolean
   /** The member may raise it alone (INCREASE) */
@@ -94,7 +95,8 @@ export function transferFormErrors(values: TransferFormValues, lines: readonly T
   const baht = bahtText(values.amount)
   if (baht === null) set('amount', 'AMOUNT')
   else if (amountToSatang(baht) <= 0n) set('amount', 'AMOUNT_NOT_POSITIVE')
-  else if (source) {
+  // a line given from is the member's own, so its balance is shown; the service checks it again in any case
+  else if (source?.available) {
     const short = amountToSatang(baht) - amountToSatang(source.available.amount)
     if (short > 0n) set('amount', 'INSUFFICIENT', formatSatang(short))
   }

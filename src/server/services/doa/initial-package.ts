@@ -145,7 +145,7 @@ export const submitInitialPackageCommand = defineCommand({
       escalatedFromRuleCode: null,
       amountBasis: version.amountBasis,
       basisAmountSatang: null,
-      steps: [{ stepNo: 1, assigneeMemberId: signatory.id, principalMemberId: null, resolvedFrom: `CONTRACT_SIGNATORY:${signatory.id}`, slaBusinessMinutes: governance.steps[0]!.slaBusinessMinutes, notifyOrgAdmin: false }],
+      steps: [{ stepNo: 1, ruleStepNo: 1, assigneeMemberId: signatory.id, principalMemberId: null, resolvedFrom: `CONTRACT_SIGNATORY:${signatory.id}`, slaBusinessMinutes: governance.steps[0]!.slaBusinessMinutes, notifyOrgAdmin: false }],
       explanationTh: `ชุดตั้งต้นขององค์กร (${row.code} ฉบับ ${row.versionNo} และผู้ดำรงตำแหน่ง ${input.holders.length} ตำแหน่ง) อนุมัติโดยผู้มีอำนาจลงนามตามสัญญา (BR-DOA-19)`,
     }
     const stored = await storeRoute(tx, ctx, { type: 'DOA_VERSION', id: row.id, label: `${row.code} ฉบับ ${row.versionNo}` }, route)

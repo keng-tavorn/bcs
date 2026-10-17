@@ -17,7 +17,7 @@ import { assignNextStep } from '../approvals/next-step'
 import { closeRoute } from '../approvals/route'
 import { completeStep, decidedEvent } from '../approvals/step-complete'
 import { budgetRefusalFor } from '../purchase-orders/budget'
-import { closePoInTx, unsettledLines } from '../purchase-orders/close'
+import { closePoInTx, hasOpenChange, unsettledLines } from '../purchase-orders/close'
 import type { DocumentTask } from '../purchase-orders/decide'
 import { keepPendingByLine, shortNow, standingOf } from './standing'
 
@@ -152,7 +152,8 @@ export async function decideVarianceTask(
   const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: variance.poId }, select: { id: true, status: true } })
   const short = (await unsettledLines(tx, po.id)).length
   const waiting = await tx.variance.count({ where: { poId: po.id, disposition: 'CLOSE_SHORT', status: 'PENDING_APPROVAL' } })
-  if (variance.disposition === 'CLOSE_SHORT' && short === 0 && waiting === 0) {
+  // A PO with a change not finished stays open: PROCUREMENT closes it once the change is done (hasOpenChange)
+  if (variance.disposition === 'CLOSE_SHORT' && short === 0 && waiting === 0 && !(await hasOpenChange(tx, po.id))) {
     const closed = await closePoInTx(tx, ctx, po, 'CLOSE_SHORT')
     if (!closed.ok) return closed
     events.push(...closed.events)

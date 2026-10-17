@@ -21,7 +21,19 @@ import { seedTaxRates } from '@/server/seed/tax-rates'
 import { INPUT_WORKBOOK_PATH, loadInputWorkbook, type InputWorkbook } from '@/server/seed/workbook'
 import { pendingBoard } from '@/server/services/board'
 import { budgetDashboard, type BudgetDashboardDto } from '@/server/services/budget/dashboard'
-import { DemoHistoryIncompleteError, DemoHistoryOutOfYearError, DemoHistoryPinError, lineChatRefusal, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
+import {
+  DemoHistoryIncompleteError,
+  DemoHistoryOutOfYearError,
+  DemoHistoryPartMadeError,
+  DemoHistoryPinError,
+  demoHistoryParts,
+  HISTORY_ROWS_PER_PART,
+  joinHistoryReports,
+  lineChatRefusal,
+  seedDemoHistory,
+  seedDemoHistoryPart,
+  type DemoHistoryReport,
+} from '@/server/services/demo-history'
 import { computeKpis } from '@/server/services/reports/kpi'
 
 // D-01: the requests of sheet Demo_History are made through the real services with the business clock set back by
@@ -487,4 +499,58 @@ describe('[FR-AUTH-005/AC2] D-01 the decisions of the history at or above stepUp
     expect(await db.member.count({ where: { OR: [{ pinFailedCount: { gt: 0 } }, { pinLockedUntil: { not: null } }] } })).toBe(0)
     expect(await prisma.event.count({ where: { organizationId, type: 'auth.pin_set' } })).toBe(0)
   })
+})
+
+describe('[FR-PLT-007/AC2] P1-11 the history in parts, as the staging reset makes it, ends as the whole history does', () => {
+  it('splits the rows decided or cancelled (oldest first) and those still waiting into parts of at most HISTORY_ROWS_PER_PART, around the payments, the reading and the inbox', () => {
+    const rows = parseDemoHistory(workbook)
+    const parts = demoHistoryParts(rows)
+    const waiting = new Set(rows.filter((r) => r.status === 'PENDING_APPROVAL').map((r) => r.ref))
+    const kinds = parts.map((p) => p.kind)
+    const firstWaiting = kinds.indexOf('WAITING')
+    expect(kinds.slice(0, kinds.indexOf('PAYMENTS')).every((k) => k === 'DONE')).toBe(true)
+    expect(kinds.slice(kinds.indexOf('PAYMENTS'))).toEqual(['PAYMENTS', 'READ', ...kinds.slice(firstWaiting, -1), 'INBOX'])
+    expect(kinds.slice(firstWaiting, -1).every((k) => k === 'WAITING')).toBe(true)
+    const refs = parts.flatMap((p) => ('refs' in p ? p.refs : []))
+    // every row once, each part full but the last of its kind
+    expect([...refs].sort()).toEqual(rows.map((r) => r.ref).sort())
+    for (const part of parts) if ('refs' in part) expect(part.refs.length).toBeLessThanOrEqual(HISTORY_ROWS_PER_PART)
+    for (const part of parts) if ('refs' in part) expect(part.refs.every((ref) => waiting.has(ref) === (part.kind === 'WAITING'))).toBe(true)
+    // oldest first among the rows decided or cancelled
+    const daysAgo = new Map(rows.map((r) => [r.ref, r.daysAgo]))
+    const done = refs.filter((ref) => !waiting.has(ref)).map((ref) => daysAgo.get(ref)!)
+    expect(done).toEqual([...done].sort((a, b) => b - a))
+    expect(demoHistoryParts(rows, 1).filter((p) => 'refs' in p)).toHaveLength(rows.length)
+    expect(demoHistoryParts([])).toEqual([])
+    expect(() => demoHistoryParts(rows, 0)).toThrow(RangeError)
+  })
+
+  it(
+    'makes every part with one now into the same requests, statuses, times and events as the whole history, and makes no part twice',
+    async () => {
+      const rows = parseDemoHistory(workbook)
+      const parts = demoHistoryParts(rows)
+      const organizationId = await seedOrganization(workbook, `${ORG_CODE}-P`, 'history-parts.')
+      const reports: DemoHistoryReport[] = []
+      for (const index of parts.keys()) reports.push(await seedDemoHistoryPart(organizationId, rows, NOW, { pin: PIN }, index))
+      expect(joinHistoryReports(reports)).toEqual(seeded.report)
+
+      const made = async (orgId: string) => {
+        const db = forTenant(orgId)
+        const requests = (await db.request.findMany({ select: { title: true, status: true, submittedAt: true, approvedAt: true, completedAt: true } })).map((r) => [r.title, r.status, r.submittedAt, r.approvedAt, r.completedAt].map((v) => (v instanceof Date ? v.toISOString() : v)).join('|'))
+        // a PIN step-up runs on the real clock (its window is a security timer); everything else keeps its business time
+        const events = (await db.event.findMany({ where: { requestId: { startsWith: 'demo-history:' } }, select: { type: true, requestId: true, occurredAt: true } })).map((e) => `${e.requestId}|${e.type}|${e.type.startsWith('auth.') ? '' : e.occurredAt.toISOString()}`)
+        return { requests: requests.sort(), events: events.sort() }
+      }
+      expect(await made(organizationId)).toEqual(await made(seeded.organizationId))
+
+      // A part made before is refused, the first one as soon as the history has started
+      await expect(seedDemoHistoryPart(organizationId, rows, NOW, { pin: PIN }, 0)).rejects.toBeInstanceOf(DemoHistoryPartMadeError)
+      const waiting = parts.findIndex((p) => p.kind === 'WAITING')
+      await expect(seedDemoHistoryPart(organizationId, rows, NOW, { pin: PIN }, waiting)).rejects.toMatchObject({ name: 'DemoHistoryPartMadeError', part: waiting })
+      await expect(seedDemoHistoryPart(organizationId, rows, NOW, { pin: PIN }, parts.length)).rejects.toThrow(RangeError)
+      expect((await made(organizationId)).requests).toHaveLength(rows.length)
+    },
+    900_000,
+  )
 })

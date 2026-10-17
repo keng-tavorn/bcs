@@ -914,14 +914,11 @@ function requesterActions(status: string, documentType: string): RequesterAction
 
 const SatangText = z.string().regex(/^\d{1,18}$/).transform((v) => BigInt(v))
 const RuleWhen = z.object({ amount: z.object({ gt: SatangText.optional(), gte: SatangText.optional(), lte: SatangText.optional() }).optional() })
-const RuleSteps = z.array(
-  z.object({
-    approver: z.union([
-      z.object({ kind: z.enum(['POSITION_OF_DEPARTMENT', 'POSITION_OF_ORG']), position: z.string() }),
-      z.object({ kind: z.literal('MEMBER'), memberId: z.string() }),
-    ]),
-  }),
-)
+const RuleApprover = z.union([z.object({ kind: z.enum(['POSITION_OF_DEPARTMENT', 'POSITION_OF_ORG']), position: z.string() }), z.object({ kind: z.literal('MEMBER'), memberId: z.string() })])
+// A step of one approver, or a committee (S6 · FR-WF-102): a rule with a committee still names the approvers of its
+// other steps (FR-INT-008 AC1); the committee's own step names none ahead
+const RuleSteps = z.array(z.union([z.object({ approver: RuleApprover }), z.object({ approvers: z.array(RuleApprover) })]))
+const approverOf = (step: z.infer<typeof RuleSteps>[number]) => ('approver' in step ? step.approver : null)
 
 /** The band of a stored rule (BR-DOA-02), or null when it has no amount condition */
 function bandOfRule(when: unknown): RouteDto['band'] {
@@ -1198,8 +1195,9 @@ export async function routeOf(
   const rule = rules.find((r) => r.code === route.ruleCode)
   const amountRule = rules.find((r) => r.code === (route.escalatedFromRuleCode ?? route.ruleCode))
   const specs = RuleSteps.safeParse(rule?.steps)
-  const positions = specs.success ? await db.position.findMany({ where: { code: { in: specs.data.flatMap((s) => ('position' in s.approver ? [s.approver.position] : [])) } }, select: { code: true, nameTh: true, nameEn: true } }) : []
-  const named = specs.success ? await membersById(db, specs.data.flatMap((s) => ('memberId' in s.approver ? [s.approver.memberId] : []))) : new Map<string, MemberRefDto>()
+  const approvers = specs.success ? specs.data.flatMap((s) => { const a = approverOf(s); return a ? [a] : [] }) : []
+  const positions = approvers.length ? await db.position.findMany({ where: { code: { in: approvers.flatMap((a) => ('position' in a ? [a.position] : [])) } }, select: { code: true, nameTh: true, nameEn: true } }) : []
+  const named = approvers.length ? await membersById(db, approvers.flatMap((a) => ('memberId' in a ? [a.memberId] : []))) : new Map<string, MemberRefDto>()
   const missing = route.steps.flatMap((s) => s.tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId, t.decidedByMemberId])).filter((id): id is string => Boolean(id) && !members.has(id!))
   const taskIds = route.steps.flatMap((s) => s.tasks.map((t) => t.id))
   const [more, escalatedEvents, assignedEvents] = await Promise.all([
@@ -1212,10 +1210,11 @@ export async function routeOf(
   const holderChanged = new Set(assignedEvents.filter((e) => typeof (e.data as { holderChangedFrom?: unknown } | null)?.holderChangedFrom === 'string').map((e) => e.aggregateId))
   const who = (id: string | null) => (id ? (members.get(id) ?? more.get(id) ?? null) : null)
   const expectedOf = (stepNo: number): ExpectedApproverDto | null => {
-    const spec = specs.success ? specs.data[stepNo - 1] : undefined
-    if (!spec) return null
-    if ('memberId' in spec.approver) return { kind: 'MEMBER', member: named.get(spec.approver.memberId) ?? null }
-    const code = spec.approver.position
+    const step = specs.success ? specs.data[stepNo - 1] : undefined
+    const approver = step ? approverOf(step) : null
+    if (!approver) return null
+    if ('memberId' in approver) return { kind: 'MEMBER', member: named.get(approver.memberId) ?? null }
+    const code = approver.position
     const p = positions.find((x) => x.code === code)
     return { kind: 'POSITION', positionCode: code, position: p ? { th: p.nameTh, en: p.nameEn } : null }
   }

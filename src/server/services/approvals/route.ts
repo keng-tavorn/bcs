@@ -150,12 +150,12 @@ export async function storeRoute(
   for (const step of route.steps) {
     const isFirst: boolean = first === null
     const stepRow: { id: string } = await tx.approvalStep.create({
-      // A DOA step: its doaStepNo is the step number resolveRoute gave it (BR-WF-06); a committee keeps its quorum
+      // A DOA step: its doaStepNo is its place in the rule, as resolveRoute gave it (ruleStepNo · BR-WF-06); a committee keeps its quorum
       data: {
         organizationId: ctx.organizationId,
         routeId: created.id,
         stepNo: step.stepNo + offset,
-        doaStepNo: step.stepNo,
+        doaStepNo: step.ruleStepNo,
         slaBusinessMinutes: step.slaBusinessMinutes,
         status: isFirst ? 'ACTIVE' : 'WAITING',
         ...stepModeOf(step),

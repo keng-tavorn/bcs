@@ -16,6 +16,7 @@ import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { departmentReceivers } from '../receiving/receivers'
+import { fail, type Fail } from './common'
 
 // One run of the matching engine on a submitted invoice (spec §7.14 BR-MATCH-05 to BR-MATCH-13, §7.1 BR-VAT-05 to
 // BR-VAT-07), inside the command that asked for it: invoice.submit now, invoice.recheck and the variance approval in
@@ -45,6 +46,19 @@ export const ASSIGNEE_OF: Readonly<Record<MatchExceptionResult['type'] | 'VAT_MI
 export type MatchRunRefusal =
   | { readonly code: 'TAX_RATE_NOT_CONFIGURED'; readonly date: string }
   | { readonly code: 'DUPLICATE_INVOICE'; readonly invoiceNo: string }
+  | { readonly code: 'SOD_VIOLATION'; readonly reason: 'PO_CREATOR' | 'GR_RECEIVER' }
+
+/** The refusal of a run as every command that runs the match answers it */
+export function matchRefusal(refusal: MatchRunRefusal): Fail {
+  switch (refusal.code) {
+    case 'TAX_RATE_NOT_CONFIGURED':
+      return fail('TAX_RATE_NOT_CONFIGURED', 'no VAT rate covers the invoice date', { date: refusal.date })
+    case 'DUPLICATE_INVOICE':
+      return fail('DUPLICATE_INVOICE', 'the supplier already has an invoice with this number', { invoiceNo: refusal.invoiceNo })
+    case 'SOD_VIOLATION':
+      return fail('SOD_VIOLATION', 'whoever created the purchase order or received its goods does not record its invoice', { rule: 'BR-AP-05', reason: refusal.reason })
+  }
+}
 
 export interface MatchRunOutcome {
   readonly matchId: string
@@ -84,6 +98,14 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
   })
   const invoiceDate = day(invoice.invoiceDate!)
 
+  // BR-AP-05 (OQ-127): whoever recorded the invoice did not create the PO or receive its goods — at every run, not only
+  // the submit: a GR posted after it (and the recheck it starts) can make the recorder a receiver of the PO
+  if (invoice.recordedById) {
+    const receivers = await tx.goodsReceipt.findMany({ where: { poId: po.id, status: 'POSTED' }, select: { receiverMemberId: true } })
+    const reason = po.createdById === invoice.recordedById ? 'PO_CREATOR' : receivers.some((r) => r.receiverMemberId === invoice.recordedById) ? 'GR_RECEIVER' : null
+    if (reason) return { ok: false, refusal: { code: 'SOD_VIOLATION', reason } }
+  }
+
   // BR-VAT-01: the rate of the invoice date in Thai time
   const rate = rateFor(invoiceDate, await listTaxRates())
   if (!rate.ok) return { ok: false, refusal: { code: 'TAX_RATE_NOT_CONFIGURED', date: invoiceDate } }
@@ -122,6 +144,17 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
   const policy = apPolicyOf(org.settings)
   const lineNoOf = new Map(po.lines.map((l) => [l.id, l.lineNo]))
   const poLineOfNo = new Map(po.lines.map((l) => [l.lineNo, l]))
+  // BR-VAT-04/05: a supplier not registered for VAT charges none — its rate is 0 for the VAT check, for taking VAT out
+  // of prices that include it and for the DOA amount of a price over (BR-AP-06: the invoice's rate), not the tax table's
+  const vat = checkInvoiceVat({
+    rateBp: rate.rateBp,
+    supplierVat: supplierVatOf(po.supplier),
+    priceIncludesVat: invoice.priceIncludesVat,
+    discountSatang: invoice.discountSatang,
+    lines: invoice.lines.map((l) => ({ qty: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
+    statedVatSatang: invoice.statedVatSatang,
+    vatTolSatang: policy.vatTolSatang,
+  })
   const result = matchInvoice(
     {
       kind: po.kind,
@@ -143,17 +176,8 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
         lines: invoice.lines.map((l) => ({ poLine: lineNoOf.get(l.poLineId)!, qty: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
       },
     },
-    { priceTolBp: policy.priceTolBp, priceTolSatang: policy.priceTolSatang, qtyTolBp: policy.qtyTolBp, vatRateBp: rate.rateBp },
+    { priceTolBp: policy.priceTolBp, priceTolSatang: policy.priceTolSatang, qtyTolBp: policy.qtyTolBp, vatRateBp: vat.rateBp },
   )
-  const vat = checkInvoiceVat({
-    rateBp: rate.rateBp,
-    supplierVat: supplierVatOf(po.supplier),
-    priceIncludesVat: invoice.priceIncludesVat,
-    discountSatang: invoice.discountSatang,
-    lines: invoice.lines.map((l) => ({ qty: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
-    statedVatSatang: invoice.statedVatSatang,
-    vatTolSatang: policy.vatTolSatang,
-  })
 
   // The exceptions of this run: the lines' (or BUDGET_SHORT) from the engine, then the invoice's own
   const exceptions: Exception[] = result.exceptions
@@ -227,7 +251,7 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
   }
   const summary = exceptions.map((e) => ({ type: e.type, amountSatang: e.amountSatang, lineNo: e.lineNo }))
   if (!matched) {
-    await tx.invoice.update({ where: { id: invoice.id }, data: { status: 'EXCEPTION', matchResult: 'EXCEPTION', computedVatSatang: vat.computedVatSatang, vatRateBp: rate.rateBp, version: { increment: 1 } } })
+    await tx.invoice.update({ where: { id: invoice.id }, data: { status: 'EXCEPTION', matchResult: 'EXCEPTION', computedVatSatang: vat.computedVatSatang, vatRateBp: vat.rateBp, version: { increment: 1 } } })
     const events: EventDraft[] = [
       { type: 'invoice.exception_raised', aggregateType: 'Invoice', aggregateId: invoice.id, data: { matchId: match.id, runNo, exceptions: summary.map((e) => ({ ...e, amountSatang: e.amountSatang.toString() })) } },
     ]
@@ -264,7 +288,7 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
       expectedWhtSatang: expectedWht,
       matchResult: 'MATCHED',
       computedVatSatang: vat.computedVatSatang,
-      vatRateBp: rate.rateBp,
+      vatRateBp: vat.rateBp,
       payableSatang: payable,
       dueDate: new Date(`${due}T00:00:00Z`),
       readyAt: ctx.now,

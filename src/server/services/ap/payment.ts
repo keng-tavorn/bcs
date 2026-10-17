@@ -54,13 +54,15 @@ export async function holdInvoicesForPayment(tx: TenantTx, ctx: Ctx, input: { re
   return { ok: true, events: locked.invoices.map((i) => ({ type: 'invoice.payment_held', aggregateType: 'Invoice', aggregateId: i.id, data: { paymentRunId: input.paymentRunId } })) }
 }
 
-/** The run lets them go (cancelled, or an item left out): READY_FOR_PAYMENT again */
-export async function releaseInvoicesFromPayment(tx: TenantTx, ctx: Ctx, input: { readonly invoiceIds: readonly string[]; readonly reason: string }): Promise<Moved> {
-  if (!input.reason.trim()) return fail('VALIDATION_FAILED', 'a reason is needed', { field: 'reason', reason: 'REQUIRED' })
+/**
+ * The run lets them go (cancelled, or an item left out): READY_FOR_PAYMENT again. The event names the run; why it let
+ * them go is free text the run keeps (its link, its cancel reason or a Comment), never Event.data (BR-BANK-08)
+ */
+export async function releaseInvoicesFromPayment(tx: TenantTx, ctx: Ctx, input: { readonly invoiceIds: readonly string[]; readonly paymentRunId: string }): Promise<Moved> {
   const locked = await lockInvoices(tx, ctx, input.invoiceIds, 'invoice.release_from_payment')
   if (!locked.ok) return locked
   await tx.invoice.updateMany({ where: { id: { in: locked.invoices.map((i) => i.id) } }, data: { status: 'READY_FOR_PAYMENT', version: { increment: 1 } } })
-  return { ok: true, events: locked.invoices.map((i) => ({ type: 'invoice.payment_released', aggregateType: 'Invoice', aggregateId: i.id, data: { reason: input.reason.trim() } })) }
+  return { ok: true, events: locked.invoices.map((i) => ({ type: 'invoice.payment_released', aggregateType: 'Invoice', aggregateId: i.id, data: { paymentRunId: input.paymentRunId } })) }
 }
 
 export interface WhtLineInput {

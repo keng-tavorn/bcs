@@ -8,13 +8,14 @@ import { systemCtx, type Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { appendEvents } from '@/server/events/append'
+import { createDraftFromReading, updateInvoice } from '@/server/services/ap'
 import { rejectInvoice } from '@/server/services/ap/exceptions'
 import { holdInvoicesForPayment, recordInvoicePayment, releaseInvoicesFromPayment, type WhtLineInput } from '@/server/services/ap/payment'
 import { confirmIncomeType, updateIncomeType, updateSupplierTaxProfile } from '@/server/services/ap/wht'
 import { exportWhtReturn, WHT_RETURN_NOTICE } from '@/server/services/ap/wht-export'
 import { revealWhtPayeeTaxId } from '@/server/services/ap/wht-files'
 import { getDownloadUrl } from '@/server/services/files'
-import { AP_NOW, apOrg, codedDraft, fin, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
+import { AP_NOW, apOrg, codedDraft, fin, invoiceReading, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
 import { paymentItemOf } from '../support/pay'
 
 // S8-08 (FR-AP-104, BR-WHT-03 to BR-WHT-10, ADR-127): the income types FINANCE sets and another FINANCE member confirms,
@@ -109,7 +110,7 @@ describe('[FR-AP-104/AC3] [BR-AP-12] S9 holds, lets go and records a payment thr
     const runId = randomUUID()
     expect(await inS9(juristic, s9(juristic), (tx) => holdInvoicesForPayment(tx, s9(juristic), { invoiceIds: [a, b], paymentRunId: runId }))).toMatchObject({ ok: true })
     expect(await rejectInvoice(fin(juristic), { invoiceId: a, version: (await prisma.invoice.findUniqueOrThrow({ where: { id: a } })).version, reason: 'x' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION' } })
-    await inS9(juristic, s9(juristic), (tx) => releaseInvoicesFromPayment(tx, s9(juristic), { invoiceIds: [b], reason: 'ออกจากรอบ' }))
+    await inS9(juristic, s9(juristic), (tx) => releaseInvoicesFromPayment(tx, s9(juristic), { invoiceIds: [b], paymentRunId: runId }))
     expect((await prisma.invoice.findUniqueOrThrow({ where: { id: b } })).status).toBe('READY_FOR_PAYMENT')
     await inS9(juristic, s9(juristic), (tx) => holdInvoicesForPayment(tx, s9(juristic), { invoiceIds: [b], paymentRunId: runId }))
 
@@ -219,5 +220,25 @@ describe('[FR-AP-104/AC4] [FR-AP-104/AC5] the individual payee: the summary file
     expect(logged).not.toContain(INDIVIDUAL_ID)
     const events = await prisma.event.findMany({ where: { organizationId: individual.org.organizationId, type: { in: ['wht_certificate.issued', 'withholding_tax.recorded', 'invoice.paid', 'export.generated'] } } })
     expect(JSON.stringify(events.map((e) => e.data))).not.toContain(INDIVIDUAL_ID)
+  })
+})
+
+describe('[BR-WHT-03] every way a draft gets lines starts them with the supplier\'s income type on a SERVICE PO (ADR-073 pre-review)', () => {
+  it('a draft from an AI reading, and a line new to a draft, carry SERVICE as a draft made by hand does', async () => {
+    const po = await sentPo(juristic, [
+      { quantity: '1', unitPrice: '1000.00' },
+      { quantity: '1', unitPrice: '500.00' },
+    ])
+    await prisma.purchaseOrder.update({ where: { id: po.id }, data: { kind: 'SERVICE' } })
+    const fileId = (await prisma.fileObject.create({ data: { organizationId: juristic.org.organizationId, storageKey: `test/${randomUUID()}.jpg`, fileName: 'invoice.jpg', mimeType: 'image/jpeg', sizeBytes: 1, status: 'AVAILABLE', uploadedById: juristic.org.member.fin_officer! } })).id
+    const agentActionId = await invoiceReading(juristic, po.id)
+    const { invoiceId } = ok(await createDraftFromReading(fin(juristic), { fileId, poId: po.id, agentActionId, lines: [{ poLineId: po.lines[0]!.id, quantity: '1', unitPrice: '1000.00' }] }, key()))
+    const lines = () => prisma.invoiceLine.findMany({ where: { invoiceId }, orderBy: { lineNo: 'asc' } })
+    expect((await lines()).map((l) => l.whtIncomeTypeCode)).toEqual(['SERVICE'])
+    // FINANCE clears the first line's type; the second PO line is added: the cleared one stays cleared, the new one starts with SERVICE
+    await prisma.invoiceLine.updateMany({ where: { invoiceId }, data: { whtIncomeTypeCode: null } })
+    const version = (await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } })).version
+    ok(await updateInvoice(fin(juristic), { invoiceId, version, lines: [{ poLineId: po.lines[0]!.id, quantity: '1', unitPrice: '1000.00' }, { poLineId: po.lines[1]!.id, quantity: '1', unitPrice: '500.00' }] }, key()))
+    expect((await lines()).map((l) => l.whtIncomeTypeCode)).toEqual([null, 'SERVICE'])
   })
 })

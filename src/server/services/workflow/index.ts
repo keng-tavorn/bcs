@@ -1,3 +1,4 @@
+import type { AppError } from '@/core/result'
 import { z } from 'zod'
 import { amountToSatang } from '@/core/money/dto'
 import { WORKFLOW_VERSION_MACHINE, transition, type WorkflowVersionState } from '@/core/state-machines'
@@ -403,6 +404,16 @@ async function authorityAudience(tx: TenantTx, before: WorkflowVersionSnapshot |
   const org = await loadOrgSnapshot(tx)
   const reviewers = moved.flatMap((r) => r.reviewers).flatMap((s) => resolveReviewer(s, org, now)?.memberId ?? [])
   return [...new Set([...admins.map((a) => a.memberId), ...reviewers])]
+}
+
+/**
+ * A version of the same code approved for the same or a later time than `effectiveFrom` (as laterVersionScheduled of a
+ * DOA version, BR-DOA-12): approving this one now would end that one before it starts (workflow_version_period)
+ */
+export async function laterWorkflowVersionScheduled(tx: TenantTx, version: { readonly id: string; readonly code: string; readonly effectiveFrom: Date }, now: Date): Promise<AppError | null> {
+  const effectiveFrom = version.effectiveFrom.getTime() < now.getTime() ? now : version.effectiveFrom
+  const later = await tx.workflowVersion.findFirst({ where: { code: version.code, status: 'PUBLISHED', id: { not: version.id }, effectiveFrom: { gte: effectiveFrom } }, select: { versionNo: true } })
+  return later ? { code: 'VALIDATION_FAILED', message: `version ${later.versionNo} is approved for the same or a later time`, details: { field: 'effectiveFrom', reason: 'LATER_VERSION_SCHEDULED', versionNo: later.versionNo } } : null
 }
 
 /**

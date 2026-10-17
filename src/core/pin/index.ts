@@ -82,17 +82,16 @@ export function pinAttemptsLeft(failedCount: number): number {
 /**
  * Every decision on these subjects needs a step-up, whatever the amount: DOA versions and authority changes (BR-DOA-15;
  * an initial package is a DOA version), workflow versions (policy of the same kind, BR-DOA-15) and bank account changes
- * (BR-DOA-25). The only list of them: the chat button and the e-mail link refuse them through stepUpNeeded too, for
- * every step but a parallel reviewer's (BR-WF-09, which only a request's route has).
+ * (BR-DOA-25). The only list of them: the chat button and the e-mail link refuse them through stepUpNeeded too.
  */
 export const ALWAYS_STEP_UP_SUBJECTS: readonly string[] = ['DOA_VERSION', 'ORG_AUTHORITY_CHANGE', 'WORKFLOW_VERSION', 'BANK_ACCOUNT_CHANGE']
 
 /**
- * The kind of step a task is on, as this module knows it. A parallel reviewer's step (S6, BR-WF-09, INV-WF-04) needs
- * no step-up whatever the amount: decideCommand, the LINE card and postback, the e-mail link and the task list each
- * exempt step.kind REVIEW before they ask stepUpNeeded.
+ * The kind of step a task is on: an approval, or a step of the parallel reviewers (S6 · BR-WF-09, INV-WF-04), who need
+ * no step-up whatever the amount. The one place every decision, the LINE card, its button, the e-mail link and the task
+ * list ask.
  */
-export type StepKind = 'APPROVAL'
+export type StepKind = 'APPROVAL' | 'REVIEW'
 
 /** What the rule reads from an approval route and its DOA version */
 export interface StepUpRoute {
@@ -111,6 +110,8 @@ export interface StepUpRoute {
  * threshold comes from the DOA version (the customer's figure, OQ-07), never from code (P-2).
  */
 export function stepUpNeeded(route: StepUpRoute): boolean {
+  // BR-WF-09: a reviewer passes, returns or asks without a step-up, from the chat button too
+  if (route.stepKind === 'REVIEW') return false
   if (ALWAYS_STEP_UP_SUBJECTS.includes(route.subjectType)) return true
   return route.amountSatang !== null && route.stepUpThresholdSatang !== null && route.amountSatang >= route.stepUpThresholdSatang
 }

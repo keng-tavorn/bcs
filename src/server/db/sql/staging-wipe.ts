@@ -11,7 +11,7 @@ const KEEP = '_prisma_migrations'
 
 export class OtherOrganizationError extends Error {
   constructor(readonly codes: readonly string[]) {
-    super(`the database holds organizations other than the demo one (${codes.join(', ')}): nothing was wiped`)
+    super(`the database holds organizations other than the sample ones (${codes.join(', ')}): nothing was wiped`)
     this.name = 'OtherOrganizationError'
   }
 }
@@ -24,17 +24,17 @@ export function wipeStatement(tables: readonly string[]): string | null {
 
 /**
  * Empties every table of schema public but the migration record, in one transaction that first checks, on the same
- * connection, that no organization other than `demoCode` exists (OtherOrganizationError otherwise, nothing emptied).
- * Returns how many tables it emptied.
+ * connection, that no organization exists but those of `sampleCodes` (OtherOrganizationError otherwise, nothing emptied):
+ * the organizations the seed makes from the input workbooks (P1-11, ADR-073). Returns how many tables it emptied.
  */
-export async function wipeAllData(directUrl: string, demoCode: string): Promise<number> {
+export async function wipeAllData(directUrl: string, sampleCodes: readonly string[]): Promise<number> {
   const client = new pg.Client({ connectionString: directUrl })
   await client.connect()
   try {
     await client.query('BEGIN')
     const { rows } = await client.query<{ tablename: string }>(`select tablename from pg_tables where schemaname = 'public' order by tablename`)
     if (rows.some((r) => r.tablename === 'Organization')) {
-      const others = await client.query<{ code: string }>(`select code from public."Organization" where code <> $1 order by code`, [demoCode])
+      const others = await client.query<{ code: string }>(`select code from public."Organization" where code <> all($1::text[]) order by code`, [[...sampleCodes]])
       if (others.rows.length > 0) throw new OtherOrganizationError(others.rows.map((r) => r.code))
     }
     const statement = wipeStatement(rows.map((r) => r.tablename))

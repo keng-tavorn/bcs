@@ -18,6 +18,7 @@ import type { RunOptions } from '../../_pipeline'
 import { mayViewFile } from '../../files'
 import { completeAgentAction, requestAgentAction } from '../actions'
 import { decimalText } from '../assist-contract'
+import { asData } from '../data'
 import { aiRuntime } from '../gate'
 
 // Intake Agent (FR-AI-302 AC1–AC5, FR-AI-303 AC9, BR-AI-19, OQ-148, docs/sub-specs/S13.md "interface"). What a requester
@@ -174,7 +175,7 @@ export async function runIntake(organizationId: string, agentActionId: string, n
     purpose: 'INTAKE',
     model,
     schema: IntakeDraft,
-    text: intakeInputText({ message: text ?? action.inputText ?? '', requestTypes: types.map((t) => ({ code: t.code, name: t.nameTh, description: t.descriptionTh })), items: [], sites: sites.map((s) => ({ code: s.code, name: s.nameTh })) }),
+    text: intakeInputText({ message: asData(text ?? action.inputText ?? ''), requestTypes: types.map((t) => ({ code: t.code, name: t.nameTh, description: t.descriptionTh })), items: [], sites: sites.map((s) => ({ code: s.code, name: s.nameTh })) }),
     files,
   })
   if (!answer.ok) return finish({ outcome: 'FAILED', model: answer.model ?? null, errorCode: answer.errorCode, usage: answer.usage, latencyMs: answer.latencyMs })

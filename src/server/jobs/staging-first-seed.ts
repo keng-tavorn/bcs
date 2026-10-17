@@ -3,6 +3,7 @@ import { PASSWORD_MIN_LENGTH } from '@/lib/constants'
 import { getEnv, type AppEnv, type Env } from '@/lib/env'
 import { logger } from '@/lib/logger'
 import { inngest } from '@/server/inngest'
+import type { InputProfile } from '@/server/seed/workbook'
 import type { DemoHistoryReport } from '@/server/services/demo-history'
 import { firstSeedPreflight, firstSeedState, seedDemoBase, seedDemoHistoryFromInputs, type FirstSeedState } from '@/server/services/demo-seed'
 
@@ -76,9 +77,9 @@ export async function runStagingFirstSeed(step: FirstSeedStep, deps: FirstSeedDe
   return result
 }
 
-/** The demo seed's base, as the step result both staging jobs keep (plain JSON) */
-export async function liveSeedBase(env: Env): Promise<FirstSeedBase> {
-  const seeded = await seedDemoBase(env, env.SEED_DEV_PASSWORD ?? '', systemClock)
+/** The seed's base of a workbook (the demo one unless named), as the step result both staging jobs keep (plain JSON) */
+export async function liveSeedBase(env: Env, profile: InputProfile = 'demo', options: { readonly sandbox?: boolean } = {}): Promise<FirstSeedBase> {
+  const seeded = await seedDemoBase(env, env.SEED_DEV_PASSWORD ?? '', systemClock, profile, options)
   return {
     organizationId: seeded.organizationId,
     orgCode: seeded.orgCode,

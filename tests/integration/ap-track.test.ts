@@ -46,6 +46,20 @@ describe('[FR-AP-102/AC6] [INV-AP-05] one kind of invoice per PO (BR-IVC-06)', (
     expect(await prisma.invoice.count({ where: { poId: po.id } })).toBe(0)
   })
 
+  it('[INV-AP-06] a tier-1 confirmation takes no number a tier-2 invoice of the supplier has (ADR-073 pre-review)', async () => {
+    const a = await sentPo(ap, [{ quantity: '1', unitPrice: '1000.00' }])
+    await receive(ap, a, { 0: '1' })
+    const draft = await codedDraft(ap, a, { no: 'DUP 0001', date: '2026-10-10', vat: '70.00', lines: [{ line: 0, quantity: '1', unitPrice: '1000.00' }] })
+    ok(await submit(ap, draft))
+    // a PO that took confirmations before PAY was on keeps that kind
+    const b = await sentPo(ap, [{ quantity: '1', unitPrice: '1000.00' }])
+    await receive(ap, b, { 0: '1' })
+    await prisma.purchaseOrder.update({ where: { id: b.id }, data: { invoiceTrack: 'CONFIRMATION' } })
+    expect(await tier1(ap, b.id, 'dup0001')).toMatchObject({ ok: false, error: { code: 'DUPLICATE_INVOICE', details: { invoiceNo: 'DUP0001' } } })
+    expect(await prisma.invoiceConfirmation.count({ where: { poId: b.id } })).toBe(0)
+    ok(await tier1(ap, b.id, 'DUP-0002'))
+  })
+
   it('without PAY, invoice_confirmation.record works as before and puts the PO on CONFIRMATION', async () => {
     const off = await apOrg({ modules: ['AI', 'BCS_GO'] })
     const po = await sentPo(off, [{ quantity: '2', unitPrice: '1000.00' }])
@@ -133,5 +147,24 @@ describe('[FR-AP-101/AC5] a draft from what an AI read (invoice.createDraftFromR
     const other = await prisma.supplier.create({ data: { organizationId: ap.org.organizationId, code: `S-${randomUUID().slice(0, 6)}`, nameTh: 'อื่น', isForeign: true } })
     expect(await createDraftFromReading(fin(ap), { fileId: await file(), poId: po.id, supplierId: other.id, agentActionId: randomUUID() }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'SUPPLIER_NOT_PO' } } })
     expect(await createDraftFromReading(ap.org.ctxOf('proc_officer', AP_NOW), { fileId: await file(), poId: po.id, agentActionId: randomUUID() }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+  })
+})
+
+describe('[BR-RET-04] a PO closed short gives its held retentions their due date (ADR-073 pre-review)', () => {
+  it('received 1 of 2, the rest closed short, an invoice\'s retention HELD without a date: closing sets the last receipt\'s day plus the hold days', async () => {
+    const po = await sentPo(ap, [{ quantity: '2', unitPrice: '1000.00' }])
+    await receive(ap, po, { 0: '1' })
+    await prisma.purchaseOrder.update({ where: { id: po.id }, data: { retentionHoldDays: 30 } })
+    // the shortfall approved (CLOSE_SHORT), the PO still partly received
+    await prisma.poLine.update({ where: { id: po.lines[0]!.id }, data: { cancelledQuantity: '1' } })
+    const draft = await codedDraft(ap, po, { no: 'RET-0001', vat: '70.00', lines: [{ line: 0, quantity: '1', unitPrice: '1000.00' }] })
+    ok(await submit(ap, draft))
+    const retention = await prisma.retention.create({ data: { organizationId: ap.org.organizationId, invoiceId: draft.invoiceId, poId: po.id, supplierId: ap.supplierId, amountSatang: 5_000n, releaseDueOn: null } })
+    expect((await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: po.id } })).status).toBe('PARTIALLY_RECEIVED')
+    ok(await closePurchaseOrder(ap.org.ctxOf('proc_officer', AP_NOW), { poId: po.id }, key()))
+    const gr = await prisma.goodsReceipt.findFirstOrThrow({ where: { poId: po.id, status: 'POSTED' } })
+    const thaiDay = new Date(gr.postedAt!.getTime() + 7 * 3_600_000).toISOString().slice(0, 10)
+    const due = new Date(Date.parse(`${thaiDay}T00:00:00Z`) + 30 * 86_400_000)
+    expect((await prisma.retention.findUniqueOrThrow({ where: { id: retention.id } })).releaseDueOn).toEqual(due)
   })
 })

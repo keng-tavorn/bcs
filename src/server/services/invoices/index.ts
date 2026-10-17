@@ -7,7 +7,7 @@ import type { AppError } from '@/core/result'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { applyBudget, type BudgetOperation } from '@/server/budget/ledger'
-import { lockRowsForUpdate } from '@/server/db/sql/locks'
+import { lockRowsForUpdate, lockSupplierInvoiceNumber } from '@/server/db/sql/locks'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { claimTrack } from '../ap/track'
@@ -114,8 +114,14 @@ export const recordInvoiceCommand = defineCommand({
     // What each PO line still holds, in line order (BR-IVC-04 shares by it)
     const held = await tx.budgetAllocation.findMany({ where: { sourceType: 'PO_LINE', sourceId: { in: po.lines.map((l) => l.id) } }, select: { sourceId: true, committedSatang: true } })
     const remaining = po.lines.map((l) => held.find((h) => h.sourceId === l.id)?.committedSatang ?? 0n)
+    // INV-AP-06: the number is the supplier's once across confirmations and tier-2 invoices in effect (submitted, not
+    // rejected or cancelled — the partial unique index of Invoice); under the same lock a tier-2 submit takes, so the two
+    // never pass the check together
+    const number = normalizeInvoiceNo(input.invoiceNo)
+    await lockSupplierInvoiceNumber(tx, ctx.organizationId, po.supplierId, number)
     const earlier = await tx.invoiceConfirmation.findMany({ where: { supplierId: po.supplierId }, select: { invoiceNoNormalized: true } })
-    const confirmed = confirmInvoice(remaining, net, input.invoiceNo, new Set(earlier.map((e) => e.invoiceNoNormalized)))
+    const tierTwo = await tx.invoice.findMany({ where: { supplierId: po.supplierId, supplierInvoiceNoNormalized: number, status: { notIn: ['DRAFT', 'CANCELLED', 'REJECTED'] } }, select: { supplierInvoiceNoNormalized: true } })
+    const confirmed = confirmInvoice(remaining, net, input.invoiceNo, new Set([...earlier.map((e) => e.invoiceNoNormalized), ...tierTwo.flatMap((i) => (i.supplierInvoiceNoNormalized ? [i.supplierInvoiceNoNormalized] : []))]))
     if (!confirmed.ok) {
       return confirmed.error === 'DUPLICATE_INVOICE'
         ? fail('DUPLICATE_INVOICE', 'the supplier already has an invoice with this number', { invoiceNo: normalizeInvoiceNo(input.invoiceNo) })

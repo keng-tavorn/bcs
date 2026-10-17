@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { cancelInvoice, confirmInvoiceCoding, createInvoice, submitInvoice, updateInvoice } from '@/server/services/ap'
+import { recheckInvoice, rejectInvoice } from '@/server/services/ap/exceptions'
 import { closePurchaseOrder } from '@/server/services/purchase-orders'
 import { AP_NOW, apOrg, balanceOf, codedDraft, fin, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
 
@@ -261,5 +262,42 @@ describe('S8-05 review fixes', () => {
     const results = await Promise.all([submit(ap, a), submit(ap, b, 'dm_fin')])
     expect(results.filter((r) => r.ok)).toHaveLength(1)
     expect(results.find((r) => !r.ok)).toMatchObject({ ok: false, error: { code: 'DUPLICATE_INVOICE' } })
+  })
+})
+
+describe('[BR-VAT-04] [BR-AP-06] a supplier not registered for VAT charges none, prices that include VAT included (ADR-073 pre-review)', () => {
+  it('1,000.00 with priceIncludesVat on a non-VAT supplier is matched, booked and payable at 1,000.00 at a rate of 0', async () => {
+    const nonVat = await apOrg({ supplier: { isVatRegistered: false } })
+    const po = await sentPo(nonVat, [{ quantity: '1', unitPrice: '1000.00' }])
+    await receive(nonVat, po, { 0: '1' })
+    const draft = await codedDraft(nonVat, po, { no: 'NV-0001', vat: '0.00', lines: [{ line: 0, quantity: '1', unitPrice: '1000.00' }] })
+    const { version } = ok(await updateInvoice(fin(nonVat), { invoiceId: draft.invoiceId, version: draft.version, priceIncludesVat: true }, key()))
+    ok(await submit(nonVat, { invoiceId: draft.invoiceId, version }))
+    expect(await prisma.invoice.findUniqueOrThrow({ where: { id: draft.invoiceId } })).toMatchObject({ status: 'READY_FOR_PAYMENT', netSatang: 100_000n, grossSatang: 100_000n, payableSatang: 100_000n, vatRateBp: 0 })
+  })
+})
+
+describe('[BR-AP-05] the recorder of an invoice who receives its goods afterwards does not get it matched (ADR-073 pre-review)', () => {
+  it('recorded before any receipt (QTY_NOT_RECEIVED), received by the same member, rechecked: SOD_VIOLATION and it stays an exception', async () => {
+    const own = await apOrg()
+    await prisma.roleAssignment.create({ data: { organizationId: own.org.organizationId, memberId: own.org.member.receiver_con!, role: 'FINANCE', grantedAt: AP_NOW } })
+    const po = await sentPo(own, [{ quantity: '1', unitPrice: '1000.00' }])
+    const draft = await codedDraft(own, po, { no: 'SOD-0001', vat: '70.00', lines: [{ line: 0, quantity: '1', unitPrice: '1000.00' }] }, 'receiver_con')
+    expect(ok(await submit(own, draft, 'receiver_con'))).toMatchObject({ status: 'EXCEPTION' })
+    await receive(own, po, { 0: '1' })
+    expect(await recheckInvoice(fin(own), { invoiceId: draft.invoiceId, version: (await prisma.invoice.findUniqueOrThrow({ where: { id: draft.invoiceId } })).version }, key())).toMatchObject({ ok: false, error: { code: 'SOD_VIOLATION', details: { rule: 'BR-AP-05', reason: 'GR_RECEIVER' } } })
+    expect((await prisma.invoice.findUniqueOrThrow({ where: { id: draft.invoiceId } })).status).toBe('EXCEPTION')
+  })
+})
+
+describe('[FR-AP-101] a draft refuses what it cannot be, instead of failing inside (ADR-073 pre-review)', () => {
+  it('a draft never sent is cancelled, not rejected (NEVER_SUBMITTED); a discount above the amount before VAT of prices that include VAT is DISCOUNT_ABOVE_AMOUNT', async () => {
+    const po = await sentPo(ap, [{ quantity: '1', unitPrice: '1070.00' }])
+    const { invoiceId } = ok(await createInvoice(fin(ap), { poId: po.id }, key()))
+    const version = async () => (await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } })).version
+    expect(await rejectInvoice(fin(ap), { invoiceId, version: await version(), reason: 'ไม่ใช่ใบของเรา' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { reason: 'NEVER_SUBMITTED' } } })
+    ok(await updateInvoice(fin(ap), { invoiceId, version: await version(), priceIncludesVat: true, lines: [{ poLineId: po.lines[0]!.id, quantity: '1', unitPrice: '1070.00' }] }, key()))
+    // 1,070.00 with VAT is 1,000.00 before it: a discount of 1,050.00 is more than that
+    expect(await updateInvoice(fin(ap), { invoiceId, version: await version(), discount: '1050.00' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'DISCOUNT_ABOVE_AMOUNT' } } })
   })
 })

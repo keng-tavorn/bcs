@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { normalizeInvoiceNo } from '@/core/invoice'
 import { invoiceLineNets } from '@/core/matching'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
-import { lineNet, parseQuantity } from '@/core/money/math'
+import { parseQuantity } from '@/core/money/math'
 import { formatQuantity } from '@/core/receiving'
 import { retentionOf } from '@/core/retention'
 import { taxDateOf } from '@/core/vat'
@@ -14,7 +14,7 @@ import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from 
 import { AiAssistInput, applyAiAssist, assertNoPendingAiReview } from '../ai/assist-contract'
 import { issueDocumentNumber } from '../numbering'
 import { fail, guard, INVOICEABLE_PO_STATUSES, lockedInvoice, SUBJECT, type Fail } from './common'
-import { INVOICED_STATUSES, runMatch } from './match-run'
+import { INVOICED_STATUSES, matchRefusal, runMatch } from './match-run'
 export { INVOICEABLE_PO_STATUSES } from './common'
 import { readyNotice } from './exceptions'
 import { enqueueSupplierNotice, SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-notices'
@@ -174,7 +174,8 @@ async function recalculate(tx: TenantTx, invoiceId: string, money: { discountSat
   const stored = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId }, include: { lines: { orderBy: { lineNo: 'asc' } } } })
   const invoice = { ...stored, ...money }
   const lines = invoice.lines.map((l) => ({ poLine: l.lineNo, qty: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable }))
-  const total = lines.reduce((a, l) => a + lineNet(l.qty, l.unitPriceSatang), 0n)
+  // The discount is bounded by the amounts it is shared over: before VAT, VAT taken out first when prices include it
+  const total = invoiceLineNets({ lines, discountSatang: 0n, priceIncludesVat: invoice.priceIncludesVat }, invoice.vatRateBp ?? 0).amounts.reduce((a, b) => a + b, 0n)
   if (invoice.discountSatang > total) return false
   const discount = invoice.discountSatang
   const { amounts, discounts, nets } = invoiceLineNets({ lines, discountSatang: discount, priceIncludesVat: invoice.priceIncludesVat }, invoice.vatRateBp ?? 0)
@@ -256,8 +257,10 @@ export const updateInvoiceCommand = defineCommand({
       if (new Set(ids).size !== ids.length) return fail('VALIDATION_FAILED', 'a PO line appears twice on the invoice', { field: 'lines', reason: 'PO_LINE_TWICE' })
       if (ids.some((id) => !poLines.some((p) => p.id === id))) return fail('VALIDATION_FAILED', 'every line must be a line of the invoice’s purchase order', { field: 'lines', reason: 'NOT_A_PO_LINE' })
       if (input.lines.some((l) => parseQuantity(l.quantity) <= 0n)) return fail('VALIDATION_FAILED', 'a quantity above zero is needed', { field: 'lines', reason: 'QUANTITY_NOT_POSITIVE' })
-      // The coding of a PO line stays with it (FR-AP-108: confirmed once per line)
+      // The coding of a PO line stays with it (FR-AP-108: confirmed once per line); a line new to the invoice starts
+      // with the supplier's income type on a SERVICE PO, as a draft's lines do (BR-WHT-03)
       const coding = new Map(invoice.lines.map((l) => [l.poLineId, l]))
+      const owner = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: invoice.poId }, select: { kind: true, supplier: { select: { defaultWhtIncomeTypeCode: true } } } })
       // The differences of earlier runs stay as history; they no longer point at the lines that are replaced
       await tx.matchException.updateMany({ where: { invoiceId: invoice.id, invoiceLineId: { not: null } }, data: { invoiceLineId: null } })
       await tx.invoiceLine.deleteMany({ where: { invoiceId: invoice.id } })
@@ -275,7 +278,7 @@ export const updateInvoiceCommand = defineCommand({
             uom: po.uom,
             unitPriceSatang: amountToSatang(l.unitPrice),
             vatable: l.vatable ?? po.vatable,
-            whtIncomeTypeCode: kept?.whtIncomeTypeCode ?? null,
+            whtIncomeTypeCode: kept ? kept.whtIncomeTypeCode : defaultIncomeType(owner, owner.supplier),
             accountCode: kept?.accountCode ?? null,
             costCenterId: kept?.costCenterId ?? null,
             codingSource: kept?.codingSource ?? 'NONE',
@@ -425,11 +428,7 @@ export const submitInvoiceCommand = defineCommand({
     const number = invoice.number ?? (await issueDocumentNumber(tx, ctx, { document: 'AP' }))
     await tx.invoice.update({ where: { id: invoice.id }, data: { number, prefill, recordedById: who.memberId, submittedAt: ctx.now } })
     const run = await runMatch(tx, ctx, invoice.id, 'USER')
-    if (!run.ok) {
-      return run.refusal.code === 'TAX_RATE_NOT_CONFIGURED'
-        ? fail('TAX_RATE_NOT_CONFIGURED', 'no VAT rate covers the invoice date', { date: run.refusal.date })
-        : fail('DUPLICATE_INVOICE', 'the supplier already has an invoice with this number', { invoiceNo: run.refusal.invoiceNo })
-    }
+    if (!run.ok) return matchRefusal(run.refusal)
     const events: EventDraft[] = [
       {
         type: 'invoice.submitted',
@@ -521,7 +520,7 @@ export const createDraftFromReadingCommand = defineCommand({
     if (!file) return fail('VALIDATION_FAILED', 'the file is not available', { field: 'fileId', reason: 'FILE' })
     const [poId] = await lockRowsForUpdate(tx, 'PurchaseOrder', ctx.organizationId, [input.poId])
     if (!poId) return fail('NOT_FOUND', 'purchase order not found')
-    const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: poId }, include: { lines: { orderBy: { lineNo: 'asc' } } } })
+    const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: poId }, include: { lines: { orderBy: { lineNo: 'asc' } }, supplier: { select: { defaultWhtIncomeTypeCode: true } } } })
     if (!(INVOICEABLE_PO_STATUSES as readonly string[]).includes(po.status)) return fail('INVALID_STATE_TRANSITION', `an invoice is not made on a ${po.status} purchase order`, { from: po.status, command: 'invoice.createDraftFromReading' })
     if (input.supplierId && input.supplierId !== po.supplierId) return fail('VALIDATION_FAILED', 'the supplier is not the supplier of the purchase order', { field: 'supplierId', reason: 'SUPPLIER_NOT_PO' })
     if (input.aiAssist && input.aiAssist.agentActionId !== input.agentActionId) return fail('VALIDATION_FAILED', 'aiAssist is for another AI action', { field: 'aiAssist.agentActionId', reason: 'AGENT_ACTION_MISMATCH' })
@@ -572,7 +571,9 @@ export const createDraftFromReadingCommand = defineCommand({
       },
       select: { id: true },
     })
-    if (lines.length > 0) await tx.invoiceLine.createMany({ data: lines.map((l, i) => ({ organizationId: ctx.organizationId, invoiceId: invoice.id, lineNo: i + 1, ...l })) })
+    // BR-WHT-03: the supplier's income type on a SERVICE PO, as a draft made by hand starts with
+    const incomeType = defaultIncomeType(po, po.supplier)
+    if (lines.length > 0) await tx.invoiceLine.createMany({ data: lines.map((l, i) => ({ organizationId: ctx.organizationId, invoiceId: invoice.id, lineNo: i + 1, ...l, whtIncomeTypeCode: incomeType })) })
     const money = { ...(input.statedVat ? { statedVatSatang: amountToSatang(input.statedVat) } : {}), ...(input.discount ? { discountSatang: amountToSatang(input.discount) } : {}) }
     if (!(await recalculate(tx, invoice.id, money))) return fail('VALIDATION_FAILED', 'the discount is above the invoice amount', { field: 'discount', reason: 'DISCOUNT_ABOVE_AMOUNT' })
     await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId: file.id, subjectType: 'Invoice', subjectId: invoice.id, kind: 'INVOICE' } })

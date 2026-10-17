@@ -125,7 +125,8 @@ export async function balanceOf(budgetLineId: string) {
 }
 
 /** A DRAFT INVOICE_READ action of the Document Agent read for a PO (S13-12), proposing these values by path */
-export async function invoiceReading(ap: ApOrg, poId: string, proposed: Record<string, string> = {}) {
+/** An invoice reading of the PO by the Document Agent, of the file `fileId` when given (createDraftFromReading takes that file only) */
+export async function invoiceReading(ap: ApOrg, poId: string, proposed: Record<string, string> = {}, fileId?: string) {
   const row = await prisma.agentAction.create({
     data: {
       organizationId: ap.org.organizationId,
@@ -139,6 +140,7 @@ export async function invoiceReading(ap: ApOrg, poId: string, proposed: Record<s
       requestedById: ap.org.member.fin_officer!,
       subjectType: 'PURCHASE_ORDER',
       subjectId: poId,
+      ...(fileId ? { inputRefs: { fileId } } : {}),
       output: {},
       review: { requiredPaths: Object.keys(proposed).sort(), confirmedPaths: [], proposed },
       createdAt: AP_NOW,

@@ -118,9 +118,10 @@ describe('[FR-AP-101/AC5] a draft from what an AI read (invoice.createDraftFromR
 
   it('makes a draft labelled AI_READING by the member who accepted the reading', async () => {
     const po = await sentPo(ap, [{ quantity: '3', unitPrice: '500.00' }])
-    const agentActionId = await invoiceReading(ap, po.id)
+    const fileId = await file()
+    const agentActionId = await invoiceReading(ap, po.id, {}, fileId)
     const { invoiceId } = ok(
-      await createDraftFromReading(fin(ap), { fileId: await file(), poId: po.id, supplierId: ap.supplierId, agentActionId, supplierInvoiceNo: 'AI-77', invoiceDate: '2026-10-09', statedVat: '105.00', lines: [{ poLineId: po.lines[0]!.id, quantity: '3', unitPrice: '500.00' }] }, key()),
+      await createDraftFromReading(fin(ap), { fileId, poId: po.id, supplierId: ap.supplierId, agentActionId, supplierInvoiceNo: 'AI-77', invoiceDate: '2026-10-09', statedVat: '105.00', lines: [{ poLineId: po.lines[0]!.id, quantity: '3', unitPrice: '500.00' }] }, key()),
     )
     const invoice = await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } })
     expect(invoice).toMatchObject({ status: 'DRAFT', prefill: 'AI_READING', agentActionId, createdById: ap.org.member.fin_officer, supplierInvoiceNo: 'AI-77', netSatang: 150_000n, statedVatSatang: 10_500n, grossSatang: 160_500n })
@@ -132,11 +133,14 @@ describe('[FR-AP-101/AC5] a draft from what an AI read (invoice.createDraftFromR
   it('[FR-AI-303/AC6] refuses an AI action that is not this PO’s invoice reading, and no draft is made', async () => {
     const po = await sentPo(ap, [{ quantity: '1', unitPrice: '500.00' }])
     const other = await sentPo(ap, [{ quantity: '1', unitPrice: '500.00' }])
-    const reading = await invoiceReading(ap, po.id)
-    const withFile = async (agentActionId: string, aiAssist?: { agentActionId: string; confirmedPaths: string[] }) => createDraftFromReading(fin(ap), { fileId: await file(), poId: po.id, agentActionId, ...(aiAssist ? { aiAssist } : {}) }, key())
+    const fileId = await file()
+    const reading = await invoiceReading(ap, po.id, {}, fileId)
+    const withFile = async (agentActionId: string, aiAssist?: { agentActionId: string; confirmedPaths: string[] }) => createDraftFromReading(fin(ap), { fileId, poId: po.id, agentActionId, ...(aiAssist ? { aiAssist } : {}) }, key())
+    // a file the reading did not read is refused before anything is made (ADR-073 pre-review)
+    expect(await createDraftFromReading(fin(ap), { fileId: await file(), poId: po.id, agentActionId: reading }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'FILE_NOT_READ' } } })
     expect(await withFile(randomUUID())).toMatchObject({ ok: false, error: { code: 'NOT_FOUND', details: { field: 'agentActionId' } } })
     expect(await withFile(reading, { agentActionId: randomUUID(), confirmedPaths: [] })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'AGENT_ACTION_MISMATCH' } } })
-    expect(await withFile(await invoiceReading(ap, other.id))).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'SUBJECT_MISMATCH' } } })
+    expect(await withFile(await invoiceReading(ap, other.id, {}, fileId))).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'SUBJECT_MISMATCH' } } })
     await prisma.agentAction.update({ where: { id: reading }, data: { purpose: 'DELIVERY_NOTE_READ' } })
     expect(await withFile(reading)).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'PURPOSE_MISMATCH' } } })
     expect(await prisma.invoice.count({ where: { poId: po.id } })).toBe(0)

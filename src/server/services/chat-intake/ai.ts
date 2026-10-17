@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { err, ok, type Result } from '@/core/result'
+import { AI_LIMITS } from '@/lib/ai-config'
 import { CHAT_AI_READING_WINDOW_MS } from '@/lib/constants'
 import { transition, CHAT_INTAKE_MACHINE } from '@/core/state-machines'
 import { makeCtx, systemCtx, type Ctx } from '@/server/context'
@@ -15,6 +16,17 @@ import { getAgentAction, intakeFromMessage, isAgentAvailable } from '../ai'
 // a new message, a new key. The id is linked in a step of its own (chat_intake.link_agent_action), so a retry of the link
 // never calls again. Nothing is said in the chat when the reading ends (LIFF shows it). AI off, the agent off, no credits
 // or a failed call: the chat and LIFF work on as without AI (EG-1 NG-5 · AC6).
+
+/** The text cut to at most `max` UTF-16 units (what zod's max counts), never through a character */
+function upTo(text: string, max: number): string {
+  if (text.length <= max) return text
+  let out = ''
+  for (const ch of text) {
+    if (out.length + ch.length > max) break
+    out += ch
+  }
+  return out
+}
 
 export const CHAT_AI_JOB = 'chat-intake-ai'
 
@@ -43,8 +55,11 @@ export async function readChatIntakeWithAi(organizationId: string, intakeId: str
   if (intake.member.status !== 'ACTIVE') return { status: 'SKIPPED', reason: 'MEMBER_INACTIVE' }
   // A photo still on its way: its image_fetched starts the next reading, with it
   if (intake.items.some((i) => i.kind === 'IMAGE' && i.fetchStatus === 'PENDING')) return { status: 'SKIPPED', reason: 'IMAGES_PENDING' }
-  const fileIds = intake.items.flatMap((i) => (i.fetchStatus === 'STORED' && i.fileId ? [i.fileId] : []))
-  const text = intake.text ?? ''
+  // What the Intake Agent takes at most (AI_LIMITS): a draft may hold more photos (bcsGo/chatIntake maxImages up to 10)
+  // and 2,000 characters counted as LINE counts them, so the reading takes the first photos and the text cut to what
+  // the agent takes, instead of being refused and never read
+  const fileIds = intake.items.flatMap((i) => (i.fetchStatus === 'STORED' && i.fileId ? [i.fileId] : [])).slice(0, AI_LIMITS.intakeMaxFiles)
+  const text = upTo(intake.text ?? '', AI_LIMITS.maxInputTextChars)
   if (!text.trim() && fileIds.length === 0) return { status: 'SKIPPED', reason: 'NOTHING_TO_READ' }
   const lastSeq = intake.items.at(-1)?.seq ?? 0
   const idempotencyKey = `chat_intake:${intakeId}:${lastSeq}`

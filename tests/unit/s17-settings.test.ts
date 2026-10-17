@@ -125,6 +125,13 @@ describe('[BR-LINE-10] the S17 settings in a UAT sandbox (BR-UAT-01 · ADR-174)'
     expect(bcsGoSettingsOf(sandbox)).toEqual({ ...BCS_GO_DEFAULTS, maxPreparedPos: 20 })
   })
 
+  it('[BR-UAT-04] the sandbox does not take the invoice inbox address of production; the other keys of ap stay (ADR-073 pre-review)', () => {
+    const settings = OrgSettingsSchema.parse({ ...demo(), ap: { defaultTermDays: 30, inboxAddress: 'ap@simec.example' } })
+    const sandbox = sandboxSettingsOf(settings)
+    expect(sandbox.ap).toEqual({ defaultTermDays: 30 })
+    expect(sandboxSettingsOf(OrgSettingsSchema.parse(demo())).ap).toBeUndefined()
+  })
+
   it('settings without chatIntake stay without it, and read as off', () => {
     const sandbox = sandboxSettingsOf(OrgSettingsSchema.parse(demo()))
     expect(sandbox.chatIntake).toBeUndefined()

@@ -103,7 +103,7 @@ describe('[FR-AP-101/AC5] where each value came from', () => {
     const po = await sentPo(ap, [{ quantity: '1', unitPrice: '400.00' }])
     await receive(ap, po, { 0: '1' })
     const fileId = (await prisma.fileObject.create({ data: { organizationId: ap.org.organizationId, storageKey: `test/${randomUUID()}.jpg`, fileName: 'invoice.jpg', mimeType: 'image/jpeg', sizeBytes: 1, status: 'AVAILABLE', uploadedById: ap.org.member.fin_officer! } })).id
-    const { invoiceId } = ok(await createDraftFromReading(fin(ap), { fileId, poId: po.id, agentActionId: await invoiceReading(ap, po.id), supplierInvoiceNo: 'AI-1', invoiceDate: nextDate(), statedVat: '28.00' }, { idempotencyKey: randomUUID() }))
+    const { invoiceId } = ok(await createDraftFromReading(fin(ap), { fileId, poId: po.id, agentActionId: await invoiceReading(ap, po.id, {}, fileId), supplierInvoiceNo: 'AI-1', invoiceDate: nextDate(), statedVat: '28.00' }, { idempotencyKey: randomUUID() }))
     const before = await page('fin_officer', invoiceId)
     expect(before.fieldSources).toEqual({ supplierInvoiceNo: 'AI_READING', invoiceDate: 'AI_READING', statedVat: 'AI_READING' })
     expect(before.file).toEqual({ id: fileId, fileName: 'invoice.jpg' })

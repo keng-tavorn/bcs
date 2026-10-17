@@ -5,13 +5,17 @@ export const uatSubject = (subject: string) => (subject.startsWith('[UAT]') ? su
 
 /**
  * The settings a UAT sandbox starts with (BR-UAT-01 · ADR-174): production's, with the LINE channel off and asking
- * through the LINE chat off (S17 · BR-LINE-10), since a sandbox never sends by LINE. The other keys of chatIntake and
- * the whole of bcsGo are copied as they are. The one place both the sandbox command and the seed of SIMEC-UAT use.
+ * through the LINE chat off (S17 · BR-LINE-10), since a sandbox never sends by LINE, and without production's invoice
+ * inbox address (S8 · OQ-124): a sandbox polling the same mailbox would take real suppliers' invoices into UAT
+ * (BR-UAT-04). The other keys of chatIntake and ap, and the whole of bcsGo, are copied as they are. The one place both
+ * the sandbox command and the seed of SIMEC-UAT use.
  */
 export function sandboxSettingsOf(settings: OrgSettings): OrgSettings {
+  const { inboxAddress: _production, ...ap } = settings.ap ?? {}
   return {
     ...settings,
     features: { ...settings.features, lineChannel: false },
     ...(settings.chatIntake ? { chatIntake: { ...settings.chatIntake, enabled: false } } : {}),
+    ...(settings.ap ? { ap } : {}),
   }
 }

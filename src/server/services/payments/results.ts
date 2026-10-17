@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { PAYMENT_RUN_ITEM_MACHINE, PAYMENT_RUN_MACHINE, transition, type PaymentRunItemState, type PaymentRunState } from '@/core/state-machines'
-import { taxDateOf } from '@/core/vat'
+import { checkPaidOn as paidOnRule } from '@/core/payment'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { paymentSettingsOf } from '@/lib/org-settings'
 import { authorize } from '@/server/authz'
@@ -59,12 +59,14 @@ async function finance(tx: TenantTx, ctx: Ctx, capability: 'paymentRun.recordRes
   return { ok: true, memberId: allowed.data.memberId }
 }
 
-/** BR-PAY-12: from the pay date to today (Thai calendar day) */
+/** BR-PAY-12: from the pay date to today (Thai calendar day) — the rule of src/core/payment the golden cases check */
 function checkPaidOn(paidOn: string, payDate: string, now: Date): Fail | null {
   if (Number.isNaN(Date.parse(`${paidOn}T00:00:00Z`)) || new Date(`${paidOn}T00:00:00Z`).toISOString().slice(0, 10) !== paidOn) return fail('VALIDATION_FAILED', 'the date paid is a calendar day', { field: 'paidOn', reason: 'FORMAT' })
-  if (paidOn < payDate) return fail('VALIDATION_FAILED', `the date paid ${paidOn} is before the pay date ${payDate}`, { field: 'paidOn', reason: 'PAID_ON_BEFORE_PAY_DATE', payDate })
-  if (paidOn > taxDateOf(now)) return fail('VALIDATION_FAILED', `the date paid ${paidOn} is after today`, { field: 'paidOn', reason: 'PAID_ON_FUTURE' })
-  return null
+  const checked = paidOnRule(payDate, paidOn, now)
+  if (checked.ok) return null
+  return checked.reason === 'PAID_ON_BEFORE_PAY_DATE'
+    ? fail('VALIDATION_FAILED', `the date paid ${paidOn} is before the pay date ${payDate}`, { field: 'paidOn', reason: checked.reason, payDate })
+    : fail('VALIDATION_FAILED', `the date paid ${paidOn} is after today`, { field: 'paidOn', reason: checked.reason })
 }
 
 type ItemRow = Awaited<ReturnType<typeof readItems>>[number]

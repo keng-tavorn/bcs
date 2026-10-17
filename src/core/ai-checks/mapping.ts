@@ -10,6 +10,9 @@ import type { CheckCode, ReadLine, ReadingToCheck } from './verify'
 // quantity of the PO lines it names, once per line, in the line's unit; more than is still open is filled but marked,
 // and gr.post decides as before.
 
+/** A plain amount in baht as the form writes it, at most 2 places (what amountToSatang takes) */
+const AMOUNT_TEXT = /^\d+(\.\d{1,2})?$/
+
 export interface SupplierEntry {
   readonly id: string
   readonly taxId: string
@@ -43,10 +46,14 @@ export function mapQuotation(
   const taxId = reading.seller?.taxId ? normalizeTaxId(reading.seller.taxId) : null
   const found = taxId ? ctx.registry.find((s) => s.taxId === taxId && s.branch === (reading.seller?.branch ?? '00000')) : undefined
   if (!found) flags.push('SUPPLIER_NOT_REGISTERED')
-  const unverified = fails.some((c) => UNVERIFIED.includes(c))
-  if (unverified) flags.push('AMOUNT_UNVERIFIED')
   const read = includesVat ? reading.gross : reading.net
-  const amount = unverified || !read ? null : satangToAmount(amountToSatang(read.replace(/,/g, '')))
+  // A total the checks never looked at (a delivery note read in the quotation's place) may not be an amount at all
+  // ("-", "1,200 บาท"): it fills nothing and says so, instead of failing the whole reading
+  const plain = read ? read.replace(/,/g, '').trim() : null
+  const readable = plain !== null && AMOUNT_TEXT.test(plain)
+  const unverified = fails.some((c) => UNVERIFIED.includes(c)) || (plain !== null && !readable)
+  if (unverified) flags.push('AMOUNT_UNVERIFIED')
+  const amount = unverified || !readable ? null : satangToAmount(amountToSatang(plain))
   const discounted = fails.includes('DISCOUNT_AMBIGUOUS') || ctx.normalized.discountTotal !== null
   if (discounted) flags.push('DISCOUNT_NOT_MAPPABLE')
   const quoteNet = amount === null ? null : includesVat ? satangToAmount(vatFromGross(amountToSatang(amount), ctx.vatRateBp).net) : amount

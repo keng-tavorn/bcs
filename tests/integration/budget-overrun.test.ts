@@ -10,6 +10,7 @@ import { getBudgetOverrun, getRequestOverruns } from '@/server/services/budget/o
 import { cancelBudgetOverrun, runOverrunLapse, submitBudgetOverrun } from '@/server/services/budget/overruns'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
+import { requestPrintable } from '@/server/services/documents/pdf'
 import { computeKpis } from '@/server/services/reports/kpi'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { createP1Org } from '../support/p1-org'
@@ -98,6 +99,9 @@ describe('[FR-BUD-101/AC1] [FR-BUD-101/AC2] the shortfall approved, used at subm
     expect(inbox.items.find((i) => i.id === task.id)?.subject).toEqual({ kind: 'BUDGET_OVERRUN', number: asked.number, requestNumber: null, requestTitle: 'งานเปิดตัวโครงการ (ไตรมาส 4)', amountSatang: 6_000_000n })
     expect((await getRequestOverruns(org.ctxOf('cfo', NOW), requestId)).ok).toBe(true)
     expect((await getBudgetOverrun(org.ctxOf('cfo', NOW), asked.overrunId)).ok).toBe(true)
+    // the PDF of the request as the request page: the overrun approver opens both (ADR-073 pre-review)
+    expect((await requestPrintable(org.ctxOf('cfo', NOW), requestId)).ok).toBe(true)
+    expect(await requestPrintable(org.ctxOf('vp_sup', NOW), requestId)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     expect(await getRequestOverruns(org.ctxOf('cfo', NOW), earlier)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     expect(await getBudgetOverrun(org.ctxOf('dm_it', NOW), asked.overrunId)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
 

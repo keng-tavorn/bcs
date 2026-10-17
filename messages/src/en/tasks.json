@@ -88,6 +88,9 @@
       "ROUTE_REPLACED": "This task is closed because the requester edited and sent the request again, and a new route was worked out",
       "DOCUMENT_DECIDED": "This task is closed because the document has been decided",
       "CO_ASSIGNEE_DECIDED": "This task is closed because another approver of this step decided first",
+      "GROUP_DECIDED": "This task is closed because your group in this step has its result",
+      "STEP_DECIDED": "This task is closed because this step has its result from the others' decisions",
+      "ALREADY_EFFECTIVE": "This task is closed because the version asked to be withdrawn has taken effect",
       "other": "This task is closed; there is nothing to decide"
     }
   },

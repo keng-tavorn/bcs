@@ -10811,10 +10811,13 @@
       "REJECT": "Rejected by {name} {time}",
       "RETURN": "Returned for changes by {name} {time}",
       "cancelled": {
+        "ALREADY_EFFECTIVE": "This task is closed because the version asked to be withdrawn has taken effect",
         "CO_ASSIGNEE_DECIDED": "This task is closed because another approver of this step decided first",
         "DOCUMENT_DECIDED": "This task is closed because the document has been decided",
+        "GROUP_DECIDED": "This task is closed because your group in this step has its result",
         "REQUEST_CANCELLED": "This task is closed because the requester cancelled the request",
         "ROUTE_REPLACED": "This task is closed because the requester edited and sent the request again, and a new route was worked out",
+        "STEP_DECIDED": "This task is closed because this step has its result from the others' decisions",
         "other": "This task is closed; there is nothing to decide"
       },
       "question": "Waiting for the requester’s answer: {question}",

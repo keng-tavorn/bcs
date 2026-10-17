@@ -54,26 +54,43 @@ export default async function TenantAiPage({ params }: { params: Promise<{ orgId
           {t('grantsTitle')}
         </h2>
         {c.grants.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('columns.when')}</TableHead>
-                <TableHead>{t('columns.source')}</TableHead>
-                <TableHead className="text-right">{t('columns.credits')}</TableHead>
-                <TableHead>{t('columns.contractRef')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            {/* On a phone each grant is a row of the list (§9.9: no table wider than the screen; P1-09) */}
+            <ul aria-label={t('grantsTitle')} className="flex flex-col divide-y divide-line border-y border-line md:hidden">
               {c.grants.map((g, i) => (
-                <TableRow key={`${g.occurredAt}-${i}`}>
-                  <TableCell>{formatDateTime(locale, g.occurredAt)}</TableCell>
-                  <TableCell>{g.source === 'TOPUP' ? t('sources.TOPUP') : t('sources.MONTHLY')}</TableCell>
-                  <TableCell className="text-right tabular-nums">{n(g.credits)}</TableCell>
-                  <TableCell>{g.contractRef ?? '-'}</TableCell>
-                </TableRow>
+                <li key={`${g.occurredAt}-${i}`} className="flex flex-col gap-1 py-3">
+                  <span className="flex items-baseline justify-between gap-3">
+                    <span className="text-ink">{g.source === 'TOPUP' ? t('sources.TOPUP') : t('sources.MONTHLY')}</span>
+                    <span className="text-right tabular-nums text-ink">{n(g.credits)}</span>
+                  </span>
+                  <span className="text-ink-muted">{formatDateTime(locale, g.occurredAt)}</span>
+                  {g.contractRef ? <span className="break-words text-ink-muted">{`${t('columns.contractRef')}: ${g.contractRef}`}</span> : null}
+                </li>
               ))}
-            </TableBody>
-          </Table>
+            </ul>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('columns.when')}</TableHead>
+                    <TableHead>{t('columns.source')}</TableHead>
+                    <TableHead className="text-right">{t('columns.credits')}</TableHead>
+                    <TableHead>{t('columns.contractRef')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {c.grants.map((g, i) => (
+                    <TableRow key={`${g.occurredAt}-${i}`}>
+                      <TableCell>{formatDateTime(locale, g.occurredAt)}</TableCell>
+                      <TableCell>{g.source === 'TOPUP' ? t('sources.TOPUP') : t('sources.MONTHLY')}</TableCell>
+                      <TableCell className="text-right tabular-nums">{n(g.credits)}</TableCell>
+                      <TableCell>{g.contractRef ?? '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         ) : (
           <p className="text-ink-muted">{t('noGrants')}</p>
         )}

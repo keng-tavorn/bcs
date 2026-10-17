@@ -106,7 +106,8 @@ describe('[FR-PLT-013/AC1] the theme reads the tokens of §9.9 and §9.10 only',
   })
 
   it('no shadcn/ui component draws text under 16 px on a phone (§9.10 "ตัวอักษร"): every 14 px text-sm starts at md', () => {
-    const phoneSmall = COMPONENTS.flatMap(({ name, text }) => [...text.matchAll(/(?<=[\s"'`])text-sm(?=[\s"'`])/g)].map(() => name))
+    // text-sm/relaxed (a size with its line height) is 14 px too (P1-09: the empty state's description)
+    const phoneSmall = COMPONENTS.flatMap(({ name, text }) => [...text.matchAll(/(?<=[\s"'`])text-sm(?=[\s"'`/])/g)].map(() => name))
     expect(phoneSmall).toEqual([])
   })
 

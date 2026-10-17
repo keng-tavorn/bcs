@@ -407,6 +407,22 @@ function screenWords(code: string): string {
   return th.measures.decisionsOnLineOf!.replace('{kind}', th.kinds[code.replace('DECISIONS_ON_LINE_', '')]!)
 }
 
+describe('[FR-VIS-003/AC3] G-5 names every kind of document a decision can be about', () => {
+  it('each subject of an approval route (the kinds of phase 1 too) has words in the file, on the report page and on the KPI page, never its code (P1-09)', () => {
+    const schema = readFileSync(path.resolve(import.meta.dirname, '../../prisma/schema.prisma'), 'utf8')
+    const subjects = /enum ApprovalSubjectType \{([^}]*)\}/.exec(schema)![1]!.split(/\s+/).filter(Boolean)
+    expect(subjects.length).toBeGreaterThanOrEqual(12)
+    const kpiKinds = (JSON.parse(readFileSync(path.resolve(import.meta.dirname, '../../messages/src/th/kpi.json'), 'utf8')) as { kinds: Record<string, string> }).kinds
+    for (const subject of subjects) {
+      const kind = subject === 'REQUEST' ? 'PURCHASE_REQUEST' : subject
+      const code = `DECISIONS_ON_LINE_${kind}`
+      expect(kpiMeasureTh(code), code).not.toBe(code)
+      expect(kpiMeasureTh(code), code).toBe(screenWords(code))
+      expect(kpiKinds[kind], `kpi.kinds.${kind}`).toBeTruthy()
+    }
+  })
+})
+
 describe('[FR-VIS-003/AC3] the KPI CSV of a 60-day review has every measure with its numerator and denominator', () => {
   it('the executive exports 60 days as CSV: each measure named in Thai as the screens name it, with its unit and code; G-5 of purchase requests as the page shows it; a checksum', async () => {
     const now = at(WED, '16:00')

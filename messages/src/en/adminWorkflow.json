@@ -1,6 +1,6 @@
 {
   "title": "Parallel reviewers (workflow)",
-  "intro": "Set which requests go to which reviewers before the DOA approvers. Only a draft can be edited; a new version takes effect once approved under the DOA_CHANGE rule.",
+  "intro": "Set which requests go to which reviewers before the DOA approvers. Only a draft can be edited; a new version takes effect once approved under the DOA rule for DOA changes.",
   "forbidden": "This page is for the organization's admins. To change the reviewers, contact your organization's admin.",
   "homeLink": "Back to home",
   "back": "Back to workflow versions",
@@ -368,7 +368,7 @@
     "laterScheduled": "Version {version} is already approved for the same or a later date; set a later date and save the draft",
     "notAllowed": "You may not send workflow versions for approval; contact your organization's admin",
     "approverLine": "This version goes to {names} for approval under {ref}",
-    "approverError": "No approver found under the DOA_CHANGE rule; check the DOA in effect and the position holders before sending",
+    "approverError": "No approver found under the DOA rule for DOA changes; check the DOA in effect and the position holders before sending",
     "casesNamed": "Cases that do not pass: {names}",
     "button": "Send for approval to publish",
     "sending": "Sending for approval",
@@ -404,7 +404,7 @@
     "CONFLICT": "This was already sent with other data; reload the page",
     "BUSY": "Too many tries; wait a moment and try again",
     "INTERNAL": "The system could not do this; try again, and if it still fails tell the admin the code {requestId}",
-    "NO_APPROVER": "No approver found under the DOA_CHANGE rule; check the DOA in effect and the position holders",
+    "NO_APPROVER": "No approver found under the DOA rule for DOA changes; check the DOA in effect and the position holders",
     "NO_ANSWER": "No answer came back; check the connection and press again",
     "FAILED": "This did not work; try again"
   },

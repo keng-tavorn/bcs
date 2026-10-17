@@ -46,7 +46,7 @@ const KPI_MEASURES = [
   'TASKS_ON_FAILED_BUDGET_CHECK',
   'DECISIONS_ON_LINE_ALL',
 ] as const
-const KINDS = ['PURCHASE_REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE'] as const
+const KINDS = ['PURCHASE_REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE', 'BUDGET_TRANSFER', 'BUDGET_OVERRUN', 'WORKFLOW_VERSION', 'INVOICE', 'PO_CHANGE', 'PAYMENT_RUN', 'BANK_ACCOUNT_CHANGE'] as const
 
 /** A KPI measure code of the report in words */
 export function measureText(t: ReportsT, code: string): string {

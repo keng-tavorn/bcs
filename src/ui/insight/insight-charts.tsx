@@ -91,12 +91,22 @@ function rowName(rows: ReadonlyArray<{ readonly name: string; readonly text?: st
   }
 }
 
-/** A stacked segment's percentage, inside it, only when the segment is wide enough on screen */
+/**
+ * A stacked segment's percentage, inside it, only when the segment is wide enough on screen. Ink outlined in --bg (P1-09):
+ * the middle green of the budget (--budget-committed) is too close to both ink and white for 4.5:1, so the outline makes
+ * the letters their own light ground on every segment
+ */
 function SegmentPercent({ x, y, width, height, value }: LabelBox) {
   const text = percentLabel(value)
   if (!text || Number(width) < SEGMENT_LABEL_MIN_PX) return null
   return (
-    <text x={Number(x) + Number(width) / HALF} y={Number(y) + Number(height) / HALF} textAnchor="middle" dominantBaseline="central" className="fill-ink tabular">
+    <text
+      x={Number(x) + Number(width) / HALF}
+      y={Number(y) + Number(height) / HALF}
+      textAnchor="middle"
+      dominantBaseline="central"
+      className="fill-ink stroke-bg tabular [paint-order:stroke] [stroke-linejoin:round] [stroke-width:4px]"
+    >
       {text}
     </text>
   )

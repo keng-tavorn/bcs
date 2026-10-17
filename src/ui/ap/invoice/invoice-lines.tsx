@@ -97,9 +97,9 @@ export function InvoiceLines({
   )
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="@container flex flex-col gap-3">
       <p className="text-ink-muted">{t('lines.hint')}</p>
-      <div className="hidden md:block">
+      <div className="hidden @min-[56rem]:block">
         <Table aria-label={t('lines.title')}>
           <TableHeader>
             <TableRow>
@@ -132,7 +132,7 @@ export function InvoiceLines({
           </TableBody>
         </Table>
       </div>
-      <ul aria-label={t('lines.title')} className="flex flex-col divide-y divide-line border-y border-line md:hidden">
+      <ul aria-label={t('lines.title')} className="flex flex-col divide-y divide-line border-y border-line @min-[56rem]:hidden">
         {lines.map((l) => (
           <li key={l.id} className="flex flex-col gap-2 py-3">
             <span className="font-medium break-words text-ink">

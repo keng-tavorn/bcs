@@ -128,7 +128,7 @@ export function PasskeySetup({ passkeys, proofMethods, prove, options, add, remo
   return (
     <section aria-labelledby="passkey-title" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h2 id="passkey-title" className="text-xl font-semibold">
+        <h2 id="passkey-title" className="text-base font-semibold">
           {tp('title')}
         </h2>
         <p className="text-ink-muted">{tp('intro')}</p>
@@ -137,10 +137,10 @@ export function PasskeySetup({ passkeys, proofMethods, prove, options, add, remo
       {passkeys.length ? (
         <ItemGroup className="gap-2">
           {passkeys.map((p) => (
-            <Item key={p.id} role="listitem" variant="outline">
-              <ItemContent>
+            <Item key={p.id} role="listitem" variant="outline" className="flex-wrap">
+              <ItemContent className="min-w-48">
                 <ItemTitle className="text-base">{p.deviceLabel ?? tp('unnamed')}</ItemTitle>
-                <ItemDescription className="text-base text-ink-muted md:text-sm">
+                <ItemDescription className="line-clamp-none text-base text-ink-muted md:text-sm">
                   {tp('addedAt', { time: p.addedAtText })}
                   {p.lastUsedAtText ? ` · ${tp('lastUsedAt', { time: p.lastUsedAtText })}` : ''}
                 </ItemDescription>

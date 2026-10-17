@@ -34,8 +34,8 @@ export default async function NotificationSettingsPage() {
   const deviceViews = (devices.ok ? devices.data : []).map((d) => ({
     id: d.id,
     label: d.deviceLabel ?? t('appPush.devices.platform', { platform: d.platform === 'IOS' ? 'iOS' : 'Android', version: d.appVersion }),
-    registeredAt: formatDateTime(d.registeredAt, locale),
-    lastSeenAt: formatDateTime(d.lastSeenAt, locale),
+    registeredAt: formatDateTime(locale, d.registeredAt),
+    lastSeenAt: formatDateTime(locale, d.lastSeenAt),
   }))
 
   return (

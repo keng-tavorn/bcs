@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { headers } from 'next/headers'
-import { getTranslations } from 'next-intl/server'
+import { getLocale, getTranslations } from 'next-intl/server'
 import { formatEnglishBeDate, formatThaiDate } from '@/core/thai'
 import { systemClock } from '@/lib/clock'
 import { clientIp } from '@/server/auth/lockout'
@@ -24,7 +24,7 @@ export async function generateMetadata() {
 
 export default async function VerifyPage({ params }: { params: Promise<{ token: string }> }) {
   const token = (await params).token
-  const [t, tBadge] = await Promise.all([getTranslations('verify'), getTranslations('document.badge')])
+  const [t, tBadge, locale] = await Promise.all([getTranslations('verify'), getTranslations('document.badge'), getLocale()])
   const now = systemClock.now()
   const session = await getSession()
   const viewer =
@@ -67,12 +67,12 @@ export default async function VerifyPage({ params }: { params: Promise<{ token: 
                 <>
                   <dt className="text-ink-muted">{t('statusAt')}</dt>
                   <dd className="text-ink">
-                    {formatThaiDate(new Date(page.document.statusAt))} · {formatEnglishBeDate(new Date(page.document.statusAt))}
+                    {locale === 'en' ? formatEnglishBeDate(new Date(page.document.statusAt)) : formatThaiDate(new Date(page.document.statusAt))}
                   </dd>
                 </>
               ) : null}
             </dl>
-            <p className="text-sm text-ink-muted">{t('privacy')}</p>
+            <p className="text-base text-ink-muted md:text-sm">{t('privacy')}</p>
             {page.document.href ? (
               <Link href={page.document.href} className="self-start font-medium text-primary underline underline-offset-4 hover:no-underline">
                 {t('open')}

@@ -26,7 +26,7 @@ export const KPI_REVIEW_DAYS = 60
 /** A calendar day "YYYY-MM-DD" as each language shows it */
 export const dayText = (locale: string, day: string): string => (locale === 'en' ? formatEnglishBeDate(`${day}T00:00:00+07:00`) : formatThaiDate(`${day}T00:00:00+07:00`))
 
-const KINDS = ['PURCHASE_REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE'] as const
+const KINDS = ['PURCHASE_REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE', 'BUDGET_TRANSFER', 'BUDGET_OVERRUN', 'WORKFLOW_VERSION', 'INVOICE', 'PO_CHANGE', 'PAYMENT_RUN', 'BANK_ACCOUNT_CHANGE'] as const
 export type KpiKind = (typeof KINDS)[number]
 export const isKind = (kind: string): kind is KpiKind => (KINDS as readonly string[]).includes(kind)
 

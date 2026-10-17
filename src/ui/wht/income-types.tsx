@@ -75,7 +75,7 @@ type Confirm = (input: { code: string }, idempotencyKey: string) => Promise<TaxO
 
 const CONFIRMED: BadgeLook = { tone: 'ok', icon: 'CircleCheck' }
 const WAITING: BadgeLook = { tone: 'warn', icon: 'Hourglass' }
-const ACTIVE: BadgeLook = { tone: 'ok', icon: null }
+const ACTIVE: BadgeLook = { tone: 'ok', icon: 'CircleCheck' }
 const INACTIVE: BadgeLook = { tone: 'neutral', icon: 'Ban' }
 const BLANK: IncomeTypeFormInput = { code: '', nameTh: '', nameEn: '', rate: '', form: 'PND3_53', legalRefTh: '', active: true }
 const CONTROL = 'h-11 bg-bg text-base lg:h-10 md:text-base'

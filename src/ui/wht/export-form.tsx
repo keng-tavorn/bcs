@@ -19,8 +19,6 @@ import { NO_ANSWER, type ExportOutcome } from './outcome'
 
 type Export = (input: { month: string; form: 'PND3' | 'PND53'; revealTaxId: boolean }, idempotencyKey: string) => Promise<ExportOutcome>
 
-const CONTROL = 'h-11 bg-bg text-base lg:h-10 md:text-base'
-
 export function WhtExportForm({
   months,
   canReveal,
@@ -96,7 +94,7 @@ export function WhtExportForm({
             </div>
           </div>
         ) : null}
-        <Button type="submit" className={`${CONTROL} self-start`} disabled={pending || !month} aria-busy={pending || undefined}>
+        <Button type="submit" className="h-11 self-start text-base lg:h-10" disabled={pending || !month} aria-busy={pending || undefined}>
           {pending ? t('export.working') : t('export.submit')}
         </Button>
       </form>

@@ -89,7 +89,14 @@
     "PURCHASE_ORDER": "purchase orders",
     "VARIANCE": "receiving variances",
     "DOA_VERSION": "DOA versions",
-    "ORG_AUTHORITY_CHANGE": "authority changes"
+    "ORG_AUTHORITY_CHANGE": "authority changes",
+    "BUDGET_TRANSFER": "budget transfers",
+    "BUDGET_OVERRUN": "over-budget approvals",
+    "WORKFLOW_VERSION": "reviewer workflow versions",
+    "INVOICE": "invoices",
+    "PO_CHANGE": "PO changes",
+    "PAYMENT_RUN": "payment runs",
+    "BANK_ACCOUNT_CHANGE": "bank account changes"
   },
   "values": {
     "noneYet": "No data in this period",

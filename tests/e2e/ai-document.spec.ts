@@ -193,7 +193,7 @@ test('[FR-AI-303/AC6] [FR-AI-303/AC8] FINANCE reads a supplier invoice with the 
   }
   await page.getByRole('button', { name: 'ยืนยันรหัสบัญชีทุกบรรทัด' }).click()
   // The page read again after the coding (its new version) before the submit
-  await expect(page.getByRole('region', { name: 'รหัสบัญชีและ cost center' }).getByText('ยืนยันแล้ว', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('region', { name: 'รหัสบัญชีและศูนย์ต้นทุน' }).getByText('ยืนยันแล้ว', { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: 'ส่งจับคู่' }).click()
   await expect(page.getByText('ยังมีค่าที่ AI เติมและรอตรวจ').first()).toBeVisible()
 

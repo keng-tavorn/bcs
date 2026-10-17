@@ -93,6 +93,13 @@ const KIND_TH: Readonly<Record<string, string>> = {
   VARIANCE: 'ผลต่างจากการตรวจรับ',
   DOA_VERSION: 'ฉบับ DOA',
   ORG_AUTHORITY_CHANGE: 'การเปลี่ยนโครงสร้างอำนาจ',
+  BUDGET_TRANSFER: 'การโอนงบ',
+  BUDGET_OVERRUN: 'การขออนุมัติเกินงบ',
+  WORKFLOW_VERSION: 'ฉบับผู้ตรวจคู่ขนาน',
+  INVOICE: 'ใบแจ้งหนี้',
+  PO_CHANGE: 'ใบแก้ไข PO',
+  PAYMENT_RUN: 'รอบจ่าย',
+  BANK_ACCOUNT_CHANGE: 'การเปลี่ยนบัญชีธนาคาร',
 }
 const LINE_PREFIX = 'DECISIONS_ON_LINE_'
 /** A KPI measure code in Thai; a code without words stays the code */

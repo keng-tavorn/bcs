@@ -328,6 +328,13 @@ test.describe('@s17 the scenes of S17 with BCS Go and the LINE chat (S17-16)', (
       const shown = JSON.stringify(push)
       for (const secret of ['2,642,900', '2642900', 'แอสฟัลต์', twin.names.pm_p07, twin.names.ceo]) expect(shown).not.toContain(secret)
 
+      // The phone in the member's own list of devices, registered and last seen in Thai words (NEW-105: the page once
+      // failed on a member with a device, the dates' arguments swapped)
+      await page.goto('/settings/notifications')
+      const phone = page.getByRole('row').filter({ hasText: 'โทรศัพท์ฉาก S17' })
+      await expect(phone).toContainText(/\d{1,2} \S+ 25\d\d/)
+      await check(page, testInfo, 'push-devices')
+
       // The tap opens the task in the app; at 2,642,900.00 (from 100,000.00) the approval asks for a step-up
       await page.goto(push!.data.path!)
       await expect(page.getByRole('heading', { level: 1 })).toHaveText(twin.road.title)

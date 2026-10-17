@@ -1,6 +1,6 @@
 import { documentTypeOfSubject } from '@/core/doa'
 import { rejectWithdrawal, withdrawalPending, withdrawalTooLate, withdrawApprovedVersion } from '../../policy-withdrawal'
-import { publishApprovedWorkflowVersion, rejectWorkflowVersion } from '../../workflow'
+import { laterWorkflowVersionScheduled, publishApprovedWorkflowVersion, rejectWorkflowVersion } from '../../workflow'
 import type { SubjectAdapter } from './index'
 
 // The WORKFLOW_VERSION approval subject (ADR-068, S6-04 · FR-WF-103 · BR-WF-12): a workflow version waiting for the
@@ -36,7 +36,7 @@ export const workflowVersionSubject: SubjectAdapter = {
   href: (facts) => `/admin/workflows/${facts.id}`,
   async decide(tx, ctx, task, decision) {
     const id = task.step.route.subjectId
-    const v = await tx.workflowVersion.findUniqueOrThrow({ where: { id }, select: { status: true, effectiveFrom: true, withdrawalRequestedAt: true } })
+    const v = await tx.workflowVersion.findUniqueOrThrow({ where: { id }, select: { id: true, code: true, status: true, effectiveFrom: true, withdrawalRequestedAt: true } })
     if (withdrawalPending(v)) {
       const late = withdrawalTooLate(v, ctx.now)
       if (late) return late
@@ -46,6 +46,9 @@ export const workflowVersionSubject: SubjectAdapter = {
     const approver = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
     if (decision.outcome === 'APPROVED') {
       if (!approver) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member approves' } }
+      // A later version approved first: refused as a DOA version is, not a broken period (ADR-073 pre-review)
+      const later = await laterWorkflowVersionScheduled(tx, v, ctx.now)
+      if (later) return { ok: false, error: later }
       const published = await publishApprovedWorkflowVersion(tx, ctx, task.step.route.subjectId, approver)
       return { ok: true, documentStatus: 'PUBLISHED', ...published }
     }
@@ -53,7 +56,8 @@ export const workflowVersionSubject: SubjectAdapter = {
     return { ok: true, documentStatus: 'REJECTED', ...rejected }
   },
   allowsRequestInfo: false,
-  channels: { chatButton: () => false, emailLink: false, liff: false },
+  // BR-WF-12 (OQ-110): the web and the BCS Go app only — not the PWA either
+  channels: { chatButton: () => false, emailLink: false, liff: false, pwa: false },
   // BR-WF-12: the submitter never approves their own version
   sodContext: (facts) => ({ requesterMemberIds: facts.conflictMemberIds }),
 }

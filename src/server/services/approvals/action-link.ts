@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { formatSatang } from '@/core/money/format'
-import { stepUpNeeded } from '@/core/pin'
+import { stepUpNeeded, type StepKind } from '@/core/pin'
 import { err, ok, type ErrorCode, type Result } from '@/core/result'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import type { Ctx } from '@/server/context'
@@ -64,9 +64,9 @@ export type ActionLinkView =
 
 type LinkRoute = { readonly subjectType: string; readonly subjectId: string; readonly amountSatang: bigint | null; readonly doaVersion: { readonly stepUpThresholdSatang: bigint | null } }
 
-/** Decided in the workspace only: a step-up is needed, or the subject keeps the e-mail link closed */
-async function workspaceOnly(db: TenantTx | ReturnType<typeof forTenant>, route: LinkRoute): Promise<boolean> {
-  if (stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang })) return true
+/** Decided in the workspace only: a step-up is needed (never for a reviewer, BR-WF-09), or the subject keeps the e-mail link closed */
+async function workspaceOnly(db: TenantTx | ReturnType<typeof forTenant>, route: LinkRoute, stepKind: StepKind): Promise<boolean> {
+  if (stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang, stepKind })) return true
   return !(await outsideChannels(db as TenantTx, route.subjectType, route.subjectId)).emailLink
 }
 
@@ -79,7 +79,7 @@ export async function viewActionLink(ctx: Ctx, link: string): Promise<Result<Act
   if (viewer !== token.memberId) return ok({ state: 'NOT_YOURS' })
   const task = await db.approvalTask.findUniqueOrThrow({
     where: { id: token.taskId },
-    select: { id: true, status: true, step: { select: { route: { select: { subjectType: true, subjectId: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
+    select: { id: true, status: true, step: { select: { kind: true, route: { select: { subjectType: true, subjectId: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
   })
   const route = task.step.route
   const subject = await subjectSummary(db, route.subjectType, route.subjectId)
@@ -94,7 +94,7 @@ export async function viewActionLink(ctx: Ctx, link: string): Promise<Result<Act
     ...subject,
     amount: route.amountSatang === null ? null : formatSatang(route.amountSatang),
     actions: token.allowedActions,
-    inWorkspaceOnly: await workspaceOnly(db, route),
+    inWorkspaceOnly: await workspaceOnly(db, route, task.step.kind),
     expiresAt: token.expiresAt.toISOString(),
   })
 }
@@ -145,9 +145,9 @@ export const decideByLinkCommand = defineCommand({
     if (!(await lockForDecision(tx, ctx.organizationId, token.taskId))) return tokenError('TOKEN_INVALID', 'the task is gone')
     const route = await tx.approvalTask.findUniqueOrThrow({
       where: { id: token.taskId },
-      select: { step: { select: { route: { select: { subjectType: true, subjectId: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
+      select: { step: { select: { kind: true, route: { select: { subjectType: true, subjectId: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
     })
-    if (await workspaceOnly(tx, route.step.route)) {
+    if (await workspaceOnly(tx, route.step.route, route.step.kind)) {
       return { ok: false, error: { code: 'STEP_UP_REQUIRED', message: 'this task is decided in the workspace with a second factor', details: { taskId: token.taskId } } }
     }
     // BR-TOK-04: one conditional update uses the token; when it does not, the reason is read again (another POST may

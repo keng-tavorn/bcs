@@ -70,11 +70,11 @@ export const decideByLinePostbackCommand = defineCommand({
     if (!(await lockForDecision(tx, ctx.organizationId, token.taskId))) return refused('TOKEN_INVALID', 'the task is gone')
     const task = await tx.approvalTask.findUniqueOrThrow({
       where: { id: token.taskId },
-      select: { step: { select: { route: { select: { subjectType: true, subjectId: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
+      select: { step: { select: { kind: true, route: { select: { subjectType: true, subjectId: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
     })
     const route = task.step.route
-    // BR-TOK-05, BR-DOA-25: approved in LIFF with the PIN, never from the chat
-    const stepUp = stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang })
+    // BR-TOK-05, BR-DOA-25: approved in LIFF with the PIN, never from the chat; a reviewer passes from the chat (BR-WF-09)
+    const stepUp = stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang, stepKind: task.step.kind })
     if (stepUp || !(await outsideChannels(tx, route.subjectType, route.subjectId)).chatButton) {
       return { ok: false, error: { code: 'STEP_UP_REQUIRED', message: 'this task is approved with the PIN in LIFF', details: { taskId: token.taskId } } }
     }

@@ -195,7 +195,7 @@ export async function approvalCardMessage(
     acting: row.principalMemberId !== null,
     escalated: row.escalatedAt !== null,
     // A reviewer needs no PIN, whatever the amount (BR-WF-09)
-    stepUp: row.step.kind !== 'REVIEW' && stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang }),
+    stepUp: stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang, stepKind: row.step.kind }),
     review: row.step.kind === 'REVIEW' ? { ruleCodes: row.workflowRuleCodes } : null,
     priceBadge: price?.badge ?? null,
     flags,

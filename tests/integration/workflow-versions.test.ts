@@ -140,6 +140,8 @@ describe('[FR-WF-103/AC3] approval under DOA_CHANGE with a step-up, on the web o
     expect(await forTenant(org.organizationId).$transaction((tx) => outsideChannels(tx, 'WORKFLOW_VERSION', versionId))).toEqual({ chatButton: false, emailLink: false })
     expect(await prisma.actionToken.count({ where: { taskId: task.id } })).toBe(0)
     expect(await decideTask(org.ctxOf('ceo', LATER, 'LIFF'), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN', details: { reason: 'CHANNEL' } } })
+    // nor the PWA: the web and the BCS Go app only (BR-WF-12 · ADR-073 pre-review)
+    expect(await decideTask(org.ctxOf('ceo', LATER, 'PWA'), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN', details: { reason: 'CHANNEL' } } })
     // Every decision takes the step-up, whatever the amount (ALWAYS_STEP_UP_SUBJECTS)
     expect(await decideTask(org.ctxOf('ceo', LATER), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED' } })
     await pinStepUp(org.organizationId, org.member.ceo!, 'WORKFLOW_VERSION', versionId)
@@ -169,5 +171,29 @@ describe('[FR-WF-103/AC3] approval under DOA_CHANGE with a step-up, on the web o
     expect(ok(await decideTask(org.ctxOf('ceo', LATER), { taskId: task.id, decision: 'REJECT', reason: 'ยังไม่ถึงเวลา' }, key()))).toMatchObject({ documentStatus: 'REJECTED' })
     expect(await row(versionId)).toMatchObject({ status: 'REJECTED' })
     expect(await prisma.event.findFirstOrThrow({ where: { type: 'workflow_version.rejected', aggregateId: versionId } })).toMatchObject({ data: { reasonCommentId: expect.any(String) } })
+  })
+})
+
+describe('[FR-WF-103/AC3] a version behind one approved for a later time is refused, not broken (ADR-073 pre-review)', () => {
+  it('versions for 1 January and 1 February both wait; February is approved first; January is refused LATER_VERSION_SCHEDULED', async () => {
+    // later than the version already approved for 1 November in this file
+    const november = await readyDraft()
+    ok(await updateWorkflowVersion(admin(), { versionId: november.versionId, version: (await row(november.versionId)).version, effectiveDate: '2027-01-01', changeReason: 'ฉบับมกราคม', rules: [rule('RV-1')], testCases: [] }, key()))
+    ok(await dryRun(november.versionId))
+    const { versionId: december } = ok(await draftWorkflowVersion(admin(), { sourceVersionId: v1 }, key()))
+    ok(await updateWorkflowVersion(admin(), { versionId: december, version: (await row(december)).version, effectiveDate: '2027-02-01', changeReason: 'ฉบับกุมภาพันธ์', rules: [rule('RV-1')], testCases: [] }, key()))
+    ok(await dryRun(december))
+    ok(await submitWorkflowVersion(admin(), { versionId: november.versionId }, key()))
+    ok(await submitWorkflowVersion(admin(), { versionId: december }, key()))
+    const taskOf = (versionId: string) => prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'WORKFLOW_VERSION', subjectId: versionId } } } })
+    const decTask = await taskOf(december)
+    await pinStepUp(org.organizationId, decTask.assigneeMemberId, 'WORKFLOW_VERSION', december)
+    ok(await decideTask(org.ctxOf('ceo', LATER), { taskId: decTask.id, decision: 'APPROVE' }, key()))
+    const novTask = await taskOf(november.versionId)
+    await pinStepUp(org.organizationId, novTask.assigneeMemberId, 'WORKFLOW_VERSION', november.versionId)
+    expect(await decideTask(org.ctxOf('ceo', LATER), { taskId: novTask.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'LATER_VERSION_SCHEDULED' } } })
+    expect(await row(november.versionId)).toMatchObject({ status: 'PENDING_APPROVAL' })
+    // rejecting it still works
+    ok(await decideTask(org.ctxOf('ceo', LATER), { taskId: novTask.id, decision: 'REJECT', reason: 'มีฉบับกุมภาพันธ์แล้ว' }, key()))
   })
 })

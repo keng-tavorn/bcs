@@ -87,10 +87,11 @@ export function pinAttemptsLeft(failedCount: number): number {
 export const ALWAYS_STEP_UP_SUBJECTS: readonly string[] = ['DOA_VERSION', 'ORG_AUTHORITY_CHANGE', 'WORKFLOW_VERSION', 'BANK_ACCOUNT_CHANGE']
 
 /**
- * The kind of step a task is on. Every step is an approval until S6 adds the parallel reviewers' steps (BR-WF-09,
- * INV-WF-04), whose rule for a step-up S6 writes here: the one place every decision, the LINE card and the task list ask.
+ * The kind of step a task is on: an approval, or a step of the parallel reviewers (S6 · BR-WF-09, INV-WF-04), who need
+ * no step-up whatever the amount. The one place every decision, the LINE card, its button, the e-mail link and the task
+ * list ask.
  */
-export type StepKind = 'APPROVAL'
+export type StepKind = 'APPROVAL' | 'REVIEW'
 
 /** What the rule reads from an approval route and its DOA version */
 export interface StepUpRoute {
@@ -109,6 +110,8 @@ export interface StepUpRoute {
  * threshold comes from the DOA version (the customer's figure, OQ-07), never from code (P-2).
  */
 export function stepUpNeeded(route: StepUpRoute): boolean {
+  // BR-WF-09: a reviewer passes, returns or asks without a step-up, from the chat button too
+  if (route.stepKind === 'REVIEW') return false
   if (ALWAYS_STEP_UP_SUBJECTS.includes(route.subjectType)) return true
   return route.amountSatang !== null && route.stepUpThresholdSatang !== null && route.amountSatang >= route.stepUpThresholdSatang
 }

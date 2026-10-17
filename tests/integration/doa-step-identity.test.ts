@@ -5,9 +5,10 @@ import { systemCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { ruleJson } from '@/server/doa/snapshot'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
+import { getRequestView } from '@/server/queries/requests'
 import { decideTask } from '@/server/services/approvals/decide'
 import { createDelegation } from '@/server/services/delegations'
-import { applyDueChange, previewOrgChange } from '@/server/services/org-authority'
+import { applyDueChange, previewOrgChange, proposeOrgChange } from '@/server/services/org-authority'
 import { startDelegationWindow } from '@/server/services/sla'
 import { createDraft, submitRequest } from '../support/requests'
 import { versionSnapshots } from '../golden/doa-fixtures'
@@ -22,7 +23,7 @@ import { pinStepUp } from '../support/pin'
 // slot to someone who decided another slot, and a decision of a second slot by the same person is refused.
 //
 // The S6 fixture (org-s6.yaml): purchase requests of 20,000–100,000 VAT included go to the DM of the charged
-// department, then its VP, then the COO; above 100,000 to a committee of COO and CFO, both needed.
+// department, then its VP, then the COO; above 100,000 to a committee of COO and CFO, both needed, then the CEO.
 
 const key = () => ({ idempotencyKey: randomUUID(), sender: null })
 const ok = <T,>(r: { ok: true; data: T } | { ok: false; error: unknown }): T => {
@@ -50,7 +51,10 @@ beforeAll(async () => {
   }
   const committee: DoaRuleSnapshot = {
     ...base.find((r) => r.code === 'PR-03')!,
-    steps: [{ approvers: [{ kind: 'POSITION_OF_ORG', position: 'COO' }, { kind: 'POSITION_OF_ORG', position: 'CFO' }], slaBusinessMinutes: 480, mode: 'PARALLEL', quorum: 'ALL' }],
+    steps: [
+      { approvers: [{ kind: 'POSITION_OF_ORG', position: 'COO' }, { kind: 'POSITION_OF_ORG', position: 'CFO' }], slaBusinessMinutes: 480, mode: 'PARALLEL', quorum: 'ALL' },
+      { approver: { kind: 'POSITION_OF_ORG', position: 'CEO' }, slaBusinessMinutes: 480, mode: 'SEQUENTIAL' },
+    ],
   }
   await prisma.doaRule.updateMany({ where: { doaVersionId: version.id, code: 'PR-02' }, data: { steps: ruleJson(three).steps } })
   await prisma.doaRule.updateMany({ where: { doaVersionId: version.id, code: 'PR-03' }, data: { steps: ruleJson(committee).steps } })
@@ -101,6 +105,9 @@ describe('[BR-WF-02] one member decides one slot of a step', () => {
     const requestId = await sent(day(8, 3), '150000.00')
     const [coo, cfo] = await openTasks(requestId)
     expect([codeOf(coo!.assigneeMemberId), codeOf(cfo!.assigneeMemberId)]).toEqual(['coo', 'cfo'])
+    // the request page names who approves the step after the committee (FR-INT-008 AC1), the rule's committee read too
+    const view = await getRequestView(org.ctxOf('req_con', day(8, 3)), requestId)
+    expect(view!.route!.steps.map((s) => s.expected)).toEqual([null, { kind: 'POSITION', positionCode: 'CEO', position: expect.any(Object) }])
     await pinStepUp(org.organizationId, coo!.assigneeMemberId, 'REQUEST', requestId)
     ok(await decideTask(org.ctxOf('coo', day(8, 4)), { taskId: coo!.id, decision: 'APPROVE' }, key()))
 
@@ -135,5 +142,33 @@ describe('[FR-WF-104/AC2] a department move re-resolves an open task from its ow
     ok(await applyDueChange(systemCtx(org.organizationId, at, 'org-authority-apply'), { changeId: change.id }, key()))
     const [still] = await openTasks(requestId)
     expect([still!.id, codeOf(still!.assigneeMemberId)]).toEqual([cooTask!.id, 'coo'])
+  })
+})
+
+describe('[FR-DOA-010/AC2] an authority change under an ORG_AUTHORITY_CHANGE rule of two steps is approved step by step', () => {
+  it('the COO approves step 1, the CEO gets step 2, and the change is approved once the CEO approves (no MULTI_STEP refusal)', async () => {
+    const version = await prisma.doaVersion.findFirstOrThrow({ where: { organizationId: org.organizationId, versionNo: 1 } })
+    const base = versionSnapshots('fixtures/doa-versions.yaml')[0]!.rules.find((r) => r.code === 'ORG-CHG-01')!
+    const twoSteps: DoaRuleSnapshot = {
+      ...base,
+      steps: [
+        { approver: { kind: 'POSITION_OF_ORG', position: 'COO' }, slaBusinessMinutes: 960, mode: 'SEQUENTIAL' },
+        { approver: { kind: 'POSITION_OF_ORG', position: 'CEO' }, slaBusinessMinutes: 960, mode: 'SEQUENTIAL' },
+      ],
+    }
+    await prisma.doaRule.updateMany({ where: { doaVersionId: version.id, code: 'ORG-CHG-01' }, data: { steps: ruleJson(twoSteps).steps } })
+    const at = day(12, 3)
+    const proposed = ok(await proposeOrgChange(org.ctxOf('admin', at), { kind: 'POSITION_ASSIGN', payload: { positionCode: 'DM', departmentId: org.department.IT!, memberId: org.member.fin_officer! }, effectiveFrom: day(20, 1).toISOString(), reason: 'แต่งตั้งตามคำสั่งบริษัท' }, key()))
+    const decide = async (code: string, when: Date) => {
+      const [task] = await openTasks(proposed.changeId)
+      expect(codeOf(task!.assigneeMemberId)).toBe(code)
+      await pinStepUp(org.organizationId, task!.assigneeMemberId, 'ORG_AUTHORITY_CHANGE', proposed.changeId)
+      return ok(await decideTask(org.ctxOf(code, when), { taskId: task!.id, decision: 'APPROVE' }, key()))
+    }
+    expect(await decide('coo', day(12, 4))).toMatchObject({ documentStatus: 'PENDING_APPROVAL' })
+    expect((await prisma.orgAuthorityChange.findUniqueOrThrow({ where: { id: proposed.changeId } })).status).toBe('PENDING_APPROVAL')
+    await decide('ceo', day(12, 5))
+    expect((await prisma.orgAuthorityChange.findUniqueOrThrow({ where: { id: proposed.changeId } })).status).not.toBe('PENDING_APPROVAL')
+    expect(await openTasks(proposed.changeId)).toEqual([])
   })
 })

@@ -136,4 +136,9 @@ describe('[BR-TOK-05] which decisions need a step-up (BR-DOA-15)', () => {
     expect(stepUpNeeded({ subjectType: 'REQUEST', amountSatang: 999_999_999_999n, stepUpThresholdSatang: null })).toBe(false)
     expect(stepUpNeeded({ subjectType: 'VARIANCE', amountSatang: null, stepUpThresholdSatang: threshold })).toBe(false)
   })
+
+  it('[BR-WF-09] a reviewer needs none, whatever the amount; an approval step as before', () => {
+    expect(stepUpNeeded({ subjectType: 'REQUEST', amountSatang: 10_000_000n, stepUpThresholdSatang: threshold, stepKind: 'REVIEW' })).toBe(false)
+    expect(stepUpNeeded({ subjectType: 'REQUEST', amountSatang: 10_000_000n, stepUpThresholdSatang: threshold, stepKind: 'APPROVAL' })).toBe(true)
+  })
 })

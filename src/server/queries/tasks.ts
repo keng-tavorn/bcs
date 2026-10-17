@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { DOA_DOCUMENT_TYPES, stepApprovers, type DoaRuleSnapshot, type DoaStepSpec } from '@/core/doa'
 import type { ApprovalSubject } from '@/core/sod'
-import { stepUpNeeded } from '@/core/pin'
+import { stepUpNeeded, type StepKind } from '@/core/pin'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantDb, type TenantTx } from '@/server/db/tenant'
 import { comparisonBaselineId } from './doa'
@@ -80,8 +80,8 @@ const STEP_UP_ROUTE = { subjectType: true, subjectId: true, amountSatang: true, 
  * FR-AUTH-005 AC2, BR-DOA-15: deciding this task needs the PIN — every policy task, and every task whose amount the DOA
  * counted is at or above its version's stepUpThreshold (the rule of src/core/pin the deciding commands apply)
  */
-const needsStepUp = (route: { subjectType: string; amountSatang: bigint | null; doaVersion: { stepUpThresholdSatang: bigint | null } }) =>
-  stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang })
+const needsStepUp = (route: { subjectType: string; amountSatang: bigint | null; doaVersion: { stepUpThresholdSatang: bigint | null } }, stepKind?: StepKind) =>
+  stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang, ...(stepKind ? { stepKind } : {}) })
 
 export type InboxSubjectDto =
   | {
@@ -205,7 +205,7 @@ const INBOX_TASK = {
 } as const
 
 /** A reviewer's task (S6 · BR-WF-09) needs no step-up, whatever the amount; every other as its route says */
-const stepUpOf = (step: { readonly kind: string; readonly route: Parameters<typeof needsStepUp>[0] }) => step.kind !== 'REVIEW' && needsStepUp(step.route)
+const stepUpOf = (step: { readonly kind: StepKind; readonly route: Parameters<typeof needsStepUp>[0] }) => needsStepUp(step.route, step.kind)
 
 async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { subjectType: string; subjectId: string } } }>): Promise<(type: string, id: string) => InboxSubjectDto> {
   const ids = (type: string) => [...new Set(tasks.filter((t) => t.step.route.subjectType === type).map((t) => t.step.route.subjectId))]

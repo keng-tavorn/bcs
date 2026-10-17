@@ -82,7 +82,7 @@ export interface SubjectAdapter {
    * FORBIDDEN reason CHANNEL (a workflow version is decided on the web only). On, a task that needs a step-up is still
    * refused in the chat and by e-mail (stepUpNeeded, checked by the central files).
    */
-  readonly channels: { chatButton(facts: SubjectFacts): boolean; readonly emailLink: boolean; readonly liff: boolean }
+  readonly channels: { chatButton(facts: SubjectFacts): boolean; readonly emailLink: boolean; readonly liff: boolean; /** false: never on the PWA (BR-WF-12); open when left out */ readonly pwa?: boolean }
   sodContext(facts: SubjectFacts): SubjectSod
 }
 

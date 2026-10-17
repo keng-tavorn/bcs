@@ -518,6 +518,25 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       expect(await db.event.count({ where: { type: { startsWith: 'budget' }, requestId: { startsWith: 'demo-history:pay:' } } })).toBe(0)
     })
 
+    it('[FR-AP-103/AC3] NEW-97: the invoice e-mails of the past went to the history’s fake sender at the time of their step; none waits for the job to e-mail a supplier', async () => {
+      const db = forTenant(organizationId)
+      expect(await db.supplierNotice.count({ where: { status: 'PENDING' } })).toBe(0)
+      const notices = await db.supplierNotice.findMany({ where: { subjectType: 'Invoice' }, select: { id: true, templateKey: true, subjectId: true, status: true, sentAt: true } })
+      // one received per invoice sent, one ready per invoice that became ready for payment
+      const invoices = await db.invoice.findMany({ where: { submittedAt: { not: null } }, select: { id: true, submittedAt: true, readyAt: true, rejectedAt: true } })
+      expect(notices.filter((n) => n.templateKey === 'supplier.invoice_received')).toHaveLength(invoices.length)
+      expect(notices.filter((n) => n.templateKey === 'supplier.invoice_ready')).toHaveLength(invoices.filter((i) => i.readyAt).length)
+      const byId = new Map(invoices.map((i) => [i.id, i]))
+      for (const n of notices) {
+        const invoice = byId.get(n.subjectId)!
+        const at = { 'supplier.invoice_ready': invoice.readyAt, 'supplier.invoice_rejected': invoice.rejectedAt }[n.templateKey] ?? invoice.submittedAt
+        expect({ status: n.status, sentAt: n.sentAt?.toISOString() }, n.templateKey).toEqual({ status: 'SENT', sentAt: at!.toISOString() })
+      }
+      // each with its supplier_notice.sent event at that time
+      const sent = await db.event.findMany({ where: { type: 'supplier_notice.sent', aggregateId: { in: notices.map((n) => n.id) } }, select: { aggregateId: true, occurredAt: true } })
+      expect(new Map(sent.map((e) => [e.aggregateId, e.occurredAt.toISOString()]))).toEqual(new Map(notices.map((n) => [n.id, n.sentAt!.toISOString()])))
+    })
+
     it('leaves a history made in full alone when the seed runs again', async () => {
       const workbook = await loadInputWorkbook(INPUT_WORKBOOKS.p1)
       const again = await seedDemoHistory(organizationId, parseHistory(workbook), clock.now, { pin: PIN, budgetKeys: budgetKeyLines(parseBudget(workbook)) })

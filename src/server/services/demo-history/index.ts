@@ -15,6 +15,7 @@ import { setEmailProvider } from '@/integrations/email-provider'
 import { checkBucket, putObject } from '@/integrations/storage'
 import { grantStepUp } from '@/server/auth/step-up'
 import { makeCtx, type Ctx } from '@/server/context'
+import { sendSupplierNotice, SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-notices'
 import { escapeLike } from '@/server/db/like'
 import { forTenant } from '@/server/db/tenant'
 import { effectiveSodPolicy, loadBusinessCalendar } from '@/server/doa/policy'
@@ -50,7 +51,7 @@ import { PAYMENT_HISTORY_KEY, seedPaymentHistory } from './payments'
 // hours after the submit, through the row's channel; a request still waiting has waited `hours` business hours at the
 // time of the seed (core subtractBusinessMinutes), which is what the board shows (FR-VIS-001). The route of every row
 // is checked against the rule, approver and escalation the sheet expects. Nothing is sent: the outbox of the past is
-// written suppressed and POs go to a mail provider that drops them. Every step has a fixed idempotency key, and an
+// written suppressed, and POs and the suppliers' e-mails about invoices (NEW-97) go to a mail provider that drops them. Every step has a fixed idempotency key, and an
 // organization whose history is made in full is left alone, so the seed can run again. A row CANCELLED is taken back by
 // its requester `hours` business hours after the send.
 // Rows APPROVED stay in the pool with the supplier only suggested, so a consolidation round does not take them before
@@ -849,6 +850,37 @@ async function withHistoryReady<T>(c: Context, options: DemoHistoryOptions, make
   }
 }
 
+/** The time of the step that wrote each invoice e-mail to a supplier (BR-AP-08) */
+const INVOICE_NOTICE_TIMES: Readonly<Record<string, 'submittedAt' | 'readyAt' | 'rejectedAt'>> = {
+  [SUPPLIER_TEMPLATES.invoiceReceived]: 'submittedAt',
+  [SUPPLIER_TEMPLATES.invoiceReady]: 'readyAt',
+  [SUPPLIER_TEMPLATES.invoiceRejected]: 'rejectedAt',
+}
+
+/**
+ * NEW-97 (BR-AP-08): the e-mails the invoices of the past wrote to their suppliers (received, ready for payment,
+ * rejected) went out at the time of the step that wrote them, through the history's fake sender (withHistoryReady), and
+ * are SENT with their event then: the job supplier-notice-send finds none of them PENDING, so no supplier of the demo
+ * is e-mailed about an invoice of the past (on staging its sweep runs every 30 minutes). Called after each row and after
+ * the inbox, well before the sweep takes a notice a minute old. A notice of a command after the seed is sent by the job.
+ */
+async function sendHistoryInvoiceNotices(c: Context): Promise<void> {
+  const db = forTenant(c.organizationId)
+  const pending = await db.supplierNotice.findMany({
+    where: { status: 'PENDING', subjectType: 'Invoice', templateKey: { in: Object.keys(INVOICE_NOTICE_TIMES) } },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, templateKey: true, subjectId: true },
+  })
+  if (pending.length === 0) return
+  const invoices = await db.invoice.findMany({ where: { id: { in: [...new Set(pending.map((n) => n.subjectId))] } }, select: { id: true, submittedAt: true, readyAt: true, rejectedAt: true } })
+  const byId = new Map(invoices.map((i) => [i.id, i]))
+  for (const notice of pending) {
+    const at = byId.get(notice.subjectId)?.[INVOICE_NOTICE_TIMES[notice.templateKey]!]
+    if (!at) throw new Error(`Demo_History: the ${notice.templateKey} e-mail of invoice ${notice.subjectId} has no time of the step that wrote it`)
+    await sendSupplierNotice(c.organizationId, notice.id, at)
+  }
+}
+
 /** Makes one part; `done` are every row decided or cancelled, in order (the payment runs and the inbox look at them all) */
 async function makePart(c: Context, part: DemoHistoryPart, rows: readonly DemoHistoryRow[], done: readonly DemoHistoryRow[]): Promise<DemoHistoryReport> {
   const db = forTenant(c.organizationId)
@@ -859,6 +891,7 @@ async function makePart(c: Context, part: DemoHistoryPart, rows: readonly DemoHi
       const row = byRef.get(ref)
       if (!row) throw new Error(`Demo_History: part names row ${ref}, which the sheet does not have`)
       await replay(c, row)
+      await sendHistoryInvoiceNotices(c)
       byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
     }
     return { seeded: true, byStatus }
@@ -878,7 +911,10 @@ async function makePart(c: Context, part: DemoHistoryPart, rows: readonly DemoHi
     return { seeded: true, byStatus }
   }
   // S8-12: what waits in the invoice inbox, after the history so FINANCE sees it as new
-  if (await db.orgModule.count({ where: { module: 'PAY', enabled: true } })) await historyInbox(c, done)
+  if (await db.orgModule.count({ where: { module: 'PAY', enabled: true } })) {
+    await historyInbox(c, done)
+    await sendHistoryInvoiceNotices(c)
+  }
   return { seeded: true, byStatus }
 }
 

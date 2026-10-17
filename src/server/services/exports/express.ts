@@ -162,7 +162,9 @@ async function apInvoiceRows(tx: TenantTx, where: object, dateFormat: 'BE' | 'CE
 
 /** Both tiers in the order of the file: recorded or ready first, first */
 async function allRows(tx: TenantTx, where: object, dateFormat: 'BE' | 'CE'): Promise<Row[]> {
-  const [one, two] = await Promise.all([invoiceRows(tx, where, dateFormat), apInvoiceRows(tx, where, dateFormat)])
+  // one query at a time on the transaction's connection (pg refuses queries sent while one runs)
+  const one = await invoiceRows(tx, where, dateFormat)
+  const two = await apInvoiceRows(tx, where, dateFormat)
   return [...one, ...two].sort((a, b) => a.at.getTime() - b.at.getTime() || (a.invoiceId < b.invoiceId ? -1 : 1))
 }
 

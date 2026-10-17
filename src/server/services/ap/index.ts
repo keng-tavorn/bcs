@@ -525,7 +525,11 @@ export const createDraftFromReadingCommand = defineCommand({
     if (input.supplierId && input.supplierId !== po.supplierId) return fail('VALIDATION_FAILED', 'the supplier is not the supplier of the purchase order', { field: 'supplierId', reason: 'SUPPLIER_NOT_PO' })
     if (input.aiAssist && input.aiAssist.agentActionId !== input.agentActionId) return fail('VALIDATION_FAILED', 'aiAssist is for another AI action', { field: 'aiAssist.agentActionId', reason: 'AGENT_ACTION_MISMATCH' })
     // Another organization's action is not found through this tenant (§4.8)
-    if ((await tx.agentAction.count({ where: { id: input.agentActionId } })) === 0) return fail('NOT_FOUND', 'no such AI action', { field: 'agentActionId' })
+    const reading = await tx.agentAction.findFirst({ where: { id: input.agentActionId }, select: { inputRefs: true } })
+    if (!reading) return fail('NOT_FOUND', 'no such AI action', { field: 'agentActionId' })
+    // FR-AI-303 AC6: the file is the one the reading read (the Document Agent checked it was the member's for this PO):
+    // any other file of the organization would be linked to the invoice and open to whoever reads it
+    if ((reading.inputRefs as { fileId?: unknown } | null)?.fileId !== file.id) return fail('VALIDATION_FAILED', 'the file is not the file the AI read', { field: 'fileId', reason: 'FILE_NOT_READ' })
     const track = await claimTrack(tx, po, 'MATCHING', true)
     if (!track.ok) return track
     if (await fileInUse(tx, file.id)) return fail('VALIDATION_FAILED', 'the invoice file is already the file of another invoice', { field: 'fileId', reason: 'FILE_IN_USE' })

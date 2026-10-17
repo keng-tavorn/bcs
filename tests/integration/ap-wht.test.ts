@@ -231,7 +231,7 @@ describe('[BR-WHT-03] every way a draft gets lines starts them with the supplier
     ])
     await prisma.purchaseOrder.update({ where: { id: po.id }, data: { kind: 'SERVICE' } })
     const fileId = (await prisma.fileObject.create({ data: { organizationId: juristic.org.organizationId, storageKey: `test/${randomUUID()}.jpg`, fileName: 'invoice.jpg', mimeType: 'image/jpeg', sizeBytes: 1, status: 'AVAILABLE', uploadedById: juristic.org.member.fin_officer! } })).id
-    const agentActionId = await invoiceReading(juristic, po.id)
+    const agentActionId = await invoiceReading(juristic, po.id, {}, fileId)
     const { invoiceId } = ok(await createDraftFromReading(fin(juristic), { fileId, poId: po.id, agentActionId, lines: [{ poLineId: po.lines[0]!.id, quantity: '1', unitPrice: '1000.00' }] }, key()))
     const lines = () => prisma.invoiceLine.findMany({ where: { invoiceId }, orderBy: { lineNo: 'asc' } })
     expect((await lines()).map((l) => l.whtIncomeTypeCode)).toEqual(['SERVICE'])

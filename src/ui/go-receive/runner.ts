@@ -86,7 +86,7 @@ async function uploadPhoto(photo: StoredPhoto, step: 'COMPLETE_SAME_TICKET' | 'R
 }
 
 /** Applies an answer to the queue as it is now; the photos of what was recorded go from the phone (BR-APP-09) */
-async function settle(apply: (items: readonly StoredItem[]) => Settled): Promise<Settled> {
+async function settle(apply: (items: readonly StoredItem[]) => Settled, known: Readonly<Record<string, number>>): Promise<Settled> {
   const out: { settled?: Settled; recorded: StoredItem[] } = { recorded: [] }
   await updateQueue((all) => {
     const settled = apply(all)
@@ -95,7 +95,7 @@ async function settle(apply: (items: readonly StoredItem[]) => Settled): Promise
     return settled.items as StoredItem[]
   })
   await dropPhotosOf(out.recorded)
-  return out.settled ?? { items: [], knownVersion: await readKnown(), photosLeft: 0, sent: [] }
+  return out.settled ?? { items: [], knownVersion: known, photosLeft: 0, sent: [] }
 }
 
 /** The item about to be posted, frozen as it is now in the queue; null when it is no longer there */
@@ -125,7 +125,8 @@ async function drain(ctx: DrainContext): Promise<Drained> {
   let signedOut = false
   for (let guard = 0; guard < DRAIN_STEPS_MAX; guard++) {
     const items = await readQueue()
-    const known = await readKnown()
+    // the versions this member's own receipts were answered with (BR-APP-06), never another member's on the same phone
+    const known = ctx.session ? await readKnown(ctx.session) : {}
     // An item waiting for its check goes first: never with a new key (BR-APP-07)
     const checking = items.filter((i) => i.status === 'CHECK_SERVER' && i.by === ctx.session)
     if (checking.length && ctx.online()) {
@@ -141,8 +142,8 @@ async function drain(ctx: DrainContext): Promise<Drained> {
             ? { recorded: true, ok: true, poVersion: body.result.data?.poVersion ?? knownFor(item, known)[item.poId]! }
             : { recorded: true, ok: false, code: body.result?.error?.code ?? 'UNKNOWN' }
       }
-      const settled = await settle((all) => applyLookups(all, lookups, iso(ctx.now()), known))
-      await writeKnown(settled.knownVersion)
+      const settled = await settle((all) => applyLookups(all, lookups, iso(ctx.now()), known), known)
+      if (ctx.session) await writeKnown(ctx.session, settled.knownVersion)
       continue
     }
     const step = nextStep({ now: iso(ctx.now()), online: ctx.online(), session: ctx.session, items, knownVersion: known, retentionDays: ctx.retentionDays })
@@ -164,7 +165,7 @@ async function drain(ctx: DrainContext): Promise<Drained> {
       }
       if (stop) {
         const answer = stop
-        await settle((all) => applyAnswer(all, item.key, answer, iso(ctx.now()), known))
+        await settle((all) => applyAnswer(all, item.key, answer, iso(ctx.now()), known), known)
         if (stop.http === 401) signedOut = true
         if (stop.network || stop.http === 401) return { signedOut }
       }
@@ -190,8 +191,8 @@ async function drain(ctx: DrainContext): Promise<Drained> {
     const result = posted.body as { poVersion?: unknown } | null
     const ok = (posted.answer.http ?? 0) >= 200 && (posted.answer.http ?? 0) < 300
     const answer: Answer = ok ? { http: posted.answer.http!, ...(typeof result?.poVersion === 'number' ? { poVersion: result.poVersion } : {}) } : posted.answer
-    const settled = await settle((all) => applyAnswer(all, sending.key, answer, iso(ctx.now()), known))
-    await writeKnown(settled.knownVersion)
+    const settled = await settle((all) => applyAnswer(all, sending.key, answer, iso(ctx.now()), known), known)
+    if (ctx.session) await writeKnown(ctx.session, settled.knownVersion)
     if (posted.answer.http === 401) return { signedOut: true }
     if (posted.answer.network || (posted.answer.http ?? 0) >= 500) return { signedOut }
   }

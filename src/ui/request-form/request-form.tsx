@@ -145,6 +145,11 @@ export function RequestForm({
   const aiSent = useRef(new Map<string, string>())
   /** Asks for one more save (set once the autosave exists): an AI reading still to tell the server goes with it */
   const saveAgain = useRef<() => void>(() => undefined)
+  /**
+   * A draft that saved no budget line opens with the line BR-FORM-02 fills (a reorder copies none, BR-FORM-07): no edit
+   * marks it, so until a save carries it the send saves it first and goes with the line the page shows
+   */
+  const filledLineUnsaved = useRef(Boolean(data.draft && !data.draft.budgetLineId))
   const headingRef = useRef<HTMLHeadingElement>(null)
   const headerRef = useRef<HTMLElement>(null)
   const sectionRef = useRef<HTMLElement>(null)
@@ -338,7 +343,9 @@ export function RequestForm({
     setSubmitError(null)
     setSubmitting(true)
     try {
+      if (filledLineUnsaved.current && valuesRef.current.budgetLineId) changed()
       let saved = await autosave.saveNow({ force: true })
+      if (saved) filledLineUnsaved.current = false
       // Every AI reading goes with a save of its own before the request is sent, so the server checks them all
       for (let i = 0; saved && i < values.quotations.length && aiUnsent(valuesRef.current, aiSent.current); i++) saved = await autosave.saveNow({ force: true })
       const id = autosave.id()

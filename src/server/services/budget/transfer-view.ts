@@ -17,7 +17,8 @@ export interface TransferLineChoiceDto {
   readonly nameTh: string
   readonly departmentId: string
   readonly departmentCode: string
-  readonly available: MoneyDto
+  /** What is left to use, for a member who may view the line's budget (budget.view); null otherwise (§2.4: DEPT scope) */
+  readonly available: MoneyDto | null
   /** The member may give from this line (TRANSFER, DECREASE) */
   readonly canGive: boolean
   /** The member may raise this line alone (INCREASE): BUDGET_ADMIN, or its department's head */
@@ -157,7 +158,9 @@ export async function getTransferForm(ctx: Ctx): Promise<Result<TransferFormDto>
       ruleInEffect: (version?.rules.length ?? 0) > 0,
       lines: lines.map((l) => {
         const own = isAllowed(principal, 'budget.transfer.submit', { departmentId: l.departmentId })
-        return { id: l.id, code: l.code, nameTh: l.nameTh, departmentId: l.departmentId, departmentCode: l.department.code, available: toMoneyDto(l.balance?.availableSatang ?? 0n), canGive: own, canIncrease: own }
+        // A department head sees the balance of the lines whose budget they may view, not every department's (§2.4)
+        const visible = isAllowed(principal, 'budget.view', { departmentId: l.departmentId })
+        return { id: l.id, code: l.code, nameTh: l.nameTh, departmentId: l.departmentId, departmentCode: l.department.code, available: visible ? toMoneyDto(l.balance?.availableSatang ?? 0n) : null, canGive: own, canIncrease: own }
       }),
     })
   })

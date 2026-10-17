@@ -51,6 +51,7 @@
     "lineDecrease": "Line to decrease",
     "choose": "Choose a budget line",
     "lineOption": "{code} · {name} ({department}) available {available} baht",
+    "lineOptionNoAmount": "{code} · {name} ({department})",
     "available": "Available to use {amount} baht",
     "amount": "Amount (baht)",
     "amountHint": "No VAT · up to 2 decimals, e.g. 300000 or 300000.50",

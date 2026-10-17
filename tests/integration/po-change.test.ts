@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
 import { recheckPoInvoices } from '@/server/services/ap/exceptions'
+import { cancelPurchaseOrder, closePurchaseOrder } from '@/server/services/purchase-orders'
 import { cancelPoChange, createPoChange, sendPoRevision, submitPoChange } from '@/server/services/purchase-orders/change'
 import { verifyDocument } from '@/server/services/documents/verification'
 import { verificationToken } from '@/server/verification/token'
@@ -171,5 +172,41 @@ describe('[FR-AP-107/AC5] a DOA without a PO_CHANGE rule (as DEMO)', () => {
     expect(await createPoChange(org.ctxOf('proc_officer', AP_NOW), { poId: po.id, reason: 'x', lines: [{ poLineId: po.lines[0]!.id, newUnitPrice: '1100.00' }] }, key())).toMatchObject({ ok: false, error: { code: 'DOA_NOT_CONFIGURED' } })
     expect(await prisma.poChange.count({ where: { poId: po.id } })).toBe(0)
     expect(await prisma.budgetLineBalance.findUniqueOrThrow({ where: { budgetLineId } })).toEqual(before)
+  })
+})
+
+describe('[BR-POC-01] a PO with a change not finished is neither cancelled nor closed; a line closed short changes no quantity (ADR-073 pre-review)', () => {
+  it('cancel and close are PO_CHANGE_OPEN while the change waits; once it is cancelled the PO is cancelled and an approval of nothing is left', async () => {
+    const po = await sentPo(ap, [{ quantity: '10', unitPrice: '1000.00' }])
+    const line = po.lines[0]!
+    const drafted = ok(await createPoChange(proc(), { poId: po.id, reason: 'ราคาเหล็กขึ้น', lines: [{ poLineId: line.id, newUnitPrice: '1100.00' }] }, key()))
+    ok(await submitPoChange(proc(), { poChangeId: drafted.poChangeId, version: await versionOf(drafted.poChangeId) }, key()))
+    expect(await cancelPurchaseOrder(proc(), { poId: po.id, disposition: 'RETURN_TO_POOL', reason: 'ผู้ขายเลิกกิจการ' }, key())).toMatchObject({ ok: false, error: { code: 'PO_CHANGE_OPEN' } })
+    expect(await closePurchaseOrder(proc(), { poId: po.id }, key())).toMatchObject({ ok: false })
+    expect(await held(line.id)).toMatchObject({ reservedSatang: 100_000n, committedSatang: 1_000_000n })
+    ok(await cancelPoChange(proc(), { poChangeId: drafted.poChangeId, version: await versionOf(drafted.poChangeId), reason: 'ไม่แก้แล้ว' }, key()))
+    ok(await cancelPurchaseOrder(proc(), { poId: po.id, disposition: 'RETURN_TO_POOL', reason: 'ผู้ขายเลิกกิจการ' }, key()))
+  })
+
+  it('a change approved after its PO was cancelled is refused, and nothing is committed on the cancelled PO', async () => {
+    const po = await sentPo(ap, [{ quantity: '10', unitPrice: '1000.00' }])
+    const line = po.lines[0]!
+    const drafted = ok(await createPoChange(proc(), { poId: po.id, reason: 'ราคาเหล็กขึ้น', lines: [{ poLineId: line.id, newUnitPrice: '1100.00' }] }, key()))
+    ok(await submitPoChange(proc(), { poChangeId: drafted.poChangeId, version: await versionOf(drafted.poChangeId) }, key()))
+    // a PO cancelled behind the change's back (as before this fix)
+    await prisma.purchaseOrder.update({ where: { id: po.id }, data: { status: 'CANCELLED' } })
+    expect(await approveByDoa(drafted.poChangeId)).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { from: 'CANCELLED' } } })
+    expect(await prisma.poLine.findUniqueOrThrow({ where: { id: line.id } })).toMatchObject({ unitPriceSatang: 100_000n })
+  })
+
+  it('the quantity of a line closed short does not change (CLOSED_SHORT); its price still may', async () => {
+    const po = await sentPo(ap, [
+      { quantity: '10', unitPrice: '100.00' },
+      { quantity: '5', unitPrice: '100.00' },
+    ])
+    await receive(ap, po, { 0: '6' })
+    await prisma.poLine.update({ where: { id: po.lines[0]!.id }, data: { cancelledQuantity: '4' } })
+    expect(await createPoChange(proc(), { poId: po.id, reason: 'ลดจำนวน', lines: [{ poLineId: po.lines[0]!.id, newQuantity: '6' }] }, key())).toMatchObject({ ok: false, error: { code: 'PO_CHANGE_BELOW_PROGRESS', details: { reason: 'CLOSED_SHORT' } } })
+    ok(await createPoChange(proc(), { poId: po.id, reason: 'ลดราคา', lines: [{ poLineId: po.lines[0]!.id, newUnitPrice: '95.00' }] }, key()))
   })
 })

@@ -4069,6 +4069,7 @@
       "lineDecrease": "Line to decrease",
       "lineIncrease": "Line to increase",
       "lineOption": "{code} · {name} ({department}) available {available} baht",
+      "lineOptionNoAmount": "{code} · {name} ({department})",
       "openDraft": "Open the saved draft",
       "reason": "Reason",
       "reasonHint": "The approvers read this · at least 3 characters",

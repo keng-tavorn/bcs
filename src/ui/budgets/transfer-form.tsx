@@ -87,7 +87,8 @@ export function TransferForm({ lines, actions }: { lines: readonly TransferLineO
     if (e) return t(`errors.${e.key}`, { shortfall: e.shortfall ?? '' })
     return failure?.field === field ? failure.text : undefined
   }
-  const lineLabel = (l: TransferLineOption) => t('form.lineOption', { code: l.code, name: l.nameTh, department: l.departmentCode, available: moneyText(l.available) })
+  const lineLabel = (l: TransferLineOption) =>
+    l.available ? t('form.lineOption', { code: l.code, name: l.nameTh, department: l.departmentCode, available: moneyText(l.available) }) : t('form.lineOptionNoAmount', { code: l.code, name: l.nameTh, department: l.departmentCode })
   const fromLabel = kind === 'DECREASE' ? t('form.lineDecrease') : t('form.from')
   const toLabel = kind === 'INCREASE' ? t('form.lineIncrease') : t('form.to')
 
@@ -190,7 +191,7 @@ export function TransferForm({ lines, actions }: { lines: readonly TransferLineO
               </NativeSelectOption>
             ))}
           </NativeSelect>
-          {source ? <Hint id={`${id}-from`}>{t('form.available', { amount: moneyText(source.available) })}</Hint> : null}
+          {source?.available ? <Hint id={`${id}-from`}>{t('form.available', { amount: moneyText(source.available) })}</Hint> : null}
           {fieldError('from') ? <FieldError id={`${id}-from`}>{fieldError('from')}</FieldError> : null}
         </div>
       ) : null}

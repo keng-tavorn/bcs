@@ -4069,6 +4069,7 @@
       "lineDecrease": "บรรทัดที่ปรับลด",
       "lineIncrease": "บรรทัดที่ปรับเพิ่ม",
       "lineOption": "{code} · {name} ({department}) คงเหลือ {available} บาท",
+      "lineOptionNoAmount": "{code} · {name} ({department})",
       "openDraft": "เปิดร่างที่บันทึกไว้",
       "reason": "เหตุผล",
       "reasonHint": "ผู้อนุมัติจะเห็นข้อความนี้ · อย่างน้อย 3 ตัวอักษร",

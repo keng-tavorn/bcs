@@ -22,6 +22,7 @@ import { budgetRefusalFor, poBudgetLines, releaseCancelledPo, reserveForPo } fro
 import { unmergeableLine } from '../budget/overrun-use'
 import { issueDocumentVerification } from '../documents/verification'
 import { completeFinishedRequests, unorderSourceLines } from './requests'
+import { hasOpenChange } from './close'
 
 export { closePurchaseOrder } from './close'
 export { previewPoSubmit, type PoRoutePreviewDto, type PoSubmitPreviewDto } from './preview'
@@ -32,7 +33,7 @@ export { previewPoSubmit, type PoRoutePreviewDto, type PoSubmitPreviewDto } from
 // number, today's VAT rate and the budget delta reserved, or nothing at all; an approved PO is cancelled with a
 // disposition for its request lines and a reason. Every PO line comes from request lines (OQ-24).
 
-type FailCode = 'VALIDATION_FAILED' | 'NOT_FOUND' | 'CONFLICT_VERSION' | 'INVALID_STATE_TRANSITION' | 'TAX_RATE_NOT_CONFIGURED'
+type FailCode = 'VALIDATION_FAILED' | 'NOT_FOUND' | 'CONFLICT_VERSION' | 'INVALID_STATE_TRANSITION' | 'TAX_RATE_NOT_CONFIGURED' | 'PO_CHANGE_OPEN'
 const fail = (code: FailCode, message: string, details?: Record<string, unknown>) => ({ ok: false, error: { code, message, ...(details ? { details } : {}) } }) as const
 
 const MIN_REASON_LENGTH = 3
@@ -308,6 +309,7 @@ export const cancelPoCommand = defineCommand({
     if (!po) return fail('NOT_FOUND', 'purchase order not found')
     const moved = transition(PO_MACHINE, po.status as PoState, 'po.cancel')
     if (!moved.ok) return fail('INVALID_STATE_TRANSITION', `po.cancel is not allowed from ${po.status}`, { from: po.status, command: 'po.cancel' })
+    if (await hasOpenChange(tx, po.id)) return fail('PO_CHANGE_OPEN', 'the purchase order has a change that is not finished')
     // §6.4: nothing received yet
     if (await tx.goodsReceipt.count({ where: { poId: po.id, status: 'POSTED' } })) return fail('INVALID_STATE_TRANSITION', 'goods were received on this purchase order', { from: po.status, command: 'po.cancel', reason: 'GR_POSTED' })
     const requestIds = await lockSourceRequests(tx, ctx, po)

@@ -752,8 +752,8 @@ async function partStarted(organizationId: string, part: DemoHistoryPart): Promi
   const db = forTenant(organizationId)
   if (part.kind === 'INBOX') {
     // the inbox mails of a row are keyed demo-history:<ref>:inbox
-    const inbox = { startsWith: escapeLike(HISTORY_KEY), endsWith: ':inbox' }
-    return (await db.event.count({ where: { requestId: inbox } })) + (await db.commandLog.count({ where: { idempotencyKey: { contains: escapeLike(HISTORY_KEY), endsWith: ':inbox' } } })) > 0
+    const inbox = { startsWith: escapeLike(HISTORY_KEY), endsWith: escapeLike(':inbox') }
+    return (await db.event.count({ where: { requestId: inbox } })) + (await db.commandLog.count({ where: { idempotencyKey: { contains: escapeLike(HISTORY_KEY), endsWith: escapeLike(':inbox') } } })) > 0
   }
   const prefixes = 'refs' in part ? part.refs.map((ref) => `${HISTORY_KEY}${ref}:`) : part.kind === 'PAYMENTS' ? [PAYMENT_HISTORY_KEY] : [`${HISTORY_KEY}read:`]
   const events = await db.event.count({ where: { OR: prefixes.map((p) => ({ requestId: { startsWith: escapeLike(p) } })) } })

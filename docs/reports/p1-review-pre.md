@@ -76,6 +76,7 @@
 
 - `pnpm verify` (หลังรวม main `200eec7` · ก่อนแก้ property test): 15 PASS · 2 FAIL (property INV-WF-01 จากช่อง `ruleStepNo` และ coverage ที่ล้มตามเพราะรันชุดเดียวกัน) · integration 208 ไฟล์ 2,049 เคสผ่าน · หลังแก้ property: unit golden property 249 ไฟล์ 2,993 เคสผ่าน และ coverage ของ engine เงินและอำนาจ branch 100% (1,900/1,900)
 - `pnpm test:e2e --grep @demo` (ส่งชุดแรกเข้า main): 9 ฉากผ่าน (9.2 นาที)
+- ชุดที่สอง (`375b939` ถึง `c61f58e`): `pnpm verify` 17 PASS 0 FAIL (unit 2,216 · integration 2,052 · coverage branch 100% 1,907/1,907) · `pnpm test:e2e --grep @demo` 9 ฉากผ่าน (13.3 นาที · รันหลัง `@p1demo` ของ main จบ)
 
 ## ข้อควรรู้ตอนแชต main รวมงานนี้ (2026-10-17)
 

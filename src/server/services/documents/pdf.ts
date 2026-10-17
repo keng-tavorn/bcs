@@ -5,6 +5,7 @@ import { forTenant } from '@/server/db/tenant'
 import { printablePurchaseOrder, printableRequest, type PrintableDocument } from '@/server/pdf/printable'
 import { renderPdf } from '@/server/pdf/render'
 import { verifyUrlOf } from './verification'
+import { requestViewScope } from '../requests/view-scope'
 
 // The printed PR and PO (spec FR-PLT-009 AC1 AC2): rendered on demand from the document as it stands, for whoever may
 // see it — request.view and po.view with their scopes (§2.4). Reading and rendering only; a download changes nothing.
@@ -28,14 +29,11 @@ export async function requestPrintable(ctx: Ctx, requestId: string): Promise<Res
   if (!UUID.test(requestId)) return err('NOT_FOUND', 'request not found')
   const db = forTenant(ctx.organizationId)
   const document = await db.$transaction(async (tx) => {
-    const request = await tx.request.findUnique({ where: { id: requestId }, select: { id: true, requesterMemberId: true, chargedDepartmentId: true, followers: { select: { memberId: true } } } })
-    if (!request) return err('NOT_FOUND', 'request not found')
-    const tasks = await tx.approvalTask.findMany({ where: { step: { route: { subjectType: 'REQUEST', subjectId: request.id } } }, select: { assigneeMemberId: true, principalMemberId: true } })
-    const allowed = await authorize(tx, ctx, 'request.view', {
-      ownerMemberIds: [request.requesterMemberId, ...request.followers.map((f) => f.memberId)],
-      assigneeMemberIds: tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId]).filter((m): m is string => Boolean(m)),
-      departmentId: request.chargedDepartmentId,
-    })
+    // The scope of the request page (requestViewScope): its approvers include those of its over-budget approvals (S6-16)
+    const scope = await requestViewScope(tx, requestId)
+    if (!scope) return err('NOT_FOUND', 'request not found')
+    const request = { id: requestId }
+    const allowed = await authorize(tx, ctx, 'request.view', scope)
     if (!allowed.ok) return allowed
     // S6-19: the QR of the latest verification row (read only: a download never issues one)
     return ok({ ...(await printableRequest(tx, ctx.organizationId, request.id, ctx.now)), verifyUrl: await verifyUrlOf(tx, { subjectType: 'REQUEST', subjectId: request.id }) })

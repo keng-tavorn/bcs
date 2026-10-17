@@ -4,6 +4,7 @@ import type { CommitteeStepSpec, DoaRuleSnapshot } from '@/core/doa'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
+import { getTaskView } from '@/server/queries/tasks'
 import { ruleJson } from '@/server/doa/snapshot'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { decideByActionLink } from '@/server/services/approvals/action-link'
@@ -295,5 +296,17 @@ describe('[INV-WF-02] a member holds at most one slot of a step', () => {
     } finally {
       await prisma.positionAssignment.update({ where: { id: held.id }, data: { memberId: org.member.dm_proc! } })
     }
+  })
+})
+
+describe('[FR-DOA-004/AC2] a slot closed by its step names the decision that closed it (ADR-073 pre-review)', () => {
+  it('two of three approve at different times: the third is told the second approved it (the deciding vote), with why STEP_DECIDED', async () => {
+    const requestId = await submittedRequest()
+    const { tasks } = await tasksOf(requestId)
+    ok(await decide(tasks[0]!.id, tasks[0]!.assigneeMemberId, 'APPROVE', LATER))
+    const second = new Date(LATER.getTime() + 60 * 60_000)
+    ok(await decide(tasks[1]!.id, tasks[1]!.assigneeMemberId, 'APPROVE', second))
+    const view = await getTaskView(org.ctxOf(codeOf(tasks[2]!.assigneeMemberId), second), tasks[2]!.id)
+    expect(view).toMatchObject({ status: 'CANCELLED', cancelledWhy: 'STEP_DECIDED', stepDecision: { decision: 'APPROVE', decidedBy: { id: tasks[1]!.assigneeMemberId }, decidedAt: second } })
   })
 })

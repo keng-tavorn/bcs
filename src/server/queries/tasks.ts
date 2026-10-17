@@ -854,19 +854,29 @@ const DECIDABLE = { id: true, stepId: true, status: true, decision: true, decide
  * The decision that closed a task — the one rule of every answer "ดำเนินการแล้วโดย … เมื่อ …" (FR-DOA-004 AC2, §9.3,
  * ADR-050 item 4): the decision page, a late decision on the web or in LIFF, the LINE button and the e-mail link. Its
  * own decision; or, for a task cancelled or moved with nothing decided of its own — the other approver of an escalated
- * step decided first (BR-SLA-04, CO_ASSIGNEE_DECIDED), or the delegate it moved to decided it — the first decision on
- * its step. null: nothing was decided (the task is still open, waits for an answer, or closed with its route: the
+ * step decided first (BR-SLA-04, CO_ASSIGNEE_DECIDED), or the delegate it moved to decided it — the first decision of
+ * its slot; or, for a slot a committee or reviewer step closed without it (GROUP_DECIDED, STEP_DECIDED · BR-WF-01), the
+ * last decision on the step up to the moment it closed, which completed the group or the step. null: nothing was decided (the task is still open, waits for an answer, or closed with its route: the
  * request cancelled, the route replaced). Reads with the caller's client: a query's, or the transaction of a command
  * that holds the task's lock. Names come back only to callers that checked who may act on the task first.
  */
-export async function closingDecisionOf(db: Pick<TenantTx, 'approvalTask' | 'member'>, task: DecidableTask): Promise<ClosingDecision | null> {
+export async function closingDecisionOf(db: Pick<TenantTx, 'approvalTask' | 'member' | 'event'>, task: DecidableTask): Promise<ClosingDecision | null> {
   const byStep = !task.decidedAt && (task.status === 'CANCELLED' || task.status === 'REASSIGNED')
-  const decided = byStep
-    ? await db.approvalTask.findFirst({ where: { stepId: task.stepId, decidedAt: { not: null } }, orderBy: [{ decidedAt: 'asc' }, { id: 'asc' }], select: DECIDABLE })
-    : task
+  const decided = byStep ? await closedBy(db, task) : task
   if (!decided?.decidedAt) return null
   const decidedBy = decided.decidedByMemberId ? await db.member.findUnique({ where: { id: decided.decidedByMemberId }, select: { id: true, displayNameTh: true, displayNameEn: true } }) : null
   return { taskId: decided.id, decision: decided.decision, decidedAt: decided.decidedAt, decidedBy }
+}
+
+/** The decision that closed a task with nothing decided of its own: its slot's first, else the one that closed its step */
+async function closedBy(db: Pick<TenantTx, 'approvalTask' | 'event'>, task: DecidableTask) {
+  const own = await db.approvalTask.findUnique({ where: { id: task.id }, select: { slotNo: true } })
+  const slot = await db.approvalTask.findFirst({ where: { stepId: task.stepId, slotNo: own?.slotNo ?? 1, decidedAt: { not: null } }, orderBy: [{ decidedAt: 'asc' }, { id: 'asc' }], select: DECIDABLE })
+  if (slot || task.status !== 'CANCELLED') return slot
+  // closed in the transaction of the decision that completed its group or step: the last one up to then
+  const closed = await db.event.findFirst({ where: { aggregateType: 'ApprovalTask', aggregateId: task.id, type: 'approval_task.cancelled' }, orderBy: { seq: 'desc' }, select: { occurredAt: true } })
+  if (!closed) return null
+  return db.approvalTask.findFirst({ where: { stepId: task.stepId, decidedAt: { not: null, lte: closed.occurredAt } }, orderBy: [{ decidedAt: 'desc' }, { id: 'desc' }], select: DECIDABLE })
 }
 
 const memberRefOf = (m: { readonly id: string; readonly displayNameTh: string; readonly displayNameEn: string | null }): MemberRefDto => ({ id: m.id, name: { th: m.displayNameTh, en: m.displayNameEn } })
@@ -885,7 +895,7 @@ export async function taskDecision(ctx: Ctx, taskId: string): Promise<{ readonly
   return { decidedBy: decided?.decidedBy ? memberRefOf(decided.decidedBy) : null, decidedAt: decided?.decidedAt ?? null }
 }
 
-const CANCELLED_WHY = ['REQUEST_CANCELLED', 'ROUTE_REPLACED', 'DOCUMENT_DECIDED', 'CO_ASSIGNEE_DECIDED'] as const
+const CANCELLED_WHY = ['REQUEST_CANCELLED', 'ROUTE_REPLACED', 'DOCUMENT_DECIDED', 'CO_ASSIGNEE_DECIDED', 'GROUP_DECIDED', 'STEP_DECIDED', 'ALREADY_EFFECTIVE'] as const
 
 export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto | null> {
   if (!isUuid(taskId)) return null

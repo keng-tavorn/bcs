@@ -81,7 +81,7 @@ signing key ใช้ยืนยันว่าคำขอที่เข้�
    - ถ้าหน้า **Apps** แสดง URL ของแอปเป็น URL ที่มีรหัสสุ่มแทนโดเมน staging ให้บอก agent
 6. พิมพ์บอก agent: "sync Inngest แล้ว เห็นฟังก์ชัน <จำนวน> ตัว"
 
-ทุกครั้งที่ deploy ใหม่ต้อง sync ใหม่ Inngest จึงจะเห็นฟังก์ชันล่าสุด agent ทำเองได้ด้วยการส่งคำขอ `PUT` ไปที่ `https://<โดเมน staging>/api/inngest` หลัง deploy (ไม่ต้องใช้ค่าลับ) หรือคุณกด sync ซ้ำที่หน้า **Apps** ก็ได้
+ทุกครั้งที่ deploy ใหม่ต้อง sync ใหม่ Inngest จึงจะเห็นฟังก์ชันล่าสุด agent ทำเองได้ด้วยการส่งคำขอ `PUT` ไปที่ `https://<โดเมน staging>/api/inngest` หลัง deploy (ไม่ต้องใช้ค่าลับ) หรือคุณกด sync ซ้ำที่หน้า **Apps** ก็ได้ · ตั้งแต่ P1-11 (2026-10-19) job `deploy-staging` ใน CI ส่งคำขอ `PUT` นี้เองต่อจากการตรวจ `/api/health` · deploy ที่ไม่ผ่าน CI (เช่น `vercel deploy` จากเครื่อง) ยังต้อง sync เอง
 
 ### ถ้า sync ไม่ผ่าน
 

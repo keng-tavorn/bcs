@@ -162,3 +162,15 @@ jobs:
           done
           echo "/api/health did not answer ok with ${{ github.sha }} within 5 minutes"
           exit 1
+
+      # Staging does not use Vercel's Inngest integration (docs/runbooks/p0-07-inngest.md part 2), so nothing told Inngest
+      # about the functions of a new deployment: P1-11 found staging's functions behind ("modified": true on the first
+      # sync). PUT /api/inngest makes the app register them itself with its signing key; it needs no secret here.
+      - name: Inngest registers the functions of this deployment (P1-11)
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: |
+          base="${STAGING_URL:-${{ steps.deploy.outputs.url }}}"
+          body=$(curl -fsS -X PUT "$base/api/inngest")
+          echo "$body"
+          echo "$body" | grep -q '"Successfully registered"'

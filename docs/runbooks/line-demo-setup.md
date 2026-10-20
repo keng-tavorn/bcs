@@ -73,7 +73,8 @@
    - **Privacy policy URL:** ถ้าระบบบังคับ ให้ใส่หน้านโยบายความเป็นส่วนตัวของ BCS (spec ไม่ได้กำหนด)
    - ติ๊กยอมรับข้อตกลงทั้งหมด (LINE Developers Agreement · LINE MINI App Platform Agreement · LINE MINI App Policy · LY Corporation Privacy Policy ที่ขึ้นเมื่อเลือกไทย)
 3. กด **Create** ถ้าระบบไม่ให้สร้าง (เช่น แจ้งว่าไม่มีสิทธิ์) ให้ใช้ "ทางสำรอง" ด้านล่างแทน แล้วบอก agent
-4. แท็บ **Web app settings** → แถว **Developing** → **Endpoint URL:** `https://<โดเมน staging>/liff` → กด **Update** (แถว Review และ Published ยังไม่ต้องใส่) ถ้ามีช่อง Scopes ให้ติ๊ก `openid` และ `profile`
+4. แท็บ **Web app settings** → แถว **Developing** → **Endpoint URL:** `https://<โดเมน staging>/liff` → กด **Update** (แถว Review และ Published ยังไม่ต้องใส่) · **Scopes** ต้องมี `openid` และ `profile` (ไม่มี `openid` LINE ไม่ส่ง ID token หน้าผูกบัญชีจะขึ้น "LINE ยืนยันตัวตนของคุณไม่สำเร็จ")
+   - โดเมนต้องเป็นโดเมนหลักของ staging เดียวกับ `APP_URL` เช่น `https://www.budgetcontrolsystem.com/liff` **ห้ามใช้ชื่อ `*.vercel.app`** ที่ Vercel ตั้งให้ แม้เปิดเว็บเดียวกัน ระบบรับคำขอผูกบัญชีจากโดเมนของ `APP_URL` เท่านั้น (คำขอจากโดเมนอื่นถูกปฏิเสธ 403 หน้าผูกบัญชีขึ้น "ทำรายการไม่สำเร็จ" · พบใน P1-11)
 5. คัดลอก **LIFF ID** ของแถว **Developing** (รูปแบบ `1234567890-AbCdEfGh`) → `NEXT_PUBLIC_LIFF_ID`
    - staging ใช้ LIFF ID ของ Developing เสมอ (spec §9.2 · ADR-024: local และ staging ใช้ Developing · UAT ใช้ Review · production ใช้ Published)
 6. `LINE_LIFF_CHANNEL_ID` = ตัวเลขหน้าเครื่องหมาย `-` ของ LIFF ID แถว Developing (เช่น `1234567890-AbCd` → `1234567890`)
@@ -125,7 +126,7 @@ agent จะ deploy ใหม่ แล้วบอกเมื่อหน้�
 
 ทำเมื่อ agent บอกว่าหน้าตั้งค่า LINE และ webhook บน staging พร้อมแล้ว (S5-01 และ S5-02)
 
-1. login staging ด้วยผู้ดูแลตัวอย่าง `admin@demo.bcs.local` · รหัสผ่านคือ `SEED_DEV_PASSWORD` ที่คุณเก็บไว้ · รหัส 2FA มาจากแอป authenticator ที่ตั้งด้วยคำสั่งที่ agent ให้ ซึ่งต้องใช้ `SEED_TOTP_KEY` ที่คุณเก็บไว้ตาม [p0-08-vercel.md](p0-08-vercel.md) B2 (คุณรันคำสั่งนั้นในหน้าต่าง PowerShell ของคุณเอง ค่าไม่ผ่านแชท)
+1. login staging ด้วยผู้ดูแลตัวอย่างขององค์กรที่ reset ไว้ (`admin@demo.bcs.local` สำหรับชุด demo · `admin@simec.bcs.local` สำหรับชุดระยะ 1) · รหัสผ่านคือ `SEED_DEV_PASSWORD` ที่คุณเก็บไว้ · รหัส 2FA มาจากแอป authenticator ที่ตั้งด้วยคำสั่งที่ agent ให้ ซึ่งต้องใช้ `SEED_TOTP_KEY` ที่คุณเก็บไว้ตาม [p0-08-vercel.md](p0-08-vercel.md) B2 (คุณรันคำสั่งนั้นในหน้าต่าง PowerShell ของคุณเอง ค่าไม่ผ่านแชท)
 2. เปิดหน้าตั้งค่าช่องทาง LINE ในเมนูผู้ดูแล ใส่ค่าของ channel ตามที่ agent บอกว่าช่องไหนใส่อะไร (คัดลอกจาก LINE Developers Console ตามส่วนที่ 1) แล้วบันทึก หลังบันทึก secret ถูกเข้ารหัสและแสดงแบบ mask (FR-ADM-006 AC2)
    - ถ้าหาค่าเดิมใน LINE Developers Console ไม่เจอ ให้ถาม agent ก่อนกดออกค่าใหม่ เพราะการออก access token ใหม่ทำให้ token เดิมใช้ไม่ได้ และต้องแก้ค่าใน Vercel ด้วย
 3. สร้าง rich menu 2 ชุด (ยังไม่ผูกบัญชี และผูกแล้ว · spec §9.5): ในหน้าตั้งค่าช่องทาง LINE กดปุ่ม **สร้าง rich menu** (agent จะบอกเมื่อปุ่มนี้พร้อม · มาพร้อมหน้าจอ LINE ของ S5)

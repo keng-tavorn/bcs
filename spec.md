@@ -6133,6 +6133,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-107** `[go-live]` รายการเอกสารของหน้าภาพรวมยังรู้จัก subject ของการอนุมัติ 5 ชนิดเดิม (พบใน P1-10 · `docs/reports/p1-review.md` ข้อ 5): P1-07 ให้รายการ subject ใน board kpi reports insights audit เป็น `satisfies Record<ApprovalSubject, …>` แต่ `BOARD_SUBJECTS` (`src/server/services/board/index.ts`) `KpiDocumentType` และ `resolveDocuments` (`src/server/services/reports/screens.ts`) เอกสารของ `insights.ts` และ `audit` ยังมี 5 ชนิด · ผล: เอกสารค้างของการโอนงบ เกินงบ ใบแก้ไข PO ใบแจ้งหนี้ รอบจ่าย เปลี่ยนบัญชี และ workflow ไม่ขึ้นบนบอร์ดเอกสารค้าง · `/kpi/g5?kind=INVOICE` (แถวที่ P1-09 เปิด) แสดงการตัดสินเป็น "เอกสาร" ที่ไม่มีลิงก์ · `documentHref` ของ `src/ui/insight/links.ts` ไม่มีหน้าของชนิดใหม่ · ชื่อชนิดบนการ์ด LINE การแจ้งเตือน SLA และหน้าลิงก์ในอีเมลแก้แล้วใน P1-10
   - เสร็จเมื่อ: ทุกรายการเป็น `satisfies Record<ApprovalSubject, …>` หรือมีเทสต์เทียบกับ `APPROVAL_SUBJECTS` · บอร์ดและรายการ KPI แสดงเอกสารของทุกชนิดพร้อมลิงก์ตามสิทธิ์ · เทสต์ของบอร์ดและ KPI ครอบชนิดใหม่อย่างน้อยหนึ่งชนิด · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
+- [ ] **NEW-108** `[go-live]` หน้าผูกบัญชี LINE บอกสาเหตุไม่ชัดเมื่อตั้งค่า LIFF ผิด (พบใน P1-11 บน staging): (1) Endpoint URL ของ LIFF เป็นโดเมน `*.vercel.app` ไม่ใช่โดเมนของ `APP_URL` → `POST /api/liff/link` ได้ 403 `CROSS_SITE` หน้าจอขึ้นแค่ "ทำรายการไม่สำเร็จ" · (2) `liff.idToken()` ได้ค่าว่าง (ยังไม่ได้ส่งคำขอถึงเซิร์ฟเวอร์) หน้าจอขึ้นข้อความเดียวกับ LINE ปฏิเสธ ID token · ปุ่ม "ทดสอบการเชื่อมต่อ" (FR-ADM-006 AC3) ตรวจสองเรื่องนี้ไม่ได้ · ข้อเสนอ: หน้า LIFF เทียบ `window.location.origin` กับ `APP_URL` แล้วบอกให้แก้ Endpoint URL พร้อมค่าที่ถูก และแยกข้อความกรณีไม่ได้ ID token (ตรวจ Scopes `openid`) · คู่มือ `line-demo-setup.md` ส่วนที่ 1.3 ข้อ 4 เพิ่มคำเตือนแล้ว
+  - เสร็จเมื่อ: เทสต์หน้า LIFF ของทั้งสองกรณีแสดงข้อความที่บอกวิธีแก้ (ไทยและอังกฤษ) · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเองได้
 
 ### 16.12 S16 · หน้าจอใหม่แบบใกล้ Zip ในโทนเขียว (รอบเส้นชัย A2)
 

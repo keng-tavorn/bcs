@@ -2,7 +2,9 @@
 """Build docs/inputs/BCS_inputs_p1.xlsx, the synthetic phase-1 workbook (spec §16.13 · ADR-065).
 
 Run from the repo root:   node scripts/py.mjs scripts/inputs_p1/make.py [--out <file>] [--blank]
---blank writes the same sheets with headers only: the form to collect LK-RICH's real data later (finish line B).
+--blank writes docs/inputs/BCS_inputs_real_template.xlsx, the form to collect the customer's real data (P1-12 · finish
+line B): the same sheets and column keys without the synthetic ones (gold headers), the real-data tables empty, the grey
+defaults kept, labels and README written for the customer (p1_texts README_BLANK) · guide: docs/inputs/README_real_template.md.
 The output is byte-identical for identical data (fixed zip timestamps and document properties), so git shows a
 change only when the data changes. Never edit the xlsx by hand: change these scripts and run this file again.
 """
@@ -20,7 +22,8 @@ from p1_master import (GL_ACCOUNTS, cost_center_rows, budget_rows, SITES, REQUES
                        DOA_RULES, WORKFLOW_REVIEWERS, BANKS, WHT_TYPES, COMPANY_BANK_ACCOUNTS)
 from p1_suppliers import SUPPLIERS, SUPPLIER_PAYMENT, ITEMS  # noqa: E402
 from p1_history import build, doc_samples  # noqa: E402
-from p1_texts import README, INPUTS, QUESTIONS_Q, QUESTIONS_B, SCENARIOS  # noqa: E402
+from p1_texts import (README, INPUTS, QUESTIONS_Q, QUESTIONS_B, SCENARIOS,  # noqa: E402
+                      README_BLANK, BLANK_LABELS, BLANK_CLEAR_KEYS, BLANK_TEXT_COLUMNS)
 from p1_demo import COLUMNS as DEMO_COLUMNS, SCENES as DEMO_SCENES  # noqa: E402
 
 REAL, DEFAULT, SYNTH = 'real', 'default', 'synthetic'
@@ -28,8 +31,20 @@ FILL = {REAL: '1F3864', DEFAULT: '7F7F7F', SYNTH: 'BF8F00'}
 MONEY = {'planned', 'net', 'vat', 'gross', 'unitPrice', 'refUnitPrice', 'agreedUnitPrice', 'countsAgainstBudget', 'expectedWht', 'gt', 'lte', 'invoiceUnitPrice'}
 
 
-def table(ws, kind, columns, rows):
-    """columns: [(key, labelTh)] · rows: dicts or tuples in column order."""
+def real_label(label):
+    """A label of the blank form: the customer's wording, without the synthetic workbook's "(สมมติ …)" notes."""
+    if label is None or label in BLANK_LABELS:
+        return BLANK_LABELS.get(label)
+    return re.sub(r'\s*\((?:สมมติ|สังเคราะห์)[^)]*\)', '', label)
+
+
+def table(ws, kind, columns, rows, blank=False):
+    """columns: [(key, labelTh)] · rows: dicts or tuples in column order · blank: the customer's form (labels, Text columns)."""
+    if blank:
+        columns = [(key, real_label(label)) for key, label in columns]
+        for j, (key, _) in enumerate(columns, 1):
+            if key in BLANK_TEXT_COLUMNS:
+                ws.column_dimensions[get_column_letter(j)].number_format = '@'
     for j, (key, label) in enumerate(columns, 1):
         c = ws.cell(1, j, key)
         c.font, c.fill = Font(bold=True, color='FFFFFF'), PatternFill('solid', fgColor=FILL[kind])
@@ -54,8 +69,26 @@ def table(ws, kind, columns, rows):
     ws.freeze_panes = 'A3'
 
 
-def kv_sheet(ws, kind, rows):
-    table(ws, kind, [('key', 'ชื่อค่า (ห้ามแก้)'), ('value', 'ค่า'), ('labelTh', 'ความหมาย'), ('ref', 'อ้างอิง')], rows)
+def kv_sheet(ws, kind, rows, blank=False):
+    """blank: the customer's form keeps the grey defaults but clears BLANK_CLEAR_KEYS (values of the synthetic company)."""
+    if blank:
+        clear = BLANK_CLEAR_KEYS.get(ws.title, set())
+        rows = [(k, None if k in clear else v, real_label(l), r) for k, v, l, r in rows]
+    table(ws, kind, [('key', 'ชื่อค่า (ห้ามแก้)'), ('value', 'ค่า'), ('labelTh', 'ความหมาย'), ('ref', 'อ้างอิง')], rows, blank)
+    if blank:
+        for i, (k, _, _, _) in enumerate(rows, 3):
+            if k in BLANK_TEXT_COLUMNS:
+                ws.cell(i, 2).number_format = '@'
+
+
+def blank_input(row):
+    """An Inputs row of the blank form: nothing is synthetic any more, so those rows wait for data and lose the demo
+    value; a thing asked as a sheet of AI samples is sent as files instead."""
+    group, item, used_for, value, provider, needed, ref, sheet, status = row
+    if status == 'สังเคราะห์':
+        status = 'รอข้อมูล'
+    return (group, item, used_for, value if status == 'ค่าเริ่มต้น OQ' else None, provider, needed, ref,
+            '-' if sheet == 'DocSamples' else sheet, status)
 
 
 def deterministic(wb, path):
@@ -79,15 +112,21 @@ def main():
     args = sys.argv[1:]
     blank = '--blank' in args
     out = args[args.index('--out') + 1] if '--out' in args else ('docs/inputs/BCS_inputs_real_template.xlsx' if blank else 'docs/inputs/BCS_inputs_p1.xlsx')
-    history, _ = build()
-    samples = doc_samples(history)
+    history, _ = build() if not blank else ([], None)
+    samples = doc_samples(history) if not blank else []
     dept_names = {d[0]: d[1] for d in DEPARTMENTS}
     none = (lambda rows: []) if blank else (lambda rows: rows)
+
+    def t(ws, kind, columns, rows):
+        table(ws, kind, columns, rows, blank)
+
+    def kv(ws, kind, rows):
+        kv_sheet(ws, kind, rows, blank)
 
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = 'README'
-    for i, (k, v) in enumerate(README, 1):
+    for i, (k, v) in enumerate(README_BLANK if blank else README, 1):
         ws.cell(i, 1, k).font = Font(bold=True, size=14 if i == 1 else 11)
         ws.cell(i, 2, v).alignment = Alignment(wrap_text=True, vertical='top')
     ws.column_dimensions['A'].width, ws.column_dimensions['B'].width = 42, 120
@@ -99,78 +138,79 @@ def main():
         sheets.append(name)
         return s
 
-    table(sheet('Inputs'), DEFAULT, [('id', 'รหัส'), ('group', 'กลุ่ม'), ('item', 'ข้อมูลที่ต้องขอ'), ('usedFor', 'ใช้ทำอะไรในระบบ'),
+    t(sheet('Inputs'), DEFAULT, [('id', 'รหัส'), ('group', 'กลุ่ม'), ('item', 'ข้อมูลที่ต้องขอ'), ('usedFor', 'ใช้ทำอะไรในระบบ'),
           ('demoValue', 'ค่าที่ใช้ตอนนี้'), ('provider', 'ขอจากใคร'), ('neededBefore', 'ต้องมีก่อน'), ('ref', 'อ้างอิง spec'),
           ('sheet', 'กรอกที่ชีต'), ('status', 'สถานะ: สังเคราะห์ · ค่าเริ่มต้น OQ · รอข้อมูล · ได้แล้ว')],
-          [(f'IN-{i:02d}',) + r for i, r in enumerate(INPUTS, 1)])
+          [(f'IN-{i:02d}',) + (r if not blank else blank_input(r)) for i, r in enumerate(INPUTS, 1)])
     qrows = [(f'Q-{i:02d}',) + r[:6] + (None, r[6]) for i, r in enumerate(QUESTIONS_Q, 1)]
     qrows += [(f'B-{i:02d}',) + r[:6] + (None, r[6]) for i, r in enumerate(QUESTIONS_B, 1)]
-    table(sheet('Questions'), DEFAULT, [('id', 'รหัส'), ('meeting', 'ประชุม A ผู้บริหาร B จัดซื้อ C บัญชีการเงิน D หน้างาน E IT HR กฎหมาย BCS ภายใน'),
+    t(sheet('Questions'), DEFAULT, [('id', 'รหัส'), ('meeting', 'ประชุม A ผู้บริหาร B จัดซื้อ C บัญชีการเงิน D หน้างาน E IT HR กฎหมาย BCS ภายใน'),
           ('askWhom', 'ถามใคร'), ('question', 'คำถาม'), ('whyItMatters', 'มีผลกับอะไร'), ('demoDefault', 'ค่าที่ใช้ตอนนี้'),
           ('ref', 'อ้างอิง spec'), ('answer', 'คำตอบ (กรอกระหว่างประชุม)'), ('docsToRequest', 'เอกสารที่ขอ')], qrows)
-    kv_sheet(sheet('Org'), REAL, ORG if not blank else [(k, None, l, r) for k, _, l, r in ORG])
-    table(sheet('Departments'), REAL, [('code', 'รหัสแผนก'), ('nameTh', 'ชื่อแผนก'), ('parent', 'แผนกแม่ (ว่าง = ราก)'),
+    kv(sheet('Org'), REAL, ORG if not blank else [(k, None, l, r) for k, _, l, r in ORG])
+    t(sheet('Departments'), REAL, [('code', 'รหัสแผนก'), ('nameTh', 'ชื่อแผนก'), ('parent', 'แผนกแม่ (ว่าง = ราก)'),
           ('kind', 'COMPANY DIVISION DEPARTMENT SECTION'), ('note', 'หมายเหตุ')], none(DEPARTMENTS))
-    table(sheet('Positions'), REAL, [('code', 'รหัสตำแหน่ง'), ('nameTh', 'ชื่อตำแหน่ง'), ('scope', 'DEPARTMENT = ผูกกับแผนก · ORG = ผูกกับแผนกราก')], none(POSITIONS))
-    table(sheet('Users'), REAL, [('code', 'รหัสผู้ใช้ (ตัวเล็ก ตัวเลข _)'), ('displayNameTh', 'ชื่อที่แสดง (สมมติ)'), ('email', 'อีเมลบริษัท'),
+    t(sheet('Positions'), REAL, [('code', 'รหัสตำแหน่ง'), ('nameTh', 'ชื่อตำแหน่ง'), ('scope', 'DEPARTMENT = ผูกกับแผนก · ORG = ผูกกับแผนกราก')], none(POSITIONS))
+    t(sheet('Users'), REAL, [('code', 'รหัสผู้ใช้ (ตัวเล็ก ตัวเลข _)'), ('displayNameTh', 'ชื่อที่แสดง (สมมติ)'), ('email', 'อีเมลบริษัท'),
           ('department', 'แผนกหลัก'), ('roles', 'บทบาทคั่นด้วย , (ผู้ขอได้โดยปริยาย)'), ('positions', 'ตำแหน่ง@แผนก คั่นด้วย ;'),
           ('note', 'หมายเหตุ'), ('employeeNo', 'รหัสพนักงาน'), ('jobTitleTh', 'ตำแหน่งงาน (ไม่ใช่ตำแหน่งใน DOA)'),
           ('supervisor', 'หัวหน้าโดยตรง (รหัสผู้ใช้)')], none(USERS))
-    table(sheet('DOA'), REAL, [('version', 'ฉบับ'), ('ruleCode', 'รหัสข้อ'), ('documentType', 'ประเภทเอกสาร'), ('gt', 'มากกว่า (บาท) ว่าง = ไม่มีขอบล่าง'),
+    t(sheet('DOA'), REAL, [('version', 'ฉบับ'), ('ruleCode', 'รหัสข้อ'), ('documentType', 'ประเภทเอกสาร'), ('gt', 'มากกว่า (บาท) ว่าง = ไม่มีขอบล่าง'),
           ('lte', 'ไม่เกิน (บาท) ว่าง = ไม่มีขอบบน'), ('approverKind', 'วิธีหาผู้อนุมัติ'), ('approverPosition', 'ตำแหน่ง'),
           ('approverMember', 'ผู้ใช้ (ถ้าระบุตัว)'), ('slaBusinessHours', 'SLA ชั่วโมงทำการ'), ('descriptionTh', 'คำอธิบาย')], none(DOA_RULES))
-    kv_sheet(sheet('DOA_Policy'), DEFAULT, DOA_POLICY if not blank else [(k, None, l, r) for k, _, l, r in DOA_POLICY])
-    table(sheet('Workflow_Reviewers'), REAL, [('ruleCode', 'รหัสข้อ'), ('requestType', 'ประเภทคำขอ'), ('conditionTh', 'เงื่อนไข'),
+    kv(sheet('DOA_Policy'), DEFAULT, DOA_POLICY)
+    t(sheet('Workflow_Reviewers'), REAL, [('ruleCode', 'รหัสข้อ'), ('requestType', 'ประเภทคำขอ'), ('conditionTh', 'เงื่อนไข'),
           ('reviewerPosition', 'ตำแหน่งผู้ตรวจ'), ('reviewerDepartment', 'ฝ่ายของผู้ตรวจ'), ('mode', 'ALL = ต้องครบ · ANY = คนใดคนหนึ่ง'),
           ('slaBusinessHours', 'SLA ชั่วโมงทำการ'), ('descriptionTh', 'คำอธิบาย (ร่าง)'), ('ref', 'FR'),
           ('whenJson', 'เงื่อนไขแบบเครื่องอ่าน (JSON · {} = ทุกคำขอ)'), ('fallbackPosition', 'ตำแหน่งผู้สำรอง'), ('fallbackDepartment', 'ฝ่ายของผู้สำรอง')], none(WORKFLOW_REVIEWERS))
-    table(sheet('Budget'), REAL, [('fiscalYear', 'ปีงบ'), ('code', 'รหัสบรรทัดงบ (budgetKey-ปี พ.ศ.)'), ('budgetKey', 'กุญแจงบที่ไม่มีปี (คำขอใน Request_History อ้างคอลัมน์นี้)'),
+    t(sheet('Budget'), REAL, [('fiscalYear', 'ปีงบ'), ('code', 'รหัสบรรทัดงบ (budgetKey-ปี พ.ศ.)'), ('budgetKey', 'กุญแจงบที่ไม่มีปี (คำขอใน Request_History อ้างคอลัมน์นี้)'),
           ('nameTh', 'ชื่อ'), ('department', 'แผนกเจ้าของงบ'), ('costCenter', 'cost center'), ('accountCode', 'รหัสบัญชี'),
           ('planned', 'งบตั้งต้น (บาท ก่อน VAT)'), ('note', 'หมายเหตุ')], none(budget_rows()))
-    table(sheet('CostCenters'), REAL, [('code', 'รหัส cost center'), ('nameTh', 'ชื่อ'), ('department', 'แผนกเจ้าของ')], none(cost_center_rows(dept_names)))
-    table(sheet('GL_Accounts'), REAL, [('code', 'รหัสบัญชี'), ('nameTh', 'ชื่อบัญชี'), ('type', 'COST EXPENSE ASSET LIABILITY'), ('note', 'หมายเหตุ')], none(GL_ACCOUNTS))
-    table(sheet('Suppliers'), REAL, [('code', 'รหัส'), ('nameTh', 'ชื่อผู้ขาย (สมมติ)'), ('taxId', 'เลขผู้เสียภาษี (ข้อความ 13 หลัก)'),
+    t(sheet('CostCenters'), REAL, [('code', 'รหัส cost center'), ('nameTh', 'ชื่อ'), ('department', 'แผนกเจ้าของ')], none(cost_center_rows(dept_names)))
+    t(sheet('GL_Accounts'), REAL, [('code', 'รหัสบัญชี'), ('nameTh', 'ชื่อบัญชี'), ('type', 'COST EXPENSE ASSET LIABILITY'), ('note', 'หมายเหตุ')], none(GL_ACCOUNTS))
+    t(sheet('Suppliers'), REAL, [('code', 'รหัส'), ('nameTh', 'ชื่อผู้ขาย (สมมติ)'), ('taxId', 'เลขผู้เสียภาษี (ข้อความ 13 หลัก)'),
           ('branchCode', 'สาขา'), ('vatRegistered', 'จด VAT (Y/N)'), ('email', 'อีเมลรับ PO'), ('phone', 'โทร'), ('category', 'หมวด'),
           ('expressVendorCode', 'รหัสเจ้าหนี้ใน Express (OQ-10)')], none(SUPPLIERS))
-    table(sheet('SupplierPayment'), REAL, [('supplierCode', 'รหัสผู้ขาย'), ('payeeType', 'JURISTIC นิติบุคคล · INDIVIDUAL บุคคลธรรมดา'),
+    t(sheet('SupplierPayment'), REAL, [('supplierCode', 'รหัสผู้ขาย'), ('payeeType', 'JURISTIC นิติบุคคล · INDIVIDUAL บุคคลธรรมดา'),
           ('whtIncomeType', 'ประเภทเงินได้ที่หัก ณ ที่จ่าย (ชีต WHT_Types)'), ('paymentTermDays', 'เครดิต (วัน)'), ('bankCode', 'รหัสธนาคาร (ชีต Banks)'),
           ('bankBranchTh', 'สาขาธนาคาร'), ('accountNo', 'เลขบัญชี (สังเคราะห์ ขึ้นต้น 9)'), ('accountName', 'ชื่อบัญชี'),
           ('eTaxIssuer', 'ออก e-Tax: NONE EMAIL FULL'), ('registryStatus', 'สถานะทะเบียน: ACTIVE CEASED VAT_CANCELLED'), ('note', 'หมายเหตุ')], none(SUPPLIER_PAYMENT))
-    table(sheet('Banks'), DEFAULT, [('code', 'รหัสธนาคาร'), ('shortName', 'ชื่อย่อ'), ('nameTh', 'ชื่อธนาคาร')], BANKS)
-    table(sheet('Items'), REAL, [('code', 'รหัส'), ('nameTh', 'รายการ'), ('unit', 'หน่วย'), ('refUnitPrice', 'ราคาอ้างอิงต่อหน่วย (บาท ก่อน VAT)'),
+    t(sheet('Banks'), DEFAULT, [('code', 'รหัสธนาคาร'), ('shortName', 'ชื่อย่อ'), ('nameTh', 'ชื่อธนาคาร')], BANKS)
+    t(sheet('Items'), REAL, [('code', 'รหัส'), ('nameTh', 'รายการ'), ('unit', 'หน่วย'), ('refUnitPrice', 'ราคาอ้างอิงต่อหน่วย (บาท ก่อน VAT)'),
           ('category', 'หมวดผู้ขาย'), ('isService', 'บริการ (Y/N)'), ('accountCode', 'รหัสบัญชีตั้งต้น'), ('whtIncomeType', 'ประเภทหัก ณ ที่จ่าย'),
           ('agreementSupplier', 'ผู้ขายที่มีราคาตกลง'), ('agreedUnitPrice', 'ราคาที่ตกลง'), ('agreementNote', 'หมายเหตุ')], none(ITEMS))
-    table(sheet('Sites'), REAL, [('code', 'รหัส'), ('nameTh', 'ชื่อสถานที่ส่ง'), ('address', 'ที่อยู่ (สมมติ)')], none(SITES))
-    table(sheet('RequestTypes'), REAL, [('code', 'รหัส (ต้องมีฟอร์มใน prisma/seed/forms.yaml)'), ('nameTh', 'ชื่อบนการ์ด'), ('documentType', 'ชนิดเอกสาร'),
+    t(sheet('Sites'), REAL, [('code', 'รหัส'), ('nameTh', 'ชื่อสถานที่ส่ง'), ('address', 'ที่อยู่ (สมมติ)')], none(SITES))
+    t(sheet('RequestTypes'), REAL, [('code', 'รหัส (ต้องมีฟอร์มใน prisma/seed/forms.yaml)'), ('nameTh', 'ชื่อบนการ์ด'), ('documentType', 'ชนิดเอกสาร'),
           ('descriptionTh', 'ใช้เมื่อไร'), ('keyFields', 'ฟิลด์สำคัญ'), ('attachmentRule', 'กฎเอกสารแนบ'), ('active', 'ใช้งาน (Y/N)'),
           ('defaultRetentionBp', 'เงินประกันผลงานต่อใบ (basis point · 500 = 5% · S8)'), ('defaultRetentionHoldDays', 'ถือเงินประกันกี่วันหลังตรวจรับงวดสุดท้าย')], none(REQUEST_TYPES))
-    table(sheet('Holidays'), REAL, [('date', 'วันที่'), ('nameTh', 'ชื่อวันหยุด'), ('source', 'ที่มา')], none(HOLIDAYS))
-    kv_sheet(sheet('Settings'), DEFAULT, SETTINGS)
-    table(sheet('WHT_Types'), DEFAULT, [('code', 'รหัส'), ('nameTh', 'ประเภทเงินได้'), ('rateBp', 'อัตรา (basis point · 300 = 3%)'),
+    t(sheet('Holidays'), REAL, [('date', 'วันที่'), ('nameTh', 'ชื่อวันหยุด'), ('source', 'ที่มา')], none(HOLIDAYS))
+    kv(sheet('Settings'), DEFAULT, SETTINGS)
+    t(sheet('WHT_Types'), DEFAULT, [('code', 'รหัส'), ('nameTh', 'ประเภทเงินได้'), ('rateBp', 'อัตรา (basis point · 300 = 3%)'),
           ('form', 'แบบ: PND3_53 = ภ.ง.ด.3 หรือ 53 ตามผู้รับ · PND53'), ('legalRefTh', 'อ้างอิง'), ('note', 'หมายเหตุ (รอผู้ทำบัญชีของลูกค้ายืนยัน BR-WHT-01)')], WHT_TYPES)
-    table(sheet('CompanyBankAccounts'), REAL, [('code', 'รหัส'), ('bankCode', 'รหัสธนาคาร'), ('branchTh', 'สาขา'), ('accountType', 'CURRENT SAVINGS'),
+    t(sheet('CompanyBankAccounts'), REAL, [('code', 'รหัส'), ('bankCode', 'รหัสธนาคาร'), ('branchTh', 'สาขา'), ('accountType', 'CURRENT SAVINGS'),
           ('accountNo', 'เลขบัญชี (สังเคราะห์)'), ('purposeTh', 'ใช้ทำอะไร'), ('fileFormat', 'รูปแบบไฟล์จ่ายเงิน')], none(COMPANY_BANK_ACCOUNTS))
-    hist_cols = [('ref', 'รหัส'), ('daysAgo', 'กี่วันก่อนวัน seed'), ('requester', 'ผู้ขอ'), ('chargedDept', 'แผนกเจ้าของงบ'), ('requestType', 'ประเภท'),
-                 ('title', 'เรื่อง (ไม่ซ้ำ)'), ('site', 'สถานที่ส่ง'), ('supplier', 'ผู้ขาย'), ('budgetKey', 'กุญแจงบ (seed เลือกปีงบตามวันที่)'),
-                 ('itemCode', 'รายการ (ชีต Items)'), ('qty', 'จำนวน'), ('unit', 'หน่วย'), ('unitPrice', 'ราคาต่อหน่วย ก่อน VAT'),
-                 ('net', 'ยอดก่อน VAT (บาทเต็ม)'), ('vat', 'VAT (half-up ระดับเอกสาร)'), ('gross', 'รวม VAT'), ('status', 'สถานะ'),
-                 ('countsAgainstBudget', 'นับเข้างบ'), ('expectedRule', 'ข้อ DOA ที่คาด'), ('expectedApprover', 'ผู้อนุมัติที่คาด'),
-                 ('escalated', 'ยกระดับ (Y/N)'), ('hours', 'ชั่วโมงทำการที่ใช้ตัดสิน หรือที่รอแล้ว'), ('channel', 'ช่องทางที่ตัดสิน'),
-                 ('serviceEndInDays', 'บริการหมดอายุในกี่วัน (ขอซ้ำ)'), ('form', 'คำตอบในฟอร์ม (JSON ตาม forms.yaml)'),
-                 ('invoiceScenario', 'ใบแจ้งหนี้ (S8): MATCH PRICE_WITHIN_TOL PRICE_OVER QTY_OVER DUPLICATE SERVICE_2WAY MISSING'),
-                 ('invoiceNo', 'เลขที่ใบแจ้งหนี้ของผู้ขาย'), ('invoiceDaysAfterGr', 'ใบแจ้งหนี้มาหลังตรวจรับกี่วัน'),
-                 ('whtIncomeType', 'ประเภทหัก ณ ที่จ่าย'), ('paymentStatus', 'การจ่าย (S9): PAID DUE OVERDUE NOT_DUE'),
-                 ('pattern', 'สถานการณ์ทดสอบ (ชีต Scenarios)'), ('note', 'หมายเหตุ')]
-    table(sheet('Request_History'), SYNTH, hist_cols, none(history))
-    table(sheet('DocSamples'), SYNTH, [('sampleId', 'รหัส'), ('docType', 'QUOTATION DELIVERY_NOTE TAX_INVOICE ETAX_XML'), ('historyRef', 'คำขอใน Request_History'),
-          ('supplierCode', 'ผู้ขาย'), ('sellerNameTh', 'ชื่อผู้ขายบนเอกสาร'), ('sellerTaxId', 'เลขผู้เสียภาษีผู้ขาย'), ('sellerBranch', 'สาขาผู้ขาย'),
-          ('buyerTaxId', 'เลขผู้เสียภาษีผู้ซื้อ'), ('docNo', 'เลขที่เอกสาร'), ('docDaysAgo', 'วันที่เอกสาร (กี่วันก่อน)'),
-          ('priceIncludesVat', 'ราคารวม VAT (Y/N)'), ('linesJson', 'รายการ (JSON)'), ('net', 'ยอดก่อน VAT'), ('vat', 'VAT'), ('gross', 'รวม'),
-          ('expectedWhtBp', 'อัตราหัก ณ ที่จ่ายที่คาด'), ('expectedWht', 'ภาษีหัก ณ ที่จ่ายที่คาด'), ('layout', 'รูปแบบไฟล์ที่ต้องสร้าง'),
-          ('quality', 'คุณภาพภาพ'), ('language', 'ภาษา'), ('notes', 'จุดที่ AI ต้องระวัง')], none(samples))
-    table(sheet('Scenarios'), SYNTH, [('id', 'รหัส'), ('area', 'เรื่อง'), ('descriptionTh', 'สถานการณ์'), ('where', 'อยู่ตรงไหนในข้อมูล'), ('usedBy', 'ใช้ทดสอบ')],
-          none([(f'SC-{i:02d}',) + s for i, s in enumerate(SCENARIOS, 1)]))
-    table(sheet('Demo_Script_P1'), SYNTH, DEMO_COLUMNS, none(DEMO_SCENES))
+    if not blank:  # the synthetic sheets (gold headers) are BCS's test data, never asked from the customer
+        hist_cols = [('ref', 'รหัส'), ('daysAgo', 'กี่วันก่อนวัน seed'), ('requester', 'ผู้ขอ'), ('chargedDept', 'แผนกเจ้าของงบ'), ('requestType', 'ประเภท'),
+                     ('title', 'เรื่อง (ไม่ซ้ำ)'), ('site', 'สถานที่ส่ง'), ('supplier', 'ผู้ขาย'), ('budgetKey', 'กุญแจงบ (seed เลือกปีงบตามวันที่)'),
+                     ('itemCode', 'รายการ (ชีต Items)'), ('qty', 'จำนวน'), ('unit', 'หน่วย'), ('unitPrice', 'ราคาต่อหน่วย ก่อน VAT'),
+                     ('net', 'ยอดก่อน VAT (บาทเต็ม)'), ('vat', 'VAT (half-up ระดับเอกสาร)'), ('gross', 'รวม VAT'), ('status', 'สถานะ'),
+                     ('countsAgainstBudget', 'นับเข้างบ'), ('expectedRule', 'ข้อ DOA ที่คาด'), ('expectedApprover', 'ผู้อนุมัติที่คาด'),
+                     ('escalated', 'ยกระดับ (Y/N)'), ('hours', 'ชั่วโมงทำการที่ใช้ตัดสิน หรือที่รอแล้ว'), ('channel', 'ช่องทางที่ตัดสิน'),
+                     ('serviceEndInDays', 'บริการหมดอายุในกี่วัน (ขอซ้ำ)'), ('form', 'คำตอบในฟอร์ม (JSON ตาม forms.yaml)'),
+                     ('invoiceScenario', 'ใบแจ้งหนี้ (S8): MATCH PRICE_WITHIN_TOL PRICE_OVER QTY_OVER DUPLICATE SERVICE_2WAY MISSING'),
+                     ('invoiceNo', 'เลขที่ใบแจ้งหนี้ของผู้ขาย'), ('invoiceDaysAfterGr', 'ใบแจ้งหนี้มาหลังตรวจรับกี่วัน'),
+                     ('whtIncomeType', 'ประเภทหัก ณ ที่จ่าย'), ('paymentStatus', 'การจ่าย (S9): PAID DUE OVERDUE NOT_DUE'),
+                     ('pattern', 'สถานการณ์ทดสอบ (ชีต Scenarios)'), ('note', 'หมายเหตุ')]
+        t(sheet('Request_History'), SYNTH, hist_cols, history)
+        t(sheet('DocSamples'), SYNTH, [('sampleId', 'รหัส'), ('docType', 'QUOTATION DELIVERY_NOTE TAX_INVOICE ETAX_XML'), ('historyRef', 'คำขอใน Request_History'),
+              ('supplierCode', 'ผู้ขาย'), ('sellerNameTh', 'ชื่อผู้ขายบนเอกสาร'), ('sellerTaxId', 'เลขผู้เสียภาษีผู้ขาย'), ('sellerBranch', 'สาขาผู้ขาย'),
+              ('buyerTaxId', 'เลขผู้เสียภาษีผู้ซื้อ'), ('docNo', 'เลขที่เอกสาร'), ('docDaysAgo', 'วันที่เอกสาร (กี่วันก่อน)'),
+              ('priceIncludesVat', 'ราคารวม VAT (Y/N)'), ('linesJson', 'รายการ (JSON)'), ('net', 'ยอดก่อน VAT'), ('vat', 'VAT'), ('gross', 'รวม'),
+              ('expectedWhtBp', 'อัตราหัก ณ ที่จ่ายที่คาด'), ('expectedWht', 'ภาษีหัก ณ ที่จ่ายที่คาด'), ('layout', 'รูปแบบไฟล์ที่ต้องสร้าง'),
+              ('quality', 'คุณภาพภาพ'), ('language', 'ภาษา'), ('notes', 'จุดที่ AI ต้องระวัง')], samples)
+        t(sheet('Scenarios'), SYNTH, [('id', 'รหัส'), ('area', 'เรื่อง'), ('descriptionTh', 'สถานการณ์'), ('where', 'อยู่ตรงไหนในข้อมูล'), ('usedBy', 'ใช้ทดสอบ')],
+              [(f'SC-{i:02d}',) + s for i, s in enumerate(SCENARIOS, 1)])
+        t(sheet('Demo_Script_P1'), SYNTH, DEMO_COLUMNS, DEMO_SCENES)
     deterministic(wb, out)
 
     if not blank:

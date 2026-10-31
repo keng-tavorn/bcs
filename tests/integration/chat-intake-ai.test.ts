@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { setAiClientForTests, type AiClient, type AiRequest } from '@/integrations/ai'
 import { putObject } from '@/integrations/storage'
 import { PROMPT_VERSIONS } from '@/lib/ai-config'
+import { systemClock } from '@/lib/clock'
 import { CHAT_AI_READING_WINDOW_MS, MS_PER_DAY, MS_PER_HOUR, MS_PER_SECOND } from '@/lib/constants'
 import { systemCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
@@ -56,6 +57,8 @@ beforeAll(async () => {
   setAiRuntimeForTests(FIXTURE)
   ok(await updateAgentSetting(org.ctxOf('admin', NOW), { agent: 'INTAKE', enabled: true }, key()))
   ok(await runMonthlyGrant(org.organizationId, NOW))
+  // The job runs on the real clock, so the credits of the month it falls in must be there too (NEW-109)
+  await runMonthlyGrant(org.organizationId, systemClock.now())
   const client: AiClient = {
     mode: 'fixture',
     extract: async (request) => {

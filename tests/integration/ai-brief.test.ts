@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { setAiClientForTests, type AiClient } from '@/integrations/ai'
 import { PROMPT_VERSIONS } from '@/lib/ai-config'
+import { systemClock } from '@/lib/clock'
 import { prisma } from '@/server/db/client'
 import { aiApprovalBriefRun } from '@/server/jobs/ai-approval-brief'
 import { approvalBriefOf, briefFacts, runBrief, runMonthlyGrant, setAiRuntimeForTests, updateAgentSetting, type AiRuntime } from '@/server/services/ai'
@@ -28,6 +29,8 @@ beforeAll(async () => {
   setAiRuntimeForTests(FIXTURE)
   expect((await updateAgentSetting(org.ctxOf('admin', NOW), { agent: 'APPROVAL_BRIEF', enabled: true }, key())).ok).toBe(true)
   expect((await runMonthlyGrant(org.organizationId, NOW)).ok).toBe(true)
+  // The job runs on the real clock, so the credits of the month it falls in must be there too (NEW-109)
+  await runMonthlyGrant(org.organizationId, systemClock.now())
 })
 
 afterEach(() => {

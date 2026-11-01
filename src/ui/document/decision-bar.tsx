@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { useId, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { Button } from '../form/button'
@@ -15,6 +15,7 @@ import { useBarSpace } from '../tasks/bar-space'
 import { pinRefused, taskClosed, TaskFailure, useClosedTask, useFocusPinAfterRefusal, useOneTry, useTaskFailureText, type TaskDecisionInput } from '../tasks/decision-panel'
 import { PIN_FIELD_KEYS, taskErrorKey, type ActionOutcome } from '../tasks/outcome'
 import { pinIsComplete } from '../tasks/pin-field'
+import { useDecisionLink } from './decision-link'
 import { PinOtp } from './pin-otp'
 
 // The decision bar of the document page (FR-INT-012 AC4, §9.9 principle 5, §9.10 "แถบตัดสิน"): for the reader who holds an
@@ -27,7 +28,9 @@ import { PinOtp } from './pin-otp'
 // decision goes to the same server actions and services as the task page (/tasks/[id]): they check the assignee, the
 // task's state, separation of duties and the PIN again, so this bar is never the guard. The outcome of a decision is a
 // toast (§9.10 ข้อความแจ้งผล) and the step turning into a stamp; a failure stays in the bar or the dialog, never in a
-// toast alone (§9.9).
+// toast alone (§9.9). The box of the reader's step on the route's map has the same buttons (ADR-076): pressing them opens
+// this bar's own confirmation in a dialog (decision-link.tsx), so there is one place that decides. A reviewer's task (S6 ·
+// BR-WF-09) passes, returns or asks, and cannot reject; its words say so.
 
 const REASON_MIN = 3
 
@@ -41,6 +44,8 @@ export interface DecisionBarFacts {
 export interface DecisionBarProps {
   readonly taskId: string
   readonly kind: 'REQUEST' | 'PURCHASE_ORDER'
+  /** A reviewer's task (S6 · BR-WF-09) */
+  readonly review?: boolean
   /** The document number (or title) and the amount, named in the approval's confirmation */
   readonly label: string
   readonly amount: string
@@ -55,7 +60,7 @@ export interface DecisionBarProps {
 
 type Dialog = 'RETURN' | 'REJECT' | 'ASK' | null
 
-export function DecisionBar({ taskId, kind, label, amount, locale, stepUp, facts, actions }: DecisionBarProps) {
+export function DecisionBar({ taskId, kind, review = false, label, amount, locale, stepUp, facts, actions }: DecisionBarProps) {
   const t = useTranslations('tasks.decide')
   const td = useTranslations('document.bar')
   const tErrors = useTranslations('tasks.errors')
@@ -70,7 +75,9 @@ export function DecisionBar({ taskId, kind, label, amount, locale, stepUp, facts
   const oneTry = useOneTry()
   const hydrated = useHydrated()
   const barRef = useBarSpace<HTMLElement>()
-  const [confirming, setConfirming] = useState(false)
+  const link = useDecisionLink()
+  // Where the approval's second press is asked: in this bar, or in a dialog when the box on the map was pressed
+  const [confirming, setConfirming] = useState<'BAR' | 'BOX' | null>(null)
   const [approvePin, setApprovePin] = useState('')
   const [approvePinError, setApprovePinError] = useState<string>()
   const [dialog, setDialog] = useState<Dialog>(null)
@@ -103,8 +110,8 @@ export function DecisionBar({ taskId, kind, label, amount, locale, stepUp, facts
       const outcome = await approving.run((key) => actions.decide({ taskId, decision: 'APPROVE', ...(stepUp ? { pin } : {}) }, key))
       setApprovePin('')
       if (!outcome.ok && pinRefused(outcome)) return
-      setConfirming(false)
-      if (outcome.ok) toast.success(t('approved'))
+      setConfirming(null)
+      if (outcome.ok) toast.success(review ? t('review.approved') : t('approved'))
       else stale.check(outcome)
     })
   }
@@ -146,9 +153,78 @@ export function DecisionBar({ taskId, kind, label, amount, locale, stepUp, facts
     }
   }
 
+  const approveLabel = review ? t('review.approve') : t('approve')
+  const confirmLabel = review ? t('review.confirm') : t('confirm')
+  const returnLabel = po ? td('returnPo') : td('return')
+  const stopConfirming = () => {
+    setConfirming(null)
+    setApprovePin('')
+    setApprovePinError(undefined)
+    approving.clear()
+  }
+
+  // What the box of the reader's step may ask of this bar, while the task is open (decision-link.tsx). The commands stay
+  // the same object between renders, so publishing them does not draw the bar again; they read the latest state
+  const boxAsks = useRef({ open: openDialog, approve: () => {} })
+  useEffect(() => {
+    boxAsks.current = {
+      open: openDialog,
+      approve: () => {
+        approving.clear()
+        setConfirming('BOX')
+      },
+    }
+  })
+  const publish = link?.publish
+  const taskOpen = !stale.closed
+  const hasAsk = Boolean(ask)
+  useEffect(() => {
+    if (!publish || !taskOpen) return
+    publish({
+      approveLabel,
+      moreLabel: td('more'),
+      others: [...(hasAsk ? [{ key: 'ASK' as const, label: td('ask') }] : []), { key: 'RETURN' as const, label: returnLabel }, ...(review ? [] : [{ key: 'REJECT' as const, label: td('reject') }])],
+      approve: () => boxAsks.current.approve(),
+      open: (which) => boxAsks.current.open(which),
+    })
+    return () => publish(null)
+  }, [publish, taskOpen, hasAsk, review, approveLabel, returnLabel, td])
+
   const reasonDialog = dialog === 'RETURN' || dialog === 'REJECT'
-  const dialogTitle = dialog === 'ASK' ? t('askTitle') : dialog === 'RETURN' ? (po ? t('po.returnOption') : t('returnOption')) : po ? t('po.rejectOption') : t('rejectOption')
-  const dialogHint = dialog === 'ASK' ? t('askHint') : dialog === 'RETURN' ? (po ? t('po.returnHint') : t('returnHint')) : po ? t('po.rejectHint') : t('rejectHint')
+  const dialogTitle = dialog === 'ASK' ? t('askTitle') : dialog === 'RETURN' ? (review ? t('review.otherTitle') : po ? t('po.returnOption') : t('returnOption')) : po ? t('po.rejectOption') : t('rejectOption')
+  const dialogHint = dialog === 'ASK' ? t('askHint') : dialog === 'RETURN' ? (review ? t('review.returnHint') : po ? t('po.returnHint') : t('returnHint')) : po ? t('po.rejectHint') : t('rejectHint')
+
+  const approveForm = (
+    <form method="post" onSubmit={(event) => void approve(event)} noValidate>
+      <div role="group" aria-labelledby={`${id}-confirm-text`} className="flex flex-col gap-2">
+        <p id={`${id}-confirm-text`} className="font-medium text-ink">
+          {review ? t('review.confirmText', { label, amount }) : t('confirmText', { label, amount })}
+        </p>
+        {stepUp ? (
+          <PinOtp
+            id={`${id}-approve-pin`}
+            label={t('pin')}
+            value={approvePin}
+            onChange={(value) => {
+              setApprovePin(value)
+              setApprovePinError(undefined)
+              approving.clear()
+            }}
+            error={approvePinError ?? atPin(approving.outcome)}
+            disabled={approving.pending}
+          />
+        ) : null}
+        <div className="flex gap-3">
+          <Button type="submit" disabled={approving.pending || !hydrated} aria-busy={approving.pending || undefined} className="flex-1">
+            {approving.pending ? t('working') : confirmLabel}
+          </Button>
+          <Button variant="secondary" onClick={stopConfirming} disabled={approving.pending}>
+            {t('checkFirst')}
+          </Button>
+        </div>
+      </div>
+    </form>
+  )
 
   if (stale.closed) {
     return (
@@ -187,56 +263,19 @@ export function DecisionBar({ taskId, kind, label, amount, locale, stepUp, facts
         ) : null}
       </dl>
       {stepUp ? <StateLine kind="key">{t('stepUpHint')}</StateLine> : null}
-      {failureOf(approving.outcome)}
-      {confirming ? (
-        <form method="post" onSubmit={(event) => void approve(event)} noValidate>
-          <div role="group" aria-labelledby={`${id}-confirm-text`} className="flex flex-col gap-2">
-            <p id={`${id}-confirm-text`} className="font-medium text-ink">
-              {t('confirmText', { label, amount })}
-            </p>
-            {stepUp ? (
-              <PinOtp
-                id={`${id}-approve-pin`}
-                label={t('pin')}
-                value={approvePin}
-                onChange={(value) => {
-                  setApprovePin(value)
-                  setApprovePinError(undefined)
-                  approving.clear()
-                }}
-                error={approvePinError ?? atPin(approving.outcome)}
-                disabled={approving.pending}
-              />
-            ) : null}
-            <div className="flex gap-3">
-              <Button type="submit" disabled={approving.pending || !hydrated} aria-busy={approving.pending || undefined} className="flex-1">
-                {approving.pending ? t('working') : t('confirm')}
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setConfirming(false)
-                  setApprovePin('')
-                  setApprovePinError(undefined)
-                  approving.clear()
-                }}
-                disabled={approving.pending}
-              >
-                {t('checkFirst')}
-              </Button>
-            </div>
-          </div>
-        </form>
+      {confirming === 'BOX' ? null : failureOf(approving.outcome)}
+      {confirming === 'BAR' ? (
+        approveForm
       ) : (
         <Button
           onClick={() => {
             approving.clear()
-            setConfirming(true)
+            setConfirming('BAR')
           }}
           disabled={!hydrated}
           className="w-full"
         >
-          {t('approve')}
+          {approveLabel}
         </Button>
       )}
       <div className="flex flex-wrap items-center gap-2">
@@ -246,13 +285,27 @@ export function DecisionBar({ taskId, kind, label, amount, locale, stepUp, facts
           </Button>
         ) : null}
         <Button variant="secondary" onClick={() => openDialog('RETURN')} disabled={!hydrated} className="px-3">
-          {po ? td('returnPo') : td('return')}
+          {returnLabel}
         </Button>
-        {/* Rejecting sits at the far end, outlined in danger, never beside approve (§9.9) */}
-        <Button variant="danger" onClick={() => openDialog('REJECT')} disabled={!hydrated} className="ml-auto px-3">
-          {td('reject')}
-        </Button>
+        {/* Rejecting sits at the far end, outlined in danger, never beside approve (§9.9); a reviewer cannot reject */}
+        {review ? null : (
+          <Button variant="danger" onClick={() => openDialog('REJECT')} disabled={!hydrated} className="ml-auto px-3">
+            {td('reject')}
+          </Button>
+        )}
       </div>
+
+      {/* The box on the map was pressed: the same second press, asked where the reader is looking */}
+      <AlertDialog open={confirming === 'BOX'} onOpenChange={(next) => (next || approving.pending ? null : stopConfirming())}>
+        <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg font-semibold text-ink">{confirmLabel}</AlertDialogTitle>
+            <AlertDialogDescription className="text-base text-ink-muted">{facts.amount}</AlertDialogDescription>
+          </AlertDialogHeader>
+          {failureOf(approving.outcome)}
+          {confirming === 'BOX' ? approveForm : null}
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={dialog !== null} onOpenChange={(next) => (next ? null : setDialog(null))}>
         <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">

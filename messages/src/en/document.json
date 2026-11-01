@@ -82,7 +82,7 @@
   "overview": {
     "routeNone": "No approval route yet",
     "budgetTitle": "Budget of this document",
-    "poTitle": "Purchase orders"
+    "nextTitle": "Next step: purchase order"
   },
   "steps": {
     "list": "Approval steps",
@@ -111,7 +111,10 @@
       "CLOSED": "{name}'s task was closed: the step was decided or the route ended"
     },
     "reviewTitle": "Step {no} · Reviewers",
-    "committeeTitle": "Step {no} · Committee"
+    "committeeTitle": "Step {no} · Committee",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fit": "Fit the whole route"
   },
   "pos": {
     "none": "No purchase order for this request yet. Procurement issues it once the request is approved",
@@ -192,6 +195,7 @@
     "return": "Return for changes",
     "returnPo": "Return to procurement",
     "reject": "Do not approve",
-    "cancel": "Go back and check"
+    "cancel": "Go back and check",
+    "more": "Other decisions"
   }
 }

@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { cn } from '../cn'
 import { StateLine, type StateKind } from '../request-view/status'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '../shadcn/sheet'
@@ -12,7 +11,8 @@ import { StatusBadge, type BadgeLook } from './badges'
 // and rule — the one signature element of the page. The current step stands out with a 2 px frame. Pressing a step opens
 // its panel on the right (Sheet, 440 px): what happened to its tasks and why the route goes where it goes. The panel has no
 // decision buttons — deciding happens in the decision bar only, so no dialog ever opens over the panel (§9.10). Strings
-// arrive translated; the card's heading is the button, stretched over the card, so the whole card opens the panel.
+// arrive translated; the card's heading is the button, stretched over the card, so the whole card opens the panel. These
+// are the route on a phone; a computer's screen shows the same steps as a map of boxes (step-route.tsx · ADR-076).
 
 export interface StepStampView {
   readonly name: string
@@ -34,6 +34,8 @@ export interface StepSlotView {
   readonly state: { readonly kind: StateKind; readonly text: string }
   /** Who decided it and when ("ลลิตา กฎหมาย · 13 ต.ค. 2569 10:30 น."), for whom a delegate acted */
   readonly decided?: string
+  /** The reader's own open task is this slot, so its box on the map carries the decide buttons (ADR-076) */
+  readonly mine?: boolean
 }
 
 export interface StepHistoryView {
@@ -60,6 +62,8 @@ export interface StepCardView {
   /** The reviewers' step or a committee: how far it is ("ผ่านแล้ว 2 ใน 3 ฝ่าย") and one stamp per slot, grouped */
   readonly progress?: string
   readonly slots?: readonly StepSlotView[]
+  /** The reader's own open task is this step, so its box on the map carries the decide buttons (ADR-076) */
+  readonly mine?: boolean
   readonly history: readonly StepHistoryView[]
 }
 
@@ -77,118 +81,120 @@ const STAMP_FRAME = { ok: 'border-primary', warn: 'border-warn', danger: 'border
  * `next`: what comes once the route is through (procurement issues the PO), shown after the last card while the route
  * still runs, so the steps left read to the end (FR-INT-008 AC1)
  */
-export function StepCards({ steps, explanation, labels, next }: { steps: readonly StepCardView[]; explanation: string; labels: StepCardsLabels; next?: string }) {
-  const [openKey, setOpenKey] = useState<string | null>(null)
-  const open = steps.find((s) => s.key === openKey) ?? null
+export function StepCards({ steps, labels, next, onOpen }: { steps: readonly StepCardView[]; labels: Pick<StepCardsLabels, 'list' | 'open'>; next?: string; onOpen: (key: string) => void }) {
   return (
-    <>
-      <ol aria-label={labels.list} className="flex flex-col">
-        {steps.map((step, index) => {
-          const last = index === steps.length - 1 && !next
-          const frame = step.current ? cn('border-2', step.overdue ? 'border-danger' : 'border-primary') : step.stamp && step.stampTone ? STAMP_FRAME[step.stampTone] : 'border-line'
-          return (
-            <li key={step.key} className="relative flex gap-3 pb-4" aria-current={step.current ? 'step' : undefined} data-step-card="">
-              {!last ? <span aria-hidden="true" className="absolute top-4 left-1.5 h-full w-px bg-line" /> : null}
-              <span aria-hidden="true" className={cn('relative mt-3 size-3 shrink-0 rounded-full border-2 bg-bg', step.current ? 'border-primary bg-primary' : step.stamp ? 'border-primary' : 'border-line-strong')} />
-              <div className={cn('relative min-w-0 flex-1 rounded-md border bg-bg p-3 focus-within:ring-2 focus-within:ring-focus focus-within:ring-offset-2', frame)}>
-                <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                  <h3 className="min-w-0 font-semibold text-ink">
-                    <button
-                      type="button"
-                      onClick={() => setOpenKey(step.key)}
-                      aria-haspopup="dialog"
-                      className="text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
-                    >
-                      {step.title}
-                      <span className="sr-only"> — {labels.open}</span>
-                    </button>
-                  </h3>
-                  <StatusBadge look={step.badge.look} label={step.badge.label} />
-                </div>
-                {step.people.map((p) => (
-                  <p key={p} className="break-words text-ink">
-                    {p}
-                  </p>
-                ))}
-                {step.progress ? <p className="text-ink-muted">{step.progress}</p> : null}
-                {step.slots?.length ? (
-                  <ol className="mt-1 flex flex-col gap-2 border-l-2 border-line pl-3">
-                    {step.slots.map((slot) => (
-                      <li key={slot.key} className="flex flex-col gap-0.5">
-                        <span className="break-words text-ink">{slot.who}</span>
-                        {slot.role ? <span className="text-ink-muted">{slot.role}</span> : null}
-                        {slot.rules ? <span className="text-ink-muted">{slot.rules}</span> : null}
-                        <StateLine kind={slot.state.kind}>{slot.state.text}</StateLine>
-                        {slot.decided ? <span className="tabular text-ink-muted">{slot.decided}</span> : null}
+    <ol aria-label={labels.list} className="flex flex-col">
+      {steps.map((step, index) => {
+        const last = index === steps.length - 1 && !next
+        const frame = step.current ? cn('border-2', step.overdue ? 'border-danger' : 'border-primary') : step.stamp && step.stampTone ? STAMP_FRAME[step.stampTone] : 'border-line'
+        return (
+          <li key={step.key} className="relative flex gap-3 pb-4" aria-current={step.current ? 'step' : undefined} data-step-card="">
+            {!last ? <span aria-hidden="true" className="absolute top-4 left-1.5 h-full w-px bg-line" /> : null}
+            <span aria-hidden="true" className={cn('relative mt-3 size-3 shrink-0 rounded-full border-2 bg-bg', step.current ? 'border-primary bg-primary' : step.stamp ? 'border-primary' : 'border-line-strong')} />
+            <div className={cn('relative min-w-0 flex-1 rounded-md border bg-bg p-3 focus-within:ring-2 focus-within:ring-focus focus-within:ring-offset-2', frame)}>
+              <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                <h3 className="min-w-0 font-semibold text-ink">
+                  <button
+                    type="button"
+                    onClick={() => onOpen(step.key)}
+                    aria-haspopup="dialog"
+                    className="text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+                  >
+                    {step.title}
+                    <span className="sr-only"> — {labels.open}</span>
+                  </button>
+                </h3>
+                <StatusBadge look={step.badge.look} label={step.badge.label} />
+              </div>
+              {step.people.map((p) => (
+                <p key={p} className="break-words text-ink">
+                  {p}
+                </p>
+              ))}
+              {step.progress ? <p className="text-ink-muted">{step.progress}</p> : null}
+              {step.slots?.length ? (
+                <ol className="mt-1 flex flex-col gap-2 border-l-2 border-line pl-3">
+                  {step.slots.map((slot) => (
+                    <li key={slot.key} className="flex flex-col gap-0.5">
+                      <span className="break-words text-ink">{slot.who}</span>
+                      {slot.role ? <span className="text-ink-muted">{slot.role}</span> : null}
+                      {slot.rules ? <span className="text-ink-muted">{slot.rules}</span> : null}
+                      <StateLine kind={slot.state.kind}>{slot.state.text}</StateLine>
+                      {slot.decided ? <span className="tabular text-ink-muted">{slot.decided}</span> : null}
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+              {(step.notes ?? []).map((n) => (
+                <p key={n} className="text-ink-muted">
+                  {n}
+                </p>
+              ))}
+              {step.due ? <p className={cn('tabular', step.overdue ? 'font-medium text-danger' : 'text-ink-muted')}>{step.due}</p> : null}
+              {step.sla ? <p className="tabular text-ink-muted">{step.sla}</p> : null}
+              {step.stamp ? <Stamp stamp={step.stamp} /> : null}
+            </div>
+          </li>
+        )
+      })}
+      {next ? (
+        <li className="relative flex gap-3">
+          <span aria-hidden="true" className="relative mt-1.5 size-3 shrink-0 rounded-full border-2 border-line-strong bg-bg" />
+          <p className="text-ink-muted">{next}</p>
+        </li>
+      ) : null}
+    </ol>
+  )
+}
+
+/** A step's panel: what happened to its tasks and why the route goes where it goes; no decision buttons (§9.10) */
+export function StepPanel({ step, explanation, labels, onClose }: { step: StepCardView | null; explanation: string; labels: StepCardsLabels; onClose: () => void }) {
+  return (
+    <Sheet open={step !== null} onOpenChange={(next) => (next ? null : onClose())}>
+      <SheetContent side="right" className="w-full overflow-y-auto data-[side=right]:sm:max-w-[27.5rem]">
+        {step ? (
+          <>
+            <SheetHeader className="pr-12">
+              <SheetTitle className="text-lg font-semibold text-ink">{step.title}</SheetTitle>
+              <SheetDescription className="text-base text-ink-muted">{step.badge.label}</SheetDescription>
+            </SheetHeader>
+            <div className="flex flex-col gap-6 px-4 pb-6 text-base">
+              <section aria-labelledby="step-panel-history" className="flex flex-col gap-2">
+                <h4 id="step-panel-history" className="font-semibold text-ink">
+                  {labels.panelHistory}
+                </h4>
+                {step.history.length ? (
+                  <ol className="flex flex-col divide-y divide-line border-y border-line">
+                    {step.history.map((h) => (
+                      <li key={h.key} className="flex flex-col gap-0.5 py-2">
+                        <span className="text-ink">{h.text}</span>
+                        <span className="tabular text-ink-muted">{h.when}</span>
+                        {h.note ? <span className="border-l-2 border-line pl-3 break-words whitespace-pre-line text-ink">{h.note}</span> : null}
                       </li>
                     ))}
                   </ol>
-                ) : null}
-                {(step.notes ?? []).map((n) => (
-                  <p key={n} className="text-ink-muted">
-                    {n}
-                  </p>
-                ))}
-                {step.due ? <p className={cn('tabular', step.overdue ? 'font-medium text-danger' : 'text-ink-muted')}>{step.due}</p> : null}
-                {step.sla ? <p className="tabular text-ink-muted">{step.sla}</p> : null}
-                {step.stamp ? <Stamp stamp={step.stamp} /> : null}
-              </div>
-            </li>
-          )
-        })}
-        {next ? (
-          <li className="relative flex gap-3">
-            <span aria-hidden="true" className="relative mt-1.5 size-3 shrink-0 rounded-full border-2 border-line-strong bg-bg" />
-            <p className="text-ink-muted">{next}</p>
-          </li>
-        ) : null}
-      </ol>
-      <Sheet open={open !== null} onOpenChange={(next) => (next ? null : setOpenKey(null))}>
-        <SheetContent side="right" className="w-full overflow-y-auto data-[side=right]:sm:max-w-[27.5rem]">
-          {open ? (
-            <>
-              <SheetHeader className="pr-12">
-                <SheetTitle className="text-lg font-semibold text-ink">{open.title}</SheetTitle>
-                <SheetDescription className="text-base text-ink-muted">{open.badge.label}</SheetDescription>
-              </SheetHeader>
-              <div className="flex flex-col gap-6 px-4 pb-6 text-base">
-                <section aria-labelledby="step-panel-history" className="flex flex-col gap-2">
-                  <h4 id="step-panel-history" className="font-semibold text-ink">
-                    {labels.panelHistory}
+                ) : (
+                  <p className="text-ink-muted">{labels.panelNoHistory}</p>
+                )}
+              </section>
+              {explanation ? (
+                <section aria-labelledby="step-panel-why" className="flex flex-col gap-2">
+                  <h4 id="step-panel-why" className="font-semibold text-ink">
+                    {labels.panelWhy}
                   </h4>
-                  {open.history.length ? (
-                    <ol className="flex flex-col divide-y divide-line border-y border-line">
-                      {open.history.map((h) => (
-                        <li key={h.key} className="flex flex-col gap-0.5 py-2">
-                          <span className="text-ink">{h.text}</span>
-                          <span className="tabular text-ink-muted">{h.when}</span>
-                          {h.note ? <span className="border-l-2 border-line pl-3 break-words whitespace-pre-line text-ink">{h.note}</span> : null}
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p className="text-ink-muted">{labels.panelNoHistory}</p>
-                  )}
+                  <p className="break-words text-ink">{explanation}</p>
                 </section>
-                {explanation ? (
-                  <section aria-labelledby="step-panel-why" className="flex flex-col gap-2">
-                    <h4 id="step-panel-why" className="font-semibold text-ink">
-                      {labels.panelWhy}
-                    </h4>
-                    <p className="break-words text-ink">{explanation}</p>
-                  </section>
-                ) : null}
-              </div>
-            </>
-          ) : null}
-        </SheetContent>
-      </Sheet>
-    </>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </SheetContent>
+    </Sheet>
   )
 }
 
 /** The stamp of a decided step: who, in which position, when, through which channel, under which DOA version and rule */
-function Stamp({ stamp }: { stamp: StepStampView }) {
+export function Stamp({ stamp }: { stamp: StepStampView }) {
   const ref = stamp.doaRef ? <span className="inline-block rounded-sm border-2 border-primary px-1.5 py-0.5 font-semibold text-primary">{stamp.doaRef}</span> : null
   return (
     <div className="mt-1 flex flex-col gap-0.5" data-stamp="">

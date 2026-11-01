@@ -125,7 +125,7 @@ if (mode === 'on') {
   console.log(JSON.stringify({ removed: ids.length }))
 } else if (mode === 'brief') {
   // An open task of a request whose assignee signs in with a password and TOTP (every approver of the demo does)
-  const task = await prisma.approvalTask.findFirstOrThrow({ where: { organizationId: org.id, status: 'OPEN', principalMemberId: null, step: { route: { subjectType: 'REQUEST' } } }, orderBy: { assignedAt: 'desc' }, select: { id: true, assignee: { select: { employeeCode: true } } } })
+  const task = await prisma.approvalTask.findFirstOrThrow({ where: { organizationId: org.id, status: 'OPEN', principalMemberId: null, step: { route: { subjectType: 'REQUEST' } } }, orderBy: { assignedAt: 'desc' }, select: { id: true, assignee: { select: { employeeCode: true } }, step: { select: { route: { select: { subjectId: true } } } } } })
   const client: AiClient = {
     mode: 'fixture',
     extract: async (request) => ({ ok: false, errorCode: 'FIXTURE_MISSING', promptVersion: PROMPT_VERSIONS[request.purpose], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, latencyMs: 0 }),
@@ -133,7 +133,7 @@ if (mode === 'on') {
   }
   setAiClientForTests(client)
   const result = await runBrief(org.id, task.id, now, task.id)
-  console.log(JSON.stringify({ taskId: task.id, assignee: task.assignee.employeeCode, result }))
+  console.log(JSON.stringify({ taskId: task.id, requestId: task.step.route.subjectId, assignee: task.assignee.employeeCode, result }))
 } else {
   const id = process.env.SCENE_ACTION
   const action = await prisma.agentAction.findFirstOrThrow({ where: { organizationId: org.id, agent: { in: ['DOCUMENT', 'INTAKE'] }, ...(id ? { id } : {}) }, orderBy: { createdAt: 'desc' }, select: { id: true, status: true, review: true, subjectType: true } })

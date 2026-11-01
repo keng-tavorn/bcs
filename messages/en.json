@@ -5092,6 +5092,7 @@
       "budget": "Budget",
       "cancel": "Go back and check",
       "doa": "DOA",
+      "more": "Other decisions",
       "reject": "Do not approve",
       "return": "Return for changes",
       "returnPo": "Return to procurement"
@@ -5154,7 +5155,7 @@
     },
     "overview": {
       "budgetTitle": "Budget of this document",
-      "poTitle": "Purchase orders",
+      "nextTitle": "Next step: purchase order",
       "routeNone": "No approval route yet"
     },
     "pos": {
@@ -5179,6 +5180,7 @@
     "steps": {
       "committeeTitle": "Step {no} · Committee",
       "due": "Due {time}",
+      "fit": "Fit the whole route",
       "history": {
         "ASSIGNED": "Assigned to {name}",
         "CLOSED": "{name}'s task was closed: the step was decided or the route ended",
@@ -5203,7 +5205,9 @@
       "sla": "Used {used} of {target} business hours",
       "slaUsed": "Used {used} business hours",
       "title": "Step {no} · {role}",
-      "titlePlain": "Step {no}"
+      "titlePlain": "Step {no}",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out"
     },
     "summary": {
       "budgetLine": "Budget line",

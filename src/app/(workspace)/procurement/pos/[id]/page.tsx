@@ -4,20 +4,21 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
-import { businessDaysTaken, getMyOpenTaskId, getRouteStepDetails, listPoInvoices, listPoReceipts } from '@/server/queries/document-page'
+import { businessDaysTaken, getMyOpenTask, getRouteStepDetails, listPoInvoices, listPoReceipts } from '@/server/queries/document-page'
 import { getPoAccess, getPurchaseOrderView, type PoViewDto } from '@/server/queries/purchase-orders'
 import { getTaskAccess, getTaskView } from '@/server/queries/tasks'
 import { previewPoSubmit, type PoSubmitPreviewDto } from '@/server/services/purchase-orders'
 import { getPoS8View } from '@/server/services/purchase-orders/view-change'
 import { PO_BADGES, StatusBadge, URGENCY_BADGES } from '@/ui/document/badges'
 import { DecisionBar } from '@/ui/document/decision-bar'
+import { DecisionLink } from '@/ui/document/decision-link'
 import { DocBody, DocHeader } from '@/ui/document/doc-header'
 import { DocMenu } from '@/ui/document/doc-header-parts'
 import { DocTabs, type DocTab } from '@/ui/document/doc-tabs'
 import { tabFrom } from '@/ui/document/tab-param'
 import { HistoryTable } from '@/ui/document/history-table'
 import { CommentList, SummaryList } from '@/ui/document/rail'
-import { StepCards } from '@/ui/document/step-cards'
+import { StepRoute } from '@/ui/document/step-route'
 import { Notice } from '@/ui/form/notice'
 import { DraftEditor } from '@/ui/purchase-order/draft-editor'
 import { DraftPay } from '@/ui/po-change/draft-pay'
@@ -28,6 +29,8 @@ import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Section } from '@/ui/request-view/facts'
 import { StateLine } from '@/ui/request-view/status'
 import { Toaster } from '@/ui/shadcn/sonner'
+import { AiBrief } from '@/ui/tasks/ai-brief'
+import { briefView } from '../../../../_lib/brief-present'
 import { downloadUrlAction } from '../../../../_lib/file-actions'
 import { getSession } from '../../../../_lib/session'
 import { canOpenDoaVersion, taskRight } from '../../../_tracking/access'
@@ -175,7 +178,7 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
       </div>
     )
   }
-  const [po, myTaskId, receipts, invoices, s8View] = await Promise.all([getPurchaseOrderView(ctx, id), getMyOpenTaskId(ctx, 'PURCHASE_ORDER', id), listPoReceipts(ctx, id), listPoInvoices(ctx, id), getPoS8View(ctx, id)])
+  const [po, myTask, receipts, invoices, s8View] = await Promise.all([getPurchaseOrderView(ctx, id), getMyOpenTask(ctx, 'PURCHASE_ORDER', id), listPoReceipts(ctx, id), listPoInvoices(ctx, id), getPoS8View(ctx, id)])
   if (!po) notFound()
   const rights = poRights(principal)
   // S8-13: tier-2 invoices, milestones and retention (module PAY), and changes (DOA PO_CHANGE, BR-POC-05)
@@ -186,10 +189,12 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
     po.next.submit && rights.submit ? previewPoSubmit(ctx, po.id) : Promise.resolve(null),
     po.route ? getRouteStepDetails(ctx, po.route.id) : Promise.resolve([]),
     businessDaysTaken(ctx, po.submittedAt, CLOSED_PO.includes(po.status) ? lastDone : null),
-    myTaskId ? Promise.all([getTaskAccess(ctx, myTaskId), getTaskView(ctx, myTaskId)]) : Promise.resolve(null),
+    myTask ? Promise.all([getTaskAccess(ctx, myTask.id), getTaskView(ctx, myTask.id)]) : Promise.resolve(null),
   ])
   // The decision bar: an open approval task of this PO that the reader may decide (approval.decide, BR-DLG-04)
   const decide = task && task[0] && task[1] && taskRight(principal, task[0]) === 'DECIDE' && task[1].status === 'OPEN' ? task[1] : null
+  // The AI's summary for the one who decides it now, as on the task page (FR-AI-301): already made, none when there is none
+  const brief = decide ? await briefView(ctx, decide.id) : null
   const doaLinks = canOpenDoaVersion(principal)
   // The approver decides on the prices too: the prices paid before for the same items (FR-P2P-003 AC1)
   const reader = poReader(principal, access, po, decide ? { prices: true } : {})
@@ -229,17 +234,18 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
               <p className="break-words text-ink">{routeWhy(tv, tl, locale, route, 'PURCHASE_ORDER')}</p>
             </div>
             {route.routeNo > 1 ? <p className="text-ink-muted">{tv('route.round', { no: route.routeNo })}</p> : null}
-            <StepCards
-              steps={stepCards(td, tv, tl, locale, route, details, { doaLinks })}
+            <StepRoute
+              steps={stepCards(td, tv, tl, locale, route, details, { doaLinks, myTask: decide ? myTask : null })}
               explanation={routeWhy(tv, tl, locale, route, 'PURCHASE_ORDER')}
-              labels={{ list: td('steps.list'), open: td('steps.open'), panelHistory: td('steps.panelHistory'), panelWhy: td('steps.panelWhy'), panelNoHistory: td('steps.panelNoHistory') }}
+              labels={{ list: td('steps.list'), open: td('steps.open'), panelHistory: td('steps.panelHistory'), panelWhy: td('steps.panelWhy'), panelNoHistory: td('steps.panelNoHistory'), zoomIn: td('steps.zoomIn'), zoomOut: td('steps.zoomOut'), fit: td('steps.fit') }}
+              {...(brief ? { briefLink: brief.title } : {})}
             />
           </div>
         ) : (
           <p className="text-ink-muted">{t('detail.routeNotYet')}</p>
         )}
       </Section>
-      <PoBody po={po} locale={locale} doaLinks={doaLinks} reader={reader} openFile={downloadUrlAction} parts={['money']} />
+      <PoBody po={po} locale={locale} doaLinks={doaLinks} reader={reader} openFile={downloadUrlAction} parts={decide ? ['money', 'lines'] : ['money']} />
     </div>
   )
 
@@ -351,74 +357,78 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
         notices={<StateNotices po={po} t={t} locale={locale} />}
       />
 
-      <DocBody
-        main={
-          <>
-            <DocTabs tabs={tabs} initial={tabFrom(query.tab, tabs.map((tab) => tab.value))} label={td('tabs.label')} param="tab" />
-            {po.next.edit && rights.edit ? (
-              <DraftEditor
-                poId={po.id}
-                version={po.version}
-                // The price as the lines above show it, with thousands separators (§9.9 principle 6); the editor takes them out
-                lines={po.lines.map((l) => ({ id: l.id, no: l.lineNo, description: l.description, uom: l.uom, quantity: l.quantity, unitPrice: money(l.unitPriceSatang), maxQuantity: l.maxQuantity }))}
-                paymentTermDays={po.paymentTermDays}
-                notesToSupplier={po.notesToSupplier}
-                save={editDraftAction}
+      <DecisionLink>
+        <DocBody
+          main={
+            <>
+              <DocTabs tabs={tabs} initial={tabFrom(query.tab, tabs.map((tab) => tab.value))} label={td('tabs.label')} param="tab" />
+              {po.next.edit && rights.edit ? (
+                <DraftEditor
+                  poId={po.id}
+                  version={po.version}
+                  // The price as the lines above show it, with thousands separators (§9.9 principle 6); the editor takes them out
+                  lines={po.lines.map((l) => ({ id: l.id, no: l.lineNo, description: l.description, uom: l.uom, quantity: l.quantity, unitPrice: money(l.unitPriceSatang), maxQuantity: l.maxQuantity }))}
+                  paymentTermDays={po.paymentTermDays}
+                  notesToSupplier={po.notesToSupplier}
+                  save={editDraftAction}
+                />
+              ) : null}
+              {s8?.draft ? (
+                <DraftPay poId={po.id} version={s8.version} retentionBp={s8.draft.retentionBp} retentionHoldDays={s8.draft.retentionHoldDays} lines={s8.draft.splittable} actions={{ milestones: setMilestonesAction, retention: setRetentionAction }} />
+              ) : null}
+            </>
+          }
+          rail={
+            <>
+              {decide ? (
+                <DecisionBar
+                  taskId={decide.id}
+                  kind="PURCHASE_ORDER"
+                  review={decide.review}
+                  label={label}
+                  amount={money(po.totals.grossSatang)}
+                  locale={locale}
+                  stepUp={decide.stepUp}
+                  facts={{
+                    amount: route?.basisSatang != null ? td('bar.amountValue', { amount: money(route.basisSatang), basis: tv(`route.explain.basis.${route.amountBasis}`) }) : '-',
+                    ...(route ? { doaRef: doaRefText(tl, route.doa) } : {}),
+                  }}
+                  actions={{ decide: decideTaskAction }}
+                />
+              ) : null}
+              {brief ? <AiBrief brief={brief} /> : null}
+              {procurement ? (
+                <PoActions
+                  poId={po.id}
+                  label={label}
+                  submit={preview?.ok ? previewView(t, tv, tl, locale, preview.data) : null}
+                  send={po.next.send && rights.send ? { email: po.supplier.email } : null}
+                  resend={po.next.resend && rights.send ? { email: po.supplier.email } : null}
+                  cancel={po.next.cancel && rights.cancel}
+                  close={po.next.close && rights.close}
+                  // Closing waits for goods still to come: said once some came, not while nothing has arrived yet
+                  closeWaits={po.next.closeNeedsShortfall && rights.close && po.status === 'PARTIALLY_RECEIVED' ? t('actions.close.needsShortfall') : null}
+                  // Where what will not come is closed short (the receiving page, not in procurement's menu): once it went out
+                  receivingHref={receivingHref}
+                  {...(po.status === 'PENDING_APPROVAL' ? { nothing: t('actions.nothingWhileApproval') } : {})}
+                  actions={{ submit: submitPoAction, send: sendPoAction, cancel: cancelPoAction, close: closePoAction }}
+                />
+              ) : decide ? null : (
+                <p className="text-ink-muted">{t('detail.viewOnly')}</p>
+              )}
+              {s8 ? <PoChangeRail poId={po.id} changeHref={s8.canChange ? `/procurement/pos/${po.id}/change` : null} revisionToSend={s8.revisionToSend} send={sendRevisionAction} /> : null}
+              <DocTabs
+                label={td('rail.label')}
+                initial="summary"
+                tabs={[
+                  { value: 'summary', label: td('rail.summary'), content: summary },
+                  { value: 'comments', label: td('rail.comments', { count: comments.length }), content: <CommentList comments={comments} label={td('comments.list')} empty={td('comments.empty')} /> },
+                ]}
               />
-            ) : null}
-            {s8?.draft ? (
-              <DraftPay poId={po.id} version={s8.version} retentionBp={s8.draft.retentionBp} retentionHoldDays={s8.draft.retentionHoldDays} lines={s8.draft.splittable} actions={{ milestones: setMilestonesAction, retention: setRetentionAction }} />
-            ) : null}
-          </>
-        }
-        rail={
-          <>
-            {decide ? (
-              <DecisionBar
-                taskId={decide.id}
-                kind="PURCHASE_ORDER"
-                label={label}
-                amount={money(po.totals.grossSatang)}
-                locale={locale}
-                stepUp={decide.stepUp}
-                facts={{
-                  amount: route?.basisSatang != null ? td('bar.amountValue', { amount: money(route.basisSatang), basis: tv(`route.explain.basis.${route.amountBasis}`) }) : '-',
-                  ...(route ? { doaRef: doaRefText(tl, route.doa) } : {}),
-                }}
-                actions={{ decide: decideTaskAction }}
-              />
-            ) : null}
-            {procurement ? (
-              <PoActions
-                poId={po.id}
-                label={label}
-                submit={preview?.ok ? previewView(t, tv, tl, locale, preview.data) : null}
-                send={po.next.send && rights.send ? { email: po.supplier.email } : null}
-                resend={po.next.resend && rights.send ? { email: po.supplier.email } : null}
-                cancel={po.next.cancel && rights.cancel}
-                close={po.next.close && rights.close}
-                // Closing waits for goods still to come: said once some came, not while nothing has arrived yet
-                closeWaits={po.next.closeNeedsShortfall && rights.close && po.status === 'PARTIALLY_RECEIVED' ? t('actions.close.needsShortfall') : null}
-                // Where what will not come is closed short (the receiving page, not in procurement's menu): once it went out
-                receivingHref={receivingHref}
-                {...(po.status === 'PENDING_APPROVAL' ? { nothing: t('actions.nothingWhileApproval') } : {})}
-                actions={{ submit: submitPoAction, send: sendPoAction, cancel: cancelPoAction, close: closePoAction }}
-              />
-            ) : decide ? null : (
-              <p className="text-ink-muted">{t('detail.viewOnly')}</p>
-            )}
-            {s8 ? <PoChangeRail poId={po.id} changeHref={s8.canChange ? `/procurement/pos/${po.id}/change` : null} revisionToSend={s8.revisionToSend} send={sendRevisionAction} /> : null}
-            <DocTabs
-              label={td('rail.label')}
-              initial="summary"
-              tabs={[
-                { value: 'summary', label: td('rail.summary'), content: summary },
-                { value: 'comments', label: td('rail.comments', { count: comments.length }), content: <CommentList comments={comments} label={td('comments.list')} empty={td('comments.empty')} /> },
-              ]}
-            />
-          </>
-        }
-      />
+            </>
+          }
+        />
+      </DecisionLink>
       {/* The outcome of a decision or a copied link (§9.10 ข้อความแจ้งผล); above the decision bar on phones */}
       <Toaster position="top-center" />
     </div>

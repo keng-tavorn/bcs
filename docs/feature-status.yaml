@@ -972,8 +972,10 @@ features:
       - tests/e2e/document-page.spec.ts
       - tests/e2e/request-view.spec.ts
       - tests/e2e/purchase-order.spec.ts
+      - tests/unit/step-flow-layout.test.ts
+      - tests/e2e/step-flow.spec.ts
     verifiedBy: null
-    notes: "S16-07: AC1 to AC6 on /requests/[id] and /procurement/pos/[id]; /tasks/[id] keeps its page. Writing comments: NEW-78; the budget line's balance and the budget badge: NEW-79"
+    notes: "S16-07: AC1 to AC6 on /requests/[id] and /procurement/pos/[id]; NEW-113 ADR-076 the route is a map of boxes from 1024 px with decide buttons on the reader's own box; NEW-114 the Brief, next step and items on the document page; /tasks/[id] keeps its page. Writing comments: NEW-78; the budget line's balance and the budget badge: NEW-79"
   FR-INT-013:
     status: in_progress
     step: S16

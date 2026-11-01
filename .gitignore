@@ -32,3 +32,6 @@ playwright/.cache/
 
 # Pictures a failed PDF snapshot comparison leaves to look at (tests/support/pdf-raster.ts)
 tests/snapshots/pdf/*.actual.png
+
+# ภาพจากวิดีโอของ Zip เป็นลิขสิทธิ์ของเขา ใช้ดูเป็นแนวทางบนเครื่องเท่านั้น (repo เป็น public · §11 ใน CLAUDE.md)
+docs/reference/zip/frames/

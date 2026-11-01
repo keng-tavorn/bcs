@@ -30,3 +30,6 @@ tests/snapshots/pdf/*.actual.png
 
 # Only here
 docs/inputs/*.xlsx~
+
+# Zip reference frames stay on this machine (docs/reference/zip/README.md)
+docs/reference/zip/frames/

@@ -58,13 +58,13 @@ export function stepCards(
   locale: Locale,
   route: RouteDto,
   details: readonly StepDetailDto[],
-  options: { readonly doaLinks: boolean },
+  options: { readonly doaLinks: boolean; readonly myTask?: { readonly stepNo: number; readonly slotNo: number } | null },
 ): StepCardView[] {
   const byNo = new Map(details.map((d) => [d.stepNo, d]))
   return route.steps.map((step) => {
     const detail = byNo.get(step.stepNo)
     const badge = stepBadge(t, locale, step, detail)
-    const slotted = slottedCard(t, tv, locale, step)
+    const slotted = slottedCard(t, tv, locale, step, options.myTask?.stepNo === step.stepNo ? options.myTask.slotNo : null)
     if (slotted) {
       const sla = step.status === 'ACTIVE' && !step.decision ? detail?.sla : null
       return {
@@ -100,6 +100,7 @@ export function stepCards(
       title: role ? t('steps.title', { no: step.stepNo, role }) : t('steps.titlePlain', { no: step.stepNo }),
       badge: { look: STEP_BADGES[badge.key], label: badge.label },
       current: active,
+      ...(active && options.myTask?.stepNo === step.stepNo ? { mine: true } : {}),
       ...(sla?.overdue ? { overdue: true } : {}),
       people: people.filter(Boolean),
       // BR-SLA-04, NEW-46: the band above joined the step past its time, and whoever decides first decides; S6-08: the
@@ -144,7 +145,7 @@ const SLOT_LOOK = { OPEN: 'waiting', QUESTION: 'question', APPROVE: 'done', RETU
  * The card of the reviewers' step or of a committee (S6 · ADR-103): its title, how far it is and one stamp per slot —
  * every slot decides for itself, so no single person names the step and nobody "decides first" for the others
  */
-function slottedCard(t: DocumentT, tv: ViewT, locale: Locale, step: RouteDto['steps'][number]): Pick<StepCardView, 'title' | 'progress' | 'slots'> | null {
+function slottedCard(t: DocumentT, tv: ViewT, locale: Locale, step: RouteDto['steps'][number], mySlot: number | null): Pick<StepCardView, 'title' | 'progress' | 'slots'> | null {
   const slots = step.slots ?? []
   if ((step.stepType !== 'REVIEW' && step.stepType !== 'COMMITTEE') || slots.length === 0) return null
   const review = step.stepType === 'REVIEW'
@@ -166,6 +167,7 @@ function slottedCard(t: DocumentT, tv: ViewT, locale: Locale, step: RouteDto['st
         ...(review && s.ruleCodes.length ? { rules: tv('route.slotRules', { rules: s.ruleCodes.join(', ') }) } : {}),
         state: { kind: SLOT_LOOK[s.status], text: tv(`route.slotState.${s.status === 'APPROVE' && review ? 'PASS' : s.status}`) },
         ...(s.decidedAt && by ? { decided: `${by} · ${when(locale, s.decidedAt)}` } : {}),
+        ...(mySlot === s.slotNo ? { mine: true } : {}),
       }
     }),
   }

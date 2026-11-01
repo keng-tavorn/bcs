@@ -239,7 +239,7 @@ test('[FR-AI-302/AC1] [FR-AI-302/AC5] step 0: what the requester wrote fills the
 
 test('[FR-AI-301/AC1] [FR-AI-301/AC3] the decider sees the Brief apart on the decision bar, with the facts and no button of its own', async ({ page }, testInfo) => {
   ai('on')
-  const brief = ai<{ taskId: string; assignee: string; result: string }>('brief')
+  const brief = ai<{ taskId: string; requestId: string; assignee: string; result: string }>('brief')
   expect(brief.result).toBe('DRAFT')
   await signIn(page, brief.assignee, true)
   await page.goto(`/tasks/${brief.taskId}`)
@@ -249,6 +249,15 @@ test('[FR-AI-301/AC1] [FR-AI-301/AC3] the decider sees the Brief apart on the de
   await expect(box.getByText(/คำขอนี้ยอด [\d,]+\.\d{2} บาท ตามข้อ /)).toBeVisible()
   await expect(box.getByRole('button')).toHaveCount(0)
   await check(page, testInfo, 'brief-web')
+
+  // The document page shows the same Brief to the same reader, and on a computer the box of their step points to it
+  await page.goto(`/requests/${brief.requestId}`)
+  await expect(box.getByText('AI อาจผิดพลาด ตรวจกับเอกสาร')).toBeVisible()
+  await expect(box.getByRole('button')).toHaveCount(0)
+  if (testInfo.project.name === 'desktop') {
+    await expect(page.getByRole('list', { name: 'ขั้นอนุมัติ' }).getByRole('link', { name: 'สรุปจาก AI' })).toHaveAttribute('href', '#ai-brief-title')
+  }
+  await check(page, testInfo, 'brief-document')
 })
 
 test('[FR-AI-309/AC1] [FR-AI-309/AC2] [FR-AI-309/AC5] ⌘K asks BCS AI only while it is on; the answer streams into its sheet', async ({ page }, testInfo) => {

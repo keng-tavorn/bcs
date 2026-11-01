@@ -4,7 +4,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
-import { businessDaysTaken, getMyOpenTaskId, getRouteStepDetails, listRequestPurchaseOrders } from '@/server/queries/document-page'
+import { businessDaysTaken, getMyOpenTask, getRouteStepDetails, listRequestPurchaseOrders } from '@/server/queries/document-page'
 import { getPoAccess } from '@/server/queries/purchase-orders'
 import { getRequestAccess, getRequestView, getServiceLines, type RequestViewDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView } from '@/server/queries/tasks'
@@ -12,15 +12,17 @@ import { getRequestOverruns } from '@/server/services/budget/overrun-view'
 import { listRequestFlags } from '@/server/services/requests/duplicates'
 import { getRequestFollowers } from '@/server/services/requests/followers'
 import { Notice } from '@/ui/form/notice'
+import { AiBrief } from '@/ui/tasks/ai-brief'
 import { PO_BADGES, REQUEST_BADGES, StatusBadge, URGENCY_BADGES } from '@/ui/document/badges'
 import { DecisionBar } from '@/ui/document/decision-bar'
+import { DecisionLink } from '@/ui/document/decision-link'
 import { DocBody, DocHeader } from '@/ui/document/doc-header'
 import { CANCEL_ANCHOR, DocMenu } from '@/ui/document/doc-header-parts'
 import { DocTabs, type DocTab } from '@/ui/document/doc-tabs'
 import { tabFrom } from '@/ui/document/tab-param'
 import { HistoryTable } from '@/ui/document/history-table'
 import { CommentList, PoCards, SummaryList, type PoCardView } from '@/ui/document/rail'
-import { StepCards } from '@/ui/document/step-cards'
+import { StepRoute } from '@/ui/document/step-route'
 import { OverrunPanel } from '@/ui/budgets/overrun-panel'
 import { Toaster } from '@/ui/shadcn/sonner'
 import { AttachmentList } from '@/ui/request-view/attachments'
@@ -34,6 +36,7 @@ import { canRenew, canReorder } from '@/ui/request-view/repeat-rules'
 import { CancelRequest, RequesterActions } from '@/ui/request-view/requester-actions'
 import { StateLine } from '@/ui/request-view/status'
 import { BYTES_PER_KIB } from '@/lib/constants'
+import { briefView } from '../../../_lib/brief-present'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
 import { canOpenDoaVersion, canViewRequest, taskRight } from '../../_tracking/access'
@@ -115,7 +118,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
     )
   }
 
-  const [view, follow, myTaskId, allPos] = await Promise.all([getRequestView(ctx, id), getRequestFollowers(ctx, id), getMyOpenTaskId(ctx, 'REQUEST', id), listRequestPurchaseOrders(ctx, id)])
+  const [view, follow, myTask, allPos] = await Promise.all([getRequestView(ctx, id), getRequestFollowers(ctx, id), getMyOpenTask(ctx, 'REQUEST', id), listRequestPurchaseOrders(ctx, id)])
   if (!view) notFound()
   const route = view.route
   const closed = CLOSED_STATUSES.includes(view.status)
@@ -124,7 +127,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
     route ? getRouteStepDetails(ctx, route.id) : Promise.resolve([]),
     businessDaysTaken(ctx, view.submittedAt, closed ? lastDone : null),
     Promise.all(allPos.map((po) => getPoAccess(ctx, po.id))),
-    myTaskId ? Promise.all([getTaskAccess(ctx, myTaskId), getTaskView(ctx, myTaskId)]) : Promise.resolve(null),
+    myTask ? Promise.all([getTaskAccess(ctx, myTask.id), getTaskView(ctx, myTask.id)]) : Promise.resolve(null),
     // Like a request its requester sent before, or a purchase that may be split (S6-13 · FR-INT-103 AC2 AC3)
     listRequestFlags(ctx, id),
     // Over budget (S6-16 · FR-BUD-101): the requester asks for the shortfall; whoever reads the request sees what was asked
@@ -136,6 +139,8 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
   const pos = allPos.filter((_, i) => poAccess[i] && canViewPo(principal, poAccess[i]!))
   // The decision bar: an open task on this request that the reader may decide (approval.decide, BR-DLG-04)
   const decide = task && task[0] && task[1] && taskRight(principal, task[0]) === 'DECIDE' && task[1].status === 'OPEN' ? task[1] : null
+  // The AI's summary for the one who decides it now, as on the task page (FR-AI-301): already made, none when there is none
+  const brief = decide ? await briefView(ctx, decide.id) : null
 
   const named = (m: { id: string; name: { th: string; en: string | null } }) => ({ id: m.id, name: memberName(locale, m) })
   const mine = view.requester.id === state.member.id
@@ -186,6 +191,13 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
         {view.cancelReason ? <p className="break-words whitespace-pre-line text-ink">{tv('detail.cancelledReason', { reason: view.cancelReason })}</p> : null}
       </div>
 
+      {/* The route is through and there is a PO: what comes next is what the reader came for */}
+      {poCards.length ? (
+        <Section id="po-card" title={td('overview.nextTitle')}>
+          <PoCards pos={poCards} label={td('pos.list')} />
+        </Section>
+      ) : null}
+
       {flagsView ? <RequestFlagsPanel view={flagsView} /> : null}
 
       {serviceLines.length ? (
@@ -206,10 +218,11 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
               <p className="break-words text-ink">{routeWhy(tv, tl, locale, route, 'REQUEST')}</p>
             </div>
             {route.routeNo > 1 ? <p className="text-ink-muted">{tv('route.round', { no: route.routeNo })}</p> : null}
-            <StepCards
-              steps={stepCards(td, tv, tl, locale, route, details, { doaLinks })}
+            <StepRoute
+              steps={stepCards(td, tv, tl, locale, route, details, { doaLinks, myTask: decide ? myTask : null })}
               explanation={routeWhy(tv, tl, locale, route, 'REQUEST')}
-              labels={{ list: td('steps.list'), open: td('steps.open'), panelHistory: td('steps.panelHistory'), panelWhy: td('steps.panelWhy'), panelNoHistory: td('steps.panelNoHistory') }}
+              labels={{ list: td('steps.list'), open: td('steps.open'), panelHistory: td('steps.panelHistory'), panelWhy: td('steps.panelWhy'), panelNoHistory: td('steps.panelNoHistory'), zoomIn: td('steps.zoomIn'), zoomOut: td('steps.zoomOut'), fit: td('steps.fit') }}
+              {...(brief ? { briefLink: brief.title } : {})}
               {...(nextAfterRoute ? { next: nextAfterRoute } : {})}
             />
           </div>
@@ -217,6 +230,9 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
           <p className="text-ink-muted">{view.documentType === 'SUPPLIER_REQUEST' ? tv('route.none') : tv('route.notYet')}</p>
         )}
       </Section>
+
+      {/* The one who decides reads what is asked for on this screen (§9.9 principle 5) */}
+      {decide ? <RequestSections view={view} locale={locale} openFile={downloadUrlAction} doaLinks={doaLinks} parts={['lines']} /> : null}
 
       {view.documentType === 'PURCHASE_REQUEST' ? (
         <Section id="budget-card" title={td('overview.budgetTitle')}>
@@ -249,11 +265,6 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
 
       {overrunView ? <OverrunPanel requestId={view.id} view={overrunView} mine={mine} actions={{ submit: submitBudgetOverrunAction, cancel: cancelBudgetOverrunAction }} /> : null}
 
-      {poCards.length ? (
-        <Section id="po-card" title={td('overview.poTitle')}>
-          <PoCards pos={poCards} label={td('pos.list')} />
-        </Section>
-      ) : null}
     </div>
   )
 
@@ -385,46 +396,50 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
         />
       ) : null}
 
-      <DocBody
-        main={
-          <>
-            <DocTabs tabs={tabs} initial={tabFrom(query.tab, tabs.map((tab) => tab.value))} label={td('tabs.label')} param="tab" />
-            {mine ? (
-              <div id={CANCEL_ANCHOR}>
-                <CancelRequest requestId={view.id} canCancel={view.actions.canCancel} cancel={cancelRequestAction} />
-              </div>
-            ) : null}
-          </>
-        }
-        rail={
-          <>
-            {decide ? (
-              <DecisionBar
-                taskId={decide.id}
-                kind="REQUEST"
-                label={view.number ?? view.title}
-                amount={totals ? money(totals.grossSatang) : '-'}
-                locale={locale}
-                stepUp={decide.stepUp}
-                facts={{
-                  amount: route?.basisSatang != null ? td('bar.amountValue', { amount: money(route.basisSatang), basis: tv(`route.explain.basis.${route.amountBasis}`) }) : '-',
-                  budget: <StateLine kind={budget.kind}>{tv(`budget.${budget.key}`)}</StateLine>,
-                  ...(route ? { doaRef: doaRefText(tl, route.doa) } : {}),
-                }}
-                actions={{ decide: decideTaskAction, ask: askForInformationAction }}
-              />
-            ) : null}
+      <DecisionLink>
+        <DocBody
+          main={
+            <>
+              <DocTabs tabs={tabs} initial={tabFrom(query.tab, tabs.map((tab) => tab.value))} label={td('tabs.label')} param="tab" />
+              {mine ? (
+                <div id={CANCEL_ANCHOR}>
+                  <CancelRequest requestId={view.id} canCancel={view.actions.canCancel} cancel={cancelRequestAction} />
+                </div>
+              ) : null}
+            </>
+          }
+          rail={
+            <>
+              {decide ? (
+                <DecisionBar
+                  taskId={decide.id}
+                  kind="REQUEST"
+                  review={decide.review}
+                  label={view.number ?? view.title}
+                  amount={totals ? money(totals.grossSatang) : '-'}
+                  locale={locale}
+                  stepUp={decide.stepUp}
+                  facts={{
+                    amount: route?.basisSatang != null ? td('bar.amountValue', { amount: money(route.basisSatang), basis: tv(`route.explain.basis.${route.amountBasis}`) }) : '-',
+                    budget: <StateLine kind={budget.kind}>{tv(`budget.${budget.key}`)}</StateLine>,
+                    ...(route ? { doaRef: doaRefText(tl, route.doa) } : {}),
+                  }}
+                  actions={{ decide: decideTaskAction, ask: askForInformationAction }}
+                />
+              ) : null}
+              {brief ? <AiBrief brief={brief} /> : null}
             <DocTabs
-              label={td('rail.label')}
-              initial="summary"
-              tabs={[
-                { value: 'summary', label: td('rail.summary'), content: summary },
-                { value: 'comments', label: td('rail.comments', { count: comments.length }), content: <CommentList comments={comments} label={td('comments.list')} empty={td('comments.empty')} /> },
-              ]}
-            />
-          </>
-        }
-      />
+                label={td('rail.label')}
+                initial="summary"
+                tabs={[
+                  { value: 'summary', label: td('rail.summary'), content: summary },
+                  { value: 'comments', label: td('rail.comments', { count: comments.length }), content: <CommentList comments={comments} label={td('comments.list')} empty={td('comments.empty')} /> },
+                ]}
+              />
+            </>
+          }
+        />
+      </DecisionLink>
       {/* The outcome of a decision or a copied link (§9.10 ข้อความแจ้งผล); above the decision bar on phones */}
       <Toaster position="top-center" />
     </div>

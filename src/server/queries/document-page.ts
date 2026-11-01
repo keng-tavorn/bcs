@@ -195,15 +195,20 @@ export async function getRouteStepDetails(ctx: Ctx, routeId: string): Promise<St
  * BR-SLA-03), on its current route; null when there is none. The page still asks approval.decide of the task.
  */
 export async function getMyOpenTaskId(ctx: Ctx, subjectType: 'REQUEST' | 'PURCHASE_ORDER', subjectId: string): Promise<string | null> {
+  return (await getMyOpenTask(ctx, subjectType, subjectId))?.id ?? null
+}
+
+/** The reader's open task with where it sits on the route, so the route's map puts the decide buttons on its box (ADR-076) */
+export async function getMyOpenTask(ctx: Ctx, subjectType: 'REQUEST' | 'PURCHASE_ORDER', subjectId: string): Promise<{ readonly id: string; readonly stepNo: number; readonly slotNo: number } | null> {
   if (ctx.actor.type !== 'USER' || !isUuid(subjectId)) return null
   const db = forTenant(ctx.organizationId)
   const task = await db.approvalTask.findFirst({
     // The assignee, or the delegator a delegate holds it for, who may still decide it (BR-DLG-04)
     where: { OR: [{ assigneeMemberId: ctx.actor.memberId }, { principalMemberId: ctx.actor.memberId }], status: 'OPEN', step: { route: { subjectType, subjectId, status: 'ACTIVE' } } },
     orderBy: [{ assignedAt: 'asc' }, { id: 'asc' }],
-    select: { id: true },
+    select: { id: true, slotNo: true, step: { select: { stepNo: true } } },
   })
-  return task?.id ?? null
+  return task ? { id: task.id, stepNo: task.step.stepNo, slotNo: task.slotNo } : null
 }
 
 /** A receipt of a PO (§9.10 แท็บ "การรับของ") */

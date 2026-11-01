@@ -7,8 +7,9 @@ import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { appendEvents } from '@/server/events/append'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
+import { getRouteStepDetails } from '@/server/queries/document-page'
 import { getRequestView } from '@/server/queries/requests'
-import { decideTask } from '@/server/services/approvals/decide'
+import { decideTask, requestInfo } from '@/server/services/approvals/decide'
 import { assignNextStep } from '@/server/services/approvals/next-step'
 import { collectKpis } from '@/server/services/reports/kpi'
 import { createDraft, resubmitRequest, submitRequest } from '../support/requests'
@@ -279,6 +280,22 @@ describe('[FR-WF-101/AC5] KPI with reviewers: G-2 checks them with the workflow 
 })
 
 describe('[FR-WF-101/AC2] the SLA of a REVIEW step (BR-WF-15)', () => {
+  it('[FR-INT-012/AC3] the step keeps its SLA while any reviewer has still to decide, a question of one stops only theirs, and it ends with the last pass', async () => {
+    const requestId = await contractWork()
+    ok(await submitRequest(org.ctxOf('req_con', NOW), { requestId }, key()))
+    const { route, tasks } = await routeOf(requestId)
+    const [leg, qse, fin] = [tasks[0]!, tasks[1]!, tasks[2]!]
+    const slaNow = async () => (await getRouteStepDetails(org.ctxOf('req_con', LATER), route.id))[0]!.sla
+    const due = leg.dueAt!
+    expect(await slaNow()).toMatchObject({ dueAt: due, targetMinutes: 960 })
+    ok(await decide(qse.id, 'dm_qse', 'APPROVE'))
+    expect(await slaNow(), 'one of three passed: two still wait').toMatchObject({ dueAt: due, targetMinutes: 960 })
+    ok(await requestInfo(org.ctxOf('dm_leg', LATER), { taskId: leg.id, question: 'ขอร่างสัญญา' }, key()))
+    expect(await slaNow(), 'the first reviewer asks: the third can still decide').toMatchObject({ dueAt: due, targetMinutes: 960 })
+    ok(await decide(fin.id, 'dm_fin', 'APPROVE'))
+    expect(await slaNow(), 'only the question is left: its time stops (BR-SLA-03)').toMatchObject({ dueAt: null })
+  })
+
   it('past escalateAt a reviewer\'s task gets no co-assignee', async () => {
     const requestId = await contractWork()
     ok(await submitRequest(org.ctxOf('req_con', NOW), { requestId }, key()))

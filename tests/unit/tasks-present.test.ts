@@ -2,7 +2,7 @@ import { createTranslator } from 'next-intl'
 import { describe, expect, it } from 'vitest'
 import { routeSentence, stageText, stageWaitingMinutes, timelineItems, waitingText, type TimelineT, type ViewT } from '@/app/(workspace)/_tracking/present'
 import { requestRows } from '@/app/(workspace)/_tracking/rows'
-import type { MyRequestRowDto, RouteDto, StageDto, TrackEntryDto } from '@/server/queries/requests'
+import type { MyRequestRowDto, RouteDto, StageDto, TrackEntryDto, WaitingApproverDto } from '@/server/queries/requests'
 import en from '../../messages/en.json'
 import th from '../../messages/th.json'
 
@@ -88,6 +88,15 @@ describe('[FR-INT-008/AC1] how long a step has waited, in business hours', () =>
     expect(stageText(t, 'th', { kind: 'REQUESTER_EDIT', since: null }, false)).toBe('stage.REQUESTER_EDIT')
   })
 
+  it('[FR-WF-101/AC1] the reviewers who wait together read as a Thai list with its spaces, in the reader’s language', () => {
+    const named = (th: string, en: string): WaitingApproverDto => ({ taskId: th, assignee: { id: th, name: { th, en } }, onBehalfOf: null, role: { kind: 'UNKNOWN' }, since: new Date(), waitingMinutes: 30, dueAt: null, overdue: false })
+    const stage = (approvers: readonly WaitingApproverDto[]): StageDto => ({ kind: 'APPROVER', taskId: 't', assignee: vp, onBehalfOf: null, role, since: new Date(), waitingMinutes: 30, dueAt: null, overdue: false, stepNo: 1, stepCount: 2, together: 'REVIEW', approvers })
+    const [a, b, c] = [named('สุวิทย์', 'Suwit'), named('เฉลิมพล', 'Chalermpon'), named('จิราพร', 'Jiraporn')]
+    expect(stageText(t, 'th', stage([a, c]), true)).toBe(`stage.REVIEWERS${JSON.stringify({ name: 'สุวิทย์ และ จิราพร' })}`)
+    expect(stageText(t, 'th', stage([a, b, c]), true)).toBe(`stage.REVIEWERS${JSON.stringify({ name: 'สุวิทย์ เฉลิมพล และ จิราพร' })}`)
+    expect(stageText(t, 'en', stage([a, c]), true)).toBe(`stage.REVIEWERS${JSON.stringify({ name: 'Suwit and Jiraporn' })}`)
+  })
+
   it('names whom a delegate acts for, so the delegate is never shown as the holder of the position (BR-DLG-04)', () => {
     const delegate = { id: 'm-asst', name: { th: 'สมหญิง รักงาน', en: 'Somying Rakngan' } }
     const stage: StageDto = { kind: 'APPROVER', taskId: 't', assignee: delegate, onBehalfOf: vp, role, since: new Date(), waitingMinutes: 30, dueAt: null, overdue: false, stepNo: 1, stepCount: 1 }
@@ -120,7 +129,7 @@ describe('[FR-INT-008/AC1] whoever a request waits for, the screens say for how 
   })
 
   it('an ordered request names the suppliers of its POs that went out, in the reader’s language; none yet, the general words', () => {
-    expect(stageText(t, 'th', delivery, true)).toBe(`stage.DELIVERY_SUPPLIERS${JSON.stringify({ suppliers: new Intl.ListFormat('th', { type: 'conjunction' }).format(suppliers.map((s) => s.th)) })}`)
+    expect(stageText(t, 'th', delivery, true)).toBe(`stage.DELIVERY_SUPPLIERS${JSON.stringify({ suppliers: `${suppliers[0]!.th} และ ${suppliers[1]!.th}` })}`)
     expect(stageText(t, 'en', delivery, true)).toBe(`stage.DELIVERY_SUPPLIERS${JSON.stringify({ suppliers: 'Supplier One Co., Ltd. and บริษัท ผู้ขายสอง จำกัด' })}`)
     expect(stageText(t, 'th', { kind: 'DELIVERY', since: null, waitingMinutes: null, suppliers: [] }, true)).toBe('stage.DELIVERY')
   })
@@ -147,7 +156,7 @@ describe('[FR-INT-008/AC1] whoever a request waits for, the screens say for how 
 
   it('the timeline’s delivery step names the suppliers and how long; without one it stays procurement’s', () => {
     const [waiting] = timelineItems(t, tl, 'th', [entry({ what: 'WAIT_DELIVERY', state: 'current', actor: null, at: since, channel: null, waitingMinutes: 90, suppliers })])
-    expect(waiting).toMatchObject({ actor: new Intl.ListFormat('th', { type: 'conjunction' }).format(suppliers.map((s) => s.th)), waiting: 'waiting.hours{"hours":1.5}', state: 'current' })
+    expect(waiting).toMatchObject({ actor: `${suppliers[0]!.th} และ ${suppliers[1]!.th}`, waiting: 'waiting.hours{"hours":1.5}', state: 'current' })
     const [none] = timelineItems(t, tl, 'th', [entry({ what: 'WAIT_DELIVERY', state: 'current', actor: null, at: null, channel: null, waitingMinutes: null })])
     expect(none).toMatchObject({ actor: 'procurement' })
     expect(none).not.toHaveProperty('waiting')

@@ -72,6 +72,7 @@
       "INFO_REQUESTED": "รอผู้ขอตอบ",
       "WAITING": "รอถึงขั้นนี้",
       "APPROVE": "อนุมัติแล้ว",
+      "PASS": "ผ่านแล้ว",
       "RETURN": "ตีกลับให้แก้",
       "REJECT": "ไม่อนุมัติ",
       "CANCELLED": "ยกเลิก",
@@ -104,6 +105,7 @@
       "INFO_REQUESTED": "{name} ขอข้อมูลเพิ่ม",
       "INFO_PROVIDED": "{name} ตอบข้อมูลเพิ่ม",
       "DECIDED_APPROVE": "{name} อนุมัติ",
+      "DECIDED_PASS": "{name} ผ่าน",
       "DECIDED_RETURN": "{name} ตีกลับให้แก้",
       "DECIDED_REJECT": "{name} ไม่อนุมัติ",
       "CLOSED": "ปิดงานของ {name} เพราะขั้นนี้ตัดสินแล้วหรือเส้นทางสิ้นสุด"

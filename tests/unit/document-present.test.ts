@@ -50,6 +50,18 @@ describe('[FR-INT-012/AC3] a step card says its state with the badge of §9.10',
     expect(stepBadge(td, 'th', step({ status: 'DONE', decision: 'REJECT', decidedAt: AT }), undefined)).toEqual({ key: 'REJECT', label: 'ไม่อนุมัติ' })
   })
 
+  it('[FR-WF-101/AC3] a reviewers step and its panel say passed, a committee and an approver approved (BR-WF-09)', () => {
+    const passed = { status: 'DONE' as const, decision: 'APPROVE' as const, decidedAt: AT }
+    expect(stepBadge(td, 'th', step({ ...passed, stepType: 'REVIEW' }), undefined)).toEqual({ key: 'APPROVE', label: 'ผ่านแล้ว' })
+    expect(stepBadge(td, 'th', step({ ...passed, stepType: 'COMMITTEE' }), undefined)).toEqual({ key: 'APPROVE', label: 'อนุมัติแล้ว' })
+    const slot = { slotNo: 1, status: 'APPROVE', decision: 'APPROVE', holders: [], ruleCodes: ['RV-03'], decidedBy: vp, decidedOnBehalfOf: null, decidedAt: AT } as unknown as NonNullable<RouteStepDto['slots']>[number]
+    const decided = detail(null, { history: [{ key: 'e', what: 'DECIDED', at: AT, member: vp, from: null, decision: 'APPROVE', channel: 'WEB', note: null }] })
+    const historyOf = (stepType: 'REVIEW' | 'COMMITTEE' | 'APPROVAL') => stepCards(td, tv, tl, 'th', route([step({ ...passed, stepType, slots: [slot] })]), [decided], { doaLinks: false })[0]!.history.map((h) => h.text)
+    expect(historyOf('REVIEW')).toEqual([`${vp.name.th} ผ่าน`])
+    expect(historyOf('COMMITTEE')).toEqual([`${vp.name.th} อนุมัติ`])
+    expect(historyOf('APPROVAL')).toEqual([`${vp.name.th} อนุมัติ`])
+  })
+
   it('turns a decided step into a stamp: name, position, time, channel and the route’s DOA rule', () => {
     const [card] = stepCards(td, tv, tl, 'th', route([step({ status: 'DONE', decision: 'APPROVE', decidedAt: AT, open: [] })]), [detail(null, { channel: 'LIFF' })], { doaLinks: false })
     expect(card).toMatchObject({ title: 'ขั้นที่ 1 · รองประธานสายงาน สายปฏิบัติการ', current: false, stampTone: 'ok', stamp: { name: 'วีระ ปฏิบัติการ', role: 'รองประธานสายงาน สายปฏิบัติการ', channel: 'หน้าจอใน LINE', doaRef: 'DOA-DEMO ฉบับ 1 ข้อ PR-02' } })

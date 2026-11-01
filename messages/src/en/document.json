@@ -72,6 +72,7 @@
       "INFO_REQUESTED": "Waiting for the requester",
       "WAITING": "Not reached yet",
       "APPROVE": "Approved",
+      "PASS": "Passed",
       "RETURN": "Returned for changes",
       "REJECT": "Not approved",
       "CANCELLED": "Cancelled",
@@ -104,6 +105,7 @@
       "INFO_REQUESTED": "{name} asked for more information",
       "INFO_PROVIDED": "{name} answered",
       "DECIDED_APPROVE": "{name} approved",
+      "DECIDED_PASS": "{name} passed",
       "DECIDED_RETURN": "{name} returned it for changes",
       "DECIDED_REJECT": "{name} did not approve",
       "CLOSED": "{name}'s task was closed: the step was decided or the route ended"

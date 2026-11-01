@@ -177,7 +177,9 @@ export async function getRouteStepDetails(ctx: Ctx, routeId: string): Promise<St
 
   return steps.map((s) => {
     const decided = s.tasks.find((t) => t.decision !== null)
-    const open = decided ? undefined : s.tasks.find((t) => OPEN_TASK.includes(t.status))
+    // A step of slots still waits on its other slots after one decides (BR-WF-15), and on those who can decide while one
+    // waits for the requester's answer; a step with one decider has no open task left once it is decided (BR-SLA-04)
+    const open = s.tasks.find((t) => t.status === 'OPEN') ?? s.tasks.find((t) => OPEN_TASK.includes(t.status))
     const history = s.tasks.flatMap((t) => byTask.get(t.id) ?? []).sort((a, b) => a.at.getTime() - b.at.getTime())
     return {
       stepNo: s.stepNo,

@@ -25,7 +25,8 @@ export function hoursText(locale: Locale, minutes: number): string {
 
 /** The badge of a step (§9.10 งานอนุมัติ): waiting neutral, warn from half of its time, danger past it; or its decision */
 export function stepBadge(t: DocumentT, locale: Locale, step: RouteStepDto, detail: StepDetailDto | undefined): { key: StepBadgeKey; label: string } {
-  if (step.decision) return { key: step.decision, label: t(`badge.step.${step.decision}`) }
+  // A reviewer passes, an approver approves (BR-WF-09): the reviewers' step reads as it did for each of them
+  if (step.decision) return { key: step.decision, label: t(`badge.step.${step.decision === 'APPROVE' && step.stepType === 'REVIEW' ? 'PASS' : step.decision}`) }
   if (step.status === 'WAITING') return { key: 'WAITING', label: t('badge.step.WAITING') }
   if (step.status === 'CANCELLED') return { key: 'CANCELLED', label: t('badge.step.CANCELLED') }
   if (step.status === 'DONE') return { key: 'DONE', label: t('badge.step.DONE') }
@@ -39,10 +40,10 @@ export function stepBadge(t: DocumentT, locale: Locale, step: RouteStepDto, deta
   return { key: 'OPEN', label: t('badge.step.OPEN_PLAIN') }
 }
 
-function historyText(t: DocumentT, locale: Locale, e: StepEventDto): string {
+function historyText(t: DocumentT, locale: Locale, e: StepEventDto, review: boolean): string {
   const name = memberName(locale, e.member)
   const from = memberName(locale, e.from)
-  if (e.what === 'DECIDED') return t(`steps.history.DECIDED_${e.decision ?? 'APPROVE'}`, { name })
+  if (e.what === 'DECIDED') return t(`steps.history.DECIDED_${review && (e.decision ?? 'APPROVE') === 'APPROVE' ? 'PASS' : (e.decision ?? 'APPROVE')}`, { name })
   return t(`steps.history.${e.what}`, { name, from })
 }
 
@@ -74,7 +75,7 @@ export function stepCards(
         people: [],
         ...slotted,
         ...(sla?.dueAt ? { due: t('steps.due', { time: when(locale, sla.dueAt) }) } : {}),
-        history: (detail?.history ?? []).map((e) => ({ key: e.key, when: when(locale, e.at), text: historyText(t, locale, e), ...(e.note ? { note: e.note } : {}) })),
+        history: (detail?.history ?? []).map((e) => ({ key: e.key, when: when(locale, e.at), text: historyText(t, locale, e, step.stepType === 'REVIEW'), ...(e.note ? { note: e.note } : {}) })),
       }
     }
     // The step is named after the approver its rule gave it — not the co-assignee who decided an escalated step
@@ -132,7 +133,7 @@ export function stepCards(
             stampTone: step.decision === 'APPROVE' ? ('ok' as const) : step.decision === 'RETURN' ? ('warn' as const) : ('danger' as const),
           }
         : {}),
-      history: (detail?.history ?? []).map((e) => ({ key: e.key, when: when(locale, e.at), text: historyText(t, locale, e), ...(e.note ? { note: e.note } : {}) })),
+      history: (detail?.history ?? []).map((e) => ({ key: e.key, when: when(locale, e.at), text: historyText(t, locale, e, false), ...(e.note ? { note: e.note } : {}) })),
     }
   })
 }

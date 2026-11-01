@@ -5075,6 +5075,7 @@
         "OPEN_PLAIN": "Awaiting decision",
         "OVERDUE": "Overdue by {hours} business hours",
         "OVERDUE_PLAIN": "Overdue",
+        "PASS": "Passed",
         "REJECT": "Not approved",
         "RETURN": "Returned for changes",
         "WAITING": "Not reached yet"
@@ -5182,6 +5183,7 @@
         "ASSIGNED": "Assigned to {name}",
         "CLOSED": "{name}'s task was closed: the step was decided or the route ended",
         "DECIDED_APPROVE": "{name} approved",
+        "DECIDED_PASS": "{name} passed",
         "DECIDED_REJECT": "{name} did not approve",
         "DECIDED_RETURN": "{name} returned it for changes",
         "DELEGATED": "{name} took it over for {from} as their delegate",

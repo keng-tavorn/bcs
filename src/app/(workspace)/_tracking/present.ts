@@ -168,8 +168,15 @@ function approverText(t: ViewT, locale: Locale, a: { readonly assignee: MemberRe
   return role ? `${who} (${role})` : who
 }
 
-/** Names joined as a list of the reader's language ("A, B และ C" / "A, B, and C") */
-const namesText = (locale: Locale, names: readonly NameDto[]): string => new Intl.ListFormat(locale, { type: 'conjunction' }).format(names.map((n) => nameIn(locale, n)))
+/** A list of the reader's language ("A B และ C" / "A, B, and C"): Thai ICU glues "และ" to the next name ("Aและ B"), so its words get their spaces */
+const allOf = (locale: Locale, items: readonly string[]): string => {
+  const parts = new Intl.ListFormat(locale, { type: 'conjunction' }).formatToParts(items)
+  if (locale !== 'th') return parts.map((p) => p.value).join('')
+  return parts.map((p) => (p.type === 'literal' ? (p.value.trim() ? ` ${p.value.trim()} ` : ' ') : p.value)).join('')
+}
+
+/** Names joined as a list of the reader's language */
+const namesText = (locale: Locale, names: readonly NameDto[]): string => allOf(locale, names.map((n) => nameIn(locale, n)))
 
 /**
  * The business minutes the stage has waited, whoever it waits for — an approver, the requester (a question, a return),
@@ -200,7 +207,8 @@ export function stageText(t: ViewT, locale: Locale, stage: StageDto, mine: boole
       // An escalated step waits for its co-assignee too, whoever decides first: "A (…) หรือ B (…)" (BR-SLA-04, NEW-46)
       const approvers = stage.approvers?.length ? stage.approvers : [stage]
       // The reviewers' step or a committee waits for each of them (S6 · BR-WF-01): "A, B และ C"
-      const names = new Intl.ListFormat(locale, { type: stage.together ? 'conjunction' : 'disjunction' }).format(approvers.map((a) => approverText(t, locale, a)))
+      const texts = approvers.map((a) => approverText(t, locale, a))
+      const names = stage.together ? allOf(locale, texts) : new Intl.ListFormat(locale, { type: 'disjunction' }).format(texts)
       return t(stage.together === 'REVIEW' ? 'stage.REVIEWERS' : 'stage.APPROVER', { name: names })
     }
     case 'ANSWER':

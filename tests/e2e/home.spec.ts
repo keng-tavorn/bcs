@@ -116,6 +116,8 @@ test('[FR-VIS-006/AC6] a member with nothing to do is told the next step, in eac
   await expect(page.getByRole('region', { name: 'รอฉันอนุมัติ' }).getByText('ยังไม่มีงานรออนุมัติ', { exact: true })).toBeVisible()
   await expect(page.getByRole('region', { name: 'ที่ฉันติดตาม' }).getByText('ยังไม่มีคำขอที่คุณส่งหรือติดตาม', { exact: true })).toBeVisible()
   await expect(page.getByRole('region', { name: 'งานอนุมัติทันเวลา' })).toContainText('ยังไม่มีงานอนุมัติของคุณใน 60 วันที่ผ่านมา')
+  // NEW-121: the assistants' card stays, and says there is nothing yet
+  await expect(page.getByRole('region', { name: 'ผู้ช่วยเจอให้คุณ' }).getByText('ยังไม่มีเรื่องที่ต้องดู', { exact: true })).toBeVisible()
   await expectNoBlockingAxe(page)
   await expectNoSideways(page)
   await shot(page, testInfo, 'home-empty')

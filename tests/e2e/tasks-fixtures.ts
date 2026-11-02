@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { TZDate } from '@date-fns/tz'
 import { systemClock } from '@/lib/clock'
+import { MS_PER_DAY } from '@/lib/constants'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
@@ -27,6 +28,7 @@ const DEMO_ORG = 'DEMO'
 //   requests <requester> <approver> <follower>   a request approved, one returned with a reason, one still waiting
 //                                                  (followed by <follower>)
 //   request <requester> <gross> <name> [attach]  one request waiting for its approver, with a PDF attached on request
+//   overdue <requester> <name>                   one request whose approver's task is long past its due time (NEW-121)
 //   policy <proposer> <member> <dept>            an appointment of <member> as DM of <dept>, waiting for the CEO
 //   doa <proposer> <versionNo>                    version 2 of the §7.4 fixture as DOA-DEMO <versionNo>, waiting for the CEO
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('e2e fixtures are created in the e2e database only')
@@ -130,6 +132,15 @@ switch (scenario) {
   case 'request': {
     const [requester, gross, name, attach] = args as [string, string, string, string | undefined]
     out = await request(requester, gross, TITLES[name] ?? name, attach === 'attach')
+    break
+  }
+  case 'overdue': {
+    // NEW-121: a request whose approver's task went past its due time long ago, so it comes first among the home card's
+    // overdue suggestions whatever earlier runs left in the shared database; the due time is written here
+    const [requester, name] = args as [string, string]
+    const made = await request(requester, '21500.00', name)
+    await prisma.approvalTask.update({ where: { id: made.taskId }, data: { dueAt: new Date(now.getTime() - 3650 * MS_PER_DAY) } })
+    out = made
     break
   }
   case 'policy': {

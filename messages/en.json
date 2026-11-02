@@ -2730,6 +2730,7 @@
       "AiCredit": "AI credits",
       "ApprovalStep": "Approval step",
       "ApprovalTask": "Approval task",
+      "Assistant": "Assistant suggestions",
       "Auth": "Sign-in",
       "BacktestRun": "Backtest run",
       "BankAccount": "Bank account",
@@ -2842,6 +2843,9 @@
         "overdue": "Approval task overdue",
         "reassigned": "Approval task reassigned",
         "reminded": "Approval task reminded"
+      },
+      "assistant": {
+        "suggestion_dismissed": "Assistant suggestion hidden"
       },
       "audit": {
         "exported": "Audit trail exported"
@@ -3197,6 +3201,7 @@
       "ai_credit": "AI credits",
       "approval_step": "Approval steps",
       "approval_task": "Approval tasks",
+      "assistant": "BCS assistants",
       "audit": "Audit trail",
       "auth": "Sign-in",
       "backtest": "Backtest",
@@ -6067,8 +6072,60 @@
       "seeOverdue": "See all overdue tasks ({count})",
       "tabs": "My approval tasks by state"
     },
+    "assistant": {
+      "AGREEMENT_EXPIRING": {
+        "action": "View agreed prices",
+        "title": "{count, plural, one {# agreed price ends} other {# agreed prices end}} within {days} days",
+        "why": "First: {item} from {supplier}, ending {date} · renew or negotiate before it ends"
+      },
+      "BUDGET_LOW": {
+        "action": "View budget",
+        "title": "{count, plural, one {# budget line is} other {# budget lines are}} below {pct}",
+        "why": "Lowest: {code} with {left} left"
+      },
+      "FOLLOW_DUE_SOON": {
+        "action": "View request",
+        "title": "{number} is due for approval {when}",
+        "why": "Still waiting for {name}"
+      },
+      "FOLLOW_OVERDUE": {
+        "action": "View request",
+        "title": "{number} is past its approval due time",
+        "why": "Waiting for {name} · due {when} · the approver has been reminded on schedule"
+      },
+      "PRICE_HIGH": {
+        "action": "Open task",
+        "title": "{number} line {line} is {pct} above its price reference",
+        "why": "{description} · against the median of {samples} POs in the last {days} days"
+      },
+      "REQUEST_FLAG": {
+        "DUPLICATE": "may repeat an earlier request",
+        "SPLIT": "may be split to stay under an approval limit",
+        "action": "Open task",
+        "join": " and",
+        "title": "{number} {flags}",
+        "why": "Found when the request was sent. Look at the related requests on the task before you decide."
+      },
+      "SUPPLIER_FLAGS": {
+        "action": "View invoice",
+        "more": "{flag} and {count} more",
+        "title": "{supplier}: {flag}",
+        "why": "{count, plural, one {# invoice waits} other {# invoices wait}} for payment · this doesn’t stop the payment, but the run approver sees it"
+      },
+      "dismiss": "Not this one",
+      "dismissFailed": "Couldn’t hide this. Try again.",
+      "dismissLabel": "Not this one: {title}",
+      "dismissed": "Hidden",
+      "empty": "Nothing to look at yet",
+      "emptyHint": "Your assistants tell you here when work is about to run late, a price is unusually high, or something needs a look before a payment.",
+      "intro": "From the rules and data in the system, no AI used",
+      "list": "What your assistants found",
+      "shown": "Showing {shown} of {total}",
+      "untitled": "A request without a number"
+    },
     "cards": {
       "approvals": "Waiting for my approval",
+      "assistant": "Your assistants found",
       "following": "Requests I follow",
       "onTime": "On-time approval tasks",
       "todo": "To do"

@@ -6,7 +6,10 @@ import { logger } from '@/lib/logger'
 import { ctxFromSession } from '@/server/auth/session'
 import { isAllowed, memberPrincipal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
+import { homeSuggestions } from '@/server/services/assistants/suggestions'
 import { homeApprovals, homeFollowing, homeOnTime, homeTodo } from '@/server/services/home'
+import { AssistantNote } from '@/ui/assistants/assistant-note'
+import { DismissButton } from '@/ui/assistants/dismiss-button'
 import { ApprovalsTabs } from '@/ui/home/approvals-tabs'
 import { CardError } from '@/ui/home/card-error'
 import { FollowingRows, HomeCard, HomeCardSkeleton, OnTimeRows } from '@/ui/home/home-cards'
@@ -14,7 +17,10 @@ import { HomeHero } from '@/ui/home/home-hero'
 import { TodoList } from '@/ui/home/todo-list'
 import { Button } from '@/ui/shadcn/button'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/shadcn/empty'
+import { ItemGroup } from '@/ui/shadcn/item'
 import { getSession } from '../_lib/session'
+import { dismissAssistantAction } from './_shell/assistant-actions'
+import { assistantNotes } from './_tracking/assistant-present'
 import { approvalsView, firstName, FOLLOWING_HREF, followingView, onTimeView, todoView, type HomeT } from './_tracking/home-present'
 import { localeOf } from './_tracking/present'
 
@@ -25,9 +31,10 @@ export async function generateMetadata() {
 
 // Home, "งานของฉัน" (spec §9.10 "หน้าแรก", FR-VIS-006, §9.9 principle 1): the greeting with the search field and three
 // chips on the page's white, then the cards on --surface — on wide screens two columns, the left 7/12 "สิ่งที่ต้องทำ" then
-// "รอฉันอนุมัติ", the right 5/12 "งานอนุมัติทันเวลา" then "ที่ฉันติดตาม"; under 1024 px one column in the order to do,
-// waiting for me, following, on time. Each card loads on its own behind a skeleton and says in itself when it cannot
-// (AC6), so the greeting — the largest text — paints first. The services decide what each member may see.
+// "รอฉันอนุมัติ", the right 5/12 "ผู้ช่วยเจอให้คุณ" (NEW-121) then "งานอนุมัติทันเวลา" then "ที่ฉันติดตาม"; under 1024 px one
+// column in the order to do, the assistants, waiting for me, following, on time. Each card loads on its own behind a
+// skeleton and says in itself when it cannot (AC6), so the greeting — the largest text — paints first. The services
+// decide what each member may see.
 
 type Texts = { readonly t: HomeT; readonly locale: 'th' | 'en' }
 
@@ -112,6 +119,50 @@ async function OnTimeCard({ ctx, texts }: { ctx: Ctx; texts: Texts }) {
   )
 }
 
+/** The list of the assistants' card, which takes the focus when one of its rows is set aside */
+const ASSISTANT_LIST = 'home-assistant-list'
+
+/** "ผู้ช่วยเจอให้คุณ" (AC7 AC8 · ADR-078): what the rules found for the member, five at most, each with one way on */
+async function AssistantCard({ ctx, texts }: { ctx: Ctx; texts: Texts }) {
+  const { t, locale } = texts
+  const title = t('cards.assistant')
+  const body = await guarded(t, title, async () => {
+    const [result, tp] = await Promise.all([homeSuggestions(ctx), getTranslations('payRun.task')])
+    if (!result.ok) throw new Error(result.error.code)
+    const { items, total } = result.data
+    if (items.length === 0) {
+      return (
+        <Empty className="border-0 p-4">
+          <EmptyHeader>
+            <EmptyTitle className="text-base">{t('assistant.empty')}</EmptyTitle>
+            <EmptyDescription className="text-base md:text-sm">{t('assistant.emptyHint')}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )
+    }
+    return (
+      <>
+        <p className="text-base text-ink-muted md:text-sm">{t('assistant.intro')}</p>
+        <ItemGroup id={ASSISTANT_LIST} tabIndex={-1} aria-label={t('assistant.list')} className="gap-0 outline-none">
+          {assistantNotes(t, tp, locale, items).map((note) => (
+            <AssistantNote
+              key={note.key}
+              note={note}
+              dismiss={<DismissButton suggestionKey={note.key} label={t('assistant.dismissLabel', { title: note.title })} text={t('assistant.dismiss')} failed={t('assistant.dismissFailed')} focusAfter={ASSISTANT_LIST} dismiss={dismissAssistantAction} />}
+            />
+          ))}
+        </ItemGroup>
+        {total > items.length ? <p className="text-base text-ink-muted md:text-sm">{t('assistant.shown', { shown: items.length, total })}</p> : null}
+      </>
+    )
+  })
+  return (
+    <HomeCard id="home-assistant" title={title}>
+      {body}
+    </HomeCard>
+  )
+}
+
 async function FollowingCard({ ctx, texts }: { ctx: Ctx; texts: Texts }) {
   const { t, locale } = texts
   const title = t('cards.following')
@@ -159,23 +210,33 @@ export default async function HomePage() {
         }}
       />
       <div className="-mx-4 bg-surface px-4 py-4 lg:mx-0 lg:rounded-lg lg:p-6">
+        {/* Two columns from 1024 px; under it the columns dissolve (contents) and the cards stand in one column in the
+            order of §9.10: to do, the assistants, waiting for me, following, on time */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-6">
-          <div className="flex min-w-0 flex-col gap-4 lg:col-span-7 lg:gap-6">
-            <Suspense fallback={skeleton('home-todo', t('cards.todo'))}>
-              <TodoCard ctx={ctx} texts={texts} canRequest={canRequest} />
-            </Suspense>
-            <Suspense fallback={skeleton('home-approvals', t('cards.approvals'))}>
-              <ApprovalsCard ctx={ctx} texts={texts} />
-            </Suspense>
+          <div className="contents lg:col-span-7 lg:flex lg:min-w-0 lg:flex-col lg:gap-6">
+            <div className="order-1 min-w-0 lg:order-none">
+              <Suspense fallback={skeleton('home-todo', t('cards.todo'))}>
+                <TodoCard ctx={ctx} texts={texts} canRequest={canRequest} />
+              </Suspense>
+            </div>
+            <div className="order-3 min-w-0 lg:order-none">
+              <Suspense fallback={skeleton('home-approvals', t('cards.approvals'))}>
+                <ApprovalsCard ctx={ctx} texts={texts} />
+              </Suspense>
+            </div>
           </div>
-          <div className="flex min-w-0 flex-col gap-4 lg:col-span-5 lg:gap-6">
-            {/* One column: following before on time (§9.10); two columns: on time on top */}
-            <div className="order-2 lg:order-1">
+          <div className="contents lg:col-span-5 lg:flex lg:min-w-0 lg:flex-col lg:gap-6">
+            <div className="order-2 min-w-0 lg:order-none">
+              <Suspense fallback={skeleton('home-assistant', t('cards.assistant'))}>
+                <AssistantCard ctx={ctx} texts={texts} />
+              </Suspense>
+            </div>
+            <div className="order-5 min-w-0 lg:order-none">
               <Suspense fallback={skeleton('home-on-time', t('cards.onTime'))}>
                 <OnTimeCard ctx={ctx} texts={texts} />
               </Suspense>
             </div>
-            <div className="order-1 lg:order-2">
+            <div className="order-4 min-w-0 lg:order-none">
               <Suspense fallback={skeleton('home-following', t('cards.following'))}>
                 <FollowingCard ctx={ctx} texts={texts} />
               </Suspense>

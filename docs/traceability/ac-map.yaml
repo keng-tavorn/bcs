@@ -518,6 +518,8 @@ frs:
       AC4: { owner: S16-09, demo: true, basis: named, text: "การ์ด 'ที่ฉันติดตาม' แสดงจำนวนคำขอที่ฉันเป็นผู้ขอหรือผู้ติดตาม จำนวนที่ยังเปิด และ 5 รายการล่าสุดพร้อม 'รอใคร' แบบเดียวกับ FR-INT-008 AC1" }
       AC5: { owner: S16-09, demo: true, basis: named, text: "การ์ด 'รอฉันอนุมัติ' แสดงงานที่เปิดของฉันทุกชนิดเอกสารรวมงานรักษาการ แยกแท็บ ทั้งหมด" }
       AC6: { owner: S16-09, demo: true, basis: named, text: "ไม่มีอะไรต้องทำ → หน้าว่างที่บอกขั้นต่อไป" }
+      AC7: { owner: NEW-121, demo: true, basis: named, text: "(NEW-121 · ADR-078) การ์ด 'ผู้ช่วยเจอให้คุณ' รวมเรื่องจากกฎที่มีแล้ว ตามสิทธิ์ของแต่ละแหล่ง ไม่เรียก AI" }
+      AC8: { owner: NEW-121, demo: true, basis: named, text: "(NEW-121) ปัดเรื่องทิ้งได้รายคน" }
   FR-VIS-007:
     title: "สรุปผู้บริหาร"
     acs:
@@ -562,6 +564,6 @@ frs:
 # AC ที่ไม่มีข้อใดเป็นเจ้าของ (กลายเป็นข้อ NEW ใน §16.11)
 unowned: []
 # demo = AC ที่ demo: true · goLive = AC ที่ demo: false (รวม AC ที่ไม่มีเจ้าของแต่ข้ามได้ใน demo) · demo + goLive = acs
-counts: { frs: 84, acs: 299, demo: 273, goLive: 26, unowned: 0 }
+counts: { frs: 84, acs: 301, demo: 275, goLive: 26, unowned: 0 }
 # จำนวนตามที่มาของเจ้าของ (ดู basis ด้านบน)
-basisCounts: { named: 233, later: 30, builder: 36, none: 0 }
+basisCounts: { named: 235, later: 30, builder: 36, none: 0 }

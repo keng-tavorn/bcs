@@ -145,7 +145,8 @@
     "wht_income_type": "ประเภทเงินได้",
     "withholding_tax": "ภาษีหัก ณ ที่จ่าย",
     "push_device": "โทรศัพท์ในแอป BCS Go",
-    "chat_intake": "ขอผ่านแชท LINE"
+    "chat_intake": "ขอผ่านแชท LINE",
+    "assistant": "ผู้ช่วย BCS"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -201,7 +202,8 @@
     "WhtIncomeType": "ประเภทเงินได้",
     "WithholdingTax": "ภาษีหัก ณ ที่จ่าย",
     "PushDevice": "โทรศัพท์ในแอป BCS Go",
-    "ChatIntake": "ร่างคำขอจากแชท"
+    "ChatIntake": "ร่างคำขอจากแชท",
+    "Assistant": "รายการเรื่องของผู้ช่วย"
   },
   "events": {
     "approval_step": {
@@ -576,6 +578,9 @@
       "drafted": "สร้างร่างคำขอจากแชท",
       "dismissed": "ปิดร่างจากแชท (ไม่ใช่คำขอ)",
       "ai_requested": "AI อ่านร่างจากแชท"
+    },
+    "assistant": {
+      "suggestion_dismissed": "ซ่อนเรื่องที่ผู้ช่วยเจอ"
     }
   }
 }

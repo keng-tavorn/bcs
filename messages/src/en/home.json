@@ -12,7 +12,8 @@
     "todo": "To do",
     "onTime": "On-time approval tasks",
     "following": "Requests I follow",
-    "approvals": "Waiting for my approval"
+    "approvals": "Waiting for my approval",
+    "assistant": "Your assistants found"
   },
   "todo": {
     "list": "What you need to do",
@@ -94,5 +95,56 @@
     "hint": "The other cards still work. Load it again, and tell your administrator if it still fails.",
     "retry": "Load this card again"
   },
-  "loading": "Loading {card}"
+  "loading": "Loading {card}",
+  "assistant": {
+    "list": "What your assistants found",
+    "intro": "From the rules and data in the system, no AI used",
+    "empty": "Nothing to look at yet",
+    "emptyHint": "Your assistants tell you here when work is about to run late, a price is unusually high, or something needs a look before a payment.",
+    "shown": "Showing {shown} of {total}",
+    "dismiss": "Not this one",
+    "dismissLabel": "Not this one: {title}",
+    "dismissed": "Hidden",
+    "dismissFailed": "Couldn’t hide this. Try again.",
+    "untitled": "A request without a number",
+    "FOLLOW_OVERDUE": {
+      "title": "{number} is past its approval due time",
+      "why": "Waiting for {name} · due {when} · the approver has been reminded on schedule",
+      "action": "View request"
+    },
+    "FOLLOW_DUE_SOON": {
+      "title": "{number} is due for approval {when}",
+      "why": "Still waiting for {name}",
+      "action": "View request"
+    },
+    "REQUEST_FLAG": {
+      "title": "{number} {flags}",
+      "DUPLICATE": "may repeat an earlier request",
+      "SPLIT": "may be split to stay under an approval limit",
+      "join": " and",
+      "why": "Found when the request was sent. Look at the related requests on the task before you decide.",
+      "action": "Open task"
+    },
+    "PRICE_HIGH": {
+      "title": "{number} line {line} is {pct} above its price reference",
+      "why": "{description} · against the median of {samples} POs in the last {days} days",
+      "action": "Open task"
+    },
+    "AGREEMENT_EXPIRING": {
+      "title": "{count, plural, one {# agreed price ends} other {# agreed prices end}} within {days} days",
+      "why": "First: {item} from {supplier}, ending {date} · renew or negotiate before it ends",
+      "action": "View agreed prices"
+    },
+    "BUDGET_LOW": {
+      "title": "{count, plural, one {# budget line is} other {# budget lines are}} below {pct}",
+      "why": "Lowest: {code} with {left} left",
+      "action": "View budget"
+    },
+    "SUPPLIER_FLAGS": {
+      "title": "{supplier}: {flag}",
+      "more": "{flag} and {count} more",
+      "why": "{count, plural, one {# invoice waits} other {# invoices wait}} for payment · this doesn’t stop the payment, but the run approver sees it",
+      "action": "View invoice"
+    }
+  }
 }

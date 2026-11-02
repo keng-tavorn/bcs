@@ -145,7 +145,8 @@
     "wht_income_type": "Income types",
     "withholding_tax": "Withholding tax",
     "push_device": "BCS Go phones",
-    "chat_intake": "Requests through the LINE chat"
+    "chat_intake": "Requests through the LINE chat",
+    "assistant": "BCS assistants"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -201,7 +202,8 @@
     "WhtIncomeType": "Income type",
     "WithholdingTax": "Withholding tax",
     "PushDevice": "BCS Go phone",
-    "ChatIntake": "Chat request draft"
+    "ChatIntake": "Chat request draft",
+    "Assistant": "Assistant suggestions"
   },
   "events": {
     "approval_step": {
@@ -576,6 +578,9 @@
       "drafted": "Request draft made from the chat",
       "dismissed": "Chat draft closed (not a request)",
       "ai_requested": "AI read the chat draft"
+    },
+    "assistant": {
+      "suggestion_dismissed": "Assistant suggestion hidden"
     }
   }
 }

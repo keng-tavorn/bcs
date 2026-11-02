@@ -148,6 +148,14 @@ test('[FR-INT-012/AC6] the PO page has the same header, tabs, right column and r
   await expect(bar(page)).toContainText('ยอดตามฐาน DOA')
   await expect(bar(page).getByRole('button', { name: 'ตีกลับให้จัดซื้อแก้' })).toBeVisible()
   await expect(bar(page).getByRole('button', { name: 'ขอข้อมูลเพิ่ม' })).toHaveCount(0)
+  // NEW-122: the panel "จากผู้ช่วย" under the decision bar on a computer, under the header on a phone; with the AI module
+  // off it keeps the rules' part alone
+  const panel = page.getByRole('region', { name: 'จากผู้ช่วย' })
+  await expect(panel.getByRole('heading', { name: 'ผู้ช่วยเจอในเอกสารนี้' })).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'ถามเรื่องนี้' })).toHaveCount(0)
+  const y = async (l: ReturnType<typeof bar>) => (await l.boundingBox())!.y
+  if (testInfo.project.name === 'mobile') expect(await y(panel)).toBeLessThan(await y(tabs(page)))
+  else expect(await y(panel)).toBeGreaterThan(await y(bar(page)))
   await expectNoBlockingAxe(page)
   await expectNoSideways(page)
   await shot(page, testInfo, 'document-po')

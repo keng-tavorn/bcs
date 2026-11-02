@@ -6,14 +6,23 @@ const OPEN_PALETTE = 'bcs:open-palette'
 const OPEN_NEW_REQUEST = 'bcs:open-new-request'
 const ASK_AI = 'bcs:ask-ai'
 
-/** Asks BCS AI from ⌘K (FR-AI-309): the chat sheet of the shell listens while it is mounted */
-export function askAi(question: string): void {
-  window.dispatchEvent(new CustomEvent<string>(ASK_AI, { detail: question }))
+export interface AskAiDetail {
+  readonly question: string
+  /** false: the sheet opens with the question in its field for the member to finish and send (NEW-122 "ถามเรื่องนี้") */
+  readonly send: boolean
 }
 
-/** For the chat sheet: the question asked from ⌘K; returns the cleanup */
-export function onAskAi(listener: (question: string) => void): () => void {
-  const handler = (e: Event) => listener((e as CustomEvent<string>).detail)
+/**
+ * Asks BCS AI from ⌘K (FR-AI-309) or a document page's panel "จากผู้ช่วย" (NEW-122): the chat sheet of the shell
+ * listens while it is mounted
+ */
+export function askAi(question: string, options: { readonly send?: boolean } = {}): void {
+  window.dispatchEvent(new CustomEvent<AskAiDetail>(ASK_AI, { detail: { question, send: options.send ?? true } }))
+}
+
+/** For the chat sheet: what was asked; returns the cleanup */
+export function onAskAi(listener: (asked: AskAiDetail) => void): () => void {
+  const handler = (e: Event) => listener((e as CustomEvent<AskAiDetail>).detail)
   window.addEventListener(ASK_AI, handler)
   return () => window.removeEventListener(ASK_AI, handler)
 }

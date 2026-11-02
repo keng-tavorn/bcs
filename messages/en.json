@@ -1845,6 +1845,15 @@
       "general": "The AI could not read this file; fill in the form yourself as usual",
       "unsupported": "The AI cannot read this file: PDF, JPEG, PNG or WebP up to 20 MB; fill in the form yourself as usual"
     },
+    "feedback": {
+      "failed": "Your feedback was not saved. Try again",
+      "helpful": "Helpful",
+      "label": "Feedback on the AI's result",
+      "notHelpful": "Not helpful",
+      "question": "Did this help you?",
+      "savedHelpful": "Saved as helpful. Thank you",
+      "savedNotHelpful": "Saved as not helpful. Thank you"
+    },
     "fields": {
       "amount": "Amount",
       "includesVat": "Price includes VAT",
@@ -2715,6 +2724,71 @@
       "home": "Back to the home page",
       "title": "Page not found"
     }
+  },
+  "assistantPanel": {
+    "INVOICE_DIFFERENCES": {
+      "action": "Go to the differences",
+      "title": "This invoice has {count, plural, one {# difference} other {# differences}}",
+      "why": "{types} · see how to settle each one",
+      "whyAsked": "Variance approval was asked for; waiting for the approver"
+    },
+    "INVOICE_DUPLICATE_NUMBER": {
+      "action": "Check the invoice number"
+    },
+    "PRICE_HIGH": {
+      "action": "See the reference price",
+      "title": "Line {line} is {pct} above the reference price",
+      "why": "{description} · against the median of {samples} POs in the last {days} days"
+    },
+    "REQUEST_FLAG": {
+      "DUPLICATE": "may repeat an earlier request",
+      "SPLIT": "may be split to fall under a lower approval range",
+      "action": "See the related requests",
+      "join": " and",
+      "title": "This request {flags}",
+      "why": "Checked when the request was sent · related: {matched}"
+    },
+    "STEP_DUE_SOON": {
+      "title": "The step waiting now is due {when}",
+      "why": "Still waiting for {name} to decide",
+      "whyMine": "This waits for your decision in the decision bar"
+    },
+    "STEP_OVERDUE": {
+      "title": "The step waiting now is past due (due {when})",
+      "why": "Still waiting for {name} to decide · the approvers were reminded on time",
+      "whyMine": "This waits for your decision in the decision bar"
+    },
+    "SUPPLIER_FLAGS": {
+      "action": "See the supplier",
+      "title": "Supplier: {flag}",
+      "titleMore": "Supplier: {flag} and {count} more",
+      "why": "A payment run shows this to its approver"
+    },
+    "ask": {
+      "ask": "Ask about this",
+      "draft": {
+        "INVOICE": "Invoice {number} ",
+        "PURCHASE_ORDER": "PO {number} ",
+        "REQUEST": "Request {number} "
+      },
+      "hint": "The AI answers from what you may see, and every figure comes from the system. The answer opens in the side chat.",
+      "summarize": {
+        "INVOICE": "Summarize invoice {number}",
+        "PURCHASE_ORDER": "Summarize PO {number}",
+        "REQUEST": "Summarize request {number}"
+      },
+      "summarizeButton": "Summarize",
+      "title": "Ask BCS AI"
+    },
+    "found": {
+      "list": "What the assistants found in this document",
+      "none": "Nothing to watch for in this document yet. The assistants tell you here when a step is about to run late, a request looks like another, a price is unusually high or an invoice has alerts.",
+      "title": "Found in this document"
+    },
+    "step": {
+      "action": "See the approval route"
+    },
+    "title": "From the assistants"
   },
   "audit": {
     "actor": {

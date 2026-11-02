@@ -224,5 +224,14 @@
       "quantity": "{description}: quantity",
       "unitPrice": "{description}: unit price (THB)"
     }
+  },
+  "feedback": {
+    "label": "Feedback on the AI's result",
+    "question": "Did this help you?",
+    "helpful": "Helpful",
+    "notHelpful": "Not helpful",
+    "savedHelpful": "Saved as helpful. Thank you",
+    "savedNotHelpful": "Saved as not helpful. Thank you",
+    "failed": "Your feedback was not saved. Try again"
   }
 }

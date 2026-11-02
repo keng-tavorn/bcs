@@ -224,5 +224,14 @@
       "quantity": "{description}: จำนวน",
       "unitPrice": "{description}: ราคาต่อหน่วย (บาท)"
     }
+  },
+  "feedback": {
+    "label": "ความเห็นต่อผลของ AI",
+    "question": "ผลนี้ช่วยคุณไหม",
+    "helpful": "ช่วยได้",
+    "notHelpful": "ไม่ช่วย",
+    "savedHelpful": "บันทึกแล้วว่าช่วยได้ ขอบคุณ",
+    "savedNotHelpful": "บันทึกแล้วว่าไม่ช่วย ขอบคุณ",
+    "failed": "บันทึกความเห็นไม่สำเร็จ ลองอีกครั้ง"
   }
 }

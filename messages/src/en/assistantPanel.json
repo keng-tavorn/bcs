@@ -1,0 +1,65 @@
+{
+  "title": "From the assistants",
+  "found": {
+    "title": "Found in this document",
+    "list": "What the assistants found in this document",
+    "none": "Nothing to watch for in this document yet. The assistants tell you here when a step is about to run late, a request looks like another, a price is unusually high or an invoice has alerts."
+  },
+  "step": {
+    "action": "See the approval route"
+  },
+  "STEP_OVERDUE": {
+    "title": "The step waiting now is past due (due {when})",
+    "why": "Still waiting for {name} to decide · the approvers were reminded on time",
+    "whyMine": "This waits for your decision in the decision bar"
+  },
+  "STEP_DUE_SOON": {
+    "title": "The step waiting now is due {when}",
+    "why": "Still waiting for {name} to decide",
+    "whyMine": "This waits for your decision in the decision bar"
+  },
+  "REQUEST_FLAG": {
+    "title": "This request {flags}",
+    "DUPLICATE": "may repeat an earlier request",
+    "SPLIT": "may be split to fall under a lower approval range",
+    "join": " and",
+    "why": "Checked when the request was sent · related: {matched}",
+    "action": "See the related requests"
+  },
+  "PRICE_HIGH": {
+    "title": "Line {line} is {pct} above the reference price",
+    "why": "{description} · against the median of {samples} POs in the last {days} days",
+    "action": "See the reference price"
+  },
+  "INVOICE_DIFFERENCES": {
+    "title": "This invoice has {count, plural, one {# difference} other {# differences}}",
+    "why": "{types} · see how to settle each one",
+    "whyAsked": "Variance approval was asked for; waiting for the approver",
+    "action": "Go to the differences"
+  },
+  "INVOICE_DUPLICATE_NUMBER": {
+    "action": "Check the invoice number"
+  },
+  "SUPPLIER_FLAGS": {
+    "title": "Supplier: {flag}",
+    "titleMore": "Supplier: {flag} and {count} more",
+    "why": "A payment run shows this to its approver",
+    "action": "See the supplier"
+  },
+  "ask": {
+    "title": "Ask BCS AI",
+    "hint": "The AI answers from what you may see, and every figure comes from the system. The answer opens in the side chat.",
+    "ask": "Ask about this",
+    "summarizeButton": "Summarize",
+    "draft": {
+      "REQUEST": "Request {number} ",
+      "PURCHASE_ORDER": "PO {number} ",
+      "INVOICE": "Invoice {number} "
+    },
+    "summarize": {
+      "REQUEST": "Summarize request {number}",
+      "PURCHASE_ORDER": "Summarize PO {number}",
+      "INVOICE": "Summarize invoice {number}"
+    }
+  }
+}

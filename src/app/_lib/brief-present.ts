@@ -16,6 +16,9 @@ export interface BriefView {
   readonly factsOnly: string | null
   readonly factsTitle: string
   readonly facts: ReadonlyArray<{ readonly label: string; readonly value: string }>
+  /** The Brief the reader may say helped or not, and what they said last (the panel "จากผู้ช่วย", NEW-122) */
+  readonly agentActionId: string | null
+  readonly feedback: 'HELPFUL' | 'NOT_HELPFUL' | null
 }
 
 const MONEY_FACTS = ['amount', 'budgetRemaining', 'supplierLastPoAmount']
@@ -34,5 +37,7 @@ export async function briefView(ctx: Ctx, taskId: string): Promise<BriefView | n
     factsOnly: r.data.sentences === null && r.data.status !== 'PENDING' ? t('factsOnly') : null,
     factsTitle: t('factsTitle'),
     facts: r.data.facts.filter((f) => t.has(`facts.${f.key}` as 'facts.amount')).map((f) => ({ label: t(`facts.${f.key}` as 'facts.amount'), value: value(f.key, f.text) })),
+    agentActionId: r.data.agentActionId,
+    feedback: r.data.feedback,
   }
 }

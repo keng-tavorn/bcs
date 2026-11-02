@@ -3,11 +3,12 @@ import { notFound } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
-import { getAgentAction } from '@/server/services/ai'
+import { getAgentAction, isAgentAvailable } from '@/server/services/ai'
 import { getApInvoicePage, type ApInvoicePageDto } from '@/server/services/ap/view-invoice'
 import { getInvoicePoView, type InvoicePoViewDto } from '@/server/services/invoices/view'
 import type { InvoiceAiReviewView } from '@/ui/ap/invoice/invoice-ai'
 import { ApInvoicePage } from '@/ui/ap/invoice/invoice-page'
+import { AssistantPanel } from '@/ui/assistants/document-panel'
 import { InvoiceForm } from '@/ui/finance/invoice-form'
 import { InvoiceList } from '@/ui/finance/invoice-list'
 import { Notice } from '@/ui/form/notice'
@@ -18,6 +19,7 @@ import { HEAD_OFFICE } from '@/ui/suppliers/model'
 import { presentAiResult } from '../../../../_lib/ai-present'
 import { downloadUrlAction } from '../../../../_lib/file-actions'
 import { getSession } from '../../../../_lib/session'
+import { askPart, assistantPanel, invoiceNotes } from '../../../_tracking/document-assistant'
 import { day, localeOf, memberName, when, type Locale } from '../../../_tracking/present'
 import { budgetLineText, invoiceStates, money, nameIn, taxIdText, vatRateText, type FinanceT } from '../../present'
 import { previewInvoiceAction, recordInvoiceAction } from '../actions'
@@ -63,7 +65,17 @@ async function aiReviewsOf(ctx: NonNullable<ReturnType<typeof ctxFromSession>>, 
 async function apInvoiceOrNull(ctx: NonNullable<ReturnType<typeof ctxFromSession>>, id: string, tab: string | string[] | undefined) {
   const invoice = await getApInvoicePage(ctx, id)
   if (!invoice.ok && invoice.error.code === 'NOT_FOUND') return null
-  if (invoice.ok) return <ApInvoicePage data={invoice.data} actions={AP_ACTIONS} openFile={downloadUrlAction} aiReviews={await aiReviewsOf(ctx, invoice.data.aiReviews)} tab={tab} />
+  if (invoice.ok) {
+    // The panel "จากผู้ช่วย" (NEW-122): the invoice's alerts as the page found them, and "ถาม BCS AI" when on
+    const [tp, ta, tr, asking, aiReviews] = await Promise.all([getTranslations('assistantPanel'), getTranslations('apInvoice'), getTranslations('payRun.task'), isAgentAvailable(ctx, 'INSIGHT').then((a) => a.available), aiReviewsOf(ctx, invoice.data.aiReviews)])
+    const d = invoice.data
+    const panel = assistantPanel(tp, {
+      brief: null,
+      notes: invoiceNotes(tp, ta, tr, { id: d.id, supplierId: d.supplier.id, exceptions: d.exceptions, duplicateNumber: d.duplicateNumber, paymentFlags: d.paymentFlags }),
+      ask: askPart(tp, 'INVOICE', d.number, asking),
+    })
+    return <ApInvoicePage data={d} actions={AP_ACTIONS} openFile={downloadUrlAction} aiReviews={aiReviews} tab={tab} assistant={<AssistantPanel view={panel} />} />
+  }
   const t = await getTranslations('apInvoice')
   const off = invoice.error.code === 'MODULE_DISABLED'
   return (

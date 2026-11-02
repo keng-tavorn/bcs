@@ -117,6 +117,19 @@ test.describe('@s8 the invoice beside its file', () => {
     await page.keyboard.press('Escape')
     await expect(alerts).toHaveCount(0)
 
+    // NEW-122: the panel "จากผู้ช่วย" tells the same alerts, each with one way to where it is dealt with
+    const panel = page.getByRole('region', { name: 'จากผู้ช่วย' })
+    const found = panel.getByRole('list', { name: 'เรื่องที่ผู้ช่วยเจอในเอกสารนี้' })
+    const differences = found.locator('[data-assistant-note="INVOICE_DIFFERENCES:1"]')
+    await expect(differences).toContainText('ใบนี้มีรายการไม่ตรง 1 รายการ')
+    await expect(differences.getByRole('link', { name: 'ไปที่รายการไม่ตรง' })).toHaveAttribute('href', `/finance/invoices/${made.invoiceId}#invoice-exceptions`)
+    await expect(found.locator('[data-assistant-note^="INVOICE_SUPPLIER_FLAGS:"]')).toContainText('สถานะทะเบียนเปลี่ยน')
+    await expect(panel.getByRole('button', { name: 'ถามเรื่องนี้' })).toHaveCount(0)
+    // Above the PO bar: under the header on a phone, the head of the right column from 1280 px
+    const y = async (l: typeof panel) => (await l.boundingBox())!.y
+    expect(await y(panel)).toBeLessThan(await y(page.getByRole('region', { name: 'ยอดเทียบกับ PO' })))
+    await check(page, testInfo, 'invoice-assistant-panel')
+
     // PROCUREMENT reads the same difference, and nothing of what a payment run would flag
     const context = await browser.newContext({ viewport: page.viewportSize(), locale: 'th-TH', timezoneId: 'Asia/Bangkok' })
     const procurement = await context.newPage()
@@ -126,6 +139,11 @@ test.describe('@s8 the invoice beside its file', () => {
     const theirs = procurement.getByRole('dialog', { name: 'แจ้งเตือนของใบนี้' })
     await expect(theirs).toContainText('ราคาสูงกว่า PO เกินเกณฑ์')
     await expect(theirs).not.toContainText('สถานะทะเบียนเปลี่ยน')
+    await procurement.keyboard.press('Escape')
+    // Their panel the same: the difference, nothing of a payment run
+    const theirPanel = procurement.getByRole('region', { name: 'จากผู้ช่วย' })
+    await expect(theirPanel.locator('[data-assistant-note="INVOICE_DIFFERENCES:1"]')).toBeVisible()
+    await expect(theirPanel.locator('[data-assistant-note^="INVOICE_SUPPLIER_FLAGS:"]')).toHaveCount(0)
     await context.close()
   })
 })

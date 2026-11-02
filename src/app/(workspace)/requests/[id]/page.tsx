@@ -8,11 +8,13 @@ import { businessDaysTaken, getMyOpenTask, getRouteStepDetails, listRequestPurch
 import { getPoAccess } from '@/server/queries/purchase-orders'
 import { getRequestAccess, getRequestView, getServiceLines, type RequestViewDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView } from '@/server/queries/tasks'
+import { isAgentAvailable } from '@/server/services/ai'
 import { getRequestOverruns } from '@/server/services/budget/overrun-view'
+import { getPriceReference } from '@/server/services/price-reference'
 import { listRequestFlags } from '@/server/services/requests/duplicates'
 import { getRequestFollowers } from '@/server/services/requests/followers'
 import { Notice } from '@/ui/form/notice'
-import { AiBrief } from '@/ui/tasks/ai-brief'
+import { AssistantPanel } from '@/ui/assistants/document-panel'
 import { PO_BADGES, REQUEST_BADGES, StatusBadge, URGENCY_BADGES } from '@/ui/document/badges'
 import { DecisionBar } from '@/ui/document/decision-bar'
 import { DecisionLink } from '@/ui/document/decision-link'
@@ -39,7 +41,9 @@ import { BYTES_PER_KIB } from '@/lib/constants'
 import { briefView } from '../../../_lib/brief-present'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
+import { giveAiFeedbackAction } from '../../_shell/assistant-actions'
 import { canOpenDoaVersion, canViewRequest, taskRight } from '../../_tracking/access'
+import { askPart, assistantPanel, flagNote, priceNote, stepNote } from '../../_tracking/document-assistant'
 import { requestBudgetState } from '../../_tracking/budget-state'
 import { commentViews, historyRows, requestHistoryKinds, routeWhy, stepCards } from '../../_tracking/document-present'
 import { day, doaHref, doaRefText, dueText, fileKind, localeOf, memberName, money, nameIn, stageText, stageWaitingMinutes, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
@@ -139,8 +143,14 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
   const pos = allPos.filter((_, i) => poAccess[i] && canViewPo(principal, poAccess[i]!))
   // The decision bar: an open task on this request that the reader may decide (approval.decide, BR-DLG-04)
   const decide = task && task[0] && task[1] && taskRight(principal, task[0]) === 'DECIDE' && task[1].status === 'OPEN' ? task[1] : null
-  // The AI's summary for the one who decides it now, as on the task page (FR-AI-301): already made, none when there is none
-  const brief = decide ? await briefView(ctx, decide.id) : null
+  // The panel "จากผู้ช่วย" (NEW-122): the AI's summary for the one who decides it now, as on the task page (FR-AI-301),
+  // already made; the reference price of their task as its page reads it (priceReference.view); "ถาม BCS AI" when on
+  const [brief, priceRef, asking, tp] = await Promise.all([
+    decide ? briefView(ctx, decide.id) : Promise.resolve(null),
+    decide ? getPriceReference(ctx, { requestId: view.id }) : Promise.resolve(null),
+    isAgentAvailable(ctx, 'INSIGHT').then((a) => a.available),
+    getTranslations('assistantPanel'),
+  ])
 
   const named = (m: { id: string; name: { th: string; en: string | null } }) => ({ id: m.id, name: memberName(locale, m) })
   const mine = view.requester.id === state.member.id
@@ -169,6 +179,16 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
     amount: td('pos.gross', { amount: money(po.grossSatang) }),
     badge: { look: PO_BADGES[po.status], label: td(`badge.po.${po.status}` as 'badge.po.SENT') },
   }))
+  const here = `/requests/${view.id}?tab=overview`
+  const panel = assistantPanel(tp, {
+    brief,
+    notes: [
+      stepNote(tp, locale, ctx.now, state.member.id, stage.kind === 'APPROVER' ? stage : null, `${here}#route`),
+      flagNote(tp, flags.ok ? flags.data : [], `${here}#request-flags`),
+      decide && priceRef?.ok ? priceNote(tp, priceRef.data, `/tasks/${decide.id}#price-reference`) : null,
+    ],
+    ask: askPart(tp, 'REQUEST', view.number, asking),
+  })
   const supplier = view.suggestedSupplier ? nameIn(locale, view.suggestedSupplier.name) : pos.length ? [...new Set(pos.map((p) => nameIn(locale, p.supplier)))].join(', ') : td('header.supplierNone')
 
   const overview = (
@@ -408,9 +428,9 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
               ) : null}
             </>
           }
-          rail={
-            <>
-              {decide ? (
+          assistant={<AssistantPanel view={panel} give={giveAiFeedbackAction} />}
+          bar={
+            decide ? (
                 <DecisionBar
                   taskId={decide.id}
                   kind="REQUEST"
@@ -426,17 +446,17 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
                   }}
                   actions={{ decide: decideTaskAction, ask: askForInformationAction }}
                 />
-              ) : null}
-              {brief ? <AiBrief brief={brief} /> : null}
+            ) : null
+          }
+          rail={
             <DocTabs
-                label={td('rail.label')}
-                initial="summary"
-                tabs={[
-                  { value: 'summary', label: td('rail.summary'), content: summary },
-                  { value: 'comments', label: td('rail.comments', { count: comments.length }), content: <CommentList comments={comments} label={td('comments.list')} empty={td('comments.empty')} /> },
-                ]}
-              />
-            </>
+              label={td('rail.label')}
+              initial="summary"
+              tabs={[
+                { value: 'summary', label: td('rail.summary'), content: summary },
+                { value: 'comments', label: td('rail.comments', { count: comments.length }), content: <CommentList comments={comments} label={td('comments.list')} empty={td('comments.empty')} /> },
+              ]}
+            />
           }
         />
       </DecisionLink>

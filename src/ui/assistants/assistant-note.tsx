@@ -1,4 +1,4 @@
-import { AlarmClock, CalendarClock, Copy, Hourglass, ShieldAlert, Tag, Wallet } from 'lucide-react'
+import { AlarmClock, CalendarClock, Copy, Hourglass, Scale, ShieldAlert, Tag, Wallet } from 'lucide-react'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { cn } from '../cn'
@@ -10,7 +10,7 @@ import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '../sha
 // tone is said by the words and the icon too, never by colour alone (§9.9). Sparkles is not used: §12.5 keeps it for
 // words an AI wrote, and these come from the rules.
 
-export const ASSISTANT_ICONS = { AlarmClock, Hourglass, Copy, Tag, CalendarClock, Wallet, ShieldAlert } as const
+export const ASSISTANT_ICONS = { AlarmClock, Hourglass, Copy, Tag, CalendarClock, Wallet, ShieldAlert, Scale } as const
 export type AssistantIcon = keyof typeof ASSISTANT_ICONS
 export type AssistantTone = 'danger' | 'warn' | 'info'
 

@@ -553,6 +553,8 @@ frs:
       AC4: { owner: S16-07, demo: true, basis: named, text: "ผู้ดูที่มีงานเปิดของเอกสารนั้นเห็นแถบตัดสินบนสุดของแถบขวา (จอเล็กติดล่างจอ) ที่แสดงยอดตามฐาน DOA สถานะงบ และ DOA ฉบับกับข้อ แล้วเรียก service ตัดสินเดิม จึงตัดสินได้ในจอเดียว (§9.9 ข้อ 5)" }
       AC5: { owner: S16-07, demo: true, basis: named, text: "แท็บประวัติแสดงตาราง วันที่ (พ.ศ.) ผู้กระทำ เหตุการณ์ภาษาไทย ช่องทาง จาก Event (FR-PLT-003 AC3)" }
       AC6: { owner: S16-07, demo: true, basis: named, text: "หน้า PO ใช้โครงเดียวกัน (หัว แท็บ แถบขวา เส้นทางอนุมัติ)" }
+      AC7: { owner: NEW-122, demo: true, basis: named, text: "(NEW-122 · ADR-079) แผง 'จากผู้ช่วย' ในหน้าคำขอ PO และใบแจ้งหนี้: Brief สิ่งที่ผู้ช่วยเจอจากกฎตามสิทธิ์ ปิด AI แล้วเหลือส่วนที่มาจากกฎ" }
+      AC8: { owner: NEW-122, demo: true, basis: named, text: "(NEW-122) ปุ่มลัดถาม BCS AI ด้วยเลขเอกสารตามสิทธิ์ผู้ถาม และปุ่ม 'ช่วยได้' 'ไม่ช่วย' บันทึกเป็น Event" }
   FR-INT-013:
     title: "ผู้ติดตามและการกล่าวถึงในความเห็น"
     acs:
@@ -564,6 +566,6 @@ frs:
 # AC ที่ไม่มีข้อใดเป็นเจ้าของ (กลายเป็นข้อ NEW ใน §16.11)
 unowned: []
 # demo = AC ที่ demo: true · goLive = AC ที่ demo: false (รวม AC ที่ไม่มีเจ้าของแต่ข้ามได้ใน demo) · demo + goLive = acs
-counts: { frs: 84, acs: 301, demo: 275, goLive: 26, unowned: 0 }
+counts: { frs: 84, acs: 303, demo: 277, goLive: 26, unowned: 0 }
 # จำนวนตามที่มาของเจ้าของ (ดู basis ด้านบน)
-basisCounts: { named: 235, later: 30, builder: 36, none: 0 }
+basisCounts: { named: 237, later: 30, builder: 36, none: 0 }

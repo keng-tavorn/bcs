@@ -250,10 +250,11 @@ test('[FR-AI-301/AC1] [FR-AI-301/AC3] the decider sees the Brief apart on the de
   await expect(box.getByRole('button')).toHaveCount(0)
   await check(page, testInfo, 'brief-web')
 
-  // The document page shows the same Brief to the same reader, and on a computer the box of their step points to it
+  // The document page shows the same Brief to the same reader in its panel "จากผู้ช่วย" (NEW-122), where the reader may
+  // only say whether it helped — no decision there either — and on a computer the box of their step points to it
   await page.goto(`/requests/${brief.requestId}`)
   await expect(box.getByText('AI อาจผิดพลาด ตรวจกับเอกสาร')).toBeVisible()
-  await expect(box.getByRole('button')).toHaveCount(0)
+  await expect(box.getByRole('button')).toHaveText(['ช่วยได้', 'ไม่ช่วย'])
   if (testInfo.project.name === 'desktop') {
     await expect(page.getByRole('list', { name: 'ขั้นอนุมัติ' }).getByRole('link', { name: 'สรุปจาก AI' })).toHaveAttribute('href', '#ai-brief-title')
   }

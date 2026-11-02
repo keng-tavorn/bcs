@@ -3,7 +3,8 @@
 import { useChat, type UIMessage } from '@ai-sdk/react'
 import { Send, Sparkles } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { FeedbackButtons, type GiveAiFeedback } from '../assistants/feedback-buttons'
 import { onAskAi } from '../shell/shell-events'
 import { Badge } from '../shadcn/badge'
 import { Bubble, BubbleContent } from '../shadcn/bubble'
@@ -17,9 +18,12 @@ import { AskError, askTransport, type AskTransport } from './transport'
 // answer streams in from POST /api/ai/ask — sentences checked one by one on the server — with the rows and links the
 // tools returned; when a sentence failed, the rows alone as a table; nothing in the member's access → "ไม่พบข้อมูลใน
 // สิทธิ์ของคุณ". The AI's label is --info with Sparkles; waiting is a role="status". Workspace only (ADR-052). The
-// transport is a prop so a screen test streams scripted answers without a key (@shadcn/helpers, ADR-060).
+// transport is a prop so a screen test streams scripted answers without a key (@shadcn/helpers, ADR-060). From a
+// document's panel "จากผู้ช่วย" (NEW-122) a question may come to be finished first: it waits in the field, focused. Under
+// each answer the member says whether it helped (`give`, their own Event).
 
 interface AnswerData {
+  readonly agentActionId?: string
   readonly kind: 'ANSWER' | 'TABLE' | 'NOT_FOUND' | 'SCOPE'
   readonly tables: ReadonlyArray<{ readonly tool: string; readonly rows: ReadonlyArray<{ readonly href: string | null; readonly cells: ReadonlyArray<{ readonly key: string; readonly text: string }> }> }>
 }
@@ -30,18 +34,26 @@ const dataOf = (m: UIMessage): AnswerData | null => {
   return part?.data ?? null
 }
 
-export function AskAiSheet({ transport }: { transport?: AskTransport }) {
+export function AskAiSheet({ transport, give }: { transport?: AskTransport; give?: GiveAiFeedback }) {
   const t = useTranslations('aiAssist.ask')
   const chatTransport = useMemo(() => transport ?? askTransport(), [transport])
   const { messages, sendMessage, status, error } = useChat({ transport: chatTransport })
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
+  const input = useRef<HTMLInputElement>(null)
 
   useEffect(
     () =>
-      onAskAi((question) => {
+      onAskAi(({ question, send }) => {
         setOpen(true)
-        void sendMessage({ text: question })
+        if (send) return void sendMessage({ text: question })
+        setDraft(question)
+        // once the sheet has opened: the member finishes the question where it waits
+        requestAnimationFrame(() => {
+          const field = input.current
+          field?.focus()
+          field?.setSelectionRange(field.value.length, field.value.length)
+        })
       }),
     [sendMessage],
   )
@@ -68,7 +80,7 @@ export function AskAiSheet({ transport }: { transport?: AskTransport }) {
           <SheetDescription>{t('description')}</SheetDescription>
         </SheetHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
-          {messages.map((m) => {
+          {messages.map((m, i) => {
             const mine = m.role === 'user'
             const data = mine ? null : dataOf(m)
             const said = textOf(m).trim()
@@ -117,6 +129,7 @@ export function AskAiSheet({ transport }: { transport?: AskTransport }) {
                       ))}
                     </section>
                   ) : null}
+                  {data?.agentActionId && give && !(i === messages.length - 1 && (status === 'submitted' || status === 'streaming')) ? <FeedbackButtons agentActionId={data.agentActionId} give={give} /> : null}
                 </MessageContent>
               </Message>
             )
@@ -137,7 +150,7 @@ export function AskAiSheet({ transport }: { transport?: AskTransport }) {
         </div>
         <form onSubmit={onSubmit} className="border-t border-line p-4">
           <InputGroup>
-            <InputGroupInput aria-label={t('inputLabel')} placeholder={t('inputLabel')} maxLength={500} value={draft} onChange={(e) => setDraft(e.currentTarget.value)} />
+            <InputGroupInput ref={input} aria-label={t('inputLabel')} placeholder={t('inputLabel')} maxLength={500} value={draft} onChange={(e) => setDraft(e.currentTarget.value)} />
             <InputGroupAddon align="inline-end">
               <InputGroupButton type="submit" aria-label={t('send')} size="icon-xs">
                 <Send aria-hidden="true" />

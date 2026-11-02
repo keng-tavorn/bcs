@@ -7,8 +7,10 @@ import { memberPrincipal } from '@/server/authz'
 import { businessDaysTaken, getMyOpenTask, getRouteStepDetails, listPoInvoices, listPoReceipts } from '@/server/queries/document-page'
 import { getPoAccess, getPurchaseOrderView, type PoViewDto } from '@/server/queries/purchase-orders'
 import { getTaskAccess, getTaskView } from '@/server/queries/tasks'
+import { isAgentAvailable } from '@/server/services/ai'
 import { previewPoSubmit, type PoSubmitPreviewDto } from '@/server/services/purchase-orders'
 import { getPoS8View } from '@/server/services/purchase-orders/view-change'
+import { AssistantPanel } from '@/ui/assistants/document-panel'
 import { PO_BADGES, StatusBadge, URGENCY_BADGES } from '@/ui/document/badges'
 import { DecisionBar } from '@/ui/document/decision-bar'
 import { DecisionLink } from '@/ui/document/decision-link'
@@ -29,11 +31,12 @@ import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Section } from '@/ui/request-view/facts'
 import { StateLine } from '@/ui/request-view/status'
 import { Toaster } from '@/ui/shadcn/sonner'
-import { AiBrief } from '@/ui/tasks/ai-brief'
 import { briefView } from '../../../../_lib/brief-present'
 import { downloadUrlAction } from '../../../../_lib/file-actions'
 import { getSession } from '../../../../_lib/session'
+import { giveAiFeedbackAction } from '../../../_shell/assistant-actions'
 import { canOpenDoaVersion, taskRight } from '../../../_tracking/access'
+import { askPart, assistantPanel, stepNote } from '../../../_tracking/document-assistant'
 import { commentViews, historyRows, poHistoryKinds, routeWhy, stepCards } from '../../../_tracking/document-present'
 import { day, doaHref, doaRefText, localeOf, memberName, money, roleText, routeSentence, when, type Locale } from '../../../_tracking/present'
 import { decideTaskAction } from '../../../tasks/actions'
@@ -193,8 +196,14 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
   ])
   // The decision bar: an open approval task of this PO that the reader may decide (approval.decide, BR-DLG-04)
   const decide = task && task[0] && task[1] && taskRight(principal, task[0]) === 'DECIDE' && task[1].status === 'OPEN' ? task[1] : null
-  // The AI's summary for the one who decides it now, as on the task page (FR-AI-301): already made, none when there is none
-  const brief = decide ? await briefView(ctx, decide.id) : null
+  // The panel "จากผู้ช่วย" (NEW-122): the AI's summary for the one who decides it now, as on the task page (FR-AI-301),
+  // already made; "ถาม BCS AI" when on; and the step waiting now when its time runs out
+  const [brief, asking, tp] = await Promise.all([decide ? briefView(ctx, decide.id) : Promise.resolve(null), isAgentAvailable(ctx, 'INSIGHT').then((a) => a.available), getTranslations('assistantPanel')])
+  const panel = assistantPanel(tp, {
+    brief,
+    notes: [stepNote(tp, locale, ctx.now, state.member.id, po.waiting.kind === 'APPROVER' ? po.waiting : null, `/procurement/pos/${po.id}?tab=overview#po-route`)],
+    ask: askPart(tp, 'PURCHASE_ORDER', po.number, asking),
+  })
   const doaLinks = canOpenDoaVersion(principal)
   // The approver decides on the prices too: the prices paid before for the same items (FR-P2P-003 AC1)
   const reader = poReader(principal, access, po, decide ? { prices: true } : {})
@@ -378,9 +387,9 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
               ) : null}
             </>
           }
-          rail={
-            <>
-              {decide ? (
+          assistant={<AssistantPanel view={panel} give={giveAiFeedbackAction} />}
+          bar={
+            decide ? (
                 <DecisionBar
                   taskId={decide.id}
                   kind="PURCHASE_ORDER"
@@ -395,8 +404,10 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
                   }}
                   actions={{ decide: decideTaskAction }}
                 />
-              ) : null}
-              {brief ? <AiBrief brief={brief} /> : null}
+            ) : null
+          }
+          rail={
+            <>
               {procurement ? (
                 <PoActions
                   poId={po.id}

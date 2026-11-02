@@ -67,12 +67,31 @@ export function DocHeader({ back, number, title, badges, actions, summary, compa
   )
 }
 
-/** The page under the header: the tabs on the left and the column of 360 px on the right, below the content under 1280 px */
-export function DocBody({ main, rail }: { main: ReactNode; rail: ReactNode }) {
+/**
+ * The page under the header: the tabs on the left and the column of 360 px on the right, below the content under 1280 px.
+ * With the panel "จากผู้ช่วย" (`assistant`, NEW-122) the right column reads: the decision bar (`bar`), the panel, then
+ * the rest; under 1280 px the panel comes first, under the header, and the bar stays fixed to the bottom of the screen.
+ * The panel is first in the page's order too, so what a phone shows and what a screen reader reads are one order.
+ */
+export function DocBody({ main, rail, bar, assistant }: { main: ReactNode; rail: ReactNode; bar?: ReactNode; assistant?: ReactNode }) {
+  if (!assistant) {
+    return (
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_22.5rem] xl:items-start">
+        <div className="flex min-w-0 flex-col gap-6">{main}</div>
+        <aside className="flex min-w-0 flex-col gap-6">
+          {bar}
+          {rail}
+        </aside>
+      </div>
+    )
+  }
   return (
-    <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_22.5rem] xl:items-start">
-      <div className="flex min-w-0 flex-col gap-6">{main}</div>
-      <aside className="flex min-w-0 flex-col gap-6">{rail}</aside>
+    <div className={`grid gap-8 xl:grid-cols-[minmax(0,1fr)_22.5rem] xl:items-start xl:gap-y-6 ${bar ? 'xl:grid-rows-[auto_auto_1fr]' : 'xl:grid-rows-[auto_1fr]'}`}>
+      <div className={`min-w-0 xl:col-start-2 ${bar ? 'xl:row-start-2' : 'xl:row-start-1'}`}>{assistant}</div>
+      <div className={`flex min-w-0 flex-col gap-6 xl:col-start-1 xl:row-start-1 ${bar ? 'xl:row-span-3' : 'xl:row-span-2'}`}>{main}</div>
+      {/* The bar is fixed under 1280 px: its wrapper then adds no row */}
+      {bar ? <div className="contents xl:col-start-2 xl:row-start-1 xl:block xl:min-w-0">{bar}</div> : null}
+      <aside className={`flex min-w-0 flex-col gap-6 xl:col-start-2 ${bar ? 'xl:row-start-3' : 'xl:row-start-2'}`}>{rail}</aside>
     </div>
   )
 }

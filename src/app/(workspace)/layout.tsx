@@ -28,6 +28,7 @@ import { NotificationBell } from '@/ui/shell/notification-bell'
 import { WorkspaceShell } from '@/ui/shell/workspace-shell'
 import { setLocaleAction } from '../_lib/locale-actions'
 import { getPlatformSession, getSession } from '../_lib/session'
+import { giveAiFeedbackAction } from './_shell/assistant-actions'
 import { paletteCommands } from './_shell/commands'
 import { endPushDeviceOnSignOutAction } from './settings/notifications/actions'
 import { menuLabelKey, SIDEBAR_GROUPS, visibleMenu, type MenuGroup } from './_shell/menu'
@@ -160,7 +161,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   const tAsk = await getTranslations('aiAssist.ask')
   const search = (
     <>
-      {asking ? <AskAiSheet /> : null}
+      {asking ? <AskAiSheet give={giveAiFeedbackAction} /> : null}
       <CommandPalette
         locale={screen}
         {...(asking ? { askAi: { group: tAsk('paletteGroup'), rowPrefix: tAsk('paletteRow', { question: '' }) } } : {})}

@@ -1,8 +1,10 @@
 import { Sparkles } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 // The "สรุปจาก AI" box of the decision bar (FR-AI-301 AC1 AC3, §12.5): apart from everything else on the page, Sparkles in
 // --info, "AI อาจผิดพลาด ตรวจกับเอกสาร", the sentences when the reader may see them and the facts from the system under
-// them. No button: the Brief decides nothing (BR-AI-01).
+// them. No decision button: the Brief decides nothing (BR-AI-01); in the panel "จากผู้ช่วย" (NEW-122) the reader may say
+// under it whether it helped (`feedback`).
 
 export interface AiBriefProps {
   readonly title: string
@@ -14,7 +16,7 @@ export interface AiBriefProps {
   readonly facts: ReadonlyArray<{ readonly label: string; readonly value: string }>
 }
 
-export function AiBrief({ brief }: { brief: AiBriefProps }) {
+export function AiBrief({ brief, feedback }: { brief: AiBriefProps; feedback?: ReactNode }) {
   return (
     <section aria-labelledby="ai-brief-title" className="flex flex-col gap-3 rounded-md border border-info bg-bg p-4">
       <h3 id="ai-brief-title" className="flex items-center gap-2 font-semibold">
@@ -42,6 +44,7 @@ export function AiBrief({ brief }: { brief: AiBriefProps }) {
           ))}
         </dl>
       </div>
+      {feedback}
     </section>
   )
 }

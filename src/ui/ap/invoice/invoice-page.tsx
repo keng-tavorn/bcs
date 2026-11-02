@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
+import type { ReactNode } from 'react'
 import { satangToAmount } from '@/core/money/dto'
 import { StatusBadge } from '../../document/badges'
 import { DocTabs } from '../../document/doc-tabs'
@@ -135,6 +136,7 @@ export async function ApInvoicePage({
   openFile,
   aiReviews = [],
   tab,
+  assistant,
 }: {
   data: ApInvoicePageData
   actions: ApInvoiceActions
@@ -143,6 +145,8 @@ export async function ApInvoicePage({
   aiReviews?: readonly InvoiceAiReviewView[]
   /** The tab the address names */
   tab?: string | string[] | undefined
+  /** The panel "จากผู้ช่วย" (NEW-122): from 1280 px on top of the right column, under the header below that */
+  assistant?: ReactNode
 }) {
   const [t, ta, tai, tp, rawLocale] = await Promise.all([getTranslations('apInvoice'), getTranslations('audit'), getTranslations('aiAssist.invoice'), getTranslations('payRun.task'), getLocale()])
   const locale: Locale = rawLocale === 'en' ? 'en' : 'th'
@@ -315,10 +319,14 @@ export async function ApInvoicePage({
         {data.status === 'REJECTED' && data.rejectReason ? <Notice tone="danger" role="status">{t('header.rejected', { reason: data.rejectReason })}</Notice> : null}
         {data.status === 'CANCELLED' && data.cancelReason ? <Notice tone="info">{t('header.cancelled', { reason: data.cancelReason })}</Notice> : null}
 
-        <div className="grid gap-4 lg:gap-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] xl:items-start">
-          <InvoiceFilePane file={data.file} etax={data.prefill === 'ETAX_XML'} open={openFile} />
+        <div className={`grid gap-4 lg:gap-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] xl:items-start ${assistant ? 'xl:grid-rows-[auto_1fr]' : ''}`}>
+          {/* First in the page's order: a phone shows it under the header, a screen reader reads it there too */}
+          {assistant ? <div className="min-w-0 xl:col-start-2 xl:row-start-1">{assistant}</div> : null}
+          <div className={assistant ? 'contents xl:col-start-1 xl:row-span-2 xl:row-start-1 xl:block xl:min-w-0 xl:self-stretch' : 'contents'}>
+            <InvoiceFilePane file={data.file} etax={data.prefill === 'ETAX_XML'} open={openFile} />
+          </div>
 
-          <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
+          <div className={`flex min-w-0 flex-col gap-4 lg:gap-6 ${assistant ? 'xl:col-start-2 xl:row-start-2' : ''}`}>
             <PoBalancePanel t={t} data={data} />
 
             {data.exceptions.length > 0 ? (

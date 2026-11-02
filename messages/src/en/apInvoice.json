@@ -180,7 +180,17 @@
     "rejectTitle": "Reject this invoice",
     "rejectHint": "The invoice will not be paid, and the supplier is e-mailed the reason. This cannot be undone.",
     "rejectConfirm": "Reject and tell the supplier",
-    "rejectBusy": "Rejecting"
+    "rejectBusy": "Rejecting",
+    "explain": {
+      "PRICE_OVER": "The price on this invoice is above the PO price by more than your organization allows. Procurement asks for a variance approval, or the supplier corrects the invoice.",
+      "QTY_NOT_RECEIVED": "The quantity on this invoice is more than what was received and not yet billed. Receive the rest; the system then checks again by itself.",
+      "QTY_OVER_ORDERED": "The quantity on this invoice is more than the PO ordered. Procurement changes the PO, or the supplier corrects the invoice.",
+      "ACCEPTANCE_PENDING": "This service has not been accepted yet. The receiver accepts it; the system then checks again by itself.",
+      "VAT_MISMATCH": "The VAT the supplier wrote differs from the VAT worked out by more than allowed. Check the amounts against the file; if the invoice is wrong, the supplier corrects it.",
+      "VAT_SUPPLIER_NOT_REGISTERED": "This invoice charges VAT, but the supplier is not registered for VAT or has left the VAT system. A variance cannot be approved; the supplier must correct the invoice.",
+      "POSSIBLE_DUPLICATE": "Another invoice of this taxpayer has a different number but the same total and a nearby date. Check they are two invoices and dismiss this, or reject it if it is a repeat.",
+      "BUDGET_SHORT": "The invoice is above what the PO holds, and the budget left does not cover the rest. Ask for a budget transfer, then check again."
+    }
   },
   "draft": {
     "title": "Submit the invoice",
@@ -279,5 +289,80 @@
     "open": "Open {number}",
     "over": "{amount} THB over",
     "fixAtCause": "Fix it at its cause, or finance rejects the invoice"
+  },
+  "tabs": {
+    "label": "Parts of the invoice",
+    "details": "Details",
+    "match": "PO match",
+    "source": "Source",
+    "comments": "Comments ({count})"
+  },
+  "viewer": {
+    "region": "View the original file",
+    "title": "Original file {name}",
+    "loading": "Opening the file",
+    "newTab": "Open in a new tab",
+    "retry": "Try again",
+    "notInPage": "This kind of file cannot open in the page",
+    "notInPageHint": "Download it to read it, then check it against the values on the right",
+    "etaxHint": "An e-Tax file holds data and has no page to show. The values labelled as from e-Tax on the right were read from it.",
+    "noneHint": "Check the values on the right against the document the supplier gave you"
+  },
+  "poBar": {
+    "title": "Against the PO",
+    "this": "This invoice",
+    "others": "Other invoices taken",
+    "remaining": "Left",
+    "over": "Over the PO",
+    "po": "PO amount",
+    "unit": "Amounts before VAT, in baht",
+    "summary": "This invoice {own} baht, other invoices {others} baht, of the PO amount {po} baht",
+    "pending": "This invoice has not come off the PO yet; it does once the match passes",
+    "notCounted": "This invoice does not come off the PO because it was rejected or cancelled",
+    "shortClosed": "A line of the PO was closed short, so part of what is left will never be invoiced"
+  },
+  "match": {
+    "title": "Lines against the PO",
+    "checkedAt": "Last matched {time}",
+    "notYet": "Not matched yet; the match runs when you submit",
+    "ordered": "Ordered on the PO",
+    "received": "Received",
+    "elsewhere": "Billed on other invoices",
+    "thisInvoice": "Billed on this invoice",
+    "poPrice": "Unit price on the PO",
+    "thisPrice": "Unit price on this invoice",
+    "cancelled": "Closed short"
+  },
+  "sourcePanel": {
+    "title": "Where this invoice came from",
+    "channel": "Channel",
+    "channelValue": {
+      "EMAIL": "E-mail from the supplier",
+      "UPLOAD": "Uploaded file",
+      "PORTAL": "Sent by the supplier"
+    },
+    "prefill": "Values came from",
+    "prefillValue": {
+      "MANUAL": "Typed by a person",
+      "ETAX_XML": "The e-Tax file",
+      "AI_READING": "Read from the file by AI; please check"
+    },
+    "createdBy": "Created by",
+    "createdAt": "Created on",
+    "from": "E-mail from",
+    "subject": "E-mail subject",
+    "receivedAt": "E-mail received on"
+  },
+  "commentsPanel": {
+    "title": "Comments on this invoice",
+    "by": "{name} · {time}",
+    "empty": "No comments yet. The reasons for asking a variance approval, dismissing and rejecting show here."
+  },
+  "alerts": {
+    "button": "{count, plural, one {# alert} other {# alerts}}",
+    "title": "Alerts on this invoice",
+    "hint": "These come from the rules your organization uses. Check each one and do what it says. Payment alerts do not stop a payment, but the run approver sees them.",
+    "duplicateNumberTitle": "This number is on another invoice",
+    "duplicateNumberText": "This supplier already has an invoice with the same number. Check the number; if it is the same invoice, discard this draft."
   }
 }

@@ -118,12 +118,12 @@ export function CodingForm({
           const r = rows[l.id]!
           const other = r.costCenterId !== l.budgetCostCenterId
           return (
-            <li key={l.id} className="flex flex-col gap-3 py-3">
+            <li key={l.id} className="@container flex flex-col gap-3 py-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium break-words text-ink">{t('coding.line', { no: l.lineNo, description: l.description })}</span>
                 <Badge variant={l.confirmed ? 'ok' : 'neutral'}>{l.confirmed ? t('coding.confirmed') : t('coding.notConfirmed')}</Badge>
               </div>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 @min-[40rem]:grid-cols-3">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor={`${id}-code-${l.lineNo}`} className="text-base text-ink">
                     {t('coding.accountCode', { no: l.lineNo })}

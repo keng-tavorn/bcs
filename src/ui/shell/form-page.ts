@@ -9,5 +9,11 @@ export const FORM_PAGE = { 'data-form-page': '' } as const
 /** Hidden while the page holds FORM_PAGE. Tailwind reads each class whole, so the selector is written out */
 export const SHELL_HIDDEN = '[body:has([data-form-page])_&]:hidden'
 
+/** What a page beside a file carries (the invoice's split page, NEW-115): from 1280 px up the content takes the screen's width */
+export const WIDE_PAGE = { 'data-wide-page': '' } as const
+
+/** The content's frame without its limit of 1280 px while the page holds WIDE_PAGE */
+export const SHELL_WIDE = 'xl:[body:has([data-wide-page])_&]:max-w-none'
+
 /** The content's frame (its width and sides) gives the form the whole screen */
 export const SHELL_UNFRAMED = '[body:has([data-form-page])_&]:max-w-none [body:has([data-form-page])_&]:p-0'

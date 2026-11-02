@@ -1949,6 +1949,13 @@
     "waiting": "{count, plural, one {# field waits} other {# fields wait}} for you to confirm"
   },
   "apInvoice": {
+    "alerts": {
+      "button": "{count, plural, one {# alert} other {# alerts}}",
+      "duplicateNumberText": "This supplier already has an invoice with the same number. Check the number; if it is the same invoice, discard this draft.",
+      "duplicateNumberTitle": "This number is on another invoice",
+      "hint": "These come from the rules your organization uses. Check each one and do what it says. Payment alerts do not stop a payment, but the run approver sees them.",
+      "title": "Alerts on this invoice"
+    },
     "amounts": {
       "discount": "Discount on the total",
       "due": "Due {date}",
@@ -2002,6 +2009,11 @@
       "suggested": "Suggested: {code}",
       "title": "Account codes and cost centers",
       "typeOption": "{name} {rate}%"
+    },
+    "commentsPanel": {
+      "by": "{name} · {time}",
+      "empty": "No comments yet. The reasons for asking a variance approval, dismissing and rejecting show here.",
+      "title": "Comments on this invoice"
     },
     "dialog": {
       "back": "Back",
@@ -2063,6 +2075,16 @@
       "dismissConfirm": "Dismiss the warning",
       "dismissHint": "Confirms this invoice is not the same as the existing one. It is matched again at once when nothing else is open.",
       "dismissTitle": "Dismiss the duplicate warning",
+      "explain": {
+        "ACCEPTANCE_PENDING": "This service has not been accepted yet. The receiver accepts it; the system then checks again by itself.",
+        "BUDGET_SHORT": "The invoice is above what the PO holds, and the budget left does not cover the rest. Ask for a budget transfer, then check again.",
+        "POSSIBLE_DUPLICATE": "Another invoice of this taxpayer has a different number but the same total and a nearby date. Check they are two invoices and dismiss this, or reject it if it is a repeat.",
+        "PRICE_OVER": "The price on this invoice is above the PO price by more than your organization allows. Procurement asks for a variance approval, or the supplier corrects the invoice.",
+        "QTY_NOT_RECEIVED": "The quantity on this invoice is more than what was received and not yet billed. Receive the rest; the system then checks again by itself.",
+        "QTY_OVER_ORDERED": "The quantity on this invoice is more than the PO ordered. Procurement changes the PO, or the supplier corrects the invoice.",
+        "VAT_MISMATCH": "The VAT the supplier wrote differs from the VAT worked out by more than allowed. Check the amounts against the file; if the invoice is wrong, the supplier corrects it.",
+        "VAT_SUPPLIER_NOT_REGISTERED": "This invoice charges VAT, but the supplier is not registered for VAT or has left the VAT system. A variance cannot be approved; the supplier must correct the invoice."
+      },
       "hint": "Each difference is sent to whoever resolves it. Fix the cause and check again, or choose a way below that your role allows.",
       "line": "Line {no}",
       "recheck": "Check again",
@@ -2199,10 +2221,35 @@
       "title": "Lines and match result",
       "unitPriceOf": "Unit price of line {no}"
     },
+    "match": {
+      "cancelled": "Closed short",
+      "checkedAt": "Last matched {time}",
+      "elsewhere": "Billed on other invoices",
+      "notYet": "Not matched yet; the match runs when you submit",
+      "ordered": "Ordered on the PO",
+      "poPrice": "Unit price on the PO",
+      "received": "Received",
+      "thisInvoice": "Billed on this invoice",
+      "thisPrice": "Unit price on this invoice",
+      "title": "Lines against the PO"
+    },
     "metaTitle": "Invoice {number}",
     "metaTitleDraft": "Draft invoice",
     "moduleOffHint": "Matched invoices work when the organization has the payment module (PAY) switched on. Contact your organization's administrator.",
     "moduleOffTitle": "The payment module is off",
+    "poBar": {
+      "notCounted": "This invoice does not come off the PO because it was rejected or cancelled",
+      "others": "Other invoices taken",
+      "over": "Over the PO",
+      "pending": "This invoice has not come off the PO yet; it does once the match passes",
+      "po": "PO amount",
+      "remaining": "Left",
+      "shortClosed": "A line of the PO was closed short, so part of what is left will never be invoiced",
+      "summary": "This invoice {own} baht, other invoices {others} baht, of the PO amount {po} baht",
+      "this": "This invoice",
+      "title": "Against the PO",
+      "unit": "Amounts before VAT, in baht"
+    },
     "results": {
       "EXCEPTION": "The invoice has differences — sent to whoever resolves them",
       "PENDING_APPROVAL": "Variance sent for approval",
@@ -2217,6 +2264,26 @@
       "AI_READING": "Filled by AI — please check",
       "ETAX_XML": "From e-Tax"
     },
+    "sourcePanel": {
+      "channel": "Channel",
+      "channelValue": {
+        "EMAIL": "E-mail from the supplier",
+        "PORTAL": "Sent by the supplier",
+        "UPLOAD": "Uploaded file"
+      },
+      "createdAt": "Created on",
+      "createdBy": "Created by",
+      "from": "E-mail from",
+      "prefill": "Values came from",
+      "prefillValue": {
+        "AI_READING": "Read from the file by AI; please check",
+        "ETAX_XML": "The e-Tax file",
+        "MANUAL": "Typed by a person"
+      },
+      "receivedAt": "E-mail received on",
+      "subject": "E-mail subject",
+      "title": "Where this invoice came from"
+    },
     "status": {
       "CANCELLED": "Draft discarded",
       "DRAFT": "Draft",
@@ -2227,9 +2294,27 @@
       "READY_FOR_PAYMENT": "Ready for payment",
       "REJECTED": "Rejected"
     },
+    "tabs": {
+      "comments": "Comments ({count})",
+      "details": "Details",
+      "label": "Parts of the invoice",
+      "match": "PO match",
+      "source": "Source"
+    },
     "title": "Invoice {number}",
     "titleDraft": "Draft invoice",
-    "unit": "THB"
+    "unit": "THB",
+    "viewer": {
+      "etaxHint": "An e-Tax file holds data and has no page to show. The values labelled as from e-Tax on the right were read from it.",
+      "loading": "Opening the file",
+      "newTab": "Open in a new tab",
+      "noneHint": "Check the values on the right against the document the supplier gave you",
+      "notInPage": "This kind of file cannot open in the page",
+      "notInPageHint": "Download it to read it, then check it against the values on the right",
+      "region": "View the original file",
+      "retry": "Try again",
+      "title": "Original file {name}"
+    }
   },
   "apList": {
     "actions": {
@@ -7507,6 +7592,15 @@
         "RISK_OVERRIDE_EXPIRED": "Risk override expired",
         "SHARED_BANK_ACCOUNT": "Account shared with another supplier",
         "SUPPLIER_INACTIVE": "Supplier not in use"
+      },
+      "flagExplain": {
+        "BANK_ACCOUNT_RECENTLY_CHANGED": "The supplier’s account changed shortly before the pay date. Call the supplier on a number you already know to confirm it.",
+        "BANK_CHANGE_PENDING": "A change of this supplier’s account is still open. Money goes to the current account until the change is approved.",
+        "PREVIOUSLY_EXPORTED": "This document was in a bank file that was already downloaded. Check with the bank it was not paid, so it is not paid twice.",
+        "REGISTRY_CHANGED": "The supplier’s status in the registry changed, for example it ceased business or left the VAT system. Check you can still pay it.",
+        "RISK_OVERRIDE_EXPIRED": "The approval to use this supplier despite its risk ends before the pay date.",
+        "SHARED_BANK_ACCOUNT": "This account is also the account of another supplier with a different tax id. Check it is the right account.",
+        "SUPPLIER_INACTIVE": "This supplier is switched off in the system. Check there is still a reason to pay it."
       },
       "flaggedHeading": "Items with flags ({count})",
       "heading": "Payment run",

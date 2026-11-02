@@ -15,6 +15,8 @@ import { E2E_DB } from '../support/e2e-env'
 //   inbox <tag>     a PO received in full and the supplier's e-Tax invoice e-mailed to the organization's inbox (Mailpit)
 //   variance <tag>  a PO received and an invoice 10% over its price, submitted: EXCEPTION PRICE_OVER
 //   reject <tag>    the same, for FINANCE to reject; the supplier's address is the run's own
+//   split <tag>     a PO of 10 × 100.00 received in full, 4 of them on an invoice ready for payment (NEW-115)
+//   alerts <tag>    an invoice 10% over its PO's price, whose supplier then ceased business (NEW-116)
 //   ai-invoice <tag> a PO received in full, for FINANCE to read the supplier's invoice with the AI (S13-20: the AI
 //                   scene tests/e2e/ai-document-scene.ts with SCENE_ORG switches the Document Agent on and answers)
 //   notices         sends the supplier e-mails waiting (the job supplier-notice-send, which the e2e app does not run)
@@ -72,6 +74,23 @@ if (mode === 'notices') {
   await receive(ap, po, { 0: '10' })
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: ap.org.organizationId }, select: { code: true } })
   console.log(JSON.stringify({ tag, poNumber: po.number, org: org.code }))
+} else if (mode === 'split') {
+  const ap = await organization(tag!)
+  const po = await sentPo(ap, [{ quantity: '10', unitPrice: '100.00' }])
+  await receive(ap, po, { 0: '10' })
+  const first = await codedDraft(ap, po, { no: `S8FIRST-${tag!.toUpperCase()}`, date: AP_NOW.toISOString().slice(0, 10), vat: '28.00', lines: [{ line: 0, quantity: '4', unitPrice: '100.00' }] })
+  const submitted = ok(await submit(ap, first))
+  if (submitted.status !== 'READY_FOR_PAYMENT') throw new Error(`expected READY_FOR_PAYMENT, got ${submitted.status}`)
+  console.log(JSON.stringify({ tag, poNumber: po.number }))
+} else if (mode === 'alerts') {
+  const ap = await organization(tag!)
+  const po = await sentPo(ap, [{ quantity: '1', unitPrice: '1000.00' }])
+  await receive(ap, po, { 0: '1' })
+  const draft = await codedDraft(ap, po, { no: `S8AL-${tag!.toUpperCase()}`, date: AP_NOW.toISOString().slice(0, 10), vat: '77.00', lines: [{ line: 0, quantity: '1', unitPrice: '1100.00' }] })
+  const submitted = ok(await submit(ap, draft))
+  if (submitted.status !== 'EXCEPTION') throw new Error(`expected EXCEPTION, got ${submitted.status}`)
+  await prisma.supplier.update({ where: { id: ap.supplierId }, data: { registryFlag: 'CEASED' } })
+  console.log(JSON.stringify({ tag, invoiceId: draft.invoiceId, number: submitted.number }))
 } else if (mode === 'variance' || mode === 'reject') {
   const ap = await organization(tag!)
   const supplierEmail = `supplier.${tag}@s8.bcs.local`

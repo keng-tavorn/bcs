@@ -8,7 +8,8 @@ import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { TextArea } from '../request-view/text-area'
 import { AddDocumentsSheet } from './add-sheet'
-import { FlagBadge, ItemResultBadge } from './badges'
+import { ItemResultBadge } from './badges'
+import { FlagExplained } from './flag-explain'
 import { ConfirmDialog } from './confirm-dialog'
 import { accountValues, dayText, money } from './present'
 import { supplierName, type AddableSupplierView, type PayAction, type RunDocumentView, type RunItemView } from './types'
@@ -95,6 +96,7 @@ export function ItemsPanel({
   const locale = useLocale()
   const unit = t('unit')
   const flagText = (f: string) => (t.has(`task.flag.${f}` as 'task.flag.REGISTRY_CHANGED') ? t(`task.flag.${f}` as 'task.flag.REGISTRY_CHANGED') : f)
+  const flagMeaning = (f: string) => (t.has(`task.flagExplain.${f}` as 'task.flagExplain.REGISTRY_CHANGED') ? t(`task.flagExplain.${f}` as 'task.flagExplain.REGISTRY_CHANGED') : f)
   const docLabel = (d: RunDocumentView) =>
     d.kind === 'RETENTION' ? t('items.retention', { number: d.number ?? d.supplierInvoiceNo ?? '-' }) : d.number ? t('items.invoice', { number: d.number }) : t('items.invoiceDraft', { no: d.supplierInvoiceNo ?? '-' })
 
@@ -134,7 +136,7 @@ export function ItemsPanel({
                     <p className="sr-only">{t('items.flags')}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {item.flags.map((f) => (
-                        <FlagBadge key={f} label={flagText(f)} />
+                        <FlagExplained key={f} label={flagText(f)} text={flagMeaning(f)} />
                       ))}
                     </div>
                     <p className="break-words text-ink">{item.flagReason ? t('items.reason', { reason: item.flagReason }) : t('items.noReason')}</p>

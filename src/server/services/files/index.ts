@@ -6,7 +6,7 @@ import { systemClock } from '@/lib/clock'
 import { FILE_NAME_INPUT_MAX, MS_PER_MINUTE } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import '../exports/file-policy'
-import { ALLOWED_FILE_TYPES, checkDeclaredUpload, cleanFileName, contentMatchesType, FILE_NAME_MAX, GENERATED_FILE_TYPES, isAllowedMimeType, isGeneratedMimeType, SNIFF_BYTES, type AllowedMimeType } from '@/lib/file-types'
+import { checkDeclaredUpload, cleanFileName, contentMatchesType, FILE_NAME_MAX, isAllowedMimeType, isGeneratedMimeType, opensInline, SNIFF_BYTES, type AllowedMimeType } from '@/lib/file-types'
 import { newId } from '@/lib/ids'
 import { loadPrincipal, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
@@ -195,8 +195,7 @@ export async function getDownloadUrl(ctx: Ctx, input: { fileId: string }): Promi
   if (decision.kind === 'denied') return err('FORBIDDEN', 'no access to this file')
   const { file } = decision
   const mime = file.mimeType
-  const inline = isAllowedMimeType(mime) ? ALLOWED_FILE_TYPES[mime].inline : isGeneratedMimeType(mime) && GENERATED_FILE_TYPES[mime].inline
-  const url = await presignDownload(file.storageKey, { fileName: file.fileName, contentType: mime, inline })
+  const url = await presignDownload(file.storageKey, { fileName: file.fileName, contentType: mime, inline: opensInline(mime) })
   return ok({ url, expiresInSeconds: PRESIGN_TTL_SECONDS })
 }
 

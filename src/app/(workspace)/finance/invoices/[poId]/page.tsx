@@ -60,10 +60,10 @@ async function aiReviewsOf(ctx: NonNullable<ReturnType<typeof ctxFromSession>>, 
 }
 
 /** A tier-2 invoice of this id (S8-13): its page, or why it does not open */
-async function apInvoiceOrNull(ctx: NonNullable<ReturnType<typeof ctxFromSession>>, id: string) {
+async function apInvoiceOrNull(ctx: NonNullable<ReturnType<typeof ctxFromSession>>, id: string, tab: string | string[] | undefined) {
   const invoice = await getApInvoicePage(ctx, id)
   if (!invoice.ok && invoice.error.code === 'NOT_FOUND') return null
-  if (invoice.ok) return <ApInvoicePage data={invoice.data} actions={AP_ACTIONS} openFile={downloadUrlAction} aiReviews={await aiReviewsOf(ctx, invoice.data.aiReviews)} />
+  if (invoice.ok) return <ApInvoicePage data={invoice.data} actions={AP_ACTIONS} openFile={downloadUrlAction} aiReviews={await aiReviewsOf(ctx, invoice.data.aiReviews)} tab={tab} />
   const t = await getTranslations('apInvoice')
   const off = invoice.error.code === 'MODULE_DISABLED'
   return (
@@ -137,12 +137,13 @@ function Blocked({ po, t, locale }: { po: InvoicePoViewDto; t: FinanceT; locale:
 // is written), and beside it the PO's figures — received, invoiced, still held — the budget of its lines (committed and
 // actual), its lines, and the invoices recorded so far. FINANCE's page (invoiceConfirmation.record, checked by the
 // service before anything is read); the command checks every rule again.
-export default async function InvoicePoPage({ params }: { params: Promise<{ poId: string }> }) {
+export default async function InvoicePoPage({ params, searchParams }: { params: Promise<{ poId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { poId } = await params
+  const { tab } = await searchParams
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null
   // The id of a tier-2 invoice opens that invoice's page (S8-13); any other id is a PO, as before
-  const invoicePage = await apInvoiceOrNull(ctx, poId)
+  const invoicePage = await apInvoiceOrNull(ctx, poId, tab)
   if (invoicePage) return invoicePage
   const [t, td, locale] = await Promise.all([getTranslations('finance'), getTranslations('document.badge'), getLocale().then(localeOf)])
   const result = await getInvoicePoView(ctx, poId)

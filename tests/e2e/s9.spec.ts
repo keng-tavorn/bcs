@@ -3,7 +3,7 @@ import type { Browser, Page, TestInfo } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { E2E_PIN, e2eEnv } from '../support/e2e-env'
 import { messagesTo } from '../support/mailpit'
-import { check, h1, SCENE_TEST_TIMEOUT_MS, tagOf } from './finance-support'
+import { check, expectNoBlockingAxe, h1, SCENE_TEST_TIMEOUT_MS, tagOf } from './finance-support'
 import { expect, test } from './fixtures'
 
 // S9-09 (docs/sub-specs/S9.md "หน้าจอ" and "Demo ของขั้น", web part · e2e @pay): the Workspace screens of payment runs and
@@ -84,6 +84,25 @@ test.describe('@pay payment runs and bank accounts on the web (S9-09)', () => {
     // the ceased supplier is flagged first and needs the preparer's reason before sending
     await expect(page.getByText('ธงนี้ต้องมีเหตุผลก่อนส่งขออนุมัติ')).toBeVisible()
     await shot(page, testInfo, 'draft-flagged')
+    // [FR-PAY-101/AC13] the flag says what it means when pointed at or pressed, and goes away again
+    const flag = page.getByRole('button', { name: /^สถานะทะเบียนเปลี่ยน/ })
+    const meaning = page.getByRole('dialog', { name: 'สถานะทะเบียนเปลี่ยน' })
+    if (testInfo.project.name === 'mobile') {
+      await flag.tap()
+      await expect(meaning).toContainText('เลิกกิจการ')
+      await expectNoBlockingAxe(page)
+      await page.keyboard.press('Escape')
+    } else {
+      await flag.hover()
+      await expect(meaning).toContainText('เลิกกิจการ')
+      await expectNoBlockingAxe(page)
+      await page.mouse.move(0, 0)
+      await expect(meaning).toHaveCount(0)
+      await flag.click()
+      await expect(meaning).toContainText('เลิกกิจการ')
+      await page.keyboard.press('Escape')
+    }
+    await expect(meaning).toHaveCount(0)
     await page.getByLabel('เหตุผลของธง (ผู้อนุมัติจะเห็น)').fill('ส่งมอบงานครบก่อนเลิกกิจการ ตรวจกับจัดซื้อแล้ว')
     await page.getByRole('button', { name: 'บันทึกเหตุผลของธง' }).click()
     await expect(page.getByText('บันทึกเหตุผลของธงแล้ว').first()).toBeVisible()

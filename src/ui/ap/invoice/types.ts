@@ -27,8 +27,20 @@ export interface ApInvoicePageData {
   readonly cancelReason: string | null
   readonly fieldSources: Readonly<Record<string, InvoiceFieldSource>>
   readonly po: { readonly id: string; readonly number: string | null }
+  /** What the PO has left, amounts before VAT, with how much of the bar each part fills (basis points) */
+  readonly poBalance: { readonly poNetSatang: bigint; readonly otherInvoicedSatang: bigint; readonly thisNetSatang: bigint; readonly thisCounts: boolean; readonly remainingSatang: bigint; readonly otherBp: number; readonly thisBp: number; readonly shortClosed: boolean }
   readonly supplier: { readonly id: string; readonly code: string; readonly nameTh: string; readonly nameEn: string | null }
-  readonly file: { readonly id: string; readonly fileName: string } | null
+  readonly file: { readonly id: string; readonly fileName: string; readonly inline: boolean } | null
+  readonly channel: string
+  readonly prefill: string
+  readonly source: {
+    readonly createdAt: Date
+    readonly createdBy: { readonly th: string; readonly en: string | null } | null
+    readonly email: { readonly from: string; readonly subject: string; readonly receivedAt: Date } | null
+  }
+  readonly lastMatchAt: Date | null
+  readonly paymentFlags: readonly string[]
+  readonly duplicateNumber: boolean
   readonly lines: ReadonlyArray<{
     readonly id: string
     readonly lineNo: number
@@ -52,6 +64,7 @@ export interface ApInvoicePageData {
     readonly whtIncomeTypeCode: string | null
     readonly budgetCostCenterId: string
     readonly suggestion: { readonly accountCode: string | null; readonly source: string; readonly count: number } | null
+    readonly poLine: { readonly ordered: string; readonly received: string; readonly cancelled: string; readonly invoicedElsewhere: string }
   }>
   readonly exceptions: ReadonlyArray<{ readonly id: string; readonly type: string; readonly amountSatang: bigint; readonly lineNo: number | null; readonly assigneeRole: string; readonly status: string }>
   readonly options: {

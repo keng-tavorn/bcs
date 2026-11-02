@@ -106,7 +106,7 @@ describe('[FR-AP-101/AC5] where each value came from', () => {
     const { invoiceId } = ok(await createDraftFromReading(fin(ap), { fileId, poId: po.id, agentActionId: await invoiceReading(ap, po.id, {}, fileId), supplierInvoiceNo: 'AI-1', invoiceDate: nextDate(), statedVat: '28.00' }, { idempotencyKey: randomUUID() }))
     const before = await page('fin_officer', invoiceId)
     expect(before.fieldSources).toEqual({ supplierInvoiceNo: 'AI_READING', invoiceDate: 'AI_READING', statedVat: 'AI_READING' })
-    expect(before.file).toEqual({ id: fileId, fileName: 'invoice.jpg' })
+    expect(before.file).toEqual({ id: fileId, fileName: 'invoice.jpg', inline: true })
 
     // the browser's amounts with thousands separators are cleaned; only what changed is sent
     expect(await updateApInvoiceFor(fin(ap), { invoiceId, version: before.version, supplierInvoiceNo: 'INV-77', discount: '12.345' }, randomUUID())).toMatchObject({ ok: false, code: 'VALIDATION_FAILED', field: 'discount', reason: 'AMOUNT' })
@@ -253,3 +253,129 @@ describe('[FR-AP-103/AC1] [FR-AP-103/AC2] the differences and the ways to settle
     expect(Object.values(view.may).every((m) => m === false)).toBe(true)
   })
 })
+
+describe('[FR-AP-102/AC8] what the PO has left, on the bar of the split page', () => {
+  /** A PO of 10 × 100.00 received in full, with 4 of them on an invoice ready for payment */
+  async function partlyBilled() {
+    const po = await sentPo(ap, [{ quantity: '10', unitPrice: '100.00' }])
+    await receive(ap, po, { 0: '10' })
+    const first = await codedDraft(ap, po, { no: `BAR-${randomUUID().slice(0, 6)}`, date: nextDate(), vat: '28.00', lines: [{ line: 0, quantity: '4', unitPrice: '100.00' }] })
+    expect(ok(await submit(ap, first))).toMatchObject({ status: 'READY_FOR_PAYMENT' })
+    return { po, first }
+  }
+
+  it('takes the other invoices that count and this one off the PO, the same figures the invoices and the PO hold', async () => {
+    const { po, first } = await partlyBilled()
+    const second = await codedDraft(ap, po, { no: `BAR-${randomUUID().slice(0, 6)}`, date: nextDate(), vat: '21.00', lines: [{ line: 0, quantity: '3', unitPrice: '100.00' }] })
+    const draft = await page('fin_officer', second.invoiceId)
+    const held = await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: po.id } })
+    const firstRow = await prisma.invoice.findUniqueOrThrow({ where: { id: first.invoiceId } })
+    expect(draft.poBalance).toEqual({
+      poNetSatang: held.netSatang,
+      otherInvoicedSatang: firstRow.netSatang,
+      thisNetSatang: draft.netSatang,
+      thisCounts: true,
+      remainingSatang: held.netSatang - firstRow.netSatang - draft.netSatang,
+      otherBp: 4000,
+      thisBp: 3000,
+      shortClosed: false,
+    })
+    expect(draft.poBalance.remainingSatang).toBe(30_000n)
+    // the same statuses as the match: a draft takes nothing off the bar of another invoice
+    expect((await page('fin_officer', first.invoiceId)).poBalance).toMatchObject({ otherInvoicedSatang: 0n, thisNetSatang: 40_000n, remainingSatang: 60_000n })
+    // the line against its PO line
+    expect(draft.lines[0]!.poLine).toEqual({ ordered: '10', received: '10', cancelled: '0', invoicedElsewhere: '4' })
+    expect(draft.lastMatchAt).toBeNull()
+    expect((await page('fin_officer', first.invoiceId)).lastMatchAt).not.toBeNull()
+  })
+
+  it('a price over goes past the PO and says by how much; rejected, the invoice takes nothing off it', async () => {
+    const { invoiceId } = await priceOver()
+    expect((await page('fin_officer', invoiceId)).poBalance).toMatchObject({ poNetSatang: 100_000n, thisNetSatang: 110_000n, thisCounts: true, remainingSatang: -10_000n, thisBp: 10_000 })
+    expect(await rejectApInvoiceFor(as('fin_officer'), { invoiceId, version: await versionOf(invoiceId), reason: 'ราคาไม่ตรงใบเสนอราคา' }, randomUUID())).toMatchObject({ ok: true })
+    expect((await page('fin_officer', invoiceId)).poBalance).toMatchObject({ thisCounts: false, remainingSatang: 100_000n, otherBp: 0, thisBp: 0 })
+  })
+
+  it('says when a line of the PO gave up what it had left', async () => {
+    const { po } = await partlyBilled()
+    const second = await codedDraft(ap, po, { no: `BAR-${randomUUID().slice(0, 6)}`, date: nextDate(), vat: '21.00', lines: [{ line: 0, quantity: '3', unitPrice: '100.00' }] })
+    await prisma.poLine.updateMany({ where: { id: po.lines[0]!.id }, data: { cancelledQuantity: 1 } })
+    const view = await page('fin_officer', second.invoiceId)
+    expect(view.poBalance.shortClosed).toBe(true)
+    expect(view.lines[0]!.poLine.cancelled).toBe('1')
+  })
+})
+
+describe('[FR-AP-102/AC7] where the invoice came from', () => {
+  it('a file a browser opens is marked inline, and an e-Tax XML is not; the e-mail is for those who work the inbox only', async () => {
+    const { invoiceId } = await priceOver()
+    const organizationId = ap.org.organizationId
+    const file = await prisma.fileObject.create({ data: { organizationId, storageKey: `test/${randomUUID()}.xml`, fileName: 'etax.xml', mimeType: 'application/xml', sizeBytes: 10, status: 'AVAILABLE', uploadedById: ap.org.member.fin_officer! } })
+    const email = await prisma.inboundEmail.create({
+      data: { organizationId, provider: 'test', messageId: randomUUID(), fromAddress: 'billing@supplier.example', toAddress: 'ap@test.bcs.local', subject: 'ใบแจ้งหนี้เดือนตุลาคม', receivedAt: AP_NOW },
+    })
+    await prisma.invoice.update({ where: { id: invoiceId }, data: { sourceFileId: file.id, inboundEmailId: email.id, channel: 'EMAIL' } })
+    const finance = await page('fin_officer', invoiceId)
+    expect(finance.file).toEqual({ id: file.id, fileName: 'etax.xml', inline: false })
+    expect(finance.source.email).toEqual({ from: 'billing@supplier.example', subject: 'ใบแจ้งหนี้เดือนตุลาคม', receivedAt: AP_NOW })
+    expect(finance.source.createdBy?.th).toBeTruthy()
+    // PROCUREMENT reads the invoice, not the inbox
+    expect((await page('proc_officer', invoiceId)).source.email).toBeNull()
+    await prisma.fileObject.update({ where: { id: file.id }, data: { mimeType: 'application/pdf', fileName: 'invoice.pdf' } })
+    expect((await page('fin_officer', invoiceId)).file).toEqual({ id: file.id, fileName: 'invoice.pdf', inline: true })
+  })
+})
+
+describe('[FR-AP-103/AC5] the alerts of one invoice', () => {
+  it('FINANCE reads what a payment run would flag on the supplier, in words only; PROCUREMENT reads the same differences and no flag', async () => {
+    const flagged = await apOrg({ supplier: { registryFlag: 'CEASED' } })
+    const account = await paySupplierAccount(flagged)
+    const po = await sentPo(flagged, [{ quantity: '1', unitPrice: '1000.00' }])
+    await receive(flagged, po, { 0: '1' })
+    const draft = await codedDraft(flagged, po, { no: `ALERT-${randomUUID().slice(0, 6)}`, vat: '0.00', lines: [{ line: 0, quantity: '1', unitPrice: '1000.00' }] })
+    const view = (code: string) => getApInvoicePage(flagged.org.ctxOf(code, AP_NOW), draft.invoiceId).then(ok)
+    expect((await view('fin_officer')).paymentFlags).toEqual(['REGISTRY_CHANGED', 'BANK_ACCOUNT_RECENTLY_CHANGED'])
+    expect((await view('proc_officer')).paymentFlags).toEqual([])
+    // BR-AUTH-04: the page never carries the account's number, masked or whole
+    const whole = JSON.stringify(await view('fin_officer'), (_, v: unknown) => (typeof v === 'bigint' ? v.toString() : v))
+    expect(whole).not.toContain(account)
+    expect(whole).not.toContain(account.slice(-4))
+  })
+
+  it('no flag is read once the invoice is out of the way of a payment', async () => {
+    const flagged = await apOrg({ supplier: { registryFlag: 'CEASED' } })
+    const po = await sentPo(flagged, [{ quantity: '1', unitPrice: '1000.00' }])
+    await receive(flagged, po, { 0: '1' })
+    const draft = await codedDraft(flagged, po, { no: `ALERT-${randomUUID().slice(0, 6)}`, vat: '0.00', lines: [{ line: 0, quantity: '1', unitPrice: '1000.00' }] })
+    const ctx = flagged.org.ctxOf('fin_officer', AP_NOW)
+    expect(ok(await getApInvoicePage(ctx, draft.invoiceId)).paymentFlags).toEqual(['REGISTRY_CHANGED'])
+    expect(await cancelApInvoiceFor(ctx, { invoiceId: draft.invoiceId, version: draft.version, reason: 'ทดสอบทิ้งร่าง' }, randomUUID())).toMatchObject({ ok: true })
+    expect(ok(await getApInvoicePage(ctx, draft.invoiceId)).paymentFlags).toEqual([])
+  })
+
+  it('a draft whose number the supplier has used says so before it is submitted (BR-MATCH-12); a rejected invoice does not count', async () => {
+    const po = await sentPo(ap, [{ quantity: '10', unitPrice: '100.00' }])
+    await receive(ap, po, { 0: '10' })
+    const no = `DUP-${randomUUID().slice(0, 6)}`
+    const first = await codedDraft(ap, po, { no, date: nextDate(), vat: '7.00', lines: [{ line: 0, quantity: '1', unitPrice: '100.00' }] })
+    expect((await page('fin_officer', first.invoiceId)).duplicateNumber).toBe(false)
+    ok(await submit(ap, first))
+    const second = await codedDraft(ap, po, { no: no.toLowerCase(), date: nextDate(), vat: '7.00', lines: [{ line: 0, quantity: '1', unitPrice: '100.00' }] })
+    expect((await page('fin_officer', second.invoiceId)).duplicateNumber).toBe(true)
+    // a submitted invoice is matched instead: the label is the draft's
+    expect((await page('fin_officer', first.invoiceId)).duplicateNumber).toBe(false)
+    await prisma.invoice.update({ where: { id: first.invoiceId }, data: { status: 'REJECTED' } })
+    expect((await page('fin_officer', second.invoiceId)).duplicateNumber).toBe(false)
+  })
+})
+
+/** An account of the organization's only supplier that came through a change just now: "recently changed" (BR-PAY-06) */
+async function paySupplierAccount(of: ApOrg): Promise<string> {
+  const organizationId = of.org.organizationId
+  const accountNo = '1234567890'
+  const change = await prisma.bankAccountChange.create({
+    data: { organizationId, number: `BAC-T-${randomUUID().slice(0, 6)}`, kind: 'ADD', ownerKind: 'SUPPLIER', supplierId: of.supplierId, bankCode: '006', accountNo, accountName: 'ผู้ขายหนึ่ง', reason: 'ทดสอบ', submittedById: of.org.member.proc_officer!, status: 'APPROVED' },
+  })
+  await prisma.bankAccount.create({ data: { organizationId, ownerKind: 'SUPPLIER', supplierId: of.supplierId, bankCode: '006', accountNo, accountName: 'ผู้ขายหนึ่ง', status: 'ACTIVE', activatedAt: AP_NOW, sourceChangeId: change.id } })
+  return accountNo
+}

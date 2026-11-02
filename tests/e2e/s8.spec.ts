@@ -1,10 +1,8 @@
-import { spawnSync } from 'node:child_process'
 import type { Browser, Page } from '@playwright/test'
-import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
-import { e2eEnv } from '../support/e2e-env'
 import { messagesTo } from '../support/mailpit'
 import { check, h1, SCENE_TEST_TIMEOUT_MS, signIn as signInDemo, tagOf } from './finance-support'
 import { expect, test } from './fixtures'
+import { s8Scene, signIn } from './s8-support'
 
 // S8-13 (docs/sub-specs/S8.md "หน้าจอ", FR-AP-101 FR-AP-103 FR-MATCH-* · e2e @s8): the tier-2 invoice screens of an
 // organization with PAY on, each test on an organization of its own made by tests/e2e/s8-scene.ts —
@@ -13,25 +11,6 @@ import { expect, test } from './fixtures'
 //   FINANCE rejects an invoice and the supplier gets the e-mail with the reason (Mailpit);
 //   the demo organization (PAY off) shows none of it.
 // Every state is checked with axe, no sideways scrolling and pictures at 375 px and 1440 px (§9.9).
-
-function s8Scene<T>(...args: string[]): T {
-  const r = spawnSync(`pnpm exec tsx tests/e2e/s8-scene.ts ${args.join(' ')}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv() } })
-  if (r.status !== 0) throw new Error(`S8 scene ${args.join(' ')} failed:\n${r.stdout}\n${r.stderr}`)
-  return JSON.parse(r.stdout.trim().split('\n').at(-1)!) as T
-}
-
-/** A member of the scene's organization signs in: e-mail <code>.<tag>@s8.bcs.local, TOTP as the scene derived it */
-async function signIn(page: Page, code: string, tag: string) {
-  const local = `${code}.${tag}`
-  await page.goto('/login')
-  await page.getByLabel('อีเมลบริษัท').fill(`${local}@s8.bcs.local`)
-  await page.getByLabel('รหัสผ่าน').fill(process.env.SEED_DEV_PASSWORD!)
-  await page.getByRole('button', { name: 'เข้าสู่ระบบ' }).click()
-  await expect(page).toHaveURL(/\/login\/2fa$/)
-  await page.getByLabel('รหัส 6 หลักจากแอป').fill(totp(deriveSeedTotpSecret(process.env.SEED_TOTP_KEY!, local)))
-  await page.getByRole('button', { name: 'ยืนยันและเข้าสู่ระบบ' }).click()
-  await expect(h1(page)).toContainText('สวัสดี')
-}
 
 async function as(browser: Browser, viewport: { width: number; height: number } | null, code: string, tag: string): Promise<Page> {
   const context = await browser.newContext({ ...(viewport ? { viewport } : {}), locale: 'th-TH', timezoneId: 'Asia/Bangkok' })

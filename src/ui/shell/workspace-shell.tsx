@@ -3,7 +3,7 @@ import { Sidebar, SidebarHeader, SidebarTrigger } from '../shadcn/sidebar'
 import { NavLinks, type NavEntry } from './nav-links'
 import type { CatalogEntry } from '../request-form/types'
 import { NewRequestDoorDialog } from './new-request-door-dialog'
-import { SHELL_HIDDEN, SHELL_UNFRAMED } from './form-page'
+import { SHELL_HIDDEN, SHELL_UNFRAMED, SHELL_WIDE } from './form-page'
 import { ShellBreadcrumb, type TrailEntry } from './shell-breadcrumb'
 import { ShellFrame } from './shell-frame'
 import { UserMenu } from './user-menu'
@@ -89,7 +89,7 @@ export function WorkspaceShell({ brand, orgName, labels, nav, pages = [], sideba
           </div>
         </header>
 
-        <main id="content" className={`mx-auto w-full max-w-[1280px] px-4 py-6 lg:px-6 lg:py-8 ${SHELL_UNFRAMED}`}>
+        <main id="content" className={`mx-auto w-full max-w-[1280px] px-4 py-6 lg:px-6 lg:py-8 ${SHELL_UNFRAMED} ${SHELL_WIDE}`}>
           {children}
         </main>
       </div>

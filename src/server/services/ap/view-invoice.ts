@@ -1,13 +1,20 @@
+import { poBalance, poBalanceShares, type PoBalance } from '@/core/matching/po-balance'
+import type { PaymentFlag } from '@/core/payment'
 import { err, ok, type Result } from '@/core/result'
-import { isAllowed, loadPrincipal } from '@/server/authz'
+import { taxDateOf } from '@/core/vat'
+import { opensInline } from '@/lib/file-types'
+import { paymentSettingsOf } from '@/lib/org-settings'
+import { isAllowed, loadPrincipal, scopesFor } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
+import { itemFlagsNow, supplierFacts } from '@/server/queries/payment-runs'
 import { isUuid } from '@/server/queries/requests'
 import { openAssists, type OpenAssist } from '../ai/assist-contract'
 import { requireModule } from '../modules'
 import { readInvoiceForAssist } from './ai-assist'
 import { suggestionsFor } from './coding'
 import { invoiceScopes, mayReadInvoice as mayRead, resolvesInvoice } from './file-policy'
+import { INVOICED_STATUSES } from './match-run'
 
 // What the screens of one tier-2 invoice read (S8-13, docs/sub-specs/S8.md "หน้าจอ", FR-AP-101 AC5, FR-AP-102,
 // FR-AP-103, FR-AP-105 AC2, FR-AP-108): the page /finance/invoices/[id] — its header with where each value came from
@@ -17,7 +24,9 @@ import { invoiceScopes, mayReadInvoice as mayRead, resolvesInvoice } from './fil
 // invoice.view is not a capability of its own yet: FINANCE (invoice.record), the members who may reject an invoice
 // (invoice.reject) and the members of the roles its open differences are sent to (invoice.exception.resolve) read it.
 // Module PAY must be on (BR-AP-13). What each member may do is worked out here for the buttons only; every command
-// checks again (BR-AUTH-05). Reads only.
+// checks again (BR-AUTH-05). Reads only. NEW-115 and NEW-116 add what the split page shows beside the invoice: what its
+// PO has left, where the invoice came from, its lines against their PO lines, and the payment flags of its supplier
+// (BR-PAY-06) for those who read payment runs. No rule is added; no account number leaves here.
 
 type Role = 'PROCUREMENT' | 'RECEIVER' | 'FINANCE'
 type FieldSource = 'AI_READING' | 'ETAX_XML'
@@ -50,6 +59,8 @@ export interface ApInvoiceLineDto {
   readonly budgetCostCenterId: string
   /** BR-AP-10: what the history or the budget line offers (a draft read by FINANCE only) */
   readonly suggestion: { readonly accountCode: string | null; readonly source: 'HISTORY' | 'BUDGET_LINE' | 'NONE'; readonly count: number } | null
+  /** The PO line against this invoice: what it ordered, received, gave up, and what other invoices took (BR-MATCH-08) */
+  readonly poLine: { readonly ordered: string; readonly received: string; readonly cancelled: string; readonly invoicedElsewhere: string }
 }
 
 export interface ApInvoiceExceptionDto {
@@ -96,8 +107,31 @@ export interface ApInvoicePageDto {
   /** Where a header value came from, for its label (BR-AP-03): only AI_READING and ETAX_XML are named */
   readonly fieldSources: Readonly<Record<string, FieldSource>>
   readonly po: { readonly id: string; readonly number: string | null }
+  /** NEW-115: what the PO has left, with how much of the bar each part fills */
+  readonly poBalance: PoBalance & {
+    readonly otherBp: number
+    readonly thisBp: number
+    /** A line of the PO gave up what it had left: part of what remains will never be invoiced */
+    readonly shortClosed: boolean
+  }
   readonly supplier: { readonly id: string; readonly code: string; readonly nameTh: string; readonly nameEn: string | null }
-  readonly file: { readonly id: string; readonly fileName: string } | null
+  /** `inline`: a browser opens it in the page (a PDF or a picture); an e-Tax XML is downloaded */
+  readonly file: { readonly id: string; readonly fileName: string; readonly inline: boolean } | null
+  /** NEW-115: how it arrived. The e-mail's address and subject are for those who work the inbox (invoice.record) only */
+  readonly source: {
+    readonly createdAt: Date
+    readonly createdBy: { readonly th: string; readonly en: string | null } | null
+    readonly email: { readonly from: string; readonly subject: string; readonly receivedAt: Date } | null
+  }
+  /** When the match last ran */
+  readonly lastMatchAt: Date | null
+  /**
+   * NEW-116: the flags a payment run would raise on this invoice's supplier today (BR-PAY-06), for those who read payment
+   * runs of the whole organization; in words only, and none once the invoice is paid, rejected or cancelled
+   */
+  readonly paymentFlags: readonly PaymentFlag[]
+  /** BR-MATCH-12: a draft whose number the supplier has used on an invoice not cancelled or rejected, or on a confirmation */
+  readonly duplicateNumber: boolean
   readonly lines: readonly ApInvoiceLineDto[]
   readonly exceptions: readonly ApInvoiceExceptionDto[]
   /** The choices of the coding (a draft read by FINANCE only; empty otherwise) */
@@ -127,6 +161,10 @@ export interface ApInvoicePageDto {
 }
 
 const FIELD_SOURCES = new Set<string>(['AI_READING', 'ETAX_XML'])
+/** A rejected or cancelled invoice takes nothing off its PO */
+const COMES_OFF_NOTHING: readonly string[] = ['REJECTED', 'CANCELLED']
+/** The invoice is still on its way to being paid: what a payment run would flag matters */
+const AHEAD_OF_PAYMENT: readonly string[] = ['DRAFT', 'EXCEPTION', 'PENDING_APPROVAL', 'READY_FOR_PAYMENT', 'IN_PAYMENT_RUN']
 
 function sourcesOf(value: unknown): Record<string, FieldSource> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
@@ -149,12 +187,14 @@ export async function getApInvoicePage(ctx: Ctx, invoiceId: string): Promise<Res
     const invoice = await tx.invoice.findFirst({
       where: { id: invoiceId },
       include: {
-        po: { select: { id: true, number: true } },
+        po: { select: { id: true, number: true, netSatang: true } },
         supplier: { select: { id: true, code: true, nameTh: true, nameEn: true } },
-        sourceFile: { select: { id: true, fileName: true, status: true } },
+        sourceFile: { select: { id: true, fileName: true, status: true, mimeType: true } },
+        inboundEmail: { select: { fromAddress: true, subject: true, receivedAt: true } },
+        createdBy: { select: { displayNameTh: true, displayNameEn: true } },
         lines: {
           orderBy: { lineNo: 'asc' },
-          include: { poLine: { select: { lineNo: true, unitPriceSatang: true, budgetLine: { select: { costCenterId: true } } } } },
+          include: { poLine: { select: { lineNo: true, unitPriceSatang: true, quantity: true, receivedQuantity: true, cancelledQuantity: true, budgetLine: { select: { costCenterId: true } } } } },
         },
         exceptions: {
           where: { status: { in: ['OPEN', 'ACCEPT_REQUESTED'] } },
@@ -193,6 +233,32 @@ export async function getApInvoicePage(ctx: Ctx, invoiceId: string): Promise<Res
     const actorIds = [...new Set(events.map((e) => e.actorMemberId).filter((m): m is string => !!m))]
     const actors = actorIds.length ? await tx.member.findMany({ where: { id: { in: actorIds } }, select: { id: true, displayNameTh: true, displayNameEn: true } }) : []
 
+    // The other invoices of the PO that count, by the same statuses as the match (BR-MATCH-08, ./match-run.ts)
+    const others = { poId: invoice.po.id, id: { not: invoice.id }, status: { in: [...INVOICED_STATUSES] } }
+    const otherInvoiced = await tx.invoice.aggregate({ where: others, _sum: { netSatang: true } })
+    const elsewhere = await tx.invoiceLine.groupBy({ by: ['poLineId'], where: { poLineId: { in: invoice.lines.map((l) => l.poLineId) }, invoice: others }, _sum: { quantity: true } })
+    const lastMatch = await tx.invoiceMatch.findFirst({ where: { invoiceId: invoice.id }, orderBy: { runNo: 'desc' }, select: { ranAt: true } })
+    const balance = poBalance({
+      poNetSatang: invoice.po.netSatang,
+      otherInvoicedSatang: otherInvoiced._sum.netSatang ?? 0n,
+      thisNetSatang: invoice.netSatang,
+      thisCounts: !COMES_OFF_NOTHING.includes(invoice.status),
+    })
+
+    const shortClosed = await tx.poLine.count({ where: { poId: invoice.po.id, cancelledQuantity: { gt: 0 } } })
+    const number = draft ? invoice.supplierInvoiceNoNormalized : null
+    const sameNumber = number
+      ? (await tx.invoice.count({ where: { id: { not: invoice.id }, supplierId: invoice.supplierId, supplierInvoiceNoNormalized: number, status: { notIn: ['CANCELLED', 'REJECTED'] } } })) +
+        (await tx.invoiceConfirmation.count({ where: { supplierId: invoice.supplierId, invoiceNoNormalized: number } }))
+      : 0
+
+    let paymentFlags: readonly PaymentFlag[] = []
+    if (scopesFor(principal, 'paymentRun.view').has('ORG') && AHEAD_OF_PAYMENT.includes(invoice.status)) {
+      const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
+      const supplier = (await supplierFacts(tx, [invoice.supplierId])).get(invoice.supplierId)!
+      paymentFlags = (await itemFlagsNow(tx, { payDate: taxDateOf(ctx.now), recentBankChangeDays: paymentSettingsOf(org.settings).recentBankChangeDays, supplier, docIds: [invoice.id] })).flags
+    }
+
     return ok({
       id: invoice.id,
       number: invoice.number,
@@ -216,9 +282,18 @@ export async function getApInvoicePage(ctx: Ctx, invoiceId: string): Promise<Res
       rejectReason: invoice.rejectReason,
       cancelReason: invoice.cancelReason,
       fieldSources: sourcesOf(invoice.fieldSources),
-      po: invoice.po,
+      po: { id: invoice.po.id, number: invoice.po.number },
+      poBalance: { ...balance, ...poBalanceShares(balance), shortClosed: shortClosed > 0 },
       supplier: invoice.supplier,
-      file: invoice.sourceFile && invoice.sourceFile.status === 'AVAILABLE' ? { id: invoice.sourceFile.id, fileName: invoice.sourceFile.fileName } : null,
+      file: invoice.sourceFile && invoice.sourceFile.status === 'AVAILABLE' ? { id: invoice.sourceFile.id, fileName: invoice.sourceFile.fileName, inline: opensInline(invoice.sourceFile.mimeType) } : null,
+      source: {
+        createdAt: invoice.createdAt,
+        createdBy: invoice.createdBy ? { th: invoice.createdBy.displayNameTh, en: invoice.createdBy.displayNameEn } : null,
+        email: record && invoice.inboundEmail ? { from: invoice.inboundEmail.fromAddress, subject: invoice.inboundEmail.subject, receivedAt: invoice.inboundEmail.receivedAt } : null,
+      },
+      lastMatchAt: lastMatch?.ranAt ?? null,
+      paymentFlags,
+      duplicateNumber: sameNumber > 0,
       lines: invoice.lines.map((l) => {
         const s = suggestions.find((x) => x.invoiceLineId === l.id)
         return {
@@ -245,6 +320,12 @@ export async function getApInvoicePage(ctx: Ctx, invoiceId: string): Promise<Res
           whtIncomeTypeCode: l.whtIncomeTypeCode,
           budgetCostCenterId: l.poLine.budgetLine.costCenterId,
           suggestion: s ? { accountCode: s.accountCode, source: s.source, count: s.count } : null,
+          poLine: {
+            ordered: l.poLine.quantity.toString(),
+            received: l.poLine.receivedQuantity.toString(),
+            cancelled: l.poLine.cancelledQuantity.toString(),
+            invoicedElsewhere: (elsewhere.find((e) => e.poLineId === l.poLineId)?._sum.quantity ?? 0).toString(),
+          },
         }
       }),
       exceptions: invoice.exceptions.map((e) => ({

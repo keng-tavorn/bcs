@@ -35,7 +35,7 @@ export async function signIn(page: Page, code: string, withTotp: boolean) {
   await expect(page.getByRole('heading', { level: 1 })).toContainText('สวัสดี')
 }
 
-async function expectNoBlockingAxe(page: Page) {
+export async function expectNoBlockingAxe(page: Page) {
   // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
   await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
   await settled(page)

@@ -33,6 +33,15 @@
       "submitReject": "Reject this payment run",
       "returned": "Returned to the preparer",
       "rejected": "Payment run rejected"
+    },
+    "flagExplain": {
+      "REGISTRY_CHANGED": "The supplier’s status in the registry changed, for example it ceased business or left the VAT system. Check you can still pay it.",
+      "SUPPLIER_INACTIVE": "This supplier is switched off in the system. Check there is still a reason to pay it.",
+      "RISK_OVERRIDE_EXPIRED": "The approval to use this supplier despite its risk ends before the pay date.",
+      "PREVIOUSLY_EXPORTED": "This document was in a bank file that was already downloaded. Check with the bank it was not paid, so it is not paid twice.",
+      "BANK_ACCOUNT_RECENTLY_CHANGED": "The supplier’s account changed shortly before the pay date. Call the supplier on a number you already know to confirm it.",
+      "BANK_CHANGE_PENDING": "A change of this supplier’s account is still open. Money goes to the current account until the change is approved.",
+      "SHARED_BANK_ACCOUNT": "This account is also the account of another supplier with a different tax id. Check it is the right account."
     }
   },
   "bankChange": {

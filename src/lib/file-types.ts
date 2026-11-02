@@ -40,6 +40,11 @@ export function isAllowedMimeType(value: string): value is AllowedMimeType {
   return Object.hasOwn(ALLOWED_FILE_TYPES, value)
 }
 
+/** A browser opens this type in the page; any other it downloads (the storage address says which) */
+export function opensInline(mime: string): boolean {
+  return isAllowedMimeType(mime) ? ALLOWED_FILE_TYPES[mime].inline : isGeneratedMimeType(mime) && GENERATED_FILE_TYPES[mime].inline
+}
+
 /** The allowed type implied by a file name's extension, or null. */
 export function mimeTypeFromName(fileName: string): AllowedMimeType | null {
   const ext = fileName.toLowerCase().split('.').pop() ?? ''

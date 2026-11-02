@@ -1,39 +1,38 @@
 import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { satangToAmount } from '@/core/money/dto'
-import { formatSatang } from '@/core/money/format'
-import { formatEnglishBeDay, formatThaiDay } from '@/core/thai/day'
 import { StatusBadge } from '../../document/badges'
+import { DocTabs } from '../../document/doc-tabs'
+import { tabFrom } from '../../document/tab-param'
 import { FileButton } from '../../finance/file-button'
 import { formatDateTime } from '../../format'
 import { Notice } from '../../form/notice'
-import { Page, PageBody, PageHeader, Panel } from '../../page/page'
+import { PageBody, PageHeader, Panel } from '../../page/page'
+import { WIDE_PAGE } from '../../shell/form-page'
 import { CodingForm, NO_WITHHOLDING, type CodingLineView } from './coding-form'
 import { DraftActions, ExceptionActions } from './exception-actions'
 import { HeaderForm } from './header-form'
 import { InvoiceAiReview, type InvoiceAiReviewView } from './invoice-ai'
+import { InvoiceAlerts, type InvoiceAlertView } from './invoice-alerts'
+import { InvoiceFilePane } from './invoice-file-pane'
 import { InvoiceLines, type LineView } from './invoice-lines'
+import { commentCount, dayText, InvoiceComments, invoiceLinkClass as linkClass, MatchPanel, money, nameOf, PoBalancePanel, SourcePanel, type InvoiceLocale as Locale, type InvoiceT as T } from './invoice-parts'
 import type { ApInvoiceActions } from './outcome'
 import { SourceLabel } from './source-label'
 import { INVOICE_BADGES, type ApInvoicePageData } from './types'
 
 // The page of one tier-2 invoice (S8-13, docs/sub-specs/S8.md "หน้าจอ" /finance/invoices/[id]; FR-AP-101 AC5,
-// FR-AP-102, FR-AP-103 AC1 AC2, FR-AP-105 AC2, FR-AP-108 AC1 AC2). Left, the work: the header (editable while a draft,
-// each value labelled with where it came from), the lines with the match result, the coding of each line with its
-// suggestion and source, and the differences still open — each a notice that says what, which line, how much and whom it
-// is sent to — with the ways to settle them that the member's role allows. Right, what the invoice comes to: its
-// amounts down to the expected transfer, submit or discard a draft, its source file (downloaded through the files
-// service, never a storage address), and its history. Every action goes through a server action; the services check
-// everything again.
+// FR-AP-102, FR-AP-103 AC1 AC2 AC5, FR-AP-105 AC2, FR-AP-108 AC1 AC2). Split from 1280 px up (NEW-115): the supplier's
+// file on the left, through the files service, never a stored address; on the right what the PO has left, the differences
+// still open — each a notice that says what, which line, how much and whom it is sent to — with the ways to settle them
+// that the member's role allows, and the tabs: รายละเอียด (the header, editable while a draft, each value labelled with
+// where it came from; the lines with the match result; the coding of each line with its suggestion and source; the
+// amounts down to the expected transfer; submit or discard a draft), ที่มา (how it arrived, its file, its history), จับคู่
+// PO (each line against its PO line) and ความเห็น (the reasons people wrote). Under 1280 px one column with no tabs, and
+// the file is downloaded. The badge on the head opens why the rules raised it (NEW-116). Every action goes through a
+// server action; the services check everything again.
 
-type T = Awaited<ReturnType<typeof getTranslations<'apInvoice'>>>
-type Locale = 'th' | 'en'
-
-const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
-
-const money = (satang: bigint) => formatSatang(satang)
-const dayText = (locale: Locale, day: string) => (locale === 'en' ? formatEnglishBeDay(day) : formatThaiDay(day)) ?? day
-const nameOf = (locale: Locale, name: { readonly th: string; readonly en: string | null }) => (locale === 'en' && name.en ? name.en : name.th)
+const TABS = ['details', 'source', 'match', 'comments'] as const
 
 function Figure({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
@@ -135,14 +134,17 @@ export async function ApInvoicePage({
   actions,
   openFile,
   aiReviews = [],
+  tab,
 }: {
   data: ApInvoicePageData
   actions: ApInvoiceActions
   openFile: (fileId: string) => Promise<string | null>
   /** S13-20: the AI readings of this draft that wait for FINANCE (with what was read, for the member who asked) */
   aiReviews?: readonly InvoiceAiReviewView[]
+  /** The tab the address names */
+  tab?: string | string[] | undefined
 }) {
-  const [t, ta, tai, rawLocale] = await Promise.all([getTranslations('apInvoice'), getTranslations('audit'), getTranslations('aiAssist.invoice'), getLocale()])
+  const [t, ta, tai, tp, rawLocale] = await Promise.all([getTranslations('apInvoice'), getTranslations('audit'), getTranslations('aiAssist.invoice'), getTranslations('payRun.task'), getLocale()])
   const locale: Locale = rawLocale === 'en' ? 'en' : 'th'
   const title = data.number ? t('title', { number: data.number }) : t('titleDraft')
   const supplierName = locale === 'en' && data.supplier.nameEn ? data.supplier.nameEn : data.supplier.nameTh
@@ -155,6 +157,13 @@ export async function ApInvoicePage({
     return ta.has(key) ? ta(key) : type
   }
   const transfer = data.payableSatang - data.expectedWhtSatang
+  const whereOf = (e: ApInvoicePageData['exceptions'][number]) =>
+    `${e.lineNo ? t('exceptions.line', { no: e.lineNo }) : t('exceptions.whole')} · ${t('exceptions.amount', { amount: money(e.amountSatang) })} · ${t('exceptions.sentTo', { role: t(`exceptions.role.${e.assigneeRole as 'FINANCE'}`) })}`
+  const alerts: InvoiceAlertView[] = [
+    ...data.exceptions.map((e) => ({ key: e.id, title: typeText(e.type), text: t(`exceptions.explain.${e.type as 'PRICE_OVER'}`), where: whereOf(e) })),
+    ...(data.duplicateNumber ? [{ key: 'duplicate-number', title: t('alerts.duplicateNumberTitle'), text: t('alerts.duplicateNumberText'), where: null }] : []),
+    ...data.paymentFlags.map((f) => ({ key: f, title: tp(`flag.${f as 'REGISTRY_CHANGED'}`), text: tp(`flagExplain.${f as 'REGISTRY_CHANGED'}`), where: null })),
+  ]
   const incomeTypes = [
     { value: NO_WITHHOLDING, label: t('coding.noWithholding') },
     ...data.options.incomeTypes.map((x) => {
@@ -163,23 +172,140 @@ export async function ApInvoicePage({
     }),
   ]
 
+  const details = (
+    <>
+      {data.may.edit && aiReviews.length > 0 ? (
+        <Panel title={tai('panelTitle')} id="invoice-ai">
+          {aiReviews.map((review) => (
+            <InvoiceAiReview
+              key={review.agentActionId}
+              invoiceId={data.id}
+              version={data.version}
+              review={review}
+              current={data.aiCurrent ?? {}}
+              lines={data.lines.map((l) => ({ poLineId: l.poLineId, description: l.description, uom: l.uom }))}
+              update={actions.update}
+              openFile={openFile}
+            />
+          ))}
+        </Panel>
+      ) : null}
+
+      <Panel title={t('header.title')} id="invoice-header">
+        {data.may.edit ? (
+          <HeaderForm
+            invoiceId={data.id}
+            version={data.version}
+            sources={data.fieldSources}
+            values={{
+              supplierInvoiceNo: data.supplierInvoiceNo ?? '',
+              invoiceDate: data.invoiceDate ?? '',
+              priceIncludesVat: data.priceIncludesVat,
+              discount: satangToAmount(data.discountSatang),
+              statedVat: satangToAmount(data.statedVatSatang),
+              isFinal: data.isFinal,
+            }}
+            update={actions.update}
+          />
+        ) : (
+          <HeaderRead t={t} locale={locale} data={data} />
+        )}
+      </Panel>
+
+      <Panel title={t('lines.title')} id="invoice-lines">
+        <InvoiceLines invoiceId={data.id} version={data.version} lines={lineViews(data)} editable={data.may.edit} {...(data.may.edit ? { update: actions.update } : {})} />
+      </Panel>
+
+      <Panel title={t('coding.title')} id="invoice-coding">
+        {data.may.edit && data.lines.length > 0 ? (
+          <CodingForm
+            invoiceId={data.id}
+            version={data.version}
+            lines={codingViews(t, data)}
+            choices={{
+              accountCodes: data.options.accountCodes.map((c) => ({ value: c.code, label: `${c.code} ${c.nameTh}` })),
+              costCenters: data.options.costCenters.map((c) => ({ value: c.id, label: `${c.code} ${c.nameTh}` })),
+              incomeTypes,
+            }}
+            confirm={actions.confirmCoding}
+          />
+        ) : (
+          <CodingRead t={t} data={data} />
+        )}
+      </Panel>
+
+      <Panel title={t('amounts.title')} id="invoice-amounts">
+        <dl className="flex flex-col divide-y divide-line border-y border-line">
+          <Figure label={t('amounts.net')} value={money(data.netSatang)} />
+          {data.discountSatang > 0n ? <Figure label={t('amounts.discount')} value={money(data.discountSatang)} /> : null}
+          <Figure label={t('amounts.statedVat')} value={money(data.statedVatSatang)} />
+          <Figure label={t('amounts.gross')} value={money(data.grossSatang)} strong />
+          <Figure label={t('amounts.retention')} value={money(data.retentionSatang)} />
+          <Figure label={t('amounts.payable')} value={money(data.payableSatang)} strong />
+          <Figure label={t('amounts.wht')} value={money(data.expectedWhtSatang)} />
+          <Figure label={t('amounts.transfer')} value={money(transfer)} strong />
+        </dl>
+        <p className="text-base text-ink-muted md:text-sm">{t('amounts.transferHint')}</p>
+        {data.dueDate ? <p className="font-medium text-ink">{t('amounts.due', { date: dayText(locale, data.dueDate) })}</p> : null}
+      </Panel>
+
+      {data.may.submit || data.may.cancel ? (
+        <Panel title={t('draft.title')} id="invoice-submit">
+          <DraftActions invoiceId={data.id} version={data.version} may={data.may} actions={actions} />
+        </Panel>
+      ) : null}
+    </>
+  )
+
+  const source = (
+    <>
+      <SourcePanel t={t} locale={locale} data={data} />
+
+      <Panel title={t('file.title')} id="invoice-file">
+        {data.file ? (
+          <FileButton fileId={data.file.id} label={t('file.open', { name: data.file.fileName })} busyLabel={t('file.opening', { name: data.file.fileName })} failedText={t('file.failed')} open={openFile} />
+        ) : (
+          <p className="text-ink-muted">{t('file.none')}</p>
+        )}
+      </Panel>
+
+      <Panel title={t('history.title')} id="invoice-history">
+        {data.events.length ? (
+          <ol aria-label={t('history.title')} className="flex flex-col divide-y divide-line border-y border-line">
+            {data.events.map((e) => (
+              <li key={e.id} className="flex flex-col gap-0.5 py-2">
+                <span className="font-medium text-ink">{eventText(e.type)}</span>
+                <span className="text-base text-ink-muted md:text-sm">
+                  {e.actor ? nameOf(locale, e.actor) : t('history.system')} · {formatDateTime(locale, e.occurredAt)}
+                </span>
+                {e.reason ? <span className="text-base break-words text-ink md:text-sm">{t('history.reason', { reason: e.reason })}</span> : null}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="text-ink-muted">{t('history.empty')}</p>
+        )}
+      </Panel>
+    </>
+  )
+
   return (
-    <Page>
+    <div {...WIDE_PAGE} className="flex flex-col gap-6">
       <Link href="/finance/invoices" className={linkClass}>
         {t('back')}
       </Link>
 
       <PageHeader title={title}>
-        <StatusBadge look={INVOICE_BADGES[data.status]} label={statusLabel} className="self-start text-base md:text-sm" />
-        <div className="flex flex-col text-ink-muted">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge look={INVOICE_BADGES[data.status]} label={statusLabel} className="text-base md:text-sm" />
+          <InvoiceAlerts alerts={alerts} button={t('alerts.button', { count: alerts.length })} title={t('alerts.title')} hint={t('alerts.hint')} />
+        </div>
+        <div className="flex flex-col text-ink-muted xl:flex-row xl:flex-wrap xl:items-center xl:gap-x-6">
           <span>
             {t('header.number')}: <span className="text-ink">{data.number ?? t('header.noNumber')}</span>
           </span>
           <Link href={`/suppliers/${data.supplier.id}`} className={linkClass}>
             {t('header.supplierName', { name: supplierName, code: data.supplier.code })}
-          </Link>
-          <Link href={`/procurement/pos/${data.po.id}`} className={linkClass}>
-            {data.po.number ? t('header.poLink', { number: data.po.number }) : t('header.poNoNumber')}
           </Link>
         </div>
       </PageHeader>
@@ -188,8 +314,12 @@ export async function ApInvoicePage({
         {data.status === 'REJECTED' && data.rejectReason ? <Notice tone="danger" role="status">{t('header.rejected', { reason: data.rejectReason })}</Notice> : null}
         {data.status === 'CANCELLED' && data.cancelReason ? <Notice tone="info">{t('header.cancelled', { reason: data.cancelReason })}</Notice> : null}
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-6">
+        <div className="grid gap-4 lg:gap-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] xl:items-start">
+          <InvoiceFilePane file={data.file} etax={data.prefill === 'ETAX_XML'} open={openFile} />
+
           <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
+            <PoBalancePanel t={t} data={data} />
+
             {data.exceptions.length > 0 ? (
               <Panel title={t('exceptions.title')} id="invoice-exceptions">
                 <p className="text-ink-muted">{t('exceptions.hint')}</p>
@@ -198,9 +328,7 @@ export async function ApInvoicePage({
                     <li key={e.id}>
                       <Notice tone={e.status === 'OPEN' ? 'warning' : 'info'}>
                         <span className="block font-medium">{typeText(e.type)}</span>
-                        <span className="block">
-                          {e.lineNo ? t('exceptions.line', { no: e.lineNo }) : t('exceptions.whole')} · {t('exceptions.amount', { amount: money(e.amountSatang) })} · {t('exceptions.sentTo', { role: t(`exceptions.role.${e.assigneeRole as 'FINANCE'}`) })}
-                        </span>
+                        <span className="block">{whereOf(e)}</span>
                         {e.status === 'ACCEPT_REQUESTED' ? <span className="block text-ink-muted">{t('exceptions.asked')}</span> : null}
                       </Notice>
                     </li>
@@ -219,117 +347,21 @@ export async function ApInvoicePage({
               </Panel>
             ) : null}
 
-            {data.may.edit && aiReviews.length > 0 ? (
-              <Panel title={tai('panelTitle')} id="invoice-ai">
-                {aiReviews.map((review) => (
-                  <InvoiceAiReview
-                    key={review.agentActionId}
-                    invoiceId={data.id}
-                    version={data.version}
-                    review={review}
-                    current={data.aiCurrent ?? {}}
-                    lines={data.lines.map((l) => ({ poLineId: l.poLineId, description: l.description, uom: l.uom }))}
-                    update={actions.update}
-                    openFile={openFile}
-                  />
-                ))}
-              </Panel>
-            ) : null}
-
-            <Panel title={t('header.title')} id="invoice-header">
-              {data.may.edit ? (
-                <HeaderForm
-                  invoiceId={data.id}
-                  version={data.version}
-                  sources={data.fieldSources}
-                  values={{
-                    supplierInvoiceNo: data.supplierInvoiceNo ?? '',
-                    invoiceDate: data.invoiceDate ?? '',
-                    priceIncludesVat: data.priceIncludesVat,
-                    discount: satangToAmount(data.discountSatang),
-                    statedVat: satangToAmount(data.statedVatSatang),
-                    isFinal: data.isFinal,
-                  }}
-                  update={actions.update}
-                />
-              ) : (
-                <HeaderRead t={t} locale={locale} data={data} />
-              )}
-            </Panel>
-
-            <Panel title={t('lines.title')} id="invoice-lines">
-              <InvoiceLines invoiceId={data.id} version={data.version} lines={lineViews(data)} editable={data.may.edit} {...(data.may.edit ? { update: actions.update } : {})} />
-            </Panel>
-
-            <Panel title={t('coding.title')} id="invoice-coding">
-              {data.may.edit && data.lines.length > 0 ? (
-                <CodingForm
-                  invoiceId={data.id}
-                  version={data.version}
-                  lines={codingViews(t, data)}
-                  choices={{
-                    accountCodes: data.options.accountCodes.map((c) => ({ value: c.code, label: `${c.code} ${c.nameTh}` })),
-                    costCenters: data.options.costCenters.map((c) => ({ value: c.id, label: `${c.code} ${c.nameTh}` })),
-                    incomeTypes,
-                  }}
-                  confirm={actions.confirmCoding}
-                />
-              ) : (
-                <CodingRead t={t} data={data} />
-              )}
-            </Panel>
+            <DocTabs
+              stackNarrow
+              label={t('tabs.label')}
+              param="tab"
+              initial={tabFrom(tab, TABS)}
+              tabs={[
+                { value: 'details', label: t('tabs.details'), content: details },
+                { value: 'match', label: t('tabs.match'), content: <MatchPanel t={t} locale={locale} data={data} /> },
+                { value: 'source', label: t('tabs.source'), content: source },
+                { value: 'comments', label: t('tabs.comments', { count: commentCount(data) }), content: <InvoiceComments t={t} locale={locale} data={data} eventText={eventText} /> },
+              ]}
+            />
           </div>
-
-          <aside className="flex min-w-0 flex-col gap-4 lg:gap-6">
-            <Panel title={t('amounts.title')} id="invoice-amounts">
-              <dl className="flex flex-col divide-y divide-line border-y border-line">
-                <Figure label={t('amounts.net')} value={money(data.netSatang)} />
-                {data.discountSatang > 0n ? <Figure label={t('amounts.discount')} value={money(data.discountSatang)} /> : null}
-                <Figure label={t('amounts.statedVat')} value={money(data.statedVatSatang)} />
-                <Figure label={t('amounts.gross')} value={money(data.grossSatang)} strong />
-                <Figure label={t('amounts.retention')} value={money(data.retentionSatang)} />
-                <Figure label={t('amounts.payable')} value={money(data.payableSatang)} strong />
-                <Figure label={t('amounts.wht')} value={money(data.expectedWhtSatang)} />
-                <Figure label={t('amounts.transfer')} value={money(transfer)} strong />
-              </dl>
-              <p className="text-base text-ink-muted md:text-sm">{t('amounts.transferHint')}</p>
-              {data.dueDate ? <p className="font-medium text-ink">{t('amounts.due', { date: dayText(locale, data.dueDate) })}</p> : null}
-            </Panel>
-
-            {data.may.submit || data.may.cancel ? (
-              <Panel title={t('draft.title')} id="invoice-submit">
-                <DraftActions invoiceId={data.id} version={data.version} may={data.may} actions={actions} />
-              </Panel>
-            ) : null}
-
-            <Panel title={t('file.title')} id="invoice-file">
-              {data.file ? (
-                <FileButton fileId={data.file.id} label={t('file.open', { name: data.file.fileName })} busyLabel={t('file.opening', { name: data.file.fileName })} failedText={t('file.failed')} open={openFile} />
-              ) : (
-                <p className="text-ink-muted">{t('file.none')}</p>
-              )}
-            </Panel>
-
-            <Panel title={t('history.title')} id="invoice-history">
-              {data.events.length ? (
-                <ol aria-label={t('history.title')} className="flex flex-col divide-y divide-line border-y border-line">
-                  {data.events.map((e) => (
-                    <li key={e.id} className="flex flex-col gap-0.5 py-2">
-                      <span className="font-medium text-ink">{eventText(e.type)}</span>
-                      <span className="text-base text-ink-muted md:text-sm">
-                        {e.actor ? nameOf(locale, e.actor) : t('history.system')} · {formatDateTime(locale, e.occurredAt)}
-                      </span>
-                      {e.reason ? <span className="text-base break-words text-ink md:text-sm">{t('history.reason', { reason: e.reason })}</span> : null}
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="text-ink-muted">{t('history.empty')}</p>
-              )}
-            </Panel>
-          </aside>
         </div>
       </PageBody>
-    </Page>
+    </div>
   )
 }

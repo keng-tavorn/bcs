@@ -14,7 +14,7 @@ import { requireModule } from '../modules'
 import { readInvoiceForAssist } from './ai-assist'
 import { suggestionsFor } from './coding'
 import { invoiceScopes, mayReadInvoice as mayRead, resolvesInvoice } from './file-policy'
-import { INVOICED_STATUSES } from './match-run'
+import { IN_EFFECT_STATUSES, INVOICED_STATUSES } from './match-run'
 
 // What the screens of one tier-2 invoice read (S8-13, docs/sub-specs/S8.md "หน้าจอ", FR-AP-101 AC5, FR-AP-102,
 // FR-AP-103, FR-AP-105 AC2, FR-AP-108): the page /finance/invoices/[id] — its header with where each value came from
@@ -246,9 +246,11 @@ export async function getApInvoicePage(ctx: Ctx, invoiceId: string): Promise<Res
     })
 
     const shortClosed = await tx.poLine.count({ where: { poId: invoice.po.id, cancelledQuantity: { gt: 0 } } })
+    // What the submit refuses (BR-MATCH-12 · findDuplicates): the same supplier and number on an invoice in effect — a
+    // draft is not, so two drafts of one e-mail do not warn each other — or on a confirmation
     const number = draft ? invoice.supplierInvoiceNoNormalized : null
     const sameNumber = number
-      ? (await tx.invoice.count({ where: { id: { not: invoice.id }, supplierId: invoice.supplierId, supplierInvoiceNoNormalized: number, status: { notIn: ['CANCELLED', 'REJECTED'] } } })) +
+      ? (await tx.invoice.count({ where: { id: { not: invoice.id }, supplierId: invoice.supplierId, supplierInvoiceNoNormalized: number, status: { in: [...IN_EFFECT_STATUSES] } } })) +
         (await tx.invoiceConfirmation.count({ where: { supplierId: invoice.supplierId, invoiceNoNormalized: number } }))
       : 0
 

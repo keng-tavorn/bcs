@@ -29,7 +29,7 @@ import { fail, type Fail } from './common'
 /** Invoices that count as invoiced on a PO line (BR-MATCH-08) */
 export const INVOICED_STATUSES = ['PENDING_APPROVAL', 'READY_FOR_PAYMENT', 'IN_PAYMENT_RUN', 'PAID'] as const
 /** Invoices in effect for the duplicate check (INV-AP-06); a draft, a rejected or a cancelled one is not */
-const IN_EFFECT_STATUSES = ['EXCEPTION', ...INVOICED_STATUSES] as const
+export const IN_EFFECT_STATUSES = ['EXCEPTION', ...INVOICED_STATUSES] as const
 
 /** BR-MATCH-09: who resolves each type */
 export const ASSIGNEE_OF: Readonly<Record<MatchExceptionResult['type'] | 'VAT_MISMATCH' | 'VAT_SUPPLIER_NOT_REGISTERED' | 'POSSIBLE_DUPLICATE', 'PROCUREMENT' | 'RECEIVER' | 'FINANCE'>> = {

@@ -110,7 +110,9 @@ export function DecisionBar({ taskId, kind, review = false, label, amount, local
       const outcome = await approving.run((key) => actions.decide({ taskId, decision: 'APPROVE', ...(stepUp ? { pin } : {}) }, key))
       setApprovePin('')
       if (!outcome.ok && pinRefused(outcome)) return
-      setConfirming(null)
+      // A refusal asked from the box stays in its dialog, where the reader is looking (§9.9); in the bar it shows above
+      // the approve button. A task closed meanwhile closes both, and the bar says why
+      setConfirming((where) => (where === 'BOX' && !outcome.ok && !taskClosed(outcome) ? where : null))
       if (outcome.ok) toast.success(review ? t('review.approved') : t('approved'))
       else stale.check(outcome)
     })

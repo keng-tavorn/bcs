@@ -28,7 +28,7 @@ export interface ApInvoicePageData {
   readonly fieldSources: Readonly<Record<string, InvoiceFieldSource>>
   readonly po: { readonly id: string; readonly number: string | null }
   /** What the PO has left, amounts before VAT, with how much of the bar each part fills (basis points) */
-  readonly poBalance: { readonly poNetSatang: bigint; readonly otherInvoicedSatang: bigint; readonly thisNetSatang: bigint; readonly thisCounts: boolean; readonly remainingSatang: bigint; readonly otherBp: number; readonly thisBp: number; readonly shortClosed: boolean }
+  readonly poBalance: { readonly poNetSatang: bigint; readonly otherInvoicedSatang: bigint; readonly thisNetSatang: bigint; readonly thisCounts: boolean; readonly thisTakenSatang: bigint; readonly remainingSatang: bigint; readonly otherBp: number; readonly thisBp: number; readonly shortClosed: boolean }
   readonly supplier: { readonly id: string; readonly code: string; readonly nameTh: string; readonly nameEn: string | null }
   readonly file: { readonly id: string; readonly fileName: string; readonly inline: boolean } | null
   readonly channel: string

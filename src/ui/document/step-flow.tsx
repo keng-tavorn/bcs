@@ -213,7 +213,9 @@ function ZoomButton({ label, onClick, children }: { label: string; onClick: () =
 }
 
 function Canvas({ steps, next, labels }: { steps: readonly StepCardView[]; next?: string; labels: StepFlowLabels }) {
-  const boxes = useMemo(() => boxesOf(steps, next), [steps, next])
+  // Worked out once: the provider above starts this canvas again when the route says something new, and a refresh that
+  // brings the same route keeps where the reader dragged and zoomed to
+  const [boxes] = useState(() => boxesOf(steps, next))
   const [nodes, setNodes, onNodesChange] = useNodesState<BoxNode>(boxes.map((box) => ({ id: box.id, type: 'box', position: { x: 0, y: 0 }, data: { box }, domAttributes: { 'aria-roledescription': undefined } })))
   const edges = useMemo<Edge[]>(
     () =>
@@ -310,7 +312,7 @@ export function StepFlow({ steps, next, labels, onOpen, briefLink }: { steps: re
   // A new state of the route (a decision was made, the page refreshed) places its boxes from the start
   return (
     <Opening.Provider value={opening}>
-      <ReactFlowProvider key={JSON.stringify(steps)}>
+      <ReactFlowProvider key={JSON.stringify([steps, next ?? null])}>
         <Canvas steps={steps} {...(next ? { next } : {})} labels={labels} />
       </ReactFlowProvider>
     </Opening.Provider>

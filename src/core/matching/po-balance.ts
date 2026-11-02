@@ -15,13 +15,15 @@ export interface PoBalanceInput {
 }
 
 export interface PoBalance extends PoBalanceInput {
+  /** What this invoice takes off the PO: its amount, or nothing once it is rejected or cancelled */
+  readonly thisTakenSatang: Satang
   /** Below zero when the invoices are over the PO */
   readonly remainingSatang: Satang
 }
 
 export function poBalance(input: PoBalanceInput): PoBalance {
-  const taken = input.otherInvoicedSatang + (input.thisCounts ? input.thisNetSatang : 0n)
-  return { ...input, remainingSatang: input.poNetSatang - taken }
+  const thisTakenSatang = input.thisCounts ? input.thisNetSatang : 0n
+  return { ...input, thisTakenSatang, remainingSatang: input.poNetSatang - input.otherInvoicedSatang - thisTakenSatang }
 }
 
 /**
@@ -29,10 +31,9 @@ export function poBalance(input: PoBalanceInput): PoBalance {
  * when that is more, so the parts never run past the bar. A part above zero always shows, however small.
  */
 export function poBalanceShares(b: PoBalance): { readonly otherBp: number; readonly thisBp: number } {
-  const counted = b.thisCounts ? b.thisNetSatang : 0n
-  const taken = b.otherInvoicedSatang + counted
+  const taken = b.otherInvoicedSatang + b.thisTakenSatang
   const whole = taken > b.poNetSatang ? taken : b.poNetSatang
   if (whole <= 0n) return { otherBp: 0, thisBp: 0 }
   const shareOf = (part: Satang) => (part <= 0n ? 0 : Math.max(1, Number((part * BigInt(BP_PER_WHOLE)) / whole)))
-  return { otherBp: shareOf(b.otherInvoicedSatang), thisBp: shareOf(counted) }
+  return { otherBp: shareOf(b.otherInvoicedSatang), thisBp: shareOf(b.thisTakenSatang) }
 }

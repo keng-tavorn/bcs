@@ -146,9 +146,17 @@ test('[FR-INT-012/AC4] the approver decides from the box of their step: the same
   await expect(dialog).toHaveCount(0)
   await expect(bar(page)).toBeVisible()
 
+  // The answer does not come back: the dialog stays and says so where the reader pressed, and the same press tries again
+  const action = `**/requests/${created.requestId}`
+  await page.route(action, (route) => (route.request().method() === 'POST' ? route.abort('connectionreset') : route.continue()))
   await box.getByRole('button', { name: /^อนุมัติ ขั้นที่ 1/ }).click()
   await dialog.getByRole('button', { name: 'ยืนยันอนุมัติ' }).click()
+  await expect(dialog.getByRole('alert')).toBeVisible()
+  await expect(bar(page).getByRole('alert')).toHaveCount(0)
+  await page.unroute(action)
+  await dialog.getByRole('button', { name: 'ยืนยันอนุมัติ' }).click()
   await expect(page.getByText('อนุมัติแล้ว', { exact: true }).first()).toBeVisible()
+  await expect(dialog).toHaveCount(0)
 
   // The box is a stamp now, with no buttons, and the bar is gone: it was decided once, by the service
   await expect(bar(page)).toHaveCount(0)

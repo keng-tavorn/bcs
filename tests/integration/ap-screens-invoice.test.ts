@@ -275,6 +275,7 @@ describe('[FR-AP-102/AC8] what the PO has left, on the bar of the split page', (
       otherInvoicedSatang: firstRow.netSatang,
       thisNetSatang: draft.netSatang,
       thisCounts: true,
+      thisTakenSatang: draft.netSatang,
       remainingSatang: held.netSatang - firstRow.netSatang - draft.netSatang,
       otherBp: 4000,
       thisBp: 3000,
@@ -293,7 +294,7 @@ describe('[FR-AP-102/AC8] what the PO has left, on the bar of the split page', (
     const { invoiceId } = await priceOver()
     expect((await page('fin_officer', invoiceId)).poBalance).toMatchObject({ poNetSatang: 100_000n, thisNetSatang: 110_000n, thisCounts: true, remainingSatang: -10_000n, thisBp: 10_000 })
     expect(await rejectApInvoiceFor(as('fin_officer'), { invoiceId, version: await versionOf(invoiceId), reason: 'ราคาไม่ตรงใบเสนอราคา' }, randomUUID())).toMatchObject({ ok: true })
-    expect((await page('fin_officer', invoiceId)).poBalance).toMatchObject({ thisCounts: false, remainingSatang: 100_000n, otherBp: 0, thisBp: 0 })
+    expect((await page('fin_officer', invoiceId)).poBalance).toMatchObject({ thisCounts: false, thisNetSatang: 110_000n, thisTakenSatang: 0n, remainingSatang: 100_000n, otherBp: 0, thisBp: 0 })
   })
 
   it('says when a line of the PO gave up what it had left', async () => {
@@ -358,8 +359,12 @@ describe('[FR-AP-103/AC5] the alerts of one invoice', () => {
     await receive(ap, po, { 0: '10' })
     const no = `DUP-${randomUUID().slice(0, 6)}`
     const first = await codedDraft(ap, po, { no, date: nextDate(), vat: '7.00', lines: [{ line: 0, quantity: '1', unitPrice: '100.00' }] })
+    // the same e-mail twice: two drafts of one number, and the submit refuses neither, so neither warns
+    const twin = await codedDraft(ap, po, { no, date: nextDate(), vat: '7.00', lines: [{ line: 0, quantity: '1', unitPrice: '100.00' }] })
     expect((await page('fin_officer', first.invoiceId)).duplicateNumber).toBe(false)
+    expect((await page('fin_officer', twin.invoiceId)).duplicateNumber).toBe(false)
     ok(await submit(ap, first))
+    expect((await page('fin_officer', twin.invoiceId)).duplicateNumber).toBe(true)
     const second = await codedDraft(ap, po, { no: no.toLowerCase(), date: nextDate(), vat: '7.00', lines: [{ line: 0, quantity: '1', unitPrice: '100.00' }] })
     expect((await page('fin_officer', second.invoiceId)).duplicateNumber).toBe(true)
     // a submitted invoice is matched instead: the label is the draft's

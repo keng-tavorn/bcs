@@ -11,19 +11,21 @@ describe('[FR-AP-102/AC8] what the PO has left', () => {
     expect(poBalance({ poNetSatang: 100_000n, otherInvoicedSatang: 30_000n, thisNetSatang: 20_000n, thisCounts: true }).remainingSatang).toBe(50_000n)
   })
 
-  it('takes nothing off for a rejected or cancelled invoice', () => {
-    expect(poBalance({ poNetSatang: 100_000n, otherInvoicedSatang: 30_000n, thisNetSatang: 20_000n, thisCounts: false }).remainingSatang).toBe(70_000n)
+  it('takes nothing off for a rejected or cancelled invoice, and says this invoice took nothing', () => {
+    expect(poBalance({ poNetSatang: 100_000n, otherInvoicedSatang: 30_000n, thisNetSatang: 20_000n, thisCounts: false })).toMatchObject({ thisNetSatang: 20_000n, thisTakenSatang: 0n, remainingSatang: 70_000n })
+    expect(poBalance({ poNetSatang: 100_000n, otherInvoicedSatang: 30_000n, thisNetSatang: 20_000n, thisCounts: true }).thisTakenSatang).toBe(20_000n)
   })
 
   it('goes below zero when an approved variance took the invoices past the PO', () => {
     expect(poBalance({ poNetSatang: 100_000n, otherInvoicedSatang: 0n, thisNetSatang: 110_000n, thisCounts: true }).remainingSatang).toBe(-10_000n)
   })
 
-  it('the parts always add up to the PO', () => {
+  it('the parts the bar names always add up to the PO', () => {
     fc.assert(
       fc.property(amount, amount, amount, fc.boolean(), (po, other, own, counts) => {
         const b = poBalance({ poNetSatang: po, otherInvoicedSatang: other, thisNetSatang: own, thisCounts: counts })
-        expect(b.remainingSatang + other + (counts ? own : 0n)).toBe(po)
+        expect(b.remainingSatang + b.otherInvoicedSatang + b.thisTakenSatang).toBe(po)
+        expect(b.thisTakenSatang).toBe(counts ? own : 0n)
       }),
     )
   })

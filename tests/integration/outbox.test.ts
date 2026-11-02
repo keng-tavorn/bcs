@@ -623,9 +623,11 @@ describe('[FR-PLT-012/AC3] the send right after commit is bounded and never fail
       expect(performance.now() - started).toBeLessThan(OUTBOX_DISPATCH_TIMEOUT_MS + 1000)
       expect(sockets.length).toBeGreaterThan(0)
       expect(await Promise.race([Promise.all(closed).then(() => 'closed'), sleep(5000).then(() => 'still open')])).toBe('closed')
-      const row = await prisma.outbox.findFirstOrThrow({ where: { organizationId: org.id } })
-      expect(row).toMatchObject({ sentAt: null, attempts: 0 })
-      expect(row.lastError).toContain('no answer')
+      // The cause is written once the request is given up, which on a busy machine is after the command has answered
+      // and the socket closed (P1-03): it is waited for, not read at once
+      const rowNow = () => prisma.outbox.findFirstOrThrow({ where: { organizationId: org.id } })
+      await expect.poll(async () => (await rowNow()).lastError, { timeout: 5000 }).toContain('no answer')
+      expect(await rowNow()).toMatchObject({ sentAt: null, attempts: 0 })
     } finally {
       for (const socket of sockets) socket.destroy()
       server.close()

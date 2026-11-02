@@ -41,7 +41,7 @@ export function PoBalancePanel({ t, data }: { t: InvoiceT; data: ApInvoicePageDa
   const b = data.poBalance
   const over = b.remainingSatang < 0n
   const pending = data.status === 'DRAFT' || data.status === 'EXCEPTION'
-  const summary = t('poBar.summary', { own: money(b.thisCounts ? b.thisNetSatang : 0n), others: money(b.otherInvoicedSatang), po: money(b.poNetSatang) })
+  const summary = t('poBar.summary', { own: money(b.thisTakenSatang), others: money(b.otherInvoicedSatang), po: money(b.poNetSatang) })
   return (
     <Panel
       title={t('poBar.title')}
@@ -57,7 +57,7 @@ export function PoBalancePanel({ t, data }: { t: InvoiceT; data: ApInvoicePageDa
         <span className="h-full bg-primary" style={{ width: `${b.thisBp / 100}%` }} />
       </div>
       <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
-        <Part label={t('poBar.this')} value={money(b.thisNetSatang)} swatch="bg-primary" />
+        <Part label={t('poBar.this')} value={money(b.thisTakenSatang)} swatch="bg-primary" />
         <Part label={t('poBar.others')} value={money(b.otherInvoicedSatang)} swatch="bg-line-strong" />
         <Part label={over ? t('poBar.over') : t('poBar.remaining')} value={money(over ? -b.remainingSatang : b.remainingSatang)} strong danger={over} />
         <Part label={t('poBar.po')} value={money(b.poNetSatang)} />

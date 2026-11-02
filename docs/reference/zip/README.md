@@ -38,6 +38,7 @@ ffmpeg -ss 91 -i "D:/Zip AI Automation for Procure-to-Pay- Fix the Close.mp4" -f
 | `19-email-ai-reply.png` | C · 105 | AI ร่างคำตอบอีเมลผู้ขาย |
 | `20-ap-inbox-peek.png` | C · 114 | แผงดูเร็วเมื่อกดแถว |
 | `21-invoice-split-view.png` | C · 117 | ไฟล์ซ้าย ข้อมูลขวา |
+| `superagents/sheet-1.png` `sheet-2.png` | A · ทุก 2 วินาที (16 ภาพต่อแผ่น) | ภาพรวมวิดีโอ Superagents: แผงผู้ช่วยด้านข้าง แก้สัญญาตามคู่มือ สั่งตามงานด้วย @ รายการทักษะที่จำไว้ · ข้อเสนอของเราอยู่ใน `docs/reports/bcs-assistants.md` |
 | `22-tax-check-panel.png` | C · 126 | แผงผลตรวจภาษี |
 | `23-inbox-alert-peek.png` | C · 129 | แถวที่มีแจ้งเตือน |
 | `24-risk-alerts.png` | C · 141 | แจ้งเตือนความเสี่ยงรวมที่เดียว |

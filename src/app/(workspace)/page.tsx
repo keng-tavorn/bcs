@@ -119,8 +119,8 @@ async function OnTimeCard({ ctx, texts }: { ctx: Ctx; texts: Texts }) {
   )
 }
 
-/** The list of the assistants' card, which takes the focus when one of its rows is set aside */
-const ASSISTANT_LIST = 'home-assistant-list'
+/** The heading of the assistants' card, which takes the focus when one of its rows is set aside: it stays when the last one goes */
+const ASSISTANT_CARD = 'home-assistant'
 
 /** "ผู้ช่วยเจอให้คุณ" (AC7 AC8 · ADR-078): what the rules found for the member, five at most, each with one way on */
 async function AssistantCard({ ctx, texts }: { ctx: Ctx; texts: Texts }) {
@@ -143,12 +143,12 @@ async function AssistantCard({ ctx, texts }: { ctx: Ctx; texts: Texts }) {
     return (
       <>
         <p className="text-base text-ink-muted md:text-sm">{t('assistant.intro')}</p>
-        <ItemGroup id={ASSISTANT_LIST} tabIndex={-1} aria-label={t('assistant.list')} className="gap-0 outline-none">
+        <ItemGroup aria-label={t('assistant.list')} className="gap-0">
           {assistantNotes(t, tp, locale, items).map((note) => (
             <AssistantNote
               key={note.key}
               note={note}
-              dismiss={<DismissButton suggestionKey={note.key} label={t('assistant.dismissLabel', { title: note.title })} text={t('assistant.dismiss')} failed={t('assistant.dismissFailed')} focusAfter={ASSISTANT_LIST} dismiss={dismissAssistantAction} />}
+              dismiss={<DismissButton suggestionKey={note.key} label={t('assistant.dismissLabel', { title: note.title })} text={t('assistant.dismiss')} failed={t('assistant.dismissFailed')} focusAfter={ASSISTANT_CARD} dismiss={dismissAssistantAction} />}
             />
           ))}
         </ItemGroup>
@@ -157,7 +157,7 @@ async function AssistantCard({ ctx, texts }: { ctx: Ctx; texts: Texts }) {
     )
   })
   return (
-    <HomeCard id="home-assistant" title={title}>
+    <HomeCard id={ASSISTANT_CARD} title={title}>
       {body}
     </HomeCard>
   )

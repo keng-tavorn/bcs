@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react'
 import { Button } from '../shadcn/button'
 
 // "ไม่ใช่เรื่องนี้" (NEW-121 · ADR-078): sets the suggestion aside for this member, then the card is read again without it.
-// The focus goes to the card's list, so a keyboard does not land on nothing; a failure is said beside the button,
+// The focus goes to the card's heading, so a keyboard does not land on nothing; a failure is said beside the button,
 // never in a toast alone (§9.9).
 
 export function DismissButton({ suggestionKey, label, text, failed, focusAfter, dismiss }: { suggestionKey: string; label: string; text: string; failed: string; focusAfter: string; dismiss: (key: string) => Promise<{ readonly ok: boolean }> }) {

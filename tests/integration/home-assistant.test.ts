@@ -19,7 +19,6 @@ const DRILL = 'สว่านไฟฟ้า 18V'
 
 let ap: ApOrg
 let drill: { requestId: string; taskId: string; approver: string }
-let agreementId: string
 
 const as = (code: string) => ap.org.ctxOf(code, NOW)
 const codeOf = (memberId: string) => Object.entries(ap.org.member).find(([, id]) => id === memberId)![0]
@@ -65,11 +64,9 @@ beforeAll(async () => {
   // an agreed price that ends in ten days
   const item = await prisma.catalogItem.create({ data: { organizationId, code: 'CAT-GLOVE', nameTh: 'ถุงมือผ้า', uom: 'คู่', categoryCode: 'PPE' } })
   const today = new Date(`${agreementDay(NOW)}T00:00:00Z`)
-  agreementId = (
-    await prisma.priceAgreement.create({
-      data: { organizationId, catalogItemId: item.id, supplierId: tools, unitPriceSatang: 2_500n, validFrom: new Date(today.getTime() - 100 * MS_PER_DAY), validTo: new Date(today.getTime() + 10 * MS_PER_DAY) },
-    })
-  ).id
+  await prisma.priceAgreement.create({
+    data: { organizationId, catalogItemId: item.id, supplierId: tools, unitPriceSatang: 2_500n, validFrom: new Date(today.getTime() - 100 * MS_PER_DAY), validTo: new Date(today.getTime() + 10 * MS_PER_DAY) },
+  })
 
   // an invoice of the ceased supplier, submitted; the match holds it on the ceased registration, and the card reads the
   // supplier's flags of an invoice ready for payment, so the test puts it there (the match is not what is tested)
@@ -113,7 +110,8 @@ describe('[FR-VIS-006/AC7] what the rules found, each by its source’s own perm
 
   it('PROCUREMENT reads the agreed price ending soon; the requester and FINANCE do not', async () => {
     expect((await suggestions('proc_officer')).find((s) => s.kind === 'AGREEMENT_EXPIRING')).toMatchObject({
-      key: `AGREEMENT_EXPIRING:${agreementId}:1`,
+      // named by its members: one agreement, and which one
+      key: expect.stringMatching(/^AGREEMENT_EXPIRING:1:[0-9a-f]{16}$/),
       href: '/catalog/manage',
       count: 1,
       days: 30,
@@ -156,8 +154,33 @@ describe('[FR-VIS-006/AC8] setting one aside', () => {
     const events = await prisma.event.findMany({ where: { organizationId: ap.org.organizationId, type: 'assistant.suggestion_dismissed', aggregateId: ap.org.member.req_con! } })
     expect(events.map((e) => e.data)).toEqual([{ kind: 'FOLLOW_OVERDUE', key }])
     // a second press changes nothing and records nothing
-    expect(await dismissSuggestion(as('req_con'), { key }, { idempotencyKey: randomUUID(), sender: null })).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION' } })
+    expect(await dismissSuggestion(as('req_con'), { key }, { idempotencyKey: randomUUID(), sender: null })).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
     expect(await prisma.event.count({ where: { organizationId: ap.org.organizationId, type: 'assistant.suggestion_dismissed', aggregateId: ap.org.member.req_con! } })).toBe(1)
+  })
+
+  it('takes only a suggestion the member has now: not a made-up key, not another member’s', async () => {
+    const theirs = (await suggestions('proc_officer')).find((s) => s.kind === 'AGREEMENT_EXPIRING')!.key
+    for (const k of [`FOLLOW_OVERDUE:${randomUUID()}`, theirs]) {
+      expect(await dismissSuggestion(as('req_con'), { key: k }, { idempotencyKey: randomUUID(), sender: null }), k).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
+    }
+    expect(await prisma.assistantDismissal.count({ where: { organizationId: ap.org.organizationId, memberId: ap.org.member.req_con! } })).toBe(1)
+    // and the one it was is still there for its member
+    expect((await suggestions('proc_officer')).some((s) => s.key === theirs)).toBe(true)
+  })
+
+  it('a set is named by its members: another line low as one is closed is a new suggestion, though as many', async () => {
+    const before = (await suggestions('fin_officer')).find((s) => s.kind === 'BUDGET_LOW')!
+    ok(await dismissSuggestion(as('fin_officer'), { key: before.key }, { idempotencyKey: randomUUID(), sender: null }))
+    expect((await suggestions('fin_officer')).some((s) => s.kind === 'BUDGET_LOW')).toBe(false)
+    // the lowest line is closed, and another of 1,000.00 is nearly spent: as many low lines, not the same ones
+    const lowest = await prisma.budgetLine.findFirstOrThrow({ where: { organizationId: ap.org.organizationId, code: (before as Extract<SuggestionDto, { kind: 'BUDGET_LOW' }>).first.code } })
+    await prisma.budgetLine.update({ where: { id: lowest.id }, data: { status: 'CLOSED' } })
+    const line = await p2p(ap.org, NOW).fundedLine(1_000n)
+    const draft = ok(await createDraft(as('req_con'), { requestTypeCode: 'BUY_GOODS', title: 'ของจิปาถะอีกชุด', budgetLineId: line, lines: [{ description: 'ถุงมือ', quantity: '1', uom: 'กล่อง', unitPrice: '990.00' }] }, key()))
+    ok(await submitRequest(as('req_con'), { requestId: draft.requestId }, key()))
+    const after = (await suggestions('fin_officer')).find((s) => s.kind === 'BUDGET_LOW')
+    expect(after).toMatchObject({ count: (before as Extract<SuggestionDto, { kind: 'BUDGET_LOW' }>).count })
+    expect(after!.key).not.toBe(before.key)
   })
 
   it('the same task in a new state shows again', async () => {

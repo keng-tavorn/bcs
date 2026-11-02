@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { agreementDay } from '@/core/pricing/agreement'
 import { err, ok, type Result } from '@/core/result'
 import type { PaymentFlag } from '@/core/payment'
@@ -67,6 +68,12 @@ export interface SuggestionsDto {
 }
 
 const nameOf = (r: { displayNameTh: string; displayNameEn: string | null }): Name => ({ th: r.displayNameTh, en: r.displayNameEn })
+
+/**
+ * What names a suggestion about a set (the low budget lines, the agreed prices ending): its members, whichever order they
+ * came in, in a few characters — so another line becoming low as one is topped up is a new situation, not the one set aside
+ */
+const setKey = (ids: readonly string[]) => `${ids.length}:${createHash('sha256').update([...ids].sort().join(',')).digest('hex').slice(0, 16)}`
 const tone = (kind: SuggestionKind) => SUGGESTION_TONE[kind]
 
 async function followed(ctx: Ctx, me: string): Promise<SuggestionDto[]> {
@@ -146,8 +153,8 @@ async function agreementsEnding(ctx: Ctx): Promise<SuggestionDto[]> {
   const until = new Date(from.getTime() + AGREEMENT_DAYS * MS_PER_DAY)
   const where = { endedAt: null, validFrom: { lte: from }, validTo: { gt: from, lte: until } }
   const db = forTenant(ctx.organizationId)
-  const [count, first] = await Promise.all([
-    db.priceAgreement.count({ where }),
+  const [ending, first] = await Promise.all([
+    db.priceAgreement.findMany({ where, select: { id: true } }),
     db.priceAgreement.findFirst({
       where,
       orderBy: [{ validTo: 'asc' }, { id: 'asc' }],
@@ -155,11 +162,12 @@ async function agreementsEnding(ctx: Ctx): Promise<SuggestionDto[]> {
     }),
   ])
   if (!first) return []
+  const count = ending.length
   const validTo = first.validTo.toISOString().slice(0, 10)
   return [
     {
       kind: 'AGREEMENT_EXPIRING',
-      key: `AGREEMENT_EXPIRING:${first.id}:${count}`,
+      key: `AGREEMENT_EXPIRING:${setKey(ending.map((a) => a.id))}`,
       tone: tone('AGREEMENT_EXPIRING'),
       href: '/catalog/manage',
       at: first.validTo,
@@ -180,7 +188,7 @@ async function budgetLow(ctx: Ctx): Promise<SuggestionDto[]> {
   return [
     {
       kind: 'BUDGET_LOW',
-      key: `BUDGET_LOW:${dashboard.data.fiscalYear.id}:${low.length}`,
+      key: `BUDGET_LOW:${dashboard.data.fiscalYear.id}:${setKey(low.map((l) => l.id))}`,
       tone: tone('BUDGET_LOW'),
       href: low.length === 1 ? `/budgets/${first.id}` : '/budgets',
       at: null,
@@ -276,6 +284,17 @@ export const dismissSuggestionCommand = defineCommand({
   },
 })
 
-export function dismissSuggestion(ctx: Ctx, input: z.input<typeof DismissInput>, options: RunOptions) {
+/**
+ * Only a suggestion the member has now can be set aside (NOT_FOUND otherwise, nothing written): a key made up, another
+ * member's, or one already set aside writes no row and no event. The command's own check covers two presses at once.
+ */
+export async function dismissSuggestion(ctx: Ctx, input: z.input<typeof DismissInput>, options: RunOptions) {
+  const parsed = DismissInput.safeParse(input)
+  if (parsed.success) {
+    const current = await allSuggestions(ctx)
+    if (!current.ok) return current
+    if (!current.data.some((s) => s.key === parsed.data.key)) return err('NOT_FOUND', 'no such suggestion of yours')
+  }
+  // an input the schema refuses is answered VALIDATION_FAILED by the command's own pipeline
   return runCommand(ctx, dismissSuggestionCommand, input, options)
 }

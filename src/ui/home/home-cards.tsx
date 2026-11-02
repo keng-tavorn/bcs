@@ -17,7 +17,8 @@ export function HomeCard({ id, title, children }: { id: string; title: string; c
     <Card role="region" aria-labelledby={id} className="min-w-0 gap-3 bg-bg text-base">
       <CardHeader>
         <CardTitle>
-          <h2 id={id} className="text-base font-semibold">
+          {/* tabIndex -1: an action inside the card may hand the focus back to it (the assistants' card, NEW-121) */}
+          <h2 id={id} tabIndex={-1} className="text-base font-semibold">
             {title}
           </h2>
         </CardTitle>

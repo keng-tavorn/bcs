@@ -48,6 +48,8 @@ test('[FR-VIS-006/AC7] [FR-VIS-006/AC8] the requester reads the request past its
   const title = await note.locator('[data-slot="item-title"]').innerText()
   await note.getByRole('button', { name: `ไม่ใช่เรื่องนี้: ${title}` }).click()
   await expect(note).toHaveCount(0)
+  // the focus is handed back to the card's heading, which stays whether or not other suggestions remain
+  await expect(card.getByRole('heading', { level: 2, name: 'ผู้ช่วยเจอให้คุณ' })).toBeFocused()
   await page.reload()
   await expect(page.getByRole('region', { name: 'ผู้ช่วยเจอให้คุณ' })).toBeVisible()
   await expect(page.locator(`[data-assistant-note="FOLLOW_OVERDUE:${made.taskId}"]`)).toHaveCount(0)

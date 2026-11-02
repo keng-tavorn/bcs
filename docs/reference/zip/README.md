@@ -8,7 +8,7 @@
 
 ## ตัดภาพใหม่
 
-ไฟล์ต้นทางอยู่บนเครื่องของผู้ใช้ที่ `D:\`: วิดีโอ A = `AI Procurement Software Explainer Video _ Product DEMO Video.mp4` · B = `Procure-to-Pay automation with AI _ Zip product overview.mp4` · C = `Zip AI Automation for Procure-to-Pay- Fix the Close.mp4`
+ไฟล์ต้นทางอยู่บนเครื่องของผู้ใช้ที่ `D:\`: วิดีโอ A = `AI Procurement Software Explainer Video _ Product DEMO Video.mp4` · B = `Procure-to-Pay automation with AI _ Zip product overview.mp4` · C = `Zip AI Automation for Procure-to-Pay- Fix the Close.mp4` · D = `Zip Superagents- Building governed AI collaborators  - The Next Build Ep. 3.mp4`
 
 ```bash
 ffmpeg -ss 91 -i "D:/Zip AI Automation for Procure-to-Pay- Fix the Close.mp4" -frames:v 1 docs/reference/zip/frames/16-flow-box-approve.png
@@ -38,6 +38,7 @@ ffmpeg -ss 91 -i "D:/Zip AI Automation for Procure-to-Pay- Fix the Close.mp4" -f
 | `19-email-ai-reply.png` | C · 105 | AI ร่างคำตอบอีเมลผู้ขาย |
 | `20-ap-inbox-peek.png` | C · 114 | แผงดูเร็วเมื่อกดแถว |
 | `21-invoice-split-view.png` | C · 117 | ไฟล์ซ้าย ข้อมูลขวา |
+| `superagents/governed-1.png` ถึง `governed-3.png` | D · ทุก 5 วินาที (16 ภาพต่อแผ่น) | งานเจรจาเป็นกล่องในผังพร้อมรายการขั้นของผู้ช่วย หน้ากลยุทธ์และทางต่อรอง ร่างอีเมลพร้อมปุ่มอนุมัติก่อนส่ง |
 | `superagents/sheet-1.png` `sheet-2.png` | A · ทุก 2 วินาที (16 ภาพต่อแผ่น) | ภาพรวมวิดีโอ Superagents: แผงผู้ช่วยด้านข้าง แก้สัญญาตามคู่มือ สั่งตามงานด้วย @ รายการทักษะที่จำไว้ · ข้อเสนอของเราอยู่ใน `docs/reports/bcs-assistants.md` |
 | `22-tax-check-panel.png` | C · 126 | แผงผลตรวจภาษี |
 | `23-inbox-alert-peek.png` | C · 129 | แถวที่มีแจ้งเตือน |

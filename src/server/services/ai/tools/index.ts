@@ -12,6 +12,7 @@ import { boardView } from '../../board'
 import { budgetDashboard } from '../../budget/dashboard'
 import { insightsView } from '../../reports/insights'
 import { kpiView } from '../../reports/screens'
+import { readsInvoice } from '../../ap/file-policy'
 import { requestViewScope } from '../../requests/view-scope'
 import { searchForMember } from '../../search'
 import { isIndividualTaxId, supplierAccess } from '../../suppliers/access'
@@ -46,12 +47,28 @@ const ref = (value: string | null | undefined): TextValue | null => (value ? { k
 const row = (href: string | null, values: Record<string, TextValue | null>): ToolRow => ({ href, values: Object.fromEntries(Object.entries(values).filter((e): e is [string, TextValue] => e[1] !== null)) })
 const empty = (tool: InsightTool): ToolResult => ({ tool, rows: [], values: {} })
 
+/**
+ * The tier-2 invoice of this number when the asking member reads it (readsInvoice: FINANCE, whoever may reject one, the
+ * roles its open differences are sent to within their scope, with module PAY on); none otherwise
+ */
+export async function findInvoiceForAsker(ctx: Ctx, number: string) {
+  const db = forTenant(ctx.organizationId)
+  return db.$transaction(async (tx) => {
+    const invoice = await tx.invoice.findFirst({ where: { number }, select: { id: true, number: true, status: true, grossSatang: true, supplier: { select: { nameTh: true } } } })
+    if (!invoice) return null
+    return (await readsInvoice(tx, ctx, await loadPrincipal(tx, ctx), invoice.id)) ? invoice : null
+  })
+}
+
 async function searchDocuments(ctx: Ctx, question: string): Promise<ToolResult> {
-  const found = await searchForMember(ctx, question)
-  if (!found.ok) return empty('search_documents')
-  const docs = found.data.documents.map((d) => row(d.href, { number: ref(d.number), title: text(d.title), status: { kind: 'enum', value: d.status } }))
-  const suppliers = found.data.suppliers.map((s) => row(s.href, { code: ref(s.code), name: text(s.nameTh) }))
-  return { tool: 'search_documents', rows: [...docs, ...suppliers].slice(0, TOOL_ROWS), values: {} }
+  // A document's number in the question is what is looked for, as the document page's "ถามเรื่องนี้" and "สรุปให้" send
+  // it (NEW-122); the ⌘K search finds requests and POs, an invoice is looked up by its number under its own rule
+  const number = DOC_NUMBER.exec(question)?.[0] ?? null
+  const [found, invoice] = await Promise.all([searchForMember(ctx, number ?? question), number ? findInvoiceForAsker(ctx, number) : Promise.resolve(null)])
+  const docs = found.ok ? found.data.documents.map((d) => row(d.href, { number: ref(d.number), title: text(d.title), status: { kind: 'enum', value: d.status } })) : []
+  const invoices = invoice ? [row(`/finance/invoices/${invoice.id}`, { number: ref(invoice.number), supplier: text(invoice.supplier.nameTh), status: { kind: 'enum', value: invoice.status }, gross: money(invoice.grossSatang) })] : []
+  const suppliers = found.ok ? found.data.suppliers.map((s) => row(s.href, { code: ref(s.code), name: text(s.nameTh) })) : []
+  return { tool: 'search_documents', rows: [...docs, ...invoices, ...suppliers].slice(0, TOOL_ROWS), values: {} }
 }
 
 async function getRequest(ctx: Ctx, question: string): Promise<ToolResult> {

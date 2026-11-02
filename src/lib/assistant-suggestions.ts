@@ -1,3 +1,5 @@
+import { MS_PER_HOUR } from './constants'
+
 // The kinds of what the home card "ผู้ช่วยเจอให้คุณ" shows (NEW-121 · ADR-078), shared by the service that finds them,
 // the event that records a member setting one aside and the screen that words them. The order is the card's: the most
 // pressing first.
@@ -22,6 +24,9 @@ export const SUGGESTION_KEY_MAX = 200
 
 /** How many the card shows */
 export const SUGGESTION_SHOWN = 5
+
+/** A task due within this long counts as "soon" on the home card and the panel "จากผู้ช่วย" (a constant of the screens, not a rule of the organization) */
+export const ASSISTANT_DUE_SOON_MS = 24 * MS_PER_HOUR
 
 const TONE_ORDER: readonly SuggestionTone[] = ['DANGER', 'WARN', 'INFO']
 

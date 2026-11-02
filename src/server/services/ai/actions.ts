@@ -282,12 +282,28 @@ export const rejectAgentActionCommand = defineCommand({
   },
 })
 
+/**
+ * Who says whether an L0 result helped: the member who asked — or, for an Approval Brief the system wrote, whoever reads
+ * it, the one who decides its task or the member they act for (BR-DLG-04, approvalBriefOf · NEW-122). Each says so in
+ * their own Event; the row keeps the latest.
+ */
+async function loadForFeedback(tx: TenantTx, ctx: Ctx, id: string) {
+  const row = await tx.agentAction.findFirst({ where: { id }, select: { id: true, status: true, level: true, requestedById: true, purpose: true, subjectType: true, subjectId: true } })
+  if (!row) return { error: fail('NOT_FOUND', 'no such AgentAction') }
+  if (ctx.actor.type !== 'USER') return { error: fail('FORBIDDEN', 'only a member says whether a result helped') }
+  const me = ctx.actor.memberId
+  if (row.requestedById === me) return { row }
+  const brief = row.purpose === 'BRIEF' && row.subjectType === 'APPROVAL_TASK' && row.subjectId !== null
+  const reads = brief && (await tx.approvalTask.count({ where: { id: row.subjectId!, OR: [{ assigneeMemberId: me }, { principalMemberId: me }] } })) > 0
+  return reads ? { row } : { error: fail('FORBIDDEN', 'only the member who asked, or the reader of the Brief, says whether it helped') }
+}
+
 export const giveFeedbackCommand = defineCommand({
   name: 'agent_action.give_feedback',
   capability: 'ai.ask',
   input: z.strictObject({ agentActionId: z.uuid(), feedback: z.enum(['HELPFUL', 'NOT_HELPFUL']), note: z.string().trim().max(500).optional() }),
   async execute(tx, input, ctx): Promise<CommandOutcome<{ status: AgentActionState }>> {
-    const { row, error } = await loadOwn(tx, ctx, input.agentActionId)
+    const { row, error } = await loadForFeedback(tx, ctx, input.agentActionId)
     if (error) return error
     if (row.level !== 'L0') return fail('INVALID_STATE_TRANSITION', 'feedback is for L0 results; an L1 draft is confirmed or changed instead')
     const move = agentActionTransition(row.status, 'agent_action.give_feedback')

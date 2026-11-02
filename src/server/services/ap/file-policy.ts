@@ -1,4 +1,5 @@
 import { isAllowed, matchingGrants, type Principal, type ResourceScope } from '@/server/authz'
+import type { Ctx } from '@/server/context'
 import type { TenantTx } from '@/server/db/tenant'
 import { registerFileSubjectPolicy } from '../files/policies'
 import { requireModule } from '../modules'
@@ -38,9 +39,12 @@ export async function invoiceScopes(tx: TenantTx, poId: string): Promise<Resourc
   return departments.length ? departments.map((departmentId) => ({ departmentId, assigneeMemberIds })) : [{ departmentId: null, assigneeMemberIds }]
 }
 
-registerFileSubjectPolicy('Invoice', async (tx, ctx, principal, invoiceId) => {
+/** Whether the member reads this invoice now (the page's rule and its file's), with module PAY on (BR-AP-13) */
+export async function readsInvoice(tx: TenantTx, ctx: Ctx, principal: Principal, invoiceId: string): Promise<boolean> {
   const invoice = await tx.invoice.findFirst({ where: { id: invoiceId }, select: { poId: true } })
   if (!invoice) return false
   if (!(await requireModule(ctx, 'PAY', tx)).ok) return false
   return mayReadInvoice(principal, await openRolesOf(tx, invoiceId), await invoiceScopes(tx, invoice.poId))
-})
+}
+
+registerFileSubjectPolicy('Invoice', readsInvoice)

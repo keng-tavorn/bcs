@@ -14,6 +14,7 @@ import { budgetLineAvailable } from '../../budget/line-available'
 import { completeAgentAction, expireAgentAction, requestAgentAction } from '../actions'
 import { asDataValues } from '../data'
 import { aiRuntime } from '../gate'
+import { requireModule } from '../../modules'
 
 // Approval Brief (FR-AI-301 AC1–AC6, BR-AI-20, BR-AI-27, ADR-144 ADR-145). Facts are built by code every time they are
 // read, under the rights of the one who reads — the assignee of the task or the member they act for (BR-DLG-04): the
@@ -160,30 +161,48 @@ export interface ApprovalBriefDto {
   readonly facts: ReadonlyArray<{ readonly key: string; readonly text: string }>
   /** The AI's sentences with the reader's values, only when the reader's facts hold every key the AI was given */
   readonly sentences: readonly string[] | null
+  /** The Brief the reader may say helped or not (NEW-122): only while its sentences are shown to them */
+  readonly agentActionId: string | null
+  /** What this reader said of it last, from their own Event (agent_action.feedback_given) */
+  readonly feedback: 'HELPFUL' | 'NOT_HELPFUL' | null
 }
 
 /**
  * The Brief of a task for the one who decides it now (docs/sub-specs/S13.md "interface"): the assignee or the member
- * they act for (BR-DLG-04); anyone else FORBIDDEN. Read only: the facts are built for this reader every time.
+ * they act for (BR-DLG-04); anyone else FORBIDDEN. Read only: the facts are built for this reader every time. With AI
+ * off — the system's switch, the module or the Brief agent — no Brief is shown, one written before neither (NEW-122):
+ * what the AI wrote goes with the AI, and the page keeps its own facts.
  */
 export async function approvalBriefOf(ctx: Ctx, taskId: string): Promise<Result<ApprovalBriefDto>> {
   if (ctx.actor.type !== 'USER') return err('FORBIDDEN', 'only the one who decides the task reads its Brief')
   const task = await loadTask(ctx.organizationId, taskId)
   if (!task) return err('NOT_FOUND', 'task not found')
   if (task.assigneeMemberId !== ctx.actor.memberId && task.principalMemberId !== ctx.actor.memberId) return err('FORBIDDEN', 'only the one who decides the task reads its Brief')
+  const db = forTenant(ctx.organizationId)
+  const off = { status: 'NONE' as const, facts: [], sentences: null, agentActionId: null, feedback: null }
+  if (!aiRuntime().enabled || !(await requireModule(ctx, 'AI')).ok) return ok(off)
+  if (!(await db.aiAgentSetting.findFirst({ where: { agent: 'APPROVAL_BRIEF' }, select: { enabled: true } }))?.enabled) return ok(off)
   const facts = await briefFacts(ctx, task)
   const shown = Object.entries(facts).map(([key, v]) => ({ key, text: renderValue(v) }))
-  const action = await forTenant(ctx.organizationId).agentAction.findFirst({
+  const action = await db.agentAction.findFirst({
     where: { purpose: 'BRIEF', subjectType: 'APPROVAL_TASK', subjectId: taskId, status: { not: 'EXPIRED' }, contentPurgedAt: null },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    select: { status: true, output: true },
+    select: { id: true, status: true, output: true },
   })
-  if (!action) return ok({ status: 'NONE', facts: shown, sentences: null })
-  if (action.status === 'PENDING') return ok({ status: 'PENDING', facts: shown, sentences: null })
+  const without = { sentences: null, agentActionId: null, feedback: null }
+  if (!action) return ok({ status: 'NONE', facts: shown, ...without })
+  if (action.status === 'PENDING') return ok({ status: 'PENDING', facts: shown, ...without })
   const out = (action.output ?? {}) as { sentences?: string[]; factKeys?: string[] }
-  if (action.status !== 'DRAFT' || !out.sentences || !out.factKeys) return ok({ status: 'FAILED', facts: shown, sentences: null })
+  if (action.status !== 'DRAFT' || !out.sentences || !out.factKeys) return ok({ status: 'FAILED', facts: shown, ...without })
   // Every key the AI was given must be the reader's too: a sentence may sum a value up in words (BR-AI-20)
-  if (!out.factKeys.every((k) => Object.hasOwn(facts, k))) return ok({ status: 'READY', facts: shown, sentences: null })
+  if (!out.factKeys.every((k) => Object.hasOwn(facts, k))) return ok({ status: 'READY', facts: shown, ...without })
   const checked = checkAiText(out.sentences, facts, BRIEF_PROFILE, DECISION_ADVICE_WORDS)
-  return ok({ status: 'READY', facts: shown, sentences: checked.ok ? checked.rendered : null })
+  if (!checked.ok) return ok({ status: 'READY', facts: shown, ...without })
+  const given = await db.event.findFirst({
+    where: { type: 'agent_action.feedback_given', aggregateType: 'AgentAction', aggregateId: action.id, actorMemberId: ctx.actor.memberId },
+    orderBy: { seq: 'desc' },
+    select: { data: true },
+  })
+  const feedback = (given?.data as { feedback?: 'HELPFUL' | 'NOT_HELPFUL' } | undefined)?.feedback ?? null
+  return ok({ status: 'READY', facts: shown, sentences: checked.rendered, agentActionId: action.id, feedback })
 }

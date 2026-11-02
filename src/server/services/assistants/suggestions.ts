@@ -3,8 +3,8 @@ import { agreementDay } from '@/core/pricing/agreement'
 import { err, ok, type Result } from '@/core/result'
 import type { PaymentFlag } from '@/core/payment'
 import { taxDateOf } from '@/core/vat'
-import { kindOfKey, rankSuggestions, SUGGESTION_KEY_MAX, SUGGESTION_SHOWN, SUGGESTION_TONE, type SuggestionKind, type SuggestionTone } from '@/lib/assistant-suggestions'
-import { MS_PER_DAY, MS_PER_HOUR } from '@/lib/constants'
+import { ASSISTANT_DUE_SOON_MS, kindOfKey, rankSuggestions, SUGGESTION_KEY_MAX, SUGGESTION_SHOWN, SUGGESTION_TONE, type SuggestionKind, type SuggestionTone } from '@/lib/assistant-suggestions'
+import { MS_PER_DAY } from '@/lib/constants'
 import { paymentSettingsOf } from '@/lib/org-settings'
 import { authorize, isAllowed, loadPrincipal, scopesFor, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
@@ -31,8 +31,6 @@ import { z } from 'zod'
 //    paymentRun.view of the whole organization; flag codes only, never an account number (BR-AUTH-04).
 // A member sets one aside by its key (AssistantDismissal); a key names the situation, so a new state shows again.
 
-/** Due within this long counts as "soon" (a constant of the card, not a rule of the organization) */
-const DUE_SOON_MS = 24 * MS_PER_HOUR
 /** Agreed prices ending within this many days */
 export const AGREEMENT_DAYS = 30
 /** At most this many of the member's tasks have their price reference read, the earliest due first */
@@ -80,7 +78,7 @@ async function followed(ctx: Ctx, me: string): Promise<SuggestionDto[]> {
   const db = forTenant(ctx.organizationId)
   const requests = await db.request.findMany({ where: { AND: [myRequestsWhere(me, { scope: 'FOLLOWING' }), { status: 'PENDING_APPROVAL' }] }, select: { id: true, number: true, title: true } })
   if (requests.length === 0) return []
-  const soon = new Date(ctx.now.getTime() + DUE_SOON_MS)
+  const soon = new Date(ctx.now.getTime() + ASSISTANT_DUE_SOON_MS)
   const tasks = await db.approvalTask.findMany({
     where: {
       status: 'OPEN',

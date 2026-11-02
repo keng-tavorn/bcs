@@ -163,6 +163,8 @@ model Organization {
   lineRichMenuVariants LineRichMenuVariant[]
   memberPasskeys       MemberPasskey[]
   passkeyChallenges    PasskeyChallenge[]
+  // --- NEW-121 ---
+  assistantDismissals  AssistantDismissal[]
 }
 
 enum ModuleKey {
@@ -309,6 +311,8 @@ model Member {
   pushDevices       PushDevice[]       @relation("PushDeviceMember")
   passkeys          MemberPasskey[]    @relation("MemberPasskeyMember")
   passkeyChallenges PasskeyChallenge[] @relation("PasskeyChallengeMember")
+  // --- NEW-121 ---
+  assistantDismissals AssistantDismissal[] @relation("AssistantDismissalMember")
 
   @@unique([organizationId, id])
   @@unique([organizationId, userId])
@@ -4332,4 +4336,20 @@ enum BacktestRunStatus {
   PENDING
   DONE
   FAILED
+}
+
+/// NEW-121 (ADR-078): a suggestion of the home card "ผู้ช่วยเจอให้คุณ" that a member set aside. The key names the
+/// situation (its kind, the document and the state it was in), so the same document in a new state shows again.
+model AssistantDismissal {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  memberId       String   @db.Uuid
+  key            String   @db.VarChar(200)
+  dismissedAt    DateTime @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("AssistantDismissalMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, memberId, key])
 }

@@ -90,6 +90,8 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   // S17-15: a member's passkeys and their one-time challenges
   'MemberPasskey',
   'PasskeyChallenge',
+  // NEW-121: the home card suggestions a member set aside
+  'AssistantDismissal',
   // S8-01
   'Invoice',
   'InvoiceLine',

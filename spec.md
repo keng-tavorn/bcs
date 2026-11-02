@@ -1167,7 +1167,7 @@ stateDiagram-v2
 | --- | --- |
 | 2 | `Invoice` `InvoiceLine` `InvoiceMatch` `MatchException` `InboundEmail` `WhtIncomeType` `AccountCode` `WithholdingTax` `WhtCertificate` `SupplierNotice` `PaymentRun` `PaymentRunItem` `PaymentFile` `BankFileTemplate` `BankAccount` `BankAccountChange` `SupplierApplication` `SupplierDocument` `SupplierDocumentType` `SupplierContact` `PortalOtpChallenge` `PortalSession` `SupplierScore` `CatalogItem` `PriceAgreement` `PoChange` `PoChangeLine` `Retention` `WorkflowVersion` `BudgetTransfer` `CostSplit` |
 | 3 | `RfxEvent` `RfxInvite` `RfxQuestion` `Bid` `BidLine` `Scorecard` `ScoreCriterion` `AwardDecision` `RiskQuestionnaire` `RiskAssessment` `RiskTier` `ReviewTask` `Contract` `ContractVersion` `Obligation` `RenewalReminder` `PreferredSupplier` `RiskReview` |
-| 4 | `AgentAction` `PromptVersion` `AiEvalRun` `AiCreditLedger` `ApiClient` `WebhookSubscription` `WebhookDelivery` `McpSession` `ConnectorConfig` |
+| 4 | `AgentAction` `PromptVersion` `AiEvalRun` `AiCreditLedger` `ApiClient` `WebhookSubscription` `WebhookDelivery` `McpSession` `ConnectorConfig` · `AssistantDismissal` (เรื่องของการ์ดผู้ช่วยที่สมาชิกปัดทิ้ง · NEW-121 · ADR-078) |
 
 รายละเอียดล่วงหน้าที่ sub-spec ต้องใช้ (เงื่อนไขอยู่ใน §8.12):
 
@@ -4130,6 +4130,8 @@ AC ของ FR ชั้น 2 ที่ขั้นของสายเขี�
 - AC4 — การ์ด "ที่ฉันติดตาม" แสดงจำนวนคำขอที่ฉันเป็นผู้ขอหรือผู้ติดตาม จำนวนที่ยังเปิด และ 5 รายการล่าสุดพร้อม "รอใคร" แบบเดียวกับ FR-INT-008 AC1
 - AC5 — การ์ด "รอฉันอนุมัติ" แสดงงานที่เปิดของฉันทุกชนิดเอกสารรวมงานรักษาการ แยกแท็บ ทั้งหมด · เกินกำหนด · รอผู้ขอตอบ พร้อมจำนวน เรียงตาม `dueAt` และคลิกแล้วไปหน้าตัดสิน
 - AC6 — ไม่มีอะไรต้องทำ → หน้าว่างที่บอกขั้นต่อไป · การ์ดแต่ละใบโหลดแยกพร้อม skeleton และบอก error ในการ์ดนั้น · LCP ไม่เกิน 2.5 วินาที (NFR-PERF-01)
+- AC7 — (NEW-121 · ADR-078) การ์ด "ผู้ช่วยเจอให้คุณ" รวมเรื่องจากกฎที่มีแล้ว: งานของคำขอที่ฉันขอหรือติดตามเกินหรือใกล้ครบกำหนด (งานของคนอื่น) · ธงคำขอซ้ำหรือแตกยอดและราคาสูงกว่าราคาอ้างอิงบนงานอนุมัติที่เปิดของฉัน · ราคาตกลงที่หมดอายุภายใน 30 วัน (`catalog.manage`) · บรรทัดงบต่ำกว่าเกณฑ์ (`budget.view` ตาม scope ของหน้างบ) · ธงของผู้ขายที่มีใบแจ้งหนี้รอจ่าย (`paymentRun.view` ระดับองค์กร · รหัสธงเท่านั้น) · แต่ละเรื่องเห็นตามสิทธิ์ของแหล่งนั้น มีปุ่มเดียวไปหน้างานจริง เรียงเร่งด่วนก่อน แสดง 5 เรื่องและบอกจำนวนทั้งหมด · ไม่เรียก AI และทำงานเมื่อปิดโมดูล AI
+- AC8 — (NEW-121) ปัดเรื่องทิ้งได้รายคน (`self.notificationPrefs` · Event `assistant.suggestion_dismissed`) · คนอื่นยังเห็นเรื่องเดียวกัน · เรื่องเดิมในสถานะใหม่ (เช่น ใกล้ครบแล้วเกินเวลา) กลับมาแสดง
 
 #### FR-VIS-007 — สรุปผู้บริหาร
 ขั้น S16 · Web · §9.10 §11.2 §11.4 §11.5 FR-VIS-003
@@ -4547,14 +4549,14 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 
 **หน้าแรก `/` (FR-VIS-006)**
 
-โครง: ส่วนบนพื้น `--bg` มีคำทักทายกึ่งกลาง ช่องค้นหา และ chip 3 ตัว · ส่วนล่างพื้น `--surface` มีการ์ด 2 คอลัมน์ ซ้าย 7/12 = สิ่งที่ต้องทำ แล้วรอฉันอนุมัติ · ขวา 5/12 = งานอนุมัติทันเวลา แล้วที่ฉันติดตาม · จอต่ำกว่า 1024 px เรียงคอลัมน์เดียว: สิ่งที่ต้องทำ · รอฉันอนุมัติ · ที่ฉันติดตาม · งานอนุมัติทันเวลา
+โครง: ส่วนบนพื้น `--bg` มีคำทักทายกึ่งกลาง ช่องค้นหา และ chip 3 ตัว · ส่วนล่างพื้น `--surface` มีการ์ด 2 คอลัมน์ ซ้าย 7/12 = สิ่งที่ต้องทำ แล้วรอฉันอนุมัติ · ขวา 5/12 = ผู้ช่วยเจอให้คุณ (NEW-121) แล้วงานอนุมัติทันเวลา แล้วที่ฉันติดตาม · จอต่ำกว่า 1024 px เรียงคอลัมน์เดียว: สิ่งที่ต้องทำ · ผู้ช่วยเจอให้คุณ · รอฉันอนุมัติ · ที่ฉันติดตาม · งานอนุมัติทันเวลา
 
 | ส่วน | ข้อความไทย | ข้อความอังกฤษ |
 | --- | --- | --- |
 | คำทักทาย | สวัสดี คุณ{ชื่อ} วันนี้ต้องการทำอะไร | Hello {name}. What would you like to do today? |
 | ช่องค้นหา | ค้นหาเลขเอกสาร ผู้ขาย หรือเมนู | Search documents, suppliers or pages |
 | chip | งานของฉัน · เริ่มคำขอใหม่ · ผู้ขายและราคา | My work · New request · Suppliers and prices |
-| หัวการ์ด | สิ่งที่ต้องทำ · งานอนุมัติทันเวลา · ที่ฉันติดตาม · รอฉันอนุมัติ | To do · On-time approval tasks · Requests I follow · Waiting for my approval |
+| หัวการ์ด | สิ่งที่ต้องทำ · งานอนุมัติทันเวลา · ที่ฉันติดตาม · รอฉันอนุมัติ · ผู้ช่วยเจอให้คุณ | To do · On-time approval tasks · Requests I follow · Waiting for my approval · Your assistants found |
 
 {ชื่อ} คือคำแรกของ `displayNameTh` (อังกฤษใช้ `displayNameEn`) · chip "งานของฉัน" คือมุมมองปัจจุบัน (`aria-pressed="true"` พื้น `--primary-tint`) · chip "ผู้ขายและราคา" เปิด `/suppliers` ที่ค้นได้ ราคาล่าสุดต่อรายการแสดงเฉพาะผู้มี `po.view` ระดับองค์กร (หลักเดียวกับ FR-P2P-003 AC1)
 
@@ -4579,6 +4581,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 **ที่ฉันติดตาม:** "{n} คำขอ · เปิดอยู่ {m}" แล้ว 5 รายการที่มีความเคลื่อนไหวล่าสุด: เลขเอกสาร ชื่อเรื่อง ป้ายสถานะ และ "รอ: ชื่อ (ตำแหน่ง)" · "ดูทั้งหมด" ไป `/requests?scope=following`
 
 **รอฉันอนุมัติ:** แท็บ ทั้งหมด ({n}) · เกินกำหนด ({n}) · รอผู้ขอตอบ ({n}) · แถว: ไอคอนชนิดเอกสาร เลขเอกสาร ชื่อเรื่อง ผู้ขอและแผนก ยอดตามฐาน DOA ป้าย SLA และป้าย "แทนคุณ{ชื่อ}" เมื่อเป็นงานรักษาการ · แสดง 10 แถวแรกเรียงตาม `dueAt` · คลิกไป `/tasks/[id]` · ไม่มีปุ่มอนุมัติในรายการ เพื่อให้ผู้อนุมัติเห็นยอด งบ และ DOA ก่อนตัดสิน (§9.9 ข้อ 5)
+
+**ผู้ช่วยเจอให้คุณ** (FR-VIS-006 AC7 AC8 · ADR-078): รายการ Item ของ shadcn/ui เรื่องละแถว: ไอคอนของงานสี `--info` (ไม่ใช่ Sparkles เพราะเรื่องมาจากกฎ ไม่ได้ให้ AI เขียน · §12.5) · บรรทัดเจออะไร · บรรทัดทำไม · ปุ่มเดียวไปหน้างานจริง · ปุ่ม "ไม่ใช่เรื่องนี้" · ไม่มีเรื่อง → "ยังไม่มีเรื่องที่ต้องดู" · มากกว่า 5 เรื่อง → "แสดง 5 จาก {n} เรื่อง"
 
 **หน้าว่างและการโหลด:** ไม่มีงานเลย → Empty "ไม่มีงานที่ต้องทำตอนนี้" พร้อมปุ่ม "เริ่มคำขอใหม่" และ "ดูคำขอของฉัน" · การ์ดแต่ละใบโหลดแยกด้วย Suspense และ Skeleton · การ์ดที่โหลดไม่ได้บอกเหตุพร้อมปุ่มลองใหม่ในการ์ดนั้น
 
@@ -4803,6 +4807,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | bank_account · bank_account_change (S9) | `bank_account.activated` `bank_account.superseded` `bank_account.closed` `bank_account_change.drafted` `bank_account_change.updated` `bank_account_change.submitted` `bank_account_change.approved` `bank_account_change.rejected` `bank_account_change.returned` `bank_account_change.cancelled` · data มีเลขบัญชีเฉพาะ 4 ตัวท้าย (`last4`) ไม่มีเลขเต็ม ชื่อบัญชี หรือบันทึกการโทร (BR-BANK-08) · การเปิดเลขเต็มและดาวน์โหลดหลักฐานบันทึกใน `SensitiveAccessLog` ไม่ใช่ event |
 | ช่องทาง | `line.linked` `line.unlinked` |
 | การแจ้งเตือน | `notification.read` `notification.digest_sent` |
+| ผู้ช่วย BCS (NEW-121 · ADR-078) | `assistant.suggestion_dismissed` (บนรายการของสมาชิกเอง · data มีชนิดและ key ของเรื่อง ไม่มีข้อความ) |
 | ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `auth.passkey_added` `auth.passkey_removed` (S17-15 · `{ passkeyId, proof }` · `{ passkeyId, by: SELF IDENTITY_RESET DEACTIVATED }` · ไม่มี credential หรือ key) `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
 | agent_action (S13) | `agent_action.requested` `agent_action.drafted` `agent_action.failed` `agent_action.applied` `agent_action.accepted` `agent_action.edited` `agent_action.rejected` `agent_action.expired` `agent_action.feedback_given` `agent_action.content_purged` · actor AI_AGENT เฉพาะ `drafted` `failed` (INV-AI-01) · data ไม่มีข้อความที่พิมพ์หรือผลของ AI |
@@ -6181,7 +6186,7 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-120** `[demo]` — รอยืนยัน ช่องบอกสิ่งที่อยากได้บนหน้าแรก: พิมพ์หรือลากไฟล์แล้ว AI แนะนำประเภทคำขอและผู้ขาย จากนั้นพาไปฟอร์มพร้อมร่างให้ตรวจ · ปิด AI แล้วเหลือช่องค้นหาเดิม
   - เสร็จเมื่อ: AI ไม่ส่งคำขอเอง (BR-AI-01) · ชุดประเมินการเลือกประเภทผ่านเกณฑ์ §12.4 · e2e และ axe ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **NEW-121** `[demo]` — รอยืนยัน ผู้ช่วย BCS ส่วนกลางและการ์ด "ผู้ช่วยเจอให้คุณ" บนหน้าแรก (`docs/reports/bcs-assistants.md`): ชื่อและหน้าตาเดียวของผู้ช่วยทุกตัว (ไอคอน Sparkles สี info ตาม §12.5 · บรรทัดเจออะไร บรรทัดทำไม ปุ่มเดียวไปหน้างานจริง ปุ่มไม่ใช่เรื่องนี้) · การ์ดบนสุดของคอลัมน์ขวา (มือถือต่อจาก "สิ่งที่ต้องทำ") ไม่เกิน 5 เรื่องจากกฎที่มีแล้ว: งานใกล้เกินเวลา ธงคำขอซ้ำหรือแตกยอด ราคาสูงกว่าราคาอ้างอิง ราคาตกลงใกล้หมดอายุ งบใกล้หมด ธงของผู้ขายในรอบจ่าย · ไม่เรียก AI ไม่ใช้ credits · ปัดทิ้งแล้วจำรายคน
+- [ ] **NEW-121** `[demo]` ผู้ช่วย BCS ส่วนกลางและการ์ด "ผู้ช่วยเจอให้คุณ" บนหน้าแรก (`docs/reports/bcs-assistants.md`): ชื่อและหน้าตาเดียวของผู้ช่วยทุกตัว (ไอคอนของงานสี info ไม่ใช้ Sparkles เพราะเรื่องมาจากกฎ · ADR-078 · บรรทัดเจออะไร บรรทัดทำไม ปุ่มเดียวไปหน้างานจริง ปุ่มไม่ใช่เรื่องนี้) · การ์ดบนสุดของคอลัมน์ขวา (มือถือต่อจาก "สิ่งที่ต้องทำ") ไม่เกิน 5 เรื่องจากกฎที่มีแล้ว: งานใกล้เกินเวลา ธงคำขอซ้ำหรือแตกยอด ราคาสูงกว่าราคาอ้างอิง ราคาตกลงใกล้หมดอายุ งบใกล้หมด ธงของผู้ขายในรอบจ่าย · ไม่เรียก AI ไม่ใช้ credits · ปัดทิ้งแล้วจำรายคน
   - เสร็จเมื่อ: แต่ละเรื่องเห็นตามสิทธิ์เดิมของเอกสารนั้นและมีเทสต์กรณีไม่มีสิทธิ์ · ปิดโมดูล AI แล้วการ์ดยังทำงาน · ไม่มีอะไรเด้งเอง (NG-13) · e2e ที่ 1440 และ 375 px และ axe ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **NEW-122** `[demo]` — รอยืนยัน แผง "จากผู้ช่วย" ในหน้าคำขอ PO และใบแจ้งหนี้: แทนกล่องสรุป AI เดิมใต้แถบตัดสิน รวมสรุปสำหรับผู้อนุมัติ สิ่งที่ผู้ช่วยเจอในเอกสารนี้ ปุ่มลัด "ถามเรื่องนี้" และ "สรุปให้" (รวม NEW-118) และปุ่ม "ช่วยได้" "ไม่ช่วย" (ส่วนความเห็นของ NEW-119)
@@ -7437,6 +7442,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-075 | เขียน sub-spec ของระยะ 2 (S7 S10 S11) ล่วงหน้าก่อนจบเส้นชัย A3 และ C โดยยังไม่เขียนโค้ด: ร่างระดับ §7–§8 พร้อม golden ที่คำนวณแล้ว checklist §16.19 ถึง §16.21 ADR และ OQ ในช่วง 181–199 · 201–219 · 221–239 ตรวจด้วยบริบทใหม่ 4 มุมและตรวจไขว้รอยต่อ · ลำดับโค้ดของ §16.0 แถว 11–13 ไม่เปลี่ยน · ผู้ใช้อนุมัติผ่าน `docs/reports/p2-decisions.md` แบบ P1-06 · แท็ก `[demo]` ของระยะ 2 = ก่อนเส้นชัย H | ตัดสินแล้ว (ผู้ใช้ 2026-11-01) |
 | ADR-076 | หน้าเอกสาร (คำขอและ PO) บนจอตั้งแต่ 1024 px แสดงเส้นทางอนุมัติเป็นผังกล่องด้วย `@xyflow/react` ที่ลากและซูมได้ · ขั้นผู้ตรวจและกรรมการแตกเป็นกล่องต่อ slot · มือถือคงการ์ดตราประทับเรียงยาว และ LIFF ไม่เปลี่ยน (ADR-052 ADR-103) · กล่องของงานที่เปิดอยู่ของผู้อ่านมีปุ่มตัดสินเป็นกรณีพิเศษ ซึ่งเปิดการยืนยันของแถบตัดสินเดิม จึงยังกดยืนยันซ้ำ ใส่ PIN ใส่เหตุผล และเรียก service เดิมทุกครั้ง · แก้ส่วนหนึ่งของ ADR-103 | ตัดสินแล้ว (ผู้ใช้ 2026-11-01) |
 | ADR-077 | หน้าใบแจ้งหนี้ชั้น 2 บนจอตั้งแต่ 1280 px แบ่งจอ ไฟล์ซ้าย ข้อมูลขวาเป็นแท็บ พร้อมแถบยอดเทียบกับ PO และป้ายแจ้งเตือนรวมเหตุผลจากกฎที่มีแล้ว · ไม่เปลี่ยนกฎจับคู่ เงิน และสิทธิ์ · ธงการจ่ายเห็นเฉพาะ `paymentRun.view` ระดับองค์กรและไม่มีเลขบัญชี | NEW-115 NEW-116 · `docs/decisions/ADR-077.md` |
+| ADR-078 | การ์ด "ผู้ช่วยเจอให้คุณ" บนหน้าแรก รวมเรื่องจากกฎที่มีแล้ว 6 ชุด ตามสิทธิ์ของแต่ละแหล่ง ไม่เรียก AI · ปัดทิ้งได้รายคนด้วย `AssistantDismissal` · ไอคอนของงาน ไม่ใช้ Sparkles · หน้าตากลาง `src/ui/assistants/assistant-note.tsx` ที่ NEW-122 ถึง NEW-126 ใช้ต่อ | NEW-121 · `docs/decisions/ADR-078.md` |
 | ADR-101 | อนุมัติคู่ขนานและกรรมการใช้ slot: `ApprovalTask.slotNo` · การตัดสินแรกของ slot คือผลของ slot · `stepOutcome` เป็น pure function ใน `src/core` ที่คิดผลต่อกลุ่ม (ขั้น REVIEW มีหลายกลุ่ม ALL ANY COUNT) · step เดิมทั้งหมดเป็น slot เดียวจึงทำงานเหมือนเดิม · ผู้ตรวจหาด้วย engine แยกแล้วต่อหน้าขั้น DOA ใน service และขั้น DOA หาผู้อนุมัติด้วย doaStepNo โดยไม่เปลี่ยนผลของ `resolveRoute` สำหรับ step ผู้อนุมัติคนเดียว | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-102 | ผู้ตรวจคู่ขนานอยู่ใน `WorkflowVersion` แยกจาก DOA วงจรเดียวกับ DOA version (lint test case dry-run อนุมัติตามข้อ `DOA_CHANGE` ถอนก่อนมีผล) · เงื่อนไขใช้ภาษาเงื่อนไขของ §7.9 เพิ่มตัวแปรหมวดสินค้าและรหัสบัญชีของบรรทัดงบ และ op `anyIn` · ไม่ใช้ `features.parallelApproval` เป็นสวิตช์ (คงคีย์ใน schema แต่ไม่มีผล) เพราะสวิตช์ที่ ORG_ADMIN แก้ได้คนเดียวจะปิดผู้ตรวจโดยไม่ผ่าน 4-eyes | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-103 | เส้นทางคู่ขนานแสดงเป็นการ์ดตราประทับแนวตั้งที่จัดกลุ่ม slot ด้วยคอมโพเนนต์ shadcn/ui · ไม่ติดตั้ง `@xyflow/react` เพราะขั้นคู่ขนานแสดงเป็นกลุ่มได้โดยไม่ต้องใช้กราฟ และใช้ร่วมกับ LIFF ชุดเบาได้ (ADR-052) | ร่าง P1-04 รออนุมัติ P1-06 · บนจอคอมแก้โดย ADR-076 |

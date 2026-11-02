@@ -3,6 +3,7 @@
 import './schemas/approval-step'
 import './schemas/ai'
 import './schemas/approval-task'
+import './schemas/assistant'
 import './schemas/auth'
 import './schemas/bank-account'
 import './schemas/backtest'

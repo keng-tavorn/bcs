@@ -68,6 +68,10 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     reassignedTo: { model: 'ApprovalTask', list: true },
     step: { model: 'ApprovalStep', list: false },
   },
+  AssistantDismissal: {
+    member: { model: 'Member', list: false },
+    organization: { model: 'Organization', list: false },
+  },
   AuthAttempt: {},
   BacktestRun: {
     organization: { model: 'Organization', list: false },
@@ -392,6 +396,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     apInvoicesCreated: { model: 'Invoice', list: true },
     apInvoicesRecorded: { model: 'Invoice', list: true },
     apInvoicesRejected: { model: 'Invoice', list: true },
+    assistantDismissals: { model: 'AssistantDismissal', list: true },
     backtestRuns: { model: 'BacktestRun', list: true },
     bankChangesSubmitted: { model: 'BankAccountChange', list: true },
     budgetGrantsGiven: { model: 'BudgetGrant', list: true },
@@ -481,6 +486,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     approvalRoutes: { model: 'ApprovalRoute', list: true },
     approvalSteps: { model: 'ApprovalStep', list: true },
     approvalTasks: { model: 'ApprovalTask', list: true },
+    assistantDismissals: { model: 'AssistantDismissal', list: true },
     backtestRuns: { model: 'BacktestRun', list: true },
     bankAccountChanges: { model: 'BankAccountChange', list: true },
     bankAccounts: { model: 'BankAccount', list: true },

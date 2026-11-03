@@ -14,7 +14,8 @@ import { creditBalance } from './gate'
 //    AUDITOR and the member who asked see them, ORG_ADMIN does not (AI_METADATA_ONLY);
 //  · the history of the settings from the events ai_agent.* (who changed what, and when);
 //  · the month's results, every number counted by code from AgentAction and Event and each one a filter of the
-//    history; the amount found (OQ-41) only for a reader of every PO (po.view ORG), since ORG_ADMIN reads no invoice.
+//    history; the amount found (OQ-41) and invoice numbers only for a reader of every invoice (readsEveryInvoice),
+//    since ORG_ADMIN reads no invoice.
 
 export const ACTIVITY_PAGE = 20
 /** Settings changes shown, the newest first */
@@ -47,15 +48,24 @@ export interface AiAdminAccess {
   readonly canManage: boolean
   /** AUDITOR: the values the AI read and what the person typed instead, of every member's call */
   readonly content: boolean
-  /** A reader of every PO: the amount found on invoices */
+  /** A reader of every invoice (readsEveryInvoice): the amount found on invoices */
   readonly moneyFound: boolean
+}
+
+/**
+ * Who reads every invoice of the organization, as the invoice page lets them (mayReadInvoice, BR-AP-13): FINANCE and
+ * PROCUREMENT (invoice.record, invoice.reject) and the readers of every payment run, whose items are invoices (AUDITOR).
+ * po.view alone is not enough: EXECUTIVE reads POs but no invoice.
+ */
+function readsEveryInvoice(principal: Principal): boolean {
+  return isAllowed(principal, 'invoice.record') || isAllowed(principal, 'invoice.reject') || scopesFor(principal, 'paymentRun.view').has('ORG')
 }
 
 function accessOf(principal: Principal): AiAdminAccess {
   return {
     canManage: isAllowed(principal, 'admin.ai.manage'),
     content: principal.kind === 'member' && principal.roles.has('AUDITOR'),
-    moneyFound: scopesFor(principal, 'po.view').has('ORG'),
+    moneyFound: readsEveryInvoice(principal),
   }
 }
 
@@ -176,11 +186,11 @@ function dataUsedOf(inputRefs: unknown, output: unknown): DataUsed[] {
 
 /**
  * The numbers of the documents the calls were about, read in batches — only of the kinds the reader reads across the
- * organization (a request: request.view ORG; a PO, its receipts and invoices: po.view ORG). ORG_ADMIN reads no PO, so
- * a call about one shows its kind without its number.
+ * organization (a request: request.view ORG; a PO and its receipts: po.view ORG; an invoice: readsEveryInvoice).
+ * ORG_ADMIN reads no PO and no invoice, so a call about one shows its kind without its number.
  */
 async function subjectNumbers(tx: TenantTx, principal: Principal, rows: ReadonlyArray<{ subjectType: string | null; subjectId: string | null }>): Promise<Map<string, string | null>> {
-  const readable = new Set([...(scopesFor(principal, 'request.view').has('ORG') ? ['REQUEST'] : []), ...(scopesFor(principal, 'po.view').has('ORG') ? ['PURCHASE_ORDER', 'INVOICE', 'GOODS_RECEIPT'] : [])])
+  const readable = new Set([...(scopesFor(principal, 'request.view').has('ORG') ? ['REQUEST'] : []), ...(scopesFor(principal, 'po.view').has('ORG') ? ['PURCHASE_ORDER', 'GOODS_RECEIPT'] : []), ...(readsEveryInvoice(principal) ? ['INVOICE'] : [])])
   const ids = (type: string) => (readable.has(type) ? [...new Set(rows.filter((r) => r.subjectType === type && r.subjectId).map((r) => r.subjectId!))] : [])
   const out = new Map<string, string | null>()
   const [requests, pos, invoices, receipts] = await Promise.all([

@@ -91,8 +91,10 @@ describe('[BR-AI-28] [BR-AP-10] the notebook: what was learned, switched off, fo
     const before = (await entryOf(ap, 'SAFETY'))!
     // only ORG_ADMIN changes the notebook, at the version it saw
     for (const code of ['auditor', 'fin_officer']) {
-      const r = await setAssistantLearning(as(ap, code), { kind: 'ACCOUNT_CODE', supplierId: ap.supplierId, categoryCode: 'SAFETY', action: 'DISABLE', expectedVersion: -1 }, key())
-      expect(r.ok ? null : r.error.code).toBe('FORBIDDEN')
+      for (const action of ['DISABLE', 'ENABLE', 'FORGET'] as const) {
+        const r = await setAssistantLearning(as(ap, code), { kind: 'ACCOUNT_CODE', supplierId: ap.supplierId, categoryCode: 'SAFETY', action, expectedVersion: -1 }, key())
+        expect(r.ok ? null : r.error.code, `${code} ${action}`).toBe('FORBIDDEN')
+      }
     }
     const stale = await setAssistantLearning(as(ap, 'admin'), { kind: 'ACCOUNT_CODE', supplierId: ap.supplierId, categoryCode: 'SAFETY', action: 'DISABLE', expectedVersion: 3 }, key())
     expect(stale.ok ? null : stale.error.code).toBe('CONFLICT_VERSION')
@@ -142,6 +144,18 @@ describe('[BR-AI-28] [BR-AP-10] the notebook: what was learned, switched off, fo
     expect(ok(await submit(ap, { invoiceId: draft.invoiceId, version: v })).status).toBe('READY_FOR_PAYMENT')
     expect(await entryOf(ap, 'SAFETY')).toMatchObject({ accountCode: '530101', uses: 1, lines: 1, disabled: false })
     expect(await offered(ap, 'SAFETY')).toMatchObject({ accountCode: '530101', source: 'HISTORY', count: 1 })
+  })
+
+  it('[BR-AI-28] two first changes of one entry at once: one is written, the other is told it changed in between', async () => {
+    const two = await withAdmin(await apOrg())
+    await readyInvoice(two, 'SAFETY', '530101')
+    await prisma.roleAssignment.create({ data: { organizationId: two.org.organizationId, memberId: two.org.member.admin2!, role: 'ORG_ADMIN', grantedAt: AP_NOW } })
+    const results = await Promise.all(
+      (['admin', 'admin2'] as const).map((code, i) => setAssistantLearning(as(two, code), { kind: 'ACCOUNT_CODE', supplierId: two.supplierId, categoryCode: 'SAFETY', action: i === 0 ? 'DISABLE' : 'FORGET', expectedVersion: -1 }, key())),
+    )
+    expect(results.map((r) => (r.ok ? 'ok' : r.error.code)).sort()).toEqual(['CONFLICT_VERSION', 'ok'])
+    expect(await prisma.assistantLearning.count({ where: { organizationId: two.org.organizationId } })).toBe(1)
+    expect(await prisma.event.count({ where: { organizationId: two.org.organizationId, aggregateType: 'AssistantLearning' } })).toBe(1)
   })
 
   it('[BR-AI-28] the PAY module off: nothing is learned and nothing can change', async () => {
@@ -235,6 +249,10 @@ describe('[BR-AI-04] [BR-AI-28] the history of the work, the settings and the mo
     expect(r.found).toMatchObject({ satang: 10_000n, invoices: 1 })
     expect(r.found!.list[0]).toMatchObject({ satang: 10_000n, types: ['PRICE_OVER'], supplier: { th: 'ผู้ขายหนึ่ง' } })
     expect(ok(await monthResults(as(ap, 'admin'))).found).toBeNull()
+    // an ORG_ADMIN who also reads every PO (EXECUTIVE) still reads no invoice (BR-AP-13): no amount, no invoice number
+    await prisma.roleAssignment.createMany({ data: (['ORG_ADMIN', 'EXECUTIVE'] as const).map((role) => ({ organizationId: ap.org.organizationId, memberId: ap.org.member.admin2!, role, grantedAt: AP_NOW })) })
+    expect(ok(await monthResults(as(ap, 'admin2'))).found).toBeNull()
+    expect(ok(await listAgentActivity(as(ap, 'admin2'))).rows.find((row) => row.id === edited)!.subject).toEqual({ type: 'INVOICE', number: null })
   })
 
   it('[BR-AI-28] the settings: their version and who saved them, and every change from the events, the newest first', async () => {

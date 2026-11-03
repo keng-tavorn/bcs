@@ -73,7 +73,9 @@ export function AiMonthResults({ data, agentNames }: { data: MonthResultsView; a
           <Link href={href('FILLED')} className={linkClass}>
             {t('fields', { filled: n(data.fields.filled), documents: n(data.fields.documents) })}
           </Link>
-          <span className="text-base text-ink-muted md:text-sm">{t('fieldsKept', { kept: n(data.fields.kept) })}</span>
+          <Link href={href('FILLED')} className={`${linkClass} self-start text-base md:text-sm`}>
+            {t('fieldsKept', { kept: n(data.fields.kept) })}
+          </Link>
           <Link href={href('EDITED')} className={`${linkClass} self-start text-base md:text-sm`}>
             {t('fieldsChanged', { changed: n(data.fields.changed), documents: n(data.fields.editedDocuments) })}
           </Link>
@@ -82,7 +84,9 @@ export function AiMonthResults({ data, agentNames }: { data: MonthResultsView; a
           <Link href={href('FLAGGED')} className={linkClass}>
             {t('checks', { count: n(data.checks.flagged) })}
           </Link>
-          <span className="text-base text-ink-muted md:text-sm">{t('checksDecided', { count: n(data.checks.decided) })}</span>
+          <Link href={href('FLAGGED')} className={`${linkClass} self-start text-base md:text-sm`}>
+            {t('checksDecided', { count: n(data.checks.decided) })}
+          </Link>
         </li>
         <li className="flex flex-col gap-0.5">
           <span>{t('feedback')}</span>
@@ -107,7 +111,11 @@ export function AiMonthResults({ data, agentNames }: { data: MonthResultsView; a
             <span className="text-base text-ink-muted md:text-sm">{t('foundNote')}</span>
           </li>
         ) : null}
-        <li>{t('credits', { used: n(data.credits.used), granted: n(data.credits.granted) })}</li>
+        <li>
+          <Link href={href('ALL')} className={linkClass}>
+            {t('credits', { used: n(data.credits.used), granted: n(data.credits.granted) })}
+          </Link>
+        </li>
       </ul>
       <section aria-labelledby="ai-results-agents" className="flex flex-col gap-2">
         <h3 id="ai-results-agents" className="font-semibold">
@@ -121,7 +129,9 @@ export function AiMonthResults({ data, agentNames }: { data: MonthResultsView; a
                 <Link href={href('ALL', a.agent)} className={linkClass}>
                   {t('agentCalls', { calls: n(a.calls) })}
                 </Link>
-                <span className="text-ink-muted">{t('agentCredits', { credits: n(a.credits) })}</span>
+                <Link href={href('ALL', a.agent)} className={linkClass}>
+                  {t('agentCredits', { credits: n(a.credits) })}
+                </Link>
               </span>
             </li>
           ))}

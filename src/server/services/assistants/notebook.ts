@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { suggestCoding } from '@/core/invoice/ap'
+import { taxDateOf } from '@/core/vat'
 import { err, ok, type Result } from '@/core/result'
 import { MS_PER_DAY } from '@/lib/constants'
 import { authorize, isAllowed } from '@/server/authz'
@@ -66,7 +67,8 @@ interface HistoryLine {
   readonly supplier: { readonly id: string; readonly code: string; readonly name: Name; readonly taxId: string }
 }
 
-const today = (now: Date) => now.toISOString().slice(0, 10)
+/** Today in Thai time: what the coding screen offers an invoice dated today */
+const today = (now: Date) => taxDateOf(now)
 
 /** The confirmed lines of BR-AP-10 in the window before today, of one tax id or of every supplier */
 async function historyLines(tx: TenantTx, now: Date, taxId?: string): Promise<HistoryLine[]> {
@@ -140,7 +142,9 @@ export async function listNotebook(ctx: Ctx): Promise<Result<NotebookDto>> {
     const byPair = new Map<string, HistoryLine[]>()
     for (const l of lines) {
       const k = pairKey(l.supplier.taxId, l.categoryCode)
-      byPair.set(k, [...(byPair.get(k) ?? []), l])
+      const pair = byPair.get(k)
+      if (pair) pair.push(l)
+      else byPair.set(k, [l])
     }
     const entries: Array<NotebookEntryDto & { readonly sortName: string; readonly supplierCode: string }> = []
     for (const [k, pair] of byPair) {
@@ -220,12 +224,16 @@ export const setLearningCommand = defineCommand({
 
     const memberId = allowed.data.memberId
     const next = input.action === 'FORGET' ? { disabled: false, forgottenAt: ctx.now } : { disabled: input.action === 'DISABLE' }
-    const row = control
-      ? await tx.assistantLearning.update({ where: { id: control.id }, data: { ...next, updatedById: memberId, version: { increment: 1 } }, select: { id: true, disabled: true, forgottenAt: true, version: true } })
-      : await tx.assistantLearning.create({
-          data: { organizationId: ctx.organizationId, kind: 'ACCOUNT_CODE', supplierTaxId: supplier.taxId, categoryCode: category, ...next, updatedById: memberId },
-          select: { id: true, disabled: true, forgottenAt: true, version: true },
-        })
+    // Written only at the version read: a change that commits in between makes this one CONFLICT_VERSION (the UPDATE
+    // waits for the other's row lock and then finds another version; the INSERT finds the row and does nothing)
+    const written = control
+      ? await tx.assistantLearning.updateMany({ where: { id: control.id, version: control.version }, data: { ...next, updatedById: memberId, version: { increment: 1 } } })
+      : await tx.assistantLearning.createMany({ data: [{ organizationId: ctx.organizationId, kind: 'ACCOUNT_CODE', supplierTaxId: supplier.taxId, categoryCode: category, ...next, updatedById: memberId }], skipDuplicates: true })
+    if (written.count !== 1) return { ok: false, error: { code: 'CONFLICT_VERSION', message: 'the entry changed in between' } }
+    const row = await tx.assistantLearning.findFirstOrThrow({
+      where: { kind: 'ACCOUNT_CODE', supplierTaxId: supplier.taxId, categoryCode: category },
+      select: { id: true, disabled: true, forgottenAt: true, version: true },
+    })
     const data = { kind: 'ACCOUNT_CODE' as const, supplierId: input.supplierId, categoryCode: input.categoryCode, accountCode: learned.accountCode, uses: learned.uses }
     const event: EventDraft =
       input.action === 'FORGET'

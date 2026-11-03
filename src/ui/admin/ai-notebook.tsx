@@ -81,11 +81,12 @@ export function AiNotebook({ entries, canManage, windowDays, update }: { entries
         <p className="text-ink-muted">{t('empty')}</p>
       ) : (
         <ul aria-label={t('title')} className="flex flex-col divide-y divide-line">
-          {entries.map((e) => {
-            const titleId = `ai-learning-${e.supplierId}-${e.categoryCode ?? ''}`
+          {entries.map((e, i) => {
+            // an id of the list's order: a category code may hold characters an id cannot
+            const titleId = `ai-learning-${i}`
             const shown = e.confirmedBy.map(name)
             return (
-              <li key={titleId} className="flex flex-col gap-1.5 py-4 first:pt-0 last:pb-0">
+              <li key={`${e.supplierId}-${e.categoryCode ?? ''}`} className="flex flex-col gap-1.5 py-4 first:pt-0 last:pb-0">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="flex min-w-0 flex-col">
                     <span id={titleId} className="font-medium break-words">

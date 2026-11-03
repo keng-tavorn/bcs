@@ -107,8 +107,10 @@ description: Procedure for BCS parallel lanes of round P1 (git worktrees .worktr
 | สาย | ลำดับ | effort | ไฟล์ที่สายนี้เป็นเจ้าของ |
 | --- | --- | --- | --- |
 | l1 | NEW-126 → NEW-124 | `xhigh` · `xhigh` | `src/server/notifications/**` (ทางส่ง LINE และอีเมล) · ส่วนรายการไม่ตรงของใบแจ้งหนี้ (`variance-list.tsx` `exception-actions.tsx` `invoice-page.tsx`) · `src/ui/assistants/document-panel.tsx` |
-| l2 | NEW-119 (เมื่อยืนยัน) → NEW-125 | `medium` · `xhigh` | `src/app/(workspace)/admin/ai/**` · `src/server/services/ai/**` · `invoice-ai.tsx` `coding-form.tsx` |
-| l3 | NEW-123 → NEW-117 (เมื่อยืนยัน) → NEW-118 NEW-120 (เมื่อผู้ใช้อนุญาตค่า API) | `xhigh` · `medium` · `medium` | ตัวคำนวณใหม่ใน `src/core/` · `src/app/(workspace)/finance/invoices/page.tsx` และ `ap-list-page.tsx` · ช่องบอกสิ่งที่อยากได้บนหน้าแรก |
+| l2 | NEW-119 → NEW-118 → NEW-125 | `medium` · `medium` · `xhigh` | `src/app/(workspace)/admin/ai/**` · `src/server/services/ai/**` · ชุดประเมิน AI (`scripts/ai-eval.ts` และเคสของมัน) · `invoice-ai.tsx` `coding-form.tsx` |
+| l3 | NEW-123 → NEW-117 → NEW-120 | `xhigh` · `medium` · `medium` | ตัวคำนวณใหม่ใน `src/core/` · `src/app/(workspace)/finance/invoices/page.tsx` และ `ap-list-page.tsx` · ช่องบอกสิ่งที่อยากได้บนหน้าแรก (agent หรือ tool ใหม่ของ AI เป็นไฟล์ใหม่) |
+
+ผู้ใช้อนุญาตค่า API ของชุดประเมินจริง (`pnpm ai:eval ... --live`) ใน NEW-118 และ NEW-120 แล้ว (2026-11-03) · บอกจำนวนครั้งที่เรียกในสรุป
 
 1. หัวข้อ 1 (`pnpm lane:check`) และหัวข้อ 2 (รวม main เข้าสาย) · แชตแรกของสายในรอบนี้ทำเพิ่ม: `pnpm install` → `pnpm messages:build` → `pnpm db:reset` (ฐานของสาย) → `pnpm verify`
 2. อ่านส่วน "เริ่มที่นี่" ของ spec · ข้อ NEW-nn ใน §16.11 · ADR-078 ADR-079 และ ADR-080 · `docs/reports/bcs-assistants.md` เฉพาะส่วนของข้อนั้น · ไม่ต้องอ่านส่วนของขั้นใน §16.14 ถึง §16.18

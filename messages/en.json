@@ -10278,7 +10278,9 @@
       "request": "Open request"
     },
     "amount": {
-      "saving": "Could save {amount} baht",
+      "OFF_AGREEMENT": "At the agreed price, {amount} baht less",
+      "PRICE_ABOVE_HISTORY": "At the median price, {amount} baht less",
+      "SAME_ITEM_DEPARTMENTS": "All at the lowest price, {amount} baht less",
       "spent": "Bought at this price: {amount} baht"
     },
     "empty": {
@@ -10357,7 +10359,7 @@
         "why": "{lines} lines at different prices; the lowest is {lowest} baht per {uom} · bought together at this price they fit one PO"
       }
     },
-    "list": "Savings found",
+    "list": "What the assistant found",
     "metaTitle": "Savings",
     "shown": "{count} found",
     "stage": {
@@ -10367,8 +10369,8 @@
     "summary": {
       "label": "Savings summary",
       "none": "No amount to save found yet",
-      "total": "Could buy for {amount} baht less",
-      "totalNote": "A line found by more than one check counts its largest amount once · prices before VAT"
+      "total": "At comparable prices, {amount} baht less in all",
+      "totalNote": "A line found by more than one check counts its largest amount once · prices before VAT · services are left out, as they are often priced per job of a different scope"
     },
     "title": "Savings"
   },

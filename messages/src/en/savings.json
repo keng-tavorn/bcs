@@ -6,8 +6,8 @@
   "homeLink": "Back to home",
   "summary": {
     "label": "Savings summary",
-    "total": "Could buy for {amount} baht less",
-    "totalNote": "A line found by more than one check counts its largest amount once · prices before VAT",
+    "total": "At comparable prices, {amount} baht less in all",
+    "totalNote": "A line found by more than one check counts its largest amount once · prices before VAT · services are left out, as they are often priced per job of a different scope",
     "none": "No amount to save found yet"
   },
   "filter": {
@@ -18,7 +18,7 @@
     "SAME_ITEM_DEPARTMENTS": "Same item, several departments {count}",
     "AGREEMENT_EXPIRING": "Agreed prices ending {count}"
   },
-  "list": "Savings found",
+  "list": "What the assistant found",
   "shown": "{count} found",
   "empty": {
     "title": "No savings found yet",
@@ -27,7 +27,9 @@
     "showAll": "Show every kind"
   },
   "amount": {
-    "saving": "Could save {amount} baht",
+    "PRICE_ABOVE_HISTORY": "At the median price, {amount} baht less",
+    "OFF_AGREEMENT": "At the agreed price, {amount} baht less",
+    "SAME_ITEM_DEPARTMENTS": "All at the lowest price, {amount} baht less",
     "spent": "Bought at this price: {amount} baht"
   },
   "stage": {

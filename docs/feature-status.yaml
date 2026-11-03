@@ -948,6 +948,16 @@ features:
       - tests/e2e/insights.spec.ts
     verifiedBy: null
     notes: "S16-08: AC1 to AC5 · poIdleDays uses the OQ-36 default (30 days) until a setting exists · the supplier registry recheck that writes supplier.registry_status_changed is S4-16 [go-live], so that count stays 0 until then"
+  FR-VIS-008:
+    status: in_progress
+    step: NEW-123
+    evidence:
+      - tests/golden/savings.test.ts
+      - tests/property/savings.property.test.ts
+      - tests/integration/savings.test.ts
+      - tests/e2e/savings.spec.ts
+    verifiedBy: null
+    notes: "NEW-123 (ADR-081): /procurement/savings, the four kinds of §7.21 from findSavings (golden GC-SAV-01 to 15), for po.view and request.view of the organization · the explanation SAVINGS_NOTE (Insight, L0) on a press, checked by BR-AI-27 · live mode shows the button once the purpose passes the evaluation (NEW-132)"
   FR-INT-010:
     status: done
     step: S16

@@ -1246,7 +1246,7 @@ def prc_reference(d, i):
     return got
 def run_savings(d):
     # BR-SAV-01 to BR-SAV-06 (§7.21 · NEW-123): savings of the lines still to be ordered, each the difference of two line
-    # amounts; a price above history is HIGH on enough samples (BR-PRC-03), an agreed price one in effect today, an
+    # amounts; a price above history is HIGH on enough samples (BR-PRC-03) of goods, an agreed price one in effect today, an
     # agreement ending within agreementDays and not continued; the total counts each line's largest saving once
     st, df = d["settings"], d["defaults"]; at = dt(df["at"]); today = date.fromisoformat(df["today"]); start = at - timedelta(days=st["windowDays"])
     key = lambda x: "item:" + x["item"] if x.get("item") else x["d"]
@@ -1264,7 +1264,7 @@ def run_savings(d):
             p, q = sat(l["unitPrice"]), l["qty"]
             used = [b for b in buys if key(b) == key(l) and inwin(b) and not b["includesVat"]]
             xs = sorted(sat(b["unitPrice"]) for b in used)
-            if len(xs) >= st["minSamples"]:
+            if l["kind"] == "GOODS" and len(xs) >= st["minSamples"]:
                 med = xs[(len(xs) - 1) // 2]
                 if med and (p - med) * 10000 > med * st["alertBp"]:
                     s = line_net(q, p) - line_net(q, med)
@@ -1277,7 +1277,7 @@ def run_savings(d):
                     if s > 0: opp.append((s, 1, l["ref"], {"kind": "OFF_AGREEMENT", "line": l["ref"], "saving": baht(s), "agreement": a["id"], "agreed": baht(sat(a["unitPrice"]))}))
         groups = {}
         for l in lines:
-            if l["stage"] == "POOL" and not l["includesVat"]: groups.setdefault((key(l), l["kind"], l["site"]), []).append(l)
+            if l["stage"] == "POOL" and not l["includesVat"] and l["kind"] == "GOODS": groups.setdefault((key(l), l["site"]), []).append(l)
         for g in groups.values():
             if len({l["dept"] for l in g}) < 2: continue
             low = min(sat(l["unitPrice"]) for l in g)

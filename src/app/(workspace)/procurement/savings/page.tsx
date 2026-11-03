@@ -73,7 +73,7 @@ function viewOf(t: SavingsT, locale: Locale, item: SavingsItemDto, windowDays: n
         title: t('kind.PRICE_ABOVE_HISTORY.title', { number: l.request.number, line: l.lineNo, description: l.description, pct: formatBpPercent(item.deviationBp, { signed: false }) }),
         why: t('kind.PRICE_ABOVE_HISTORY.why', { count: item.count, days: windowDays, reference: baht(item.referenceSatang), uom: l.uom, price: baht(l.unitPriceSatang), quantity: `${l.quantity} ${l.uom}` }),
         note: null,
-        amount: t('amount.saving', { amount: baht(item.savingSatang) }),
+        amount: t(`amount.${item.kind}`, { amount: baht(item.savingSatang) }),
         stage: t(`stage.${l.request.stage}`),
         action: lineAction(t, l, access),
         evidence: {
@@ -99,7 +99,7 @@ function viewOf(t: SavingsT, locale: Locale, item: SavingsItemDto, windowDays: n
         title: t('kind.OFF_AGREEMENT.title', { number: l.request.number, line: l.lineNo, item: nameIn(locale, item.item) }),
         why: t('kind.OFF_AGREEMENT.why', { agreed: baht(item.agreedSatang), uom: l.uom, price: baht(l.unitPriceSatang), quantity: `${l.quantity} ${l.uom}`, supplier: supplierText(t, locale, l) }),
         note: item.offAgreementReason ? t('kind.OFF_AGREEMENT.reason', { reason: item.offAgreementReason }) : null,
-        amount: t('amount.saving', { amount: baht(item.savingSatang) }),
+        amount: t(`amount.${item.kind}`, { amount: baht(item.savingSatang) }),
         stage: t(`stage.${l.request.stage}`),
         action: lineAction(t, l, access),
         evidence: {
@@ -131,7 +131,7 @@ function viewOf(t: SavingsT, locale: Locale, item: SavingsItemDto, windowDays: n
         title: t('kind.SAME_ITEM_DEPARTMENTS.title', { description: item.description, departments: item.departments }),
         why: t('kind.SAME_ITEM_DEPARTMENTS.why', { lines: item.lines.length, lowest: baht(item.lowestSatang), uom: item.uom }),
         note: item.site ? t('kind.SAME_ITEM_DEPARTMENTS.site', { site: nameIn(locale, item.site) }) : t('kind.SAME_ITEM_DEPARTMENTS.noSite'),
-        amount: t('amount.saving', { amount: baht(item.savingSatang) }),
+        amount: t(`amount.${item.kind}`, { amount: baht(item.savingSatang) }),
         stage: t('stage.POOL'),
         action: access.pool ? { href: '/procurement/pool', label: t('action.pool') } : null,
         evidence: {
@@ -235,7 +235,7 @@ export default async function SavingsPage({ searchParams }: { searchParams: Prom
       <PageHeader title={t('title')} intro={t('intro')} />
       <PageBody>
         <Panel label={t('summary.label')}>
-          <p className="money text-xl font-semibold text-ink">{total > 0n ? t('summary.total', { amount: money(total) }) : t('summary.none')}</p>
+          <p className="text-xl font-semibold text-ink tabular-nums">{total > 0n ? t('summary.total', { amount: money(total) }) : t('summary.none')}</p>
           <p className="text-base text-ink-muted md:text-sm">{t('summary.totalNote')}</p>
           {data.items.length ? (
             <nav aria-label={t('filter.label')} className="border-t border-line pt-3">

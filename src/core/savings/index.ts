@@ -122,9 +122,13 @@ const byRef = (a: { ref: string }, b: { ref: string }) => (a.ref < b.ref ? -1 : 
 const savedOn = (quantity: string, price: Satang, lower: Satang) => lineNet(quantity, price) - lineNet(quantity, lower)
 const latestFirst = (a: Purchase, b: Purchase) => b.approvedAt.getTime() - a.approvedAt.getTime() || byRef(a, b)
 
-/** BR-SAV-01: a line priced before VAT whose price reference is HIGH on enough samples, against the median */
+/**
+ * BR-SAV-01: a line of goods priced before VAT whose price reference is HIGH on enough samples, against the median. A
+ * service is often priced as one job whose scope differs from the last (a hospital's plumbing against a warehouse's), so
+ * its difference is no amount the code can claim; its approver still sees the reference's badge (BR-PRC-03)
+ */
 function aboveHistory(line: OpenLine, purchases: readonly Purchase[], settings: SavingsSettings): Opportunity | null {
-  if (line.priceIncludesVat) return null
+  if (line.priceIncludesVat || line.kind !== 'GOODS') return null
   const own = purchases.filter((p) => p.key === line.key)
   const r = priceReference(own, line.unitPriceSatang, false, settings.at, settings)
   if (r.alert !== 'HIGH' || r.status !== 'OK' || r.median === null || r.deviationBp === null) return null
@@ -156,14 +160,15 @@ function offAgreement(line: OpenLine, agreements: readonly SavingsAgreement[], s
 }
 
 /**
- * BR-SAV-03: lines of the pool priced before VAT for the same thing (key, goods or service, delivery site — what one PO
- * may hold, BR-CONS-01 without the supplier) from two departments or more, each at the group's lowest price
+ * BR-SAV-03: lines of goods in the pool priced before VAT for the same thing (key and delivery site — what one PO may
+ * hold, BR-CONS-01 without the supplier) from two departments or more, each at the group's lowest price; services are
+ * left out as in BR-SAV-01
  */
 function sameItem(lines: readonly OpenLine[]): Opportunity[] {
   const groups = new Map<string, OpenLine[]>()
   for (const l of [...lines].sort(byRef)) {
-    if (l.stage !== 'POOL' || l.priceIncludesVat) continue
-    const k = JSON.stringify([l.key, l.kind, l.siteId])
+    if (l.stage !== 'POOL' || l.priceIncludesVat || l.kind !== 'GOODS') continue
+    const k = JSON.stringify([l.key, l.siteId])
     groups.set(k, [...(groups.get(k) ?? []), l])
   }
   const out: Opportunity[] = []

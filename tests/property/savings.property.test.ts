@@ -4,8 +4,8 @@ import { lineNet } from '@/core/money/math'
 import { findSavings, type OpenLine, type Purchase, type SavingsAgreement } from '@/core/savings'
 
 // NEW-123 (spec §7.21 BR-SAV-01 to BR-SAV-06): on thousands of random pools, histories and agreed prices, every saving is
-// positive and is what buying the line at the lower price saves, a line counts once in the total, and the result does
-// not depend on the order the rows arrive in.
+// positive and is what buying the line at the lower price saves, services never count above history or across
+// departments, a line counts once in the total, and the result does not depend on the order the rows arrive in.
 
 const at = new Date('2026-10-06T03:00:00Z')
 const settings = { at, today: '2026-10-06', windowDays: 365, minSamples: 3, alertBp: 1000, agreementDays: 30 }
@@ -99,6 +99,8 @@ describe('[FR-VIS-008/AC1] savings properties', () => {
               const line = byRef.get(l.ref)!
               expect(l.savingSatang).toBe(lineNet(line.quantity, line.unitPriceSatang) - lineNet(line.quantity, o.lowestSatang))
               expect(l.savingSatang >= 0n).toBe(true)
+              // services are priced per job: never grouped (BR-SAV-03)
+              expect([line.kind, line.stage]).toEqual(['GOODS', 'POOL'])
               keep(l.ref, l.savingSatang)
             }
             expect(new Set(o.lines.map((l) => byRef.get(l.ref)!.departmentId)).size).toBe(o.departments)
@@ -109,6 +111,8 @@ describe('[FR-VIS-008/AC1] savings properties', () => {
             expect(lower < line.unitPriceSatang).toBe(true)
             expect(o.savingSatang).toBe(lineNet(line.quantity, line.unitPriceSatang) - lineNet(line.quantity, lower))
             expect(line.priceIncludesVat).toBe(false)
+            // a service is never above history (BR-SAV-01); an agreed price of a service still counts (BR-SAV-02)
+            if (o.kind === 'PRICE_ABOVE_HISTORY') expect(line.kind).toBe('GOODS')
             keep(o.line, o.savingSatang)
           }
         }

@@ -4,7 +4,7 @@ import { lineNet } from '@/core/money/math'
 import { findSavings, type OpenLine, type Opportunity, type Purchase, type SavingsAgreement } from '@/core/savings'
 import { loadYaml } from './doa-fixtures'
 
-// tests/golden/savings.yaml (spec §7.21 · NEW-123): GC-SAV-01 to GC-SAV-15, the savings the assistant finds (BR-SAV-01
+// tests/golden/savings.yaml (spec §7.21 · NEW-123): GC-SAV-01 to GC-SAV-16, the savings the assistant finds (BR-SAV-01
 // to BR-SAV-06). A line or purchase of `item` is a catalogue item keyed item:<item> (BR-DUP-01); one of `d` is keyed d.
 
 interface Defaults {
@@ -115,7 +115,7 @@ function shown(o: Opportunity): Record<string, unknown> {
 }
 
 describe('[FR-VIS-008/AC1] golden savings.yaml', () => {
-  it('has the cases of NEW-123', () => expect(suite.cases.map((c) => c.id)).toEqual(Array.from({ length: 15 }, (_, i) => `GC-SAV-${String(i + 1).padStart(2, '0')}`)))
+  it('has the cases of NEW-123', () => expect(suite.cases.map((c) => c.id)).toEqual(Array.from({ length: 16 }, (_, i) => `GC-SAV-${String(i + 1).padStart(2, '0')}`)))
   for (const c of suite.cases) {
     it(`[${c.id}] ${c.title ?? ''}`.trim(), () => {
       const result = findSavings(

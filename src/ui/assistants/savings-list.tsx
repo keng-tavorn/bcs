@@ -71,7 +71,7 @@ function SavingsRow({ item, labels, explain }: { item: SavingsItemView; labels: 
       <ItemContent className="min-w-0 gap-1">
         <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between md:gap-4">
           <ItemTitle className="text-base font-medium break-words text-ink md:text-sm">{item.title}</ItemTitle>
-          <p className="money shrink-0 text-base font-semibold text-ink md:text-right md:text-sm">{item.amount}</p>
+          <p className="shrink-0 text-base font-semibold text-ink tabular-nums md:text-right md:text-sm">{item.amount}</p>
         </div>
         <p className="text-base break-words text-ink-muted md:text-sm">{item.why}</p>
         {item.note ? <p className="text-base break-words text-ink-muted md:text-sm">{item.note}</p> : null}
@@ -80,28 +80,36 @@ function SavingsRow({ item, labels, explain }: { item: SavingsItemView; labels: 
             {item.stage}
           </Badge>
         ) : null}
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          {item.action ? (
-            <Button asChild variant="outline" className="min-h-11 lg:min-h-9">
-              <Link href={item.action.href}>{item.action.label}</Link>
-            </Button>
-          ) : null}
-          <SavingsEvidence id={evidenceId} show={labels.show} hide={labels.hide}>
-            <h3 className="text-base font-medium md:text-sm">{item.evidence.title}</h3>
-            {item.evidence.rows.length ? (
-              <ReportTable caption={item.evidence.title} columns={item.evidence.columns} rows={item.evidence.rows} rowHeader={0} lead={1} />
-            ) : (
-              <p className="text-base text-ink-muted md:text-sm">{item.evidence.empty}</p>
-            )}
-            {item.evidence.notes.map((n) => (
-              <p key={n} className="text-base text-ink-muted md:text-sm">
-                {n}
-              </p>
-            ))}
-          </SavingsEvidence>
-        </div>
-        {explain}
       </ItemContent>
+      {/* The row's full width below the icon on a phone, under the words from a computer: the way to the page, the
+          evidence and the assistant's words */}
+      <div className="flex min-w-0 basis-full flex-col gap-2 md:pl-12">
+        <SavingsEvidence
+          id={evidenceId}
+          show={labels.show}
+          hide={labels.hide}
+          action={
+            item.action ? (
+              <Button asChild variant="outline" className="min-h-11 lg:min-h-9">
+                <Link href={item.action.href}>{item.action.label}</Link>
+              </Button>
+            ) : null
+          }
+        >
+          <h3 className="text-base font-medium md:text-sm">{item.evidence.title}</h3>
+          {item.evidence.rows.length ? (
+            <ReportTable caption={item.evidence.title} columns={item.evidence.columns} rows={item.evidence.rows} rowHeader={0} lead={1} />
+          ) : (
+            <p className="text-base text-ink-muted md:text-sm">{item.evidence.empty}</p>
+          )}
+          {item.evidence.notes.map((n) => (
+            <p key={n} className="text-base text-ink-muted md:text-sm">
+              {n}
+            </p>
+          ))}
+        </SavingsEvidence>
+        {explain}
+      </div>
     </Item>
   )
 }

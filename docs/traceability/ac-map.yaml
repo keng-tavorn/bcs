@@ -528,6 +528,12 @@ frs:
       AC3: { owner: S16-08, demo: true, basis: named, text: "ทุกตัวเลขที่แสดงคลิกไปรายการที่ประกอบเป็นตัวเลขนั้นได้ และตรงกับ KPI view (§11.4) และ dashboard งบ (§11.2) เมื่อเทสต์ด้วยข้อมูลที่รู้คำตอบ" }
       AC4: { owner: S16-08, demo: true, basis: named, text: "ทั้งหน้าตาม scope ของ report.view · การ์ดงบประมาณตาม budget.view · รายการ PO และราคาตาม po.view" }
       AC5: { owner: S16-08, demo: true, basis: named, text: "กราฟโหลดแบบ lazy ไม่อยู่ใน JavaScript เริ่มต้นของหน้าแรก และทุกกราฟมีมุมมองตาราง" }
+  FR-VIS-008:
+    title: "ผู้ช่วยหาเงินประหยัด"
+    acs:
+      AC1: { owner: NEW-123, demo: true, basis: named, text: "(NEW-123 · ADR-081) /procurement/savings แสดงโอกาสประหยัด 4 ชนิดของ §7.21 พร้อมยอดจาก findSavings ยอดรวมแบบ BR-SAV-06 และหลักฐานเป็นตาราง" }
+      AC2: { owner: NEW-123, demo: true, basis: named, text: "(NEW-123) เห็นเฉพาะผู้มี po.view และ request.view ระดับ ORG · ไม่เขียนอะไร ไม่เรียก AI และทำงานเมื่อปิดโมดูล AI" }
+      AC3: { owner: NEW-123, demo: true, basis: named, text: "(NEW-123) ปุ่ม 'ให้ผู้ช่วยอธิบาย' (SAVINGS_NOTE · L0) facts จากโค้ด ข้อความผ่าน BR-AI-27 รวม DECISION_ADVICE · ปิด AI แล้วปุ่มและคำอธิบายหาย" }
   FR-INT-010:
     title: "เลือกประเภทคำขอแบบ dialog"
     acs:

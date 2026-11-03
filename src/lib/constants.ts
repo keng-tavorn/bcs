@@ -249,3 +249,6 @@ export const CHAT_INTAKE_MAX_HOURLY_LIMIT = 1_000
  * the messages settle (job chat-intake-ai, 20 s) and is tried again a few times; past this it has failed or was skipped
  */
 export const CHAT_AI_READING_WINDOW_MS = 5 * MS_PER_MINUTE
+
+/** NEW-126: the longest message a person may send from the helper of an invoice's difference, in characters */
+export const EXCEPTION_HELP_MESSAGE_MAX_CHARS = 2_000

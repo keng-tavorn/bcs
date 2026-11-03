@@ -13,6 +13,7 @@ import {
   rejectApInvoiceFor,
   reopenApInvoiceFor,
   requestApVarianceFor,
+  sendExceptionMessageFor,
   submitApInvoiceFor,
   updateApInvoiceFor,
 } from './ap-commands'
@@ -60,4 +61,8 @@ export async function dismissApExceptionAction(input: unknown, idempotencyKey: s
 }
 export async function requestApVarianceAction(input: unknown, idempotencyKey: string): Promise<ApOutcome> {
   return run(requestApVarianceFor, input, idempotencyKey)
+}
+/** NEW-126: a message from the helper of a difference, sent after the person read and confirmed it */
+export async function sendExceptionMessageAction(input: unknown, idempotencyKey: string): Promise<ApOutcome> {
+  return run(sendExceptionMessageFor, input, idempotencyKey)
 }

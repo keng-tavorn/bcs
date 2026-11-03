@@ -68,7 +68,7 @@ export async function listMyNotifications(ctx: Ctx, locale: NotificationLocale, 
     db.notification.count({ where: { recipientMemberId, readAt: null } }),
   ])
   return {
-    items: rows.map((n) => ({ id: n.id, ...renderNotification(n, locale), createdAt: n.createdAt.toISOString(), unread: n.readAt === null })),
+    items: rows.map((n) => ({ id: n.id, ...renderNotification(n, locale, 'IN_APP'), createdAt: n.createdAt.toISOString(), unread: n.readAt === null })),
     unread,
   }
 }

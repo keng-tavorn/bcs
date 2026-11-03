@@ -43,7 +43,13 @@ export type SupplierNoticeFailed = (
 const failureHandlers = new Map<string, SupplierNoticeFailed>()
 
 /** The template keys of S8 (BR-AP-08) */
-export const SUPPLIER_TEMPLATES = { invoiceReceived: 'supplier.invoice_received', invoiceRejected: 'supplier.invoice_rejected', invoiceReady: 'supplier.invoice_ready' } as const
+export const SUPPLIER_TEMPLATES = {
+  invoiceReceived: 'supplier.invoice_received',
+  invoiceRejected: 'supplier.invoice_rejected',
+  invoiceReady: 'supplier.invoice_ready',
+  /** NEW-126: what a person of the organization asks the supplier about a difference of its invoice, as they confirmed it */
+  invoiceQuestion: 'supplier.invoice_question',
+} as const
 
 /** Each lane adds its own templates (S8 invoices here, S9 payments in its files), and who hears when one fails */
 export function registerSupplierTemplate(key: string, template: SupplierTemplate, options: { readonly onFailed?: SupplierNoticeFailed } = {}): void {
@@ -225,6 +231,16 @@ registerSupplierTemplate(SUPPLIER_TEMPLATES.invoiceReady, (d, c) => {
     ],
   )
 })
+
+// NEW-126 (ADR-081): the words are the sender's own, read and confirmed before sending (one language: theirs); the frame
+// names the invoice, who to answer and the organization, in both languages
+registerSupplierTemplate(SUPPLIER_TEMPLATES.invoiceQuestion, (d, c) =>
+  mail(
+    `คำถามเรื่องใบแจ้งหนี้ ${str(d.supplierInvoiceNo)} จาก ${c.organizationName} / A question about your invoice`,
+    [`เรียน ${c.supplierName}`, ...str(d.text).split(/\r?\n/), `ผู้ติดต่อ: ${str(d.senderTh)} ${c.organizationName} (อ้างอิงใบแจ้งหนี้ ${str(d.number)} ตาม PO ${str(d.poNumber)})`],
+    [`${c.organizationName} has a question about your invoice ${str(d.supplierInvoiceNo)} (our reference ${str(d.number)}, PO ${str(d.poNumber)}): please read the message above.`, `Contact: ${str(d.senderEn) || str(d.senderTh)}`],
+  ),
+)
 
 /** Notices waiting longer than this are picked up by the sweep of supplier-notice-send */
 export const SUPPLIER_NOTICE_SWEEP_AFTER_MS = MS_PER_MINUTE

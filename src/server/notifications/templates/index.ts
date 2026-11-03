@@ -18,7 +18,11 @@ export interface RenderedNotification {
 
 type Data = Readonly<Record<string, unknown>>
 type Text = { readonly th: string; readonly en: string }
-type Template = (data: Data, subject: { readonly type: string | null; readonly id: string | null }) => { title: Text; body?: Text; href: string | null }
+/**
+ * `inApp` replaces the title and body in the bell only (NEW-126): words that may name a person or a line stay inside
+ * BCS, and LINE, push and e-mail get the plain title and body (BR-NOTI-01)
+ */
+type Template = (data: Data, subject: { readonly type: string | null; readonly id: string | null }) => { title: Text; body?: Text; href: string | null; inApp?: { title: Text; body: Text } }
 
 const str = (v: unknown, fallback = ''): string => (typeof v === 'string' || typeof v === 'number' ? String(v) : fallback)
 /** A request's number once it has one, else its title */
@@ -399,6 +403,20 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     body: { th: 'เปิดใบแจ้งหนี้เพื่อดูรายการไม่ตรงที่ส่งถึงคุณ', en: 'Open the invoice to see the differences sent to you' },
     href: `/finance/invoices/${str(d.invoiceId)}`,
   }),
+  // NEW-126 (ADR-081): a question a person sent from the helper of a difference. Outside BCS the invoice and PO numbers
+  // only (BR-NOTI-01, BR-AP-09); in the bell who asks and their words. A receiver opens the PO's receiving, a requester the PO
+  'invoice.question': (d) => {
+    const asker = { th: str(d.senderTh), en: str(d.senderEn) || str(d.senderTh) }
+    return {
+      title: { th: `มีคำถามเรื่องรายการไม่ตรงของใบแจ้งหนี้ ${ref(d)} ของ PO ${str(d.poNumber)}`, en: `A question about a difference of invoice ${ref(d)} of PO ${str(d.poNumber)}` },
+      body: { th: 'เปิด BCS เพื่ออ่านคำถาม', en: 'Open BCS to read the question' },
+      href: d.relation === 'RECEIVER' ? `/receiving/${str(d.poId)}` : `/procurement/pos/${str(d.poId)}`,
+      inApp: {
+        title: { th: `${asker.th} ถามเรื่องใบแจ้งหนี้ ${ref(d)} ของ PO ${str(d.poNumber)}`, en: `${asker.en} asks about invoice ${ref(d)} of PO ${str(d.poNumber)}` },
+        body: { th: str(d.text), en: str(d.text) },
+      },
+    }
+  },
   'invoice.variance_decided': (d) => ({
     title:
       d.outcome === 'APPROVED'
@@ -440,9 +458,17 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
 
 const FALLBACK: Template = () => ({ title: { th: 'มีการแจ้งเตือนใหม่', en: 'New notification' }, href: null })
 
-/** The text and link of one notification in the reader's language (BR-NOTI-03) */
-export function renderNotification(n: { readonly templateKey: string; readonly data: unknown; readonly subjectType: string | null; readonly subjectId: string | null }, locale: NotificationLocale): RenderedNotification {
+/**
+ * The text and link of one notification in the reader's language (BR-NOTI-03): as LINE, push and e-mail carry it, or
+ * `IN_APP` as the bell shows it
+ */
+export function renderNotification(
+  n: { readonly templateKey: string; readonly data: unknown; readonly subjectType: string | null; readonly subjectId: string | null },
+  locale: NotificationLocale,
+  where: 'OUTSIDE' | 'IN_APP' = 'OUTSIDE',
+): RenderedNotification {
   const data = (n.data && typeof n.data === 'object' ? n.data : {}) as Data
   const rendered = (TEMPLATES[n.templateKey] ?? FALLBACK)(data, { type: n.subjectType, id: n.subjectId })
+  if (where === 'IN_APP' && rendered.inApp) return { title: rendered.inApp.title[locale], body: rendered.inApp.body[locale] || null, href: rendered.href }
   return { title: rendered.title[locale], body: rendered.body?.[locale] ?? null, href: rendered.href }
 }

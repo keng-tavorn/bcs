@@ -29,6 +29,8 @@ export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   // S8: differences of an invoice and the decision on its price variance (§10.1, BR-AP-09)
   'invoice.exception',
   'invoice.variance_decided',
+  // NEW-126: a question from the helper of a difference, with the numbers only (BR-NOTI-01)
+  'invoice.question',
   // S9, in lane 2's own file (ADR-135)
   ...PAYMENT_LINE_TEMPLATES,
 ])

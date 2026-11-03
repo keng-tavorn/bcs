@@ -18,6 +18,9 @@
     },
     "variance_decided": {
       "title": "Invoice variance decided"
+    },
+    "question": {
+      "title": "A question about an invoice"
     }
   },
   "po": {

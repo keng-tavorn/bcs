@@ -3073,11 +3073,13 @@
         "paid": "Invoice paid",
         "payment_held": "Invoice taken into a payment run",
         "payment_released": "Invoice let go from a payment run",
+        "question_sent": "Asked a receiver or requester about a difference",
         "ready": "Invoice ready for payment",
         "rechecked": "Invoice checked again",
         "rejected": "Invoice rejected",
         "reopened": "Invoice reopened as a draft",
         "submitted": "Invoice submitted",
+        "supplier_asked": "E-mailed the supplier about a difference",
         "updated": "Invoice draft edited",
         "variance_approved": "Invoice price variance approved",
         "variance_rejected": "Invoice price variance not approved or returned",
@@ -5459,6 +5461,101 @@
     "WHT_FORM_PAYEE_MISMATCH": "Income type {code} cannot be used for a {payeeType} payee",
     "WHT_TYPE_NOT_CONFIGURED": "Income type {code} or its rate is not set up",
     "WORKFLOW_LINT_FAILED": "This workflow version has not passed its checks: {codes}"
+  },
+  "exceptionHelp": {
+    "ask": {
+      "confirmHint": "It goes in your name and the invoice's history records that you sent it",
+      "confirmTitle": "Send the question to {name}",
+      "hint": "The recipient reads the whole message in BCS; LINE and e-mail carry the invoice and PO numbers only",
+      "recipient": "{name} ({relation})",
+      "relation": {
+        "RECEIVER": "receiver",
+        "REQUESTER": "requester"
+      },
+      "review": "Review before sending the question",
+      "send": "Send the question",
+      "sending": "Sending the question",
+      "sent": "Question sent to {name}",
+      "title": "Draft a question to the receiver or the requester",
+      "to": "Send to"
+    },
+    "back": "Back to edit",
+    "draft": {
+      "ask": {
+        "ACCEPTANCE_PENDING": "Dear {name}, service line {line} ({description}) of invoice {invoice} on PO {po} bills {invoiced} {uom}, but {received} {uom} have been accepted{elsewhere}. Is the work on the invoice done? If so, please confirm it in BCS. Thank you",
+        "PRICE_OVER": "Dear {name}, line {line} ({description}) of invoice {invoice} on PO {po} is billed at THB {price} each, above the PO price of THB {poPrice}. Was a new price agreed with the supplier? Thank you",
+        "QTY_NOT_RECEIVED": "Dear {name}, line {line} ({description}) of invoice {invoice} on PO {po} bills {invoiced} {uom}, but {received} {uom} have been received{elsewhere}. Has everything on the invoice arrived? If so, please record the receipt in BCS. Thank you",
+        "QTY_OVER_ORDERED": "Dear {name}, line {line} ({description}) of invoice {invoice} on PO {po} bills {invoiced} {uom}, more than the {ordered} {uom} ordered. Was more ordered from the supplier? Thank you"
+      },
+      "email": {
+        "ACCEPTANCE_PENDING": "Your invoice {supplierInvoiceNo} on our purchase order {po} bills {invoiced} {uom} of {description}, but we have accepted {received} {uom}. Please tell us how the rest of the work stands, or send a new invoice for what was handed over",
+        "PRICE_OVER": "Your invoice {supplierInvoiceNo} on our purchase order {po} bills {description} at THB {price} each, which does not match the order's THB {poPrice}. Please send a credit note, or a new invoice at the ordered price",
+        "QTY_NOT_RECEIVED": "Your invoice {supplierInvoiceNo} on our purchase order {po} bills {invoiced} {uom} of {description}, but we have received {received} {uom}. Please tell us when the rest arrives, or send a new invoice for what was delivered",
+        "QTY_OVER_ORDERED": "Your invoice {supplierInvoiceNo} on our purchase order {po} bills {invoiced} {uom} of {description}, more than the {ordered} {uom} ordered. Please send a credit note, or a new invoice for the ordered quantity",
+        "VAT_MISMATCH": "Your invoice {supplierInvoiceNo} on our purchase order {po} states VAT of THB {stated}, which does not match the VAT of its amounts. Please check it and send a correct tax invoice",
+        "VAT_SUPPLIER_NOT_REGISTERED": "Your invoice {supplierInvoiceNo} on our purchase order {po} charges VAT of THB {stated}, but our register shows you are not registered for VAT. Please check it and send a new invoice"
+      }
+    },
+    "draftElsewhere": ", and other invoices billed {quantity} {uom}",
+    "email": {
+      "confirmHint": "It goes in the organization's name with you as the contact, and the invoice's history records that you sent it. It cannot be taken back",
+      "confirmTitle": "Send the e-mail to {name}",
+      "hint": "The e-mail carries the invoice and PO numbers and your name as the contact",
+      "noEmail": "The supplier has no e-mail address yet. Tell them another way, or ask procurement to add one",
+      "review": "Review before sending the e-mail",
+      "send": "Send the e-mail to the supplier",
+      "sending": "Sending the e-mail",
+      "sent": "E-mail to the supplier sent; it goes out within a few minutes",
+      "title": "Draft an e-mail to the supplier",
+      "to": "To the supplier {name}"
+    },
+    "empty": "The message is empty. Write it before sending",
+    "errors": {
+      "INVALID_STATE_TRANSITION": "The difference was settled or changed. Open the page again to see where it stands",
+      "RECIPIENT_NOT_ALLOWED": "This person is no longer a receiver or requester of the line. Open the page again and choose again",
+      "SUPPLIER_NOT_ALLOWED": "Finance e-mails the supplier, or procurement about the differences sent to procurement",
+      "SUPPLIER_NO_EMAIL": "The supplier has no e-mail address yet"
+    },
+    "fix": {
+      "ASK": "Ask the receiver or the requester",
+      "BUDGET_TRANSFER": "Ask for a budget transfer, then check again",
+      "DISMISS_DUPLICATE": "Dismiss the warning if it is not a duplicate",
+      "EMAIL_SUPPLIER": "Ask the supplier for a credit note or a new invoice",
+      "PO_CHANGE": "Change the PO with a PO change; the match runs again by itself",
+      "RECEIVE": "Receive the rest; the match runs again by itself",
+      "RECHECK": "Check again once the cause is fixed",
+      "REJECT": "Reject the invoice when the supplier sends a new one",
+      "REOPEN": "Reopen as a draft if it was entered wrongly",
+      "VARIANCE": "Ask for a price variance approval under the DOA"
+    },
+    "fixesTitle": "Ways you can take",
+    "hint": "The assistant gathers the PO, the goods received and the prices by the system's rules, then shows the ways you can settle each difference. It changes nothing itself, and a drafted message goes only when you send it.",
+    "itemTitle": "{type} · {where}",
+    "message": "Message",
+    "step": {
+      "agreement": "Compared the agreed price with the supplier: THB {price} each, valid before {date}",
+      "agreementNoItem": "Compared the agreed price: the line is not a catalogue item, so there is none",
+      "agreementNone": "Compared the agreed price: the supplier has none on the invoice's date",
+      "amount": "Read the difference: {where}",
+      "choose": "Waiting for you to choose a way",
+      "drafts": "Drafted a message for you to read, change and send yourself",
+      "elsewhere": "Checked other invoices of the line: they billed {quantity} {uom}",
+      "fixes": "Found {count} ways you can take",
+      "fixesNone": "Looked for ways: none you can take yourself; the difference is sent to {role}",
+      "invoiceLine": "Read line {line} of this invoice: billed {invoiced} {uom} at THB {price} each",
+      "pastPrices": "Compared past prices: bought {count} times in {days} days, last at THB {price} each on {po}, {date}",
+      "pastPricesNone": "Compared past prices: not bought in the last {days} days",
+      "pastPricesWithVat": "Compared past prices: bought {count} times in {days} days, last at THB {price} each with VAT on {po}, {date}",
+      "poLine": "Read PO line {poLine}: ordered {ordered} {uom} at THB {price} each",
+      "receipts": "Read the receipts: {received} {uom} received in {count} receipts, the last on {date}",
+      "receiptsNone": "Read the receipts: nothing of this line has been received",
+      "vatStated": "Read the VAT on the invoice: THB {stated}"
+    },
+    "stepDone": "Done",
+    "stepWaiting": "Waiting for you",
+    "stepsTitle": "What the assistant has done",
+    "title": "Help with differences",
+    "tooLong": "The message is longer than {max} characters"
   },
   "files": {
     "chooseFile": "Choose a file",
@@ -8837,6 +8934,9 @@
     "invoice": {
       "exception": {
         "title": "Invoice differences to check"
+      },
+      "question": {
+        "title": "A question about an invoice"
       },
       "variance_decided": {
         "title": "Invoice variance decided"

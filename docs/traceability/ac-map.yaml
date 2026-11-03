@@ -533,7 +533,7 @@ frs:
     acs:
       AC1: { owner: NEW-123, demo: true, basis: named, text: "(NEW-123 · ADR-081) /procurement/savings แสดงโอกาสประหยัด 4 ชนิดของ §7.21 พร้อมยอดจาก findSavings ยอดรวมแบบ BR-SAV-06 และหลักฐานเป็นตาราง" }
       AC2: { owner: NEW-123, demo: true, basis: named, text: "(NEW-123) เห็นเฉพาะผู้มี po.view และ request.view ระดับ ORG · ไม่เขียนอะไร ไม่เรียก AI และทำงานเมื่อปิดโมดูล AI" }
-      AC3: { owner: NEW-123, demo: true, basis: named, text: "(NEW-123) ข้อความของหน้าไม่มีคำแนะนำให้อนุมัติหรือปฏิเสธ (คำของ DECISION_ADVICE ไม่อยู่ในข้อความใด) · ยอดเป็นเงื่อนไข · ไม่มีปุ่มที่ทำงานแทน" }
+      AC3: { owner: NEW-123, demo: true, basis: named, text: "(NEW-123) ข้อความของหน้าไม่มีคำแนะนำให้อนุมัติหรือปฏิเสธ (คำของ DECISION_ADVICE ไม่อยู่ในข้อความใด) · ยอดเป็นเงื่อนไข · ไม่มีปุ่มที่ทำงานแทน · (NEW-132) ปุ่ม 'ให้ผู้ช่วยอธิบาย' (SAVINGS_NOTE · L0 · gate SAVINGS_NOTE@3) facts จากโค้ด ข้อความผ่าน BR-AI-27 รวม DECISION_ADVICE · ปิด AI แล้วปุ่มและคำอธิบายหาย" }
   FR-INT-010:
     title: "เลือกประเภทคำขอแบบ dialog"
     acs:

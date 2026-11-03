@@ -1,0 +1,18 @@
+{
+  "promptVersion": "SAVINGS_NOTE@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "BCS พบว่ารายการ {{v:description}} ถูกซื้อโดย {{v:departments}} หน่วยงานในจำนวน {{v:lines}} รายการสั่งซื้อ",
+      "ราคาต่ำสุดที่พบในข้อมูลการซื้อขององค์กรคือ {{v:lowest}} บาท ใช้เป็นราคาเปรียบเทียบ",
+      "ผลต่างจากการเทียบกับราคานี้ คิดเป็นยอดประหยัด {{v:saving}} บาท"
+    ]
+  },
+  "usage": {
+    "input": 142,
+    "output": 201,
+    "cacheRead": 709,
+    "cacheWrite": 0
+  }
+}

@@ -90,5 +90,15 @@
       "saving": "Could save (baht)"
     },
     "empty": "None"
+  },
+  "explain": {
+    "button": "Ask the assistant to explain",
+    "again": "Explain again",
+    "pending": "The assistant is writing",
+    "label": "The assistant's explanation",
+    "aiNote": "Written by the assistant from the figures of this item; check it against the evidence",
+    "failed": "The assistant could not explain this time. The figures and the evidence above still stand.",
+    "gone": "This item is no longer on the list. Reload the page for the latest list.",
+    "credits": "Uses AI credits each time"
   }
 }

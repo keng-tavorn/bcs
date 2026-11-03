@@ -1,0 +1,18 @@
+{
+  "promptVersion": "SAVINGS_NOTE@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "รายการที่ {{v:line}} ของใบขอซื้อ {{v:request}} ซื้อจากผู้ขายนอกข้อตกลงราคา ที่ราคา {{v:price}} ต่อหน่วย",
+      "ข้อตกลงราคากับ {{v:agreedSupplier}} กำหนดราคาไว้ที่ {{v:agreed}} ต่อหน่วย สำหรับจำนวน {{v:quantity}}",
+      "ส่วนต่างตามราคาข้อตกลงคิดเป็นจำนวนเงิน {{v:saving}} ซึ่งเป็นยอดที่ระบบคำนวณไว้แล้ว"
+    ]
+  },
+  "usage": {
+    "input": 262,
+    "output": 248,
+    "cacheRead": 709,
+    "cacheWrite": 0
+  }
+}

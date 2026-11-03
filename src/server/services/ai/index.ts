@@ -18,6 +18,8 @@ export {
 export { DOCUMENT_PURPOSES, readDocument, ReadDocumentInput, runDocumentRead } from './agents/document'
 export { approvalBriefOf, BRIEF_PROFILE, briefFacts, runBrief, type ApprovalBriefDto, type BriefFacts } from './agents/brief'
 export { AskInput, askInsight, INSIGHT_PROFILE, insightResponse, type InsightAnswer } from './agents/insight'
+export { explainSaving, ExplainSavingInput, savingsNoteAvailable, savingsNotesOf, type SavingsNoteDto } from './agents/savings-note'
+export { savingsFacts, type SavingsFacts } from './agents/savings-facts'
 export { findSuppliersForAsker, listPurchaseOrdersForAsker, runTool, type ToolResult } from './tools'
 export { runDoaDraft, startDoaDraft, StartDoaDraftInput, type RuleProblem } from './agents/doa-drafter'
 export { intakeFromMessage, IntakeMessageInput, runIntake, startIntake, StartIntakeInput } from './agents/intake'

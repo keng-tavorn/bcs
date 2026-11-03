@@ -58,6 +58,11 @@ export function briefInputText(facts: Readonly<Record<string, string | number | 
   return ['Facts of the approval task (key = value):', ...Object.entries(facts).map(([k, v]) => `${k} = ${String(v)}`)].join('\n')
 }
 
+/** The facts of one saving (NEW-132 · ADR-081): the explanation writes placeholders of these keys, never the values */
+export function savingsNoteInputText(facts: Readonly<Record<string, string | number | boolean>>): string {
+  return ['Facts of the saving (key = value):', ...Object.entries(facts).map(([k, v]) => `${k} = ${String(v)}`)].join('\n')
+}
+
 // ---------- Insight's plan (FR-AI-307): which read-only tools answer the question ----------
 
 export const INSIGHT_TOOLS = [

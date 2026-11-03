@@ -104,3 +104,54 @@ test('[FR-VIS-008/AC2] the requester, who may not read the prices of every PO, i
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'savings-refused')
 })
+
+// NEW-132 (FR-VIS-008 AC3 · ADR-081): with the AI module and the Insight agent on, each saving has "ให้ผู้ช่วยอธิบาย",
+// which says it uses credits. The e2e app plays recorded answers only and the drill is new each run, so a press finds
+// none and the row says the assistant could not explain, the figures staying; the explanation the member then asks for
+// through the same service (savings-ai-scene.ts) reads after a reload set apart with Sparkles, the line that the
+// assistant wrote it, and "ช่วยได้" "ไม่ช่วย". With the AI off, button and explanation are gone and the figures stay.
+function aiScene(mode: 'on' | 'off') {
+  const r = spawnSync('pnpm exec tsx tests/e2e/ai-document-scene.ts', { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv(), SCENE_MODE: mode } })
+  if (r.status !== 0) throw new Error(`ai-document-scene ${mode} failed:\n${r.stdout}\n${r.stderr}`)
+}
+// the demo organization keeps the AI module off for every other test (the runs are serial)
+test.afterEach(() => aiScene('off'))
+
+test('[FR-VIS-008/AC3] procurement asks the assistant to word the drill’s saving; with the AI off it is gone', async ({ page }, testInfo) => {
+  const s = scene(testInfo)
+  aiScene('on')
+  await signIn(page, 'proc_officer', true)
+  await page.goto('/procurement/savings?kind=PRICE_ABOVE_HISTORY')
+  const drill = page.getByRole('region', { name: 'เรื่องที่ผู้ช่วยเจอ' }).getByRole('listitem').filter({ hasText: s.item }).first()
+  const ask = drill.getByRole('button', { name: 'ให้ผู้ช่วยอธิบาย' })
+  await expect(ask).toBeVisible()
+  await expect(ask).toHaveAccessibleDescription('ใช้ credits ของ AI ทุกครั้งที่กด')
+  await ask.click()
+  await expect(drill.getByRole('alert')).toHaveText('ผู้ช่วยเขียนคำอธิบายไม่ได้ในครั้งนี้ ตัวเลขและหลักฐานด้านบนยังใช้ได้')
+  await expect(drill).toContainText('ถ้าได้ราคาค่ากลาง จ่ายน้อยลง 600.00 บาท')
+
+  const written = run<{ status: string; sentences: string[] }>('savings-ai-scene.ts', 'explain', 'proc_officer', s.number)
+  expect(written.status).toBe('READY')
+  await page.reload()
+  const words = drill.getByRole('region', { name: 'คำอธิบายจากผู้ช่วย' })
+  await expect(words).toContainText(`คำขอ ${s.number} ขอราคา 2,700.00 บาท สูงกว่าค่ากลาง 2,400.00 บาท อยู่ 12.5%`)
+  await expect(words).toContainText('ถ้าซื้อที่ค่ากลางจะถูกลง 600.00 บาท')
+  await expect(words).toContainText('ผู้ช่วยเขียนจากตัวเลขในเรื่องนี้ โปรดตรวจกับหลักฐาน')
+  await expect(words.locator('svg.lucide-sparkles')).toHaveCount(1)
+  await expect(drill.getByRole('button', { name: 'อธิบายใหม่' })).toBeVisible()
+  const helpful = words.getByRole('button', { name: 'ช่วยได้' })
+  await helpful.click()
+  await expect(helpful).toHaveAttribute('aria-pressed', 'true')
+  await expect(words.getByRole('button', { name: 'ไม่ช่วย' })).toHaveAttribute('aria-pressed', 'false')
+  await expectNoSideways(page)
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'savings-explained')
+
+  aiScene('off')
+  await page.reload()
+  await expect(drill).toContainText('ถ้าได้ราคาค่ากลาง จ่ายน้อยลง 600.00 บาท')
+  await expect(drill.getByRole('button', { name: /ให้ผู้ช่วยอธิบาย|อธิบายใหม่/ })).toHaveCount(0)
+  await expect(drill.getByRole('region', { name: 'คำอธิบายจากผู้ช่วย' })).toHaveCount(0)
+  await expect(page.locator('svg.lucide-sparkles')).toHaveCount(0)
+  await expectNoBlockingAxe(page)
+})

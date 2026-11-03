@@ -3,16 +3,20 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { isAllowed, memberPrincipal } from '@/server/authz'
+import { savingsNoteAvailable, savingsNotesOf } from '@/server/services/ai'
 import { readsSavings, SAVINGS_KINDS, savingsOpportunities, type SavingsItemDto, type SavingsKind, type SavingsLineDto, type SavingsPurchaseDto } from '@/server/services/assistants/savings'
 import { lastDayOf } from '@/ui/catalog/model'
 import { formatBpPercent } from '@/ui/format'
 import { Notice } from '@/ui/form/notice'
 import type { ReportColumnView, ReportRowView } from '@/ui/insight/report-table'
 import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
+import { SavingsExplain } from '@/ui/assistants/savings-explain'
 import { SavingsList, type SavingsItemView } from '@/ui/assistants/savings-list'
 import { Button } from '@/ui/shadcn/button'
 import { getSession } from '../../../_lib/session'
+import { giveAiFeedbackAction } from '../../_shell/assistant-actions'
 import { day, localeOf, money, nameIn, type Locale } from '../../_tracking/present'
+import { explainSavingAction } from './actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('savings')
@@ -213,6 +217,18 @@ export default async function SavingsPage({ searchParams }: { searchParams: Prom
   const shown = data.items.filter((i) => kind === null || i.kind === kind)
   const views = shown.map((i) => viewOf(t, locale, i, data.windowDays, access))
   const total = BigInt(data.totalSatang)
+  // The AI's words, only on a press and only while every gate is open (BR-AI-11); the ones the member asked for before
+  const [canAsk, notes] = await Promise.all([savingsNoteAvailable(ctx), savingsNotesOf(ctx, shown)])
+  const explainLabels = {
+    button: t('explain.button'),
+    again: t('explain.again'),
+    pending: t('explain.pending'),
+    label: t('explain.label'),
+    aiNote: t('explain.aiNote'),
+    failed: t('explain.failed'),
+    gone: t('explain.gone'),
+    credits: t('explain.credits'),
+  }
 
   return (
     <Page>
@@ -242,7 +258,14 @@ export default async function SavingsPage({ searchParams }: { searchParams: Prom
         </Panel>
         <Panel title={t('list')} id="savings-list" actions={views.length ? <span className="text-base text-ink-muted md:text-sm">{t('shown', { count: views.length })}</span> : undefined}>
           {views.length ? (
-            <SavingsList items={views} labels={{ show: t('evidence.show'), hide: t('evidence.hide') }} />
+            <SavingsList
+              items={views}
+              labels={{ show: t('evidence.show'), hide: t('evidence.hide') }}
+              explain={(item) => {
+                const note = notes.get(item.key) ?? null
+                return canAsk || note ? <SavingsExplain itemKey={item.key} initial={note} canAsk={canAsk} labels={explainLabels} explain={explainSavingAction} give={giveAiFeedbackAction} /> : null
+              }}
+            />
           ) : (
             <ListEmpty
               title={kind ? t('empty.filtered') : t('empty.title')}

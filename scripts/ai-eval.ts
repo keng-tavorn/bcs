@@ -2,14 +2,15 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { config } from 'dotenv'
 import { z } from 'zod'
-import { creditsForCall, fieldScore, matchField, normalizeAnswer, normalizeValue, type AnswerLine } from '../src/core/ai-checks'
+import { checkAiText, creditsForCall, fieldScore, matchField, normalizeAnswer, normalizeValue, type AnswerLine } from '../src/core/ai-checks'
 import { amountToSatang } from '../src/core/money/dto'
 import { createFixtureClient, createLiveClient, fixtureKey, type AiCallResult, type AiClient, type AiFile, type AiRequest, type FixtureAnswer } from '../src/integrations/ai'
-import { AGENT_OF_PURPOSE, DECISION_ADVICE_WORDS, EVAL_THRESHOLDS_BP, modelFor, priceOf, PROMPT_VERSIONS, type AiAgentName, type AiPurposeName } from '../src/lib/ai-config'
+import { AGENT_OF_PURPOSE, BRIEF_PROFILE, DECISION_ADVICE_WORDS, EVAL_THRESHOLDS_BP, modelFor, priceOf, PROMPT_VERSIONS, type AiAgentName, type AiPurposeName } from '../src/lib/ai-config'
 import { BriefText, DoaDraft, IntakeDraft, QuestionPlan } from '../src/lib/ai-schemas/agents'
 import { DocumentReading, isCriticalField } from '../src/lib/ai-schemas/document'
 import { loadAgentCases, type AgentCases } from './lib/ai-eval-agents'
 import { AI_ANSWERS_DIR, AI_DOCS_DIR, loadEvalDocuments, ROOT, truthReading, type EvalDocument } from './lib/ai-eval-cases'
+import { loadSavingsCases, type SavingsCase } from './ai-eval-savings'
 
 // `pnpm ai:eval` — the evaluation set of §12.4, demo tier (S13-05, BR-AI-26, OQ-141, ADR-143 ADR-146):
 //   pnpm ai:eval [--agent document|intake|brief|insight|doa] [--purpose <purpose>] [--live] [--model <id>] [--record]
@@ -225,7 +226,7 @@ async function evalDocuments(run: Run, client: AiClient, model: (a: AiAgentName,
   }
 }
 
-async function evalAgents(run: Run, client: AiClient, model: (a: AiAgentName) => string, cases: AgentCases, args: Args, manifest: Map<string, { file: string; mediaType: string }>) {
+async function evalAgents(run: Run, client: AiClient, model: (a: AiAgentName) => string, cases: AgentCases, savings: readonly SavingsCase[], args: Args, manifest: Map<string, { file: string; mediaType: string }>) {
   if (args.agents.includes('INTAKE')) {
     for (const c of first(cases.intake, args.limit)) {
       const files = c.fileOf ? [docFile({ id: c.fileOf }, manifest)] : []
@@ -262,7 +263,7 @@ async function evalAgents(run: Run, client: AiClient, model: (a: AiAgentName) =>
       run.tally.add('APPROVAL_BRIEF', 'BRIEF', 'TASK', 'text', !digits && r.output.sentences.length <= 4, { threshold: EVAL_THRESHOLDS_BP.briefText })
     }
   }
-  if (args.agents.includes('INSIGHT')) {
+  if (args.agents.includes('INSIGHT') && (!args.purpose || args.purpose === 'QUESTION')) {
     for (const c of first(cases.questions, args.limit)) {
       const r = await client.write({ purpose: 'QUESTION', model: model('INSIGHT'), schema: QuestionPlan, text: c.text })
       if (!r.ok) {
@@ -272,6 +273,27 @@ async function evalAgents(run: Run, client: AiClient, model: (a: AiAgentName) =>
       const same = [...new Set(r.output.tools)].sort().join(',') === [...c.tools].sort().join(',')
       if (args.showWrong && !same) console.error(`wrong ${c.id}: expected ${c.tools.join(',')} chose ${r.output.tools.join(',')}`)
       run.tally.add('INSIGHT', 'QUESTION', c.access ? 'ACCESS' : 'QUESTION', 'tools', same, { threshold: EVAL_THRESHOLDS_BP.insightTools })
+    }
+  }
+  if (args.agents.includes('INSIGHT') && (!args.purpose || args.purpose === 'SAVINGS_NOTE')) {
+    // NEW-132: a saving's explanation names the amount the code calculated, never advises, and passes the checker the
+    // page uses (BR-AI-27 Brief profile: placeholders of known facts only, no digit of its own, 4 short sentences); the
+    // four kinds count as one group of 24, as the Brief's 30 tasks do, and --show-wrong names the kind of a miss
+    for (const c of first(savings, args.limit)) {
+      const r = await client.write({ purpose: 'SAVINGS_NOTE', model: model('INSIGHT'), schema: BriefText, text: c.text })
+      if (!r.ok) {
+        run.failures.push(`${c.id} ${r.errorCode}`)
+        continue
+      }
+      const all = r.output.sentences.join(' ')
+      const named = all.includes(`{{v:${c.mustMention}}}`)
+      const advice = DECISION_ADVICE_WORDS.some((w) => all.toLowerCase().includes(w.toLowerCase()))
+      const checked = checkAiText(r.output.sentences, c.facts, BRIEF_PROFILE, DECISION_ADVICE_WORDS)
+      if (args.showWrong && (!named || advice || !checked.ok))
+        console.error(`wrong ${c.id} must mention ${c.mustMention}${checked.ok ? '' : ` (${checked.reason})`}: ${JSON.stringify(r.output.sentences)}`)
+      run.tally.add('INSIGHT', 'SAVINGS_NOTE', 'SAVING', 'amount', named, { threshold: EVAL_THRESHOLDS_BP.briefFlags })
+      run.tally.add('INSIGHT', 'SAVINGS_NOTE', 'SAVING', 'noDecisionAdvice', !advice, { threshold: 10_000, critical: true })
+      run.tally.add('INSIGHT', 'SAVINGS_NOTE', 'SAVING', 'text', checked.ok, { threshold: EVAL_THRESHOLDS_BP.briefText })
     }
   }
   if (args.agents.includes('DOA_DRAFTER')) {
@@ -337,7 +359,7 @@ function report(metrics: readonly Metric[], run: Run, args: Args, models: Record
   return `${lines.join('\n')}\n`
 }
 
-async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, manifest: Map<string, { file: string; mediaType: string }>) {
+async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, savings: readonly SavingsCase[], manifest: Map<string, { file: string; mediaType: string }>) {
   const save = (purpose: AiPurposeName, key: string, output: unknown, model: string) => {
     const answer: FixtureAnswer & { recorded: string } = { promptVersion: PROMPT_VERSIONS[purpose], model, recorded: 'TRUTH', output, usage: { input: 1800, output: 420 } }
     const file = path.join(AI_ANSWERS_DIR, `${key}.json`)
@@ -365,6 +387,10 @@ async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, ma
     save('BRIEF', fixtureKey({ purpose: 'BRIEF', text: c.text }), { sentences }, model('APPROVAL_BRIEF'))
   }
   for (const c of cases.questions) save('QUESTION', fixtureKey({ purpose: 'QUESTION', text: c.text }), { tools: c.tools, sentences: ['ผลอยู่ในตารางด้านล่าง'] }, model('INSIGHT'))
+  for (const c of savings) {
+    const sentences = [`พบเรื่องของ {{v:${Object.hasOwn(c.facts, 'description') ? 'description' : 'item'}}}`, `ยอดที่คำนวณได้ {{v:${c.mustMention}}} บาท`]
+    save('SAVINGS_NOTE', fixtureKey({ purpose: 'SAVINGS_NOTE', text: c.text }), { sentences }, model('INSIGHT'))
+  }
   for (const c of cases.doa) {
     save('DOA_DRAFT', fixtureKey({ purpose: 'DOA_DRAFT', text: c.text, files: [docFile({ id: c.id }, manifest)] }), { rules: c.rules }, model('DOA_DRAFTER'))
   }
@@ -376,11 +402,12 @@ async function main() {
   onlyIds = args.only
   const docs = await loadEvalDocuments()
   const cases = await loadAgentCases()
+  const savings = await loadSavingsCases()
   const manifest = new Map(
     (JSON.parse(readFileSync(path.join(AI_DOCS_DIR, 'manifest.json'), 'utf8')) as { files: Array<{ id: string; file: string; mediaType: string }> }).files.map((f) => [f.id, f]),
   )
   if (args.writeAnswers) {
-    await writeAnswers(docs, cases, manifest)
+    await writeAnswers(docs, cases, savings, manifest)
     console.log('ai:eval wrote the recorded answers of fixture mode from the truth of every case')
     return
   }
@@ -395,7 +422,7 @@ async function main() {
   const env = args.live ? { ...process.env } : {}
   const model = (a: AiAgentName, p?: AiPurposeName) => args.model ?? modelFor(a, env, p)
   if (args.agents.includes('DOCUMENT')) await evalDocuments(run, client, model, docs, args, manifest)
-  await evalAgents(run, client, model, cases, args, manifest)
+  await evalAgents(run, client, model, cases, savings, args, manifest)
   const metrics = run.tally.metrics()
   const purposes = (Object.keys(PROMPT_VERSIONS) as AiPurposeName[]).filter((p) => args.agents.includes(AGENT_OF_PURPOSE[p]) && (!args.purpose || p === args.purpose))
   const models = Object.fromEntries(purposes.map((p) => [p, model(AGENT_OF_PURPOSE[p], p)]))

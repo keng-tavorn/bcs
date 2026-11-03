@@ -1,0 +1,18 @@
+{
+  "promptVersion": "SAVINGS_NOTE@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "ในใบขอซื้อ {{v:request}} รายการที่ {{v:line}} มีราคาต่อหน่วย {{v:price}} สูงกว่าราคาอ้างอิงจากประวัติ {{v:reference}} อยู่ {{v:deviation}}",
+      "ราคาอ้างอิงนี้มาจากประวัติการซื้อ {{v:samples}} ครั้ง โดยราคาต่ำสุด {{v:lowest}} และสูงสุด {{v:highest}}",
+      "ส่วนต่างเมื่อเทียบกับราคาอ้างอิงตามปริมาณ {{v:quantity}} คิดเป็นยอดประหยัดที่คำนวณไว้ {{v:saving}}"
+    ]
+  },
+  "usage": {
+    "input": 167,
+    "output": 270,
+    "cacheRead": 709,
+    "cacheWrite": 0
+  }
+}

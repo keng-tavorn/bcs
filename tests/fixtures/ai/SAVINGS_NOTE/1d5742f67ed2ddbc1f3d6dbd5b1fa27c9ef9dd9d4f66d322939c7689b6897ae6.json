@@ -1,0 +1,18 @@
+{
+  "promptVersion": "SAVINGS_NOTE@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "พบว่าข้อตกลงราคาสำหรับ {{v:item}} จะสิ้นสุดในวันที่ {{v:lastDay}} เหลืออีก {{v:daysLeft}} วัน",
+      "ที่ผ่านมามีการซื้อ {{v:purchases}} ครั้ง ที่ราคา {{v:price}} บาท",
+      "ยอดที่ใช้จ่ายภายใต้ข้อตกลงนี้รวม {{v:spent}} บาท"
+    ]
+  },
+  "usage": {
+    "input": 149,
+    "output": 183,
+    "cacheRead": 709,
+    "cacheWrite": 0
+  }
+}

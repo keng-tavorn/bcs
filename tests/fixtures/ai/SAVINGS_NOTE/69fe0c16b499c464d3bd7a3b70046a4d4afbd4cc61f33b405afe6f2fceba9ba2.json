@@ -1,0 +1,18 @@
+{
+  "promptVersion": "SAVINGS_NOTE@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "พบว่าสัญญาราคาของ {{v:item}} จะสิ้นสุดในวันที่ {{v:lastDay}} เหลืออีก {{v:daysLeft}} วัน",
+      "ที่ผ่านมามีการซื้อรายการนี้ {{v:purchases}} ครั้ง ที่ราคา {{v:price}} บาท",
+      "ยอดใช้จ่ายรวมภายใต้สัญญานี้คือ {{v:spent}} บาท จึงยังไม่มียอดประหยัดที่คำนวณได้"
+    ]
+  },
+  "usage": {
+    "input": 157,
+    "output": 205,
+    "cacheRead": 709,
+    "cacheWrite": 0
+  }
+}

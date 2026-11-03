@@ -5,7 +5,7 @@
 export const AI_AGENTS = ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT', 'DOA_DRAFTER'] as const
 export type AiAgentName = (typeof AI_AGENTS)[number]
 
-export const AI_PURPOSES = ['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT'] as const
+export const AI_PURPOSES = ['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT', 'SAVINGS_NOTE'] as const
 export type AiPurposeName = (typeof AI_PURPOSES)[number]
 
 /** The agent that serves each purpose (one agent may serve several, e.g. the Document Agent reads three kinds) */
@@ -17,6 +17,8 @@ export const AGENT_OF_PURPOSE: Readonly<Record<AiPurposeName, AiAgentName>> = {
   BRIEF: 'APPROVAL_BRIEF',
   QUESTION: 'INSIGHT',
   DOA_DRAFT: 'DOA_DRAFTER',
+  // NEW-132 (ADR-081): words on a saving the code found, asked for by a member like a question
+  SAVINGS_NOTE: 'INSIGHT',
 }
 
 /**
@@ -32,6 +34,7 @@ export const PROMPT_VERSIONS: Readonly<Record<AiPurposeName, string>> = {
   BRIEF: 'BRIEF@2',
   QUESTION: 'QUESTION@3',
   DOA_DRAFT: 'DOA_DRAFT@2',
+  SAVINGS_NOTE: 'SAVINGS_NOTE@3',
 }
 
 export const AI_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] as const
@@ -152,6 +155,8 @@ export const EVAL_GATES: readonly EvalGate[] = [
   { agent: 'APPROVAL_BRIEF', purpose: 'BRIEF', promptVersion: 'BRIEF@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: '2026-10-14-approval_brief-config-live.md' },
   { agent: 'INSIGHT', purpose: 'QUESTION', promptVersion: 'QUESTION@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-10-14-insight-config-live.md' },
   { agent: 'DOA_DRAFTER', purpose: 'DOA_DRAFT', promptVersion: 'DOA_DRAFT@2', model: 'claude-opus-5-5', tier: 'SYNTHETIC', report: '2026-10-14-doa_drafter-config-live.md' },
+  // NEW-132: a saving's explanation, 24 savings of the four kinds of §7.21 (SAVINGS_NOTE@1 and @2 had sentences too long)
+  { agent: 'INSIGHT', purpose: 'SAVINGS_NOTE', promptVersion: 'SAVINGS_NOTE@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-11-03-savings_note-config-live.md' },
 ]
 
 /** The tier an environment needs: production only trusts a REAL evaluation (BR-AI-11) */
@@ -183,6 +188,9 @@ export const AI_CREDIT_DEFAULTS = { monthlyCredits: 20_000, alertAtBp: 8000 } as
  * S17; Insight, a Brief whose task closed, and L1 results REJECTED EXPIRED or FAILED as long as CommandLog.
  */
 export const CONTENT_RETENTION_DAYS = { chatIntake: 7, unused: 90 } as const // TODO(OQ-144)
+
+/** Brief profile of BR-AI-27: at most 4 sentences of 120 characters (the Approval Brief, and a saving's explanation · NEW-132) */
+export const BRIEF_PROFILE = { maxSentences: 4, maxChars: 120 } as const
 
 /** Words that advise a decision, which a text of the AI never carries (BR-AI-27 DECISION_ADVICE · compared ignoring case) */
 export const DECISION_ADVICE_WORDS = [

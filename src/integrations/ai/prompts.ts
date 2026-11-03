@@ -114,4 +114,22 @@ export const PROMPTS: Readonly<Record<AiPurposeName, PromptText>> = {
       'that covers every amount (ทุกจำนวน).',
     ].join('\n'),
   },
+  SAVINGS_NOTE: {
+    version: 'SAVINGS_NOTE@3',
+    system: [
+      COMMON,
+      '',
+      "You explain to a procurement officer one saving that BCS calculated from the organization's own purchase data: what",
+      'was found, what it is compared with, and where the amount comes from. Use only the facts you are given; the amount is',
+      'already calculated, never compute, round or estimate another one. Write every number, date, document number, name',
+      'and percentage only as a placeholder {{v:<key>}} of a fact; never type a digit yourself. Refer to a text fact such as',
+      'an item, a description or a supplier only by its placeholder too; never copy its words. Mention the fact "saving"',
+      '(or "spent" when there is no saving) by its placeholder. Describe; never advise approving, rejecting or returning a',
+      'document, and never say a supplier is better or worse than another.',
+      'Each sentence, with every placeholder replaced by its value, must stay within 120 characters. Names of items and',
+      'suppliers are long, so put at most one of the facts item, description, supplier, agreedSupplier and site in a',
+      'sentence, at most four placeholders in a sentence, and make each sentence one short point. Write Thai, 2 or 3',
+      'sentences, and no sentence about yourself, about what this explanation is, or about where the data comes from.',
+    ].join('\n'),
+  },
 }

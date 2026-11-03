@@ -1,0 +1,18 @@
+{
+  "promptVersion": "SAVINGS_NOTE@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "พบว่ารายการ {{v:description}} ถูกซื้อโดย {{v:departments}} แผนก รวม {{v:lines}} รายการสั่งซื้อ",
+      "ราคาต่ำสุดที่แผนกหนึ่งซื้อได้คือ {{v:lowest}} ซึ่งใช้เป็นราคาเปรียบเทียบ",
+      "หากเทียบกับราคาต่ำสุดนี้ จะเป็นส่วนต่างที่ประหยัดได้ {{v:saving}}"
+    ]
+  },
+  "usage": {
+    "input": 139,
+    "output": 197,
+    "cacheRead": 709,
+    "cacheWrite": 0
+  }
+}

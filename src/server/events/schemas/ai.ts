@@ -7,7 +7,7 @@ import { defineEvents } from '../registry'
 // clears it. Events whose actor is AI_AGENT belong to AgentAction only (INV-AI-01).
 
 const agent = z.enum(['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT', 'DOA_DRAFTER'])
-const purpose = z.enum(['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT'])
+const purpose = z.enum(['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT', 'SAVINGS_NOTE'])
 const level = z.enum(['L0', 'L1'])
 const subject = { subjectType: z.string().min(1), subjectId: z.uuid() }
 const tokens = {

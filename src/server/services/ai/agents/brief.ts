@@ -2,7 +2,7 @@ import { checkAiText, renderValue, type TextValue } from '@/core/ai-checks'
 import { satangToAmount } from '@/core/money/dto'
 import { err, ok, type Result } from '@/core/result'
 import { getAiClient } from '@/integrations/ai'
-import { DECISION_ADVICE_WORDS, modelForPurpose } from '@/lib/ai-config'
+import { BRIEF_PROFILE, DECISION_ADVICE_WORDS, modelForPurpose } from '@/lib/ai-config'
 import { BriefText, briefInputText } from '@/lib/ai-schemas/agents'
 import { MS_PER_DAY, MS_PER_HOUR } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
@@ -24,8 +24,7 @@ import { agentSwitchedOn, aiRuntime } from '../gate'
 // given are kept. A reader sees the sentences only when their own facts hold every one of those keys, filled with their
 // own values; otherwise the facts alone. The Brief never decides and is never on a LINE card or a push.
 
-/** Brief profile of BR-AI-27: at most 4 sentences of 120 characters */
-export const BRIEF_PROFILE = { maxSentences: 4, maxChars: 120 } as const
+export { BRIEF_PROFILE }
 const SUPPLIER_HISTORY_DAYS = 365
 /** Steps a Brief is written for; REVIEW and COMMITTEE steps come with S6 (getRouteView) and get none (BR-AI-20) */
 const BRIEF_SUBJECTS = ['REQUEST', 'PURCHASE_ORDER'] as const

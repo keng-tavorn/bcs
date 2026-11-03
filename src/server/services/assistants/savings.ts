@@ -1,17 +1,17 @@
-import { createHash } from 'node:crypto'
 import { lineKey } from '@/core/duplicates'
 import { parseQuantity } from '@/core/money/math'
 import { agreementDay } from '@/core/pricing/agreement'
 import { formatQuantity } from '@/core/receiving'
 import { err, ok, type Result } from '@/core/result'
-import { findSavings, SAVINGS_KINDS, type OpenLine, type Opportunity, type Purchase, type SavingsAgreement, type SavingsKind } from '@/core/savings'
+import { agreementsToBuyAt, findSavings, SAVINGS_KINDS, type OpenLine, type Opportunity, type Purchase, type SavingsAgreement, type SavingsKind } from '@/core/savings'
 import { MS_PER_DAY } from '@/lib/constants'
 import { loadPrincipal, scopesFor, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
-import { forTenant, type TenantTx } from '@/server/db/tenant'
+import type { TenantTx } from '@/server/db/tenant'
 import { priceRefSettingsOf } from '@/server/queries/price-reference'
 import { freeLines } from '../procurement/pool'
-import { AGREEMENT_DAYS } from './suggestions'
+import { reportTx } from '../reports/tx'
+import { AGREEMENT_DAYS, setKey } from './suggestions'
 
 // The savings assistant (NEW-123 · FR-VIS-008 · ADR-081 · spec §7.21): what the organization's own data shows could be
 // bought for less — a price above what was paid before, a catalogue line off its agreed price, one item several
@@ -48,6 +48,7 @@ export interface SavingsLineDto {
 }
 
 export interface SavingsPurchaseDto {
+  readonly poLineId: string
   readonly poId: string
   readonly poNumber: string
   readonly approvedAt: string
@@ -132,8 +133,6 @@ export function readsSavings(principal: Principal): boolean {
 const nameOf = (r: { nameTh: string; nameEn?: string | null }): Name => ({ th: r.nameTh, en: r.nameEn ?? null })
 const day = (d: Date) => d.toISOString().slice(0, 10)
 const scaledText = (d: { toString(): string }) => parseQuantity(d.toString())
-/** A group of lines named by its members, whatever order they came in */
-const setKey = (ids: readonly string[]) => `${ids.length}:${createHash('sha256').update([...ids].sort().join(',')).digest('hex').slice(0, 16)}`
 
 export function savingsKeyOf(o: Opportunity): string {
   switch (o.kind) {
@@ -247,18 +246,33 @@ async function purchasesIn(tx: TenantTx, lines: readonly LineFacts[], agreementI
       description: true,
       uom: true,
       quantity: true,
+      cancelledQuantity: true,
       unitPriceSatang: true,
       netSatang: true,
       po: { select: { id: true, number: true, approvedAt: true, priceIncludesVat: true, supplier: { select: { nameTh: true, nameEn: true } } } },
-      sources: { select: { requestLine: { select: { catalogItemId: true, priceAgreementId: true } } } },
+      sources: { select: { quantity: true, requestLine: { select: { catalogItemId: true, priceAgreementId: true } } } },
     },
   })
 }
 
-/** Every saving of the organization for a member who reads every PO and request (FR-VIS-008) */
+/**
+ * What a PO line bought at each agreed price its sources took: the quantity of those sources, never more than the line
+ * kept after what was cancelled (a cancellation is the line's, not a source's)
+ */
+function boughtAtAgreements(line: { quantity: { toString(): string }; cancelledQuantity: { toString(): string }; sources: ReadonlyArray<{ quantity: { toString(): string }; requestLine: { priceAgreementId: string | null } }> }) {
+  const kept = scaledText(line.quantity) - scaledText(line.cancelledQuantity)
+  const byAgreement = new Map<string, bigint>()
+  for (const s of line.sources) if (s.requestLine.priceAgreementId) byAgreement.set(s.requestLine.priceAgreementId, (byAgreement.get(s.requestLine.priceAgreementId) ?? 0n) + scaledText(s.quantity))
+  return [...byAgreement].map(([id, q]) => ({ id, quantity: formatQuantity(q < kept ? q : kept > 0n ? kept : 0n) }))
+}
+
+/**
+ * Every saving of the organization for a member who reads every PO and request (FR-VIS-008), read in one snapshot with
+ * the time a report may take (reportTx)
+ */
 export async function savingsOpportunities(ctx: Ctx): Promise<Result<SavingsDto>> {
   if (ctx.actor.type !== 'USER') return err('FORBIDDEN', 'the savings are a member’s page')
-  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+  return reportTx(ctx, async (tx) => {
     const principal = await loadPrincipal(tx, ctx)
     if (!readsSavings(principal)) return err('FORBIDDEN', 'missing capability po.view or request.view of the organization', { capability: 'po.view' })
     const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
@@ -274,12 +288,14 @@ export async function savingsOpportunities(ctx: Ctx): Promise<Result<SavingsDto>
       select: { id: true, catalogItemId: true, supplierId: true, unitPriceSatang: true, validFrom: true, validTo: true, endedAt: true, catalogItem: { select: { nameTh: true, nameEn: true } }, supplier: { select: { nameTh: true, nameEn: true } } },
     })
     const agreements: SavingsAgreement[] = agreementRows.map((a) => ({ id: a.id, catalogItemId: a.catalogItemId, supplierId: a.supplierId, unitPriceSatang: a.unitPriceSatang, validFrom: day(a.validFrom), validTo: day(a.validTo), ended: a.endedAt !== null }))
-    const rows = await purchasesIn(tx, [...lines.values()], agreementRows.map((a) => a.id), new Date(ctx.now.getTime() - ref.windowDays * MS_PER_DAY), ctx.now)
+    // What was bought matters only for an agreed price that may be ending (BR-SAV-04)
+    const until = day(new Date(todayDate.getTime() + AGREEMENT_DAYS * MS_PER_DAY))
+    const ending = agreements.filter((a) => !a.ended && a.validFrom <= today && a.validTo <= until).map((a) => a.id)
+    const rows = await purchasesIn(tx, [...lines.values()], ending, new Date(ctx.now.getTime() - ref.windowDays * MS_PER_DAY), ctx.now)
     const purchases: Purchase[] = rows.flatMap((r) => {
       if (!r.po.approvedAt) return []
       const catalogItemId = r.sources.map((s) => s.requestLine.catalogItemId).find((id): id is string => Boolean(id)) ?? null
-      const agreementIds = [...new Set(r.sources.map((s) => s.requestLine.priceAgreementId).filter((id): id is string => Boolean(id)))]
-      return [{ ref: r.id, key: lineKey({ catalogItemId, description: r.description, uom: r.uom }), approvedAt: r.po.approvedAt, unitPriceSatang: r.unitPriceSatang, priceIncludesVat: r.po.priceIncludesVat, netSatang: r.netSatang, agreementIds }]
+      return [{ ref: r.id, key: lineKey({ catalogItemId, description: r.description, uom: r.uom }), approvedAt: r.po.approvedAt, unitPriceSatang: r.unitPriceSatang, priceIncludesVat: r.po.priceIncludesVat, agreements: boughtAtAgreements(r) }]
     })
 
     const found = findSavings({ lines: [...lines.values()].map((l) => l.open), purchases, agreements }, { ...ref, at: ctx.now, today, agreementDays: AGREEMENT_DAYS })
@@ -287,7 +303,7 @@ export async function savingsOpportunities(ctx: Ctx): Promise<Result<SavingsDto>
     const purchaseRows = new Map(
       rows.map((r) => [
         r.id,
-        { poId: r.po.id, poNumber: r.po.number ?? '', approvedAt: r.po.approvedAt?.toISOString() ?? '', supplier: nameOf(r.po.supplier), quantity: formatQuantity(scaledText(r.quantity)), unitPriceSatang: r.unitPriceSatang.toString(), netSatang: r.netSatang.toString() } satisfies SavingsPurchaseDto,
+        { poLineId: r.id, poId: r.po.id, poNumber: r.po.number ?? '', approvedAt: r.po.approvedAt?.toISOString() ?? '', supplier: nameOf(r.po.supplier), quantity: formatQuantity(scaledText(r.quantity)), unitPriceSatang: r.unitPriceSatang.toString(), netSatang: r.netSatang.toString() } satisfies SavingsPurchaseDto,
       ]),
     )
     const agreementById = new Map(agreementRows.map((a) => [a.id, a]))
@@ -318,9 +334,8 @@ export async function savingsOpportunities(ctx: Ctx): Promise<Result<SavingsDto>
         case 'OFF_AGREEMENT': {
           const line = lines.get(o.line)!
           const agreed = agreementById.get(o.agreementId)!
-          const inEffect = agreements
-            .filter((a) => a.catalogItemId === agreed.catalogItemId && a.validFrom <= today && today < a.validTo)
-            .sort((a, b) => (a.unitPriceSatang < b.unitPriceSatang ? -1 : a.unitPriceSatang > b.unitPriceSatang ? 1 : a.id < b.id ? -1 : 1))
+          // the same list the saving was counted against, the lowest first (agreementsToBuyAt)
+          const inEffect = agreementsToBuyAt(agreements, agreed.catalogItemId, today)
           return {
             kind: o.kind,
             key,

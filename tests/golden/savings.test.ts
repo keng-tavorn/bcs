@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
-import { lineNet } from '@/core/money/math'
 import { findSavings, type OpenLine, type Opportunity, type Purchase, type SavingsAgreement } from '@/core/savings'
 import { loadYaml } from './doa-fixtures'
 
-// tests/golden/savings.yaml (spec §7.21 · NEW-123): GC-SAV-01 to GC-SAV-16, the savings the assistant finds (BR-SAV-01
+// tests/golden/savings.yaml (spec §7.21 · NEW-123): GC-SAV-01 to GC-SAV-18, the savings the assistant finds (BR-SAV-01
 // to BR-SAV-06). A line or purchase of `item` is a catalogue item keyed item:<item> (BR-DUP-01); one of `d` is keyed d.
 
 interface Defaults {
@@ -41,6 +40,8 @@ interface PurchaseIn {
   approvedAt?: string
   includesVat?: boolean
   agreement?: string
+  /** What the line bought at the agreed price (default: qty) */
+  agreementQty?: string
 }
 interface AgreementIn {
   id: string
@@ -84,9 +85,7 @@ const purchaseOf = (p: PurchaseIn): Purchase => {
     approvedAt: new Date(p.approvedAt ?? df.approvedAt),
     unitPriceSatang: unit,
     priceIncludesVat: p.includesVat ?? false,
-    // the line's amount as the PO line stores it (BR-MONEY-02 (1))
-    netSatang: lineNet(p.qty ?? df.qty, unit),
-    agreementIds: p.agreement ? [p.agreement] : [],
+    agreements: p.agreement ? [{ id: p.agreement, quantity: p.agreementQty ?? p.qty ?? df.qty }] : [],
   }
 }
 
@@ -115,7 +114,7 @@ function shown(o: Opportunity): Record<string, unknown> {
 }
 
 describe('[FR-VIS-008/AC1] golden savings.yaml', () => {
-  it('has the cases of NEW-123', () => expect(suite.cases.map((c) => c.id)).toEqual(Array.from({ length: 16 }, (_, i) => `GC-SAV-${String(i + 1).padStart(2, '0')}`)))
+  it('has the cases of NEW-123', () => expect(suite.cases.map((c) => c.id)).toEqual(Array.from({ length: 18 }, (_, i) => `GC-SAV-${String(i + 1).padStart(2, '0')}`)))
   for (const c of suite.cases) {
     it(`[${c.id}] ${c.title ?? ''}`.trim(), () => {
       const result = findSavings(

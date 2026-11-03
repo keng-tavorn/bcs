@@ -52,8 +52,7 @@ const purchases = fc.uniqueArray(
       approvedAt: new Date(at.getTime() - p.daysAgo * 86_400_000 - 1),
       unitPriceSatang: p.unitPriceSatang,
       priceIncludesVat: p.priceIncludesVat,
-      netSatang: lineNet(p.quantity, p.unitPriceSatang),
-      agreementIds: p.agreement ? [p.agreement] : [],
+      agreements: p.agreement ? [{ id: p.agreement, quantity: p.quantity }] : [],
     }),
   ),
 )

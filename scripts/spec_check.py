@@ -1255,6 +1255,7 @@ def run_savings(d):
         i = c["input"]
         lines = sorted([{**{k: df[k] for k in ("stage", "dept", "site", "kind", "supplier", "qty", "includesVat")}, **l} for l in i.get("lines", [])], key=lambda l: l["ref"])
         buys = [{**{"approvedAt": df["approvedAt"], "qty": df["qty"], "includesVat": False, "agreement": None}, **p} for p in i.get("purchases", [])]
+        for b in buys: b.setdefault("agreementQty", b["qty"])
         ags = [{**{"ended": False}, **a} for a in i.get("agreements", [])]
         inwin = lambda p: start <= dt(p["approvedAt"]) < at
         latest = lambda ps: [p["ref"] for p in sorted(ps, key=lambda p: (-dt(p["approvedAt"]).timestamp(), p["ref"]))]
@@ -1271,8 +1272,9 @@ def run_savings(d):
                     if s > 0: opp.append((s, 0, l["ref"], {"kind": "PRICE_ABOVE_HISTORY", "line": l["ref"], "saving": baht(s), "reference": baht(med), "count": len(xs), "purchases": latest(used)}))
             if l.get("item"):
                 eff = [a for a in ags if a["item"] == l["item"] and a["validFrom"] <= df["today"] < a["validTo"]]
-                if eff and not any(a["supplier"] == l["supplier"] for a in eff):
-                    a = min(eff, key=lambda a: (sat(a["unitPrice"]), a["id"]))
+                buyable = [a for a in eff if not a["ended"]]
+                if buyable and not any(a["supplier"] == l["supplier"] for a in eff):
+                    a = min(buyable, key=lambda a: (sat(a["unitPrice"]), a["id"]))
                     s = line_net(q, p) - line_net(q, sat(a["unitPrice"]))
                     if s > 0: opp.append((s, 1, l["ref"], {"kind": "OFF_AGREEMENT", "line": l["ref"], "saving": baht(s), "agreement": a["id"], "agreed": baht(sat(a["unitPrice"]))}))
         groups = {}
@@ -1293,7 +1295,7 @@ def run_savings(d):
             if a["ended"] or not (a["validFrom"] <= df["today"] < a["validTo"]) or left > st["agreementDays"]: continue
             if any(b is not a and not b["ended"] and b["item"] == a["item"] and b["supplier"] == a["supplier"] and b["validFrom"] == a["validTo"] for b in ags): continue
             bought = [b for b in buys if b["agreement"] == a["id"] and inwin(b) and not b["includesVat"]]
-            exp.append({"kind": "AGREEMENT_EXPIRING", "agreement": a["id"], "daysLeft": left, "spent": baht(sum(line_net(b["qty"], sat(b["unitPrice"])) for b in bought)), "purchases": latest(bought)})
+            exp.append({"kind": "AGREEMENT_EXPIRING", "agreement": a["id"], "daysLeft": left, "spent": baht(sum(line_net(b["agreementQty"], sat(b["unitPrice"])) for b in bought)), "purchases": latest(bought)})
         got = {"total": baht(sum(best.values())), "opportunities": [o[3] for o in opp] + exp}
         out.append((c["id"], got == c["expect"], got))
     return out

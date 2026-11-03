@@ -71,7 +71,7 @@ const nameOf = (r: { displayNameTh: string; displayNameEn: string | null }): Nam
  * What names a suggestion about a set (the low budget lines, the agreed prices ending): its members, whichever order they
  * came in, in a few characters — so another line becoming low as one is topped up is a new situation, not the one set aside
  */
-const setKey = (ids: readonly string[]) => `${ids.length}:${createHash('sha256').update([...ids].sort().join(',')).digest('hex').slice(0, 16)}`
+export const setKey = (ids: readonly string[]) => `${ids.length}:${createHash('sha256').update([...ids].sort().join(',')).digest('hex').slice(0, 16)}`
 const tone = (kind: SuggestionKind) => SUGGESTION_TONE[kind]
 
 async function followed(ctx: Ctx, me: string): Promise<SuggestionDto[]> {

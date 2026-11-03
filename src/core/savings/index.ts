@@ -39,10 +39,11 @@ export interface Purchase {
   readonly approvedAt: Date
   readonly unitPriceSatang: Satang
   readonly priceIncludesVat: boolean
-  /** The line's amount (BR-MONEY-02 (1)) */
-  readonly netSatang: Satang
-  /** The agreed prices its request lines took (BR-PRC-06) */
-  readonly agreementIds: readonly string[]
+  /**
+   * The agreed prices its request lines took (BR-PRC-06), each with the quantity bought at it: what the sources at that
+   * price order, never more than the line kept after what was cancelled
+   */
+  readonly agreements: ReadonlyArray<{ readonly id: string; readonly quantity: string }>
 }
 
 export interface SavingsAgreement extends AgreementPeriod {
@@ -149,12 +150,25 @@ function aboveHistory(line: OpenLine, purchases: readonly Purchase[], settings: 
   }
 }
 
-/** BR-SAV-02: a catalogue line priced before VAT whose supplier has none of the item's agreed prices in effect today */
+/**
+ * The agreed prices a line could still be bought at: in effect, and not ended — an ended one holds for its last day only
+ * (BR-PRC-06), so no order still to be placed is counted against it — the lowest first, the smaller id on a tie
+ */
+export function agreementsToBuyAt<A extends SavingsAgreement>(agreements: readonly A[], catalogItemId: string, today: string): A[] {
+  return agreementsInEffect(agreements, catalogItemId, today)
+    .filter((a) => !a.ended)
+    .sort((a, b) => (a.unitPriceSatang < b.unitPriceSatang ? -1 : a.unitPriceSatang > b.unitPriceSatang ? 1 : a.id < b.id ? -1 : 1))
+}
+
+/**
+ * BR-SAV-02: a catalogue line priced before VAT whose supplier has none of the item's agreed prices in effect today (an
+ * ended one still holds today), against the lowest one it could still be bought at
+ */
 function offAgreement(line: OpenLine, agreements: readonly SavingsAgreement[], settings: SavingsSettings): Opportunity | null {
   if (line.priceIncludesVat || !line.catalogItemId) return null
-  const inEffect = agreementsInEffect(agreements, line.catalogItemId, settings.today)
-  if (inEffect.length === 0 || inEffect.some((a) => a.supplierId === line.supplierId)) return null
-  const best = [...inEffect].sort((a, b) => (a.unitPriceSatang < b.unitPriceSatang ? -1 : a.unitPriceSatang > b.unitPriceSatang ? 1 : a.id < b.id ? -1 : 1))[0]!
+  if (agreementsInEffect(agreements, line.catalogItemId, settings.today).some((a) => a.supplierId === line.supplierId)) return null
+  const best = agreementsToBuyAt(agreements, line.catalogItemId, settings.today)[0]
+  if (!best) return null
   const savingSatang = savedOn(line.quantity, line.unitPriceSatang, best.unitPriceSatang)
   return savingSatang > 0n ? { kind: 'OFF_AGREEMENT', line: line.ref, savingSatang, agreementId: best.id, agreedSatang: best.unitPriceSatang } : null
 }
@@ -196,13 +210,15 @@ function expiring(agreements: readonly SavingsAgreement[], purchases: readonly P
     .sort((a, b) => (a.validTo < b.validTo ? -1 : a.validTo > b.validTo ? 1 : a.id < b.id ? -1 : 1))
     .map((a): Opportunity => {
       const bought = purchases
-        .filter((p) => p.agreementIds.includes(a.id) && !p.priceIncludesVat && p.approvedAt.getTime() >= from && p.approvedAt.getTime() < settings.at.getTime())
+        .filter((p) => p.agreements.some((g) => g.id === a.id) && !p.priceIncludesVat && p.approvedAt.getTime() >= from && p.approvedAt.getTime() < settings.at.getTime())
         .sort(latestFirst)
+      // what each line bought at this price, its own amount (BR-MONEY-02 (1))
+      const spentSatang = bought.reduce((s, p) => s + lineNet(p.agreements.find((g) => g.id === a.id)!.quantity, p.unitPriceSatang), 0n)
       return {
         kind: 'AGREEMENT_EXPIRING',
         agreementId: a.id,
         daysLeft: dayNumber(a.validTo) - today,
-        spentSatang: bought.reduce((s, p) => s + p.netSatang, 0n),
+        spentSatang,
         purchases: bought.map((p) => p.ref),
         savingSatang: null,
       }

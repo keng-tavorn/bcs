@@ -173,6 +173,19 @@ describe('[FR-VIS-008/AC1] the savings of the organization, each amount from fin
     expect(gloves.purchases.map((p) => [p.quantity, p.unitPriceSatang, p.netSatang])).toEqual([['20', '2500', '50000']])
   })
 
+  it('counts only what a PO line kept at the agreed price: a cancelled part was not bought (BR-SAV-04)', async () => {
+    // the PO line closed short by 8 pairs, as a cancellation leaves it (the PO's own commands are not what is tested)
+    const line = await prisma.poLine.findFirstOrThrow({ where: { organizationId: org.organizationId, sources: { some: { requestLine: { priceAgreementId: gloveAgreement } } } }, select: { id: true } })
+    await prisma.poLine.update({ where: { id: line.id }, data: { cancelledQuantity: '8' } })
+    try {
+      const [gloves] = byKind(ok(await savingsOpportunities(as('proc_officer'))).items, 'AGREEMENT_EXPIRING')
+      if (gloves?.kind !== 'AGREEMENT_EXPIRING') throw new Error('no gloves')
+      expect([gloves.spentSatang, gloves.count]).toEqual(['30000', 1])
+    } finally {
+      await prisma.poLine.update({ where: { id: line.id }, data: { cancelledQuantity: '0' } })
+    }
+  })
+
   it('reads only: nothing is written, no AI is asked', async () => {
     const before = await Promise.all([prisma.event.count({ where: { organizationId: org.organizationId } }), prisma.agentAction.count({ where: { organizationId: org.organizationId } })])
     ok(await savingsOpportunities(as('proc_officer')))
@@ -199,6 +212,9 @@ describe('[FR-VIS-008/AC2] who reads every PO and request sees the savings; nobo
   it('the system and the BCS team are refused', async () => {
     const system = await savingsOpportunities({ ...as('proc_officer'), actor: { type: 'SYSTEM' } })
     expect(system.ok ? 'OK' : system.error.code).toBe('FORBIDDEN')
+    // PLATFORM_ADMIN never reads a customer's business data (NG-12)
+    const platform = await savingsOpportunities({ ...as('proc_officer'), actor: { type: 'PLATFORM_ADMIN', platformAdminId: randomUUID() } })
+    expect(platform.ok ? 'OK' : platform.error.code).toBe('FORBIDDEN')
   })
 })
 

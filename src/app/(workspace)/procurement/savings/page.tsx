@@ -37,7 +37,7 @@ function columns(t: SavingsT, keys: ReadonlyArray<[string, boolean]>): ReportCol
 
 function purchaseRows(locale: Locale, purchases: readonly SavingsPurchaseDto[], withSupplier: boolean): ReportRowView[] {
   return purchases.map((p) => ({
-    id: `${p.poId}:${p.approvedAt}:${p.unitPriceSatang}:${p.quantity}`,
+    id: p.poLineId,
     cells: {
       po: { text: p.poNumber, href: `/procurement/pos/${p.poId}` },
       approvedAt: { text: p.approvedAt ? day(locale, p.approvedAt) : '' },

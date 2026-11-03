@@ -958,7 +958,7 @@ features:
       - tests/unit/savings-words.test.ts
       - tests/e2e/savings.spec.ts
     verifiedBy: null
-    notes: "NEW-123 (ADR-081): /procurement/savings, the four kinds of §7.21 from findSavings (golden GC-SAV-01 to 16), for po.view and request.view of the organization, no AI · a price above history and the departments' groups count goods only, which takes effect when NEW-96 sets the kind of a line · the AI's explanation of a saving is NEW-132 (its purpose needs an evaluation first)"
+    notes: "NEW-123 (ADR-081): /procurement/savings, the four kinds of §7.21 from findSavings (golden GC-SAV-01 to 18), for po.view and request.view of the organization, no AI · a price above history and the departments' groups count goods only, which takes effect when NEW-96 sets the kind of a line · the AI's explanation of a saving is NEW-132 (its purpose needs an evaluation first)"
   FR-INT-010:
     status: done
     step: S16

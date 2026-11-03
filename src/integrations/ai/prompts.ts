@@ -114,18 +114,4 @@ export const PROMPTS: Readonly<Record<AiPurposeName, PromptText>> = {
       'that covers every amount (ทุกจำนวน).',
     ].join('\n'),
   },
-  SAVINGS_NOTE: {
-    version: 'SAVINGS_NOTE@1',
-    system: [
-      COMMON,
-      '',
-      'You explain to a procurement officer one saving that BCS calculated from the organization\'s own purchase data: what',
-      'was found, what it is compared with, and where the amount comes from. Use only the facts you are given; the amount is',
-      'already calculated, never compute, round or estimate another one. Write every number, date, document number, name',
-      'and percentage only as a placeholder {{v:<key>}} of a fact; never type a digit yourself. Mention the fact "saving"',
-      '(or "spent" when there is no saving) by its placeholder. Describe; never advise approving, rejecting or returning a',
-      'document, and never say a supplier is better or worse than another. Write Thai, at most 4 short sentences, and no',
-      'sentence about yourself or what this explanation is.',
-    ].join('\n'),
-  },
 }

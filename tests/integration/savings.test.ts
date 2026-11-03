@@ -1,11 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { agreementDay } from '@/core/pricing/agreement'
-import { setAiClientForTests, type AiClient, type AiRequest } from '@/integrations/ai'
-import { EVAL_GATES, PROMPT_VERSIONS } from '@/lib/ai-config'
 import { MS_PER_DAY } from '@/lib/constants'
 import { prisma } from '@/server/db/client'
-import { explainSaving, runMonthlyGrant, savingsNoteAvailable, savingsNotesOf, setAiRuntimeForTests, updateAgentSetting, type AiRuntime } from '@/server/services/ai'
 import { savingsOpportunities, type SavingsItemDto } from '@/server/services/assistants/savings'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
@@ -17,7 +14,6 @@ import { createDraft, submitRequest } from '../support/requests'
 // after a PO bought at it — and only who reads every PO and request sees them.
 
 const NOW = new Date('2026-10-20T03:00:00Z')
-const FIXTURE: AiRuntime = { enabled: true, mode: 'fixture', appEnv: 'local', modelEnv: {}, gates: [] }
 const DRILL = 'สว่านไฟฟ้า 18V (ประหยัด)'
 const CEMENT = 'ปูนซีเมนต์ถุง 50 กก. (ประหยัด)'
 
@@ -206,114 +202,3 @@ describe('[FR-VIS-008/AC2] who reads every PO and request sees the savings; nobo
   })
 })
 
-// ---------- the assistant's words (FR-VIS-008 AC3) ----------
-
-/** Answers every write with `sentences`; records what was sent */
-function writing(sentences: string[]) {
-  const sent: Array<AiRequest<unknown>> = []
-  const client: AiClient = {
-    mode: 'fixture',
-    extract: async () => {
-      throw new Error('not used')
-    },
-    write: async (request) => {
-      sent.push(request as AiRequest<unknown>)
-      return { ok: true, promptVersion: PROMPT_VERSIONS[request.purpose], model: request.model, output: request.schema.parse({ sentences }), usage: { input: 600, output: 80, cacheRead: 0, cacheWrite: 0 }, latencyMs: 250 }
-    },
-  }
-  setAiClientForTests(client)
-  return sent
-}
-const drillKey = async (code = 'proc_officer') => byKind(ok(await savingsOpportunities(as(code))).items, 'PRICE_ABOVE_HISTORY')[0]!.key
-const actionsOf = () => prisma.agentAction.count({ where: { organizationId: org.organizationId, purpose: 'SAVINGS_NOTE' } })
-
-describe('[FR-VIS-008/AC3] the assistant words a saving the code found, never decides', () => {
-  beforeAll(async () => {
-    await prisma.orgModule.create({ data: { organizationId: org.organizationId, module: 'AI', enabled: true, enabledAt: new Date('2026-01-01T00:00:00+07:00'), contractRef: 'TEST-NEW123', reason: 'ทดสอบผู้ช่วยหาเงินประหยัด' } })
-    setAiRuntimeForTests(FIXTURE)
-    expect((await updateAgentSetting(as('admin'), { agent: 'INSIGHT', enabled: true }, key())).ok).toBe(true)
-    expect((await runMonthlyGrant(org.organizationId, NOW)).ok).toBe(true)
-  })
-  afterEach(() => {
-    setAiRuntimeForTests(FIXTURE)
-    setAiClientForTests(null)
-  })
-
-  it('fills the placeholders with the code’s facts, records an L0 call with its credits, and shows it again on the page', async () => {
-    const sent = writing(['คำขอ {{v:request}} ขอราคา {{v:price}} บาท สูงกว่าค่ากลาง {{v:reference}} บาท อยู่ {{v:deviation}}', 'ถ้าซื้อที่ค่ากลางจะถูกลง {{v:saving}} บาท'])
-    const k = await drillKey()
-    const note = ok(await explainSaving(as('proc_officer'), { key: k }, key()))
-    expect(note.status).toBe('READY')
-    expect(note.sentences[0]).toMatch(/^คำขอ PR-\S+ ขอราคา 2,700\.00 บาท สูงกว่าค่ากลาง 2,400\.00 บาท อยู่ 12\.5%$/)
-    expect(note.sentences[1]).toBe('ถ้าซื้อที่ค่ากลางจะถูกลง 600.00 บาท')
-    // the model reads the code's figures and is asked for words only
-    expect(sent).toHaveLength(1)
-    expect(sent[0]!.purpose).toBe('SAVINGS_NOTE')
-    expect(sent[0]!.text).toContain('saving = 600.00')
-    expect(sent[0]!.text).toContain('reference = 2,400.00')
-    const row = await prisma.agentAction.findUniqueOrThrow({ where: { id: note.agentActionId }, select: { agent: true, purpose: true, level: true, status: true, requestedById: true, costCredits: true } })
-    expect(row).toMatchObject({ agent: 'INSIGHT', purpose: 'SAVINGS_NOTE', level: 'L0', status: 'DRAFT', requestedById: org.member.proc_officer })
-    expect(row.costCredits).toBeGreaterThan(0)
-    // the page reads the member's own explanation again, with today's values
-    const items = ok(await savingsOpportunities(as('proc_officer'))).items
-    expect((await savingsNotesOf(as('proc_officer'), items)).get(k)?.sentences).toEqual(note.sentences)
-    // another member reading the same savings has none of it
-    expect((await savingsNotesOf(as('fin_officer'), items)).has(k)).toBe(false)
-  })
-
-  it.each([
-    ['DECISION_ADVICE', ['ควรอนุมัติคำขอ {{v:request}} เพราะถูกลง {{v:saving}} บาท']],
-    ['DIGIT_OUTSIDE_PLACEHOLDER', ['ซื้อที่ค่ากลางจะถูกลง 600 บาท']],
-    ['UNKNOWN_VALUE', ['ผู้ขายรายนี้ดีกว่า {{v:betterSupplier}}']],
-  ])('throws away a text that fails BR-AI-27 (%s): nothing shown, the figures stay', async (reason, sentences) => {
-    writing(sentences)
-    const k = await drillKey()
-    const note = ok(await explainSaving(as('fin_officer'), { key: k }, key()))
-    expect([note.status, note.sentences]).toEqual(['FAILED', []])
-    const row = await prisma.agentAction.findUniqueOrThrow({ where: { id: note.agentActionId }, select: { status: true, errorCode: true } })
-    expect(row).toEqual({ status: 'FAILED', errorCode: `AI_TEXT_${reason}` })
-    const items = ok(await savingsOpportunities(as('fin_officer'))).items
-    expect((await savingsNotesOf(as('fin_officer'), items)).has(k)).toBe(false)
-    expect(items.find((i) => i.key === k)?.savingSatang).toBe('60000')
-  })
-
-  it('who may not read the savings cannot have one explained: refused before any call or credits', async () => {
-    const sent = writing(['ถูกลง {{v:saving}} บาท'])
-    const k = await drillKey()
-    const before = await actionsOf()
-    for (const code of ['admin', 'req_con', 'dm_con']) {
-      const r = await explainSaving(as(code), { key: k }, key())
-      expect(r.ok ? 'OK' : r.error.code).toBe('FORBIDDEN')
-    }
-    const missing = await explainSaving(as('proc_officer'), { key: 'PRICE_ABOVE_HISTORY:not-a-line' }, key())
-    expect(missing.ok ? 'OK' : missing.error.code).toBe('NOT_FOUND')
-    expect([sent.length, await actionsOf()]).toEqual([0, before])
-  })
-
-  it('with the Insight agent off: no button, no explanation written before, no call; the savings stay', async () => {
-    const k = await drillKey()
-    expect(await savingsNoteAvailable(as('proc_officer'))).toBe(true)
-    expect((await updateAgentSetting(as('admin'), { agent: 'INSIGHT', enabled: false }, key())).ok).toBe(true)
-    try {
-      const sent = writing(['ถูกลง {{v:saving}} บาท'])
-      const before = await actionsOf()
-      expect(await savingsNoteAvailable(as('proc_officer'))).toBe(false)
-      const items = ok(await savingsOpportunities(as('proc_officer'))).items
-      expect(items).toHaveLength(4)
-      expect((await savingsNotesOf(as('proc_officer'), items)).size).toBe(0)
-      const r = await explainSaving(as('proc_officer'), { key: k }, key())
-      expect(r.ok ? 'OK' : r.error.code).toBe('AI_AGENT_DISABLED')
-      expect([sent.length, await actionsOf()]).toEqual([0, before])
-    } finally {
-      expect((await updateAgentSetting(as('admin'), { agent: 'INSIGHT', enabled: true }, key())).ok).toBe(true)
-    }
-  })
-
-  it('with AI off for the whole system, or live without an evaluation of this purpose, there is no button', async () => {
-    setAiRuntimeForTests({ ...FIXTURE, enabled: false })
-    expect(await savingsNoteAvailable(as('proc_officer'))).toBe(false)
-    expect(ok(await savingsOpportunities(as('proc_officer'))).items).toHaveLength(4)
-    setAiRuntimeForTests({ enabled: true, mode: 'live', appEnv: 'staging', modelEnv: {}, gates: EVAL_GATES })
-    expect(await savingsNoteAvailable(as('proc_officer'))).toBe(false)
-  })
-})

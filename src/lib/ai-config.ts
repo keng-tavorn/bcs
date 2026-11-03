@@ -5,7 +5,7 @@
 export const AI_AGENTS = ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT', 'DOA_DRAFTER'] as const
 export type AiAgentName = (typeof AI_AGENTS)[number]
 
-export const AI_PURPOSES = ['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT', 'SAVINGS_NOTE'] as const
+export const AI_PURPOSES = ['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT'] as const
 export type AiPurposeName = (typeof AI_PURPOSES)[number]
 
 /** The agent that serves each purpose (one agent may serve several, e.g. the Document Agent reads three kinds) */
@@ -17,8 +17,6 @@ export const AGENT_OF_PURPOSE: Readonly<Record<AiPurposeName, AiAgentName>> = {
   BRIEF: 'APPROVAL_BRIEF',
   QUESTION: 'INSIGHT',
   DOA_DRAFT: 'DOA_DRAFTER',
-  // NEW-123 (ADR-081): words on a saving the code found, asked for by a member like a question
-  SAVINGS_NOTE: 'INSIGHT',
 }
 
 /**
@@ -34,7 +32,6 @@ export const PROMPT_VERSIONS: Readonly<Record<AiPurposeName, string>> = {
   BRIEF: 'BRIEF@2',
   QUESTION: 'QUESTION@3',
   DOA_DRAFT: 'DOA_DRAFT@2',
-  SAVINGS_NOTE: 'SAVINGS_NOTE@1',
 }
 
 export const AI_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] as const

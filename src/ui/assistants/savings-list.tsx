@@ -1,6 +1,5 @@
 import { CalendarClock, Layers, Scale, Tag, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
-import type { ReactNode } from 'react'
 import { cn } from '../cn'
 import { ReportTable, type ReportColumnView, type ReportRowView } from '../insight/report-table'
 import { Badge } from '../shadcn/badge'
@@ -10,9 +9,8 @@ import { SavingsEvidence } from './savings-evidence'
 
 // The savings the assistant found (NEW-123 · FR-VIS-008 · ADR-081), one row each in the look of every assistant note
 // (ADR-078): the icon of the kind of saving on a tinted ground, what was found, why, the amount the code calculated in
-// tabular digits, one way to the page where it is dealt with, the evidence as a table that becomes a list on a phone
-// (§9.9), and the place where the assistant's own words go when the reader asks for them. No Sparkles here: the rows
-// come from the rules; only the explanation an AI wrote carries it (§12.5). Strings arrive translated.
+// tabular digits, one way to the page where it is dealt with, and the evidence as a table that becomes a list on a
+// phone (§9.9). No Sparkles: the rows come from the rules, not from an AI (§12.5 · ADR-078). Strings arrive translated.
 
 export type SavingsKindView = 'PRICE_ABOVE_HISTORY' | 'OFF_AGREEMENT' | 'SAME_ITEM_DEPARTMENTS' | 'AGREEMENT_EXPIRING'
 
@@ -48,17 +46,17 @@ export interface SavingsItemView {
   readonly evidence: SavingsEvidenceView
 }
 
-export function SavingsList({ items, labels, explain }: { items: readonly SavingsItemView[]; labels: { readonly show: string; readonly hide: string }; explain?: (item: SavingsItemView) => ReactNode }) {
+export function SavingsList({ items, labels }: { items: readonly SavingsItemView[]; labels: { readonly show: string; readonly hide: string } }) {
   return (
     <div role="list" className="flex flex-col">
       {items.map((item) => (
-        <SavingsRow key={item.key} item={item} labels={labels} explain={explain?.(item) ?? null} />
+        <SavingsRow key={item.key} item={item} labels={labels} />
       ))}
     </div>
   )
 }
 
-function SavingsRow({ item, labels, explain }: { item: SavingsItemView; labels: { readonly show: string; readonly hide: string }; explain: ReactNode }) {
+function SavingsRow({ item, labels }: { item: SavingsItemView; labels: { readonly show: string; readonly hide: string } }) {
   const Icon = ICONS[item.kind]
   const evidenceId = `savings-evidence-${item.key.replace(/[^A-Za-z0-9_-]/g, '-')}`
   return (
@@ -81,8 +79,8 @@ function SavingsRow({ item, labels, explain }: { item: SavingsItemView; labels: 
           </Badge>
         ) : null}
       </ItemContent>
-      {/* The row's full width below the icon on a phone, under the words from a computer: the way to the page, the
-          evidence and the assistant's words */}
+      {/* The row's full width below the icon on a phone, under the words from a computer: the way to the page and the
+          evidence */}
       <div className="flex min-w-0 basis-full flex-col gap-2 md:pl-12">
         <SavingsEvidence
           id={evidenceId}
@@ -108,7 +106,6 @@ function SavingsRow({ item, labels, explain }: { item: SavingsItemView; labels: 
             </p>
           ))}
         </SavingsEvidence>
-        {explain}
       </div>
     </Item>
   )

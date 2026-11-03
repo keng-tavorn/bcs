@@ -955,9 +955,10 @@ features:
       - tests/golden/savings.test.ts
       - tests/property/savings.property.test.ts
       - tests/integration/savings.test.ts
+      - tests/unit/savings-words.test.ts
       - tests/e2e/savings.spec.ts
     verifiedBy: null
-    notes: "NEW-123 (ADR-081): /procurement/savings, the four kinds of §7.21 from findSavings (golden GC-SAV-01 to 15), for po.view and request.view of the organization · the explanation SAVINGS_NOTE (Insight, L0) on a press, checked by BR-AI-27 · live mode shows the button once the purpose passes the evaluation (NEW-132)"
+    notes: "NEW-123 (ADR-081): /procurement/savings, the four kinds of §7.21 from findSavings (golden GC-SAV-01 to 16), for po.view and request.view of the organization, no AI · a price above history and the departments' groups count goods only, which takes effect when NEW-96 sets the kind of a line · the AI's explanation of a saving is NEW-132 (its purpose needs an evaluation first)"
   FR-INT-010:
     status: done
     step: S16

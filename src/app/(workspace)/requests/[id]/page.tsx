@@ -44,7 +44,7 @@ import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
 import { giveAiFeedbackAction } from '../../_shell/assistant-actions'
 import { canOpenDoaVersion, canViewRequest, taskRight } from '../../_tracking/access'
-import { askPart, assistantPanel, flagNote, priceNote, stepNote } from '../../_tracking/document-assistant'
+import { askPart, assistantPanel, flagNote, followUpOf, priceNote, stepNote } from '../../_tracking/document-assistant'
 import { requestBudgetState } from '../../_tracking/budget-state'
 import { commentViews, historyRows, requestHistoryKinds, routeWhy, stepCards } from '../../_tracking/document-present'
 import { day, doaHref, doaRefText, dueText, fileKind, localeOf, memberName, money, nameIn, stageText, stageWaitingMinutes, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
@@ -186,7 +186,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
   const panel = assistantPanel(tp, {
     brief,
     notes: [
-      stepNote(tp, locale, ctx.now, state.member.id, stage.kind === 'APPROVER' ? stage : null, `${here}#route`, followUps?.ok ? (followUps.data.items[0]?.taskId ?? null) : null),
+      stepNote(tp, locale, ctx.now, state.member.id, stage.kind === 'APPROVER' ? stage : null, `${here}#route`, followUpOf(followUps?.ok ? followUps.data.items : null, stage.kind === 'APPROVER' ? stage : null)),
       flagNote(tp, flags.ok ? flags.data : [], `${here}#request-flags`),
       decide && priceRef?.ok ? priceNote(tp, priceRef.data, `/tasks/${decide.id}#price-reference`) : null,
     ],

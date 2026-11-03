@@ -1,7 +1,8 @@
 import type { getTranslations } from 'next-intl/server'
 import { ASSISTANT_DUE_SOON_MS } from '@/lib/assistant-suggestions'
-import { FOLLOW_UP_PATH, followUpDraftAnchor } from '@/lib/follow-up'
+import { FOLLOW_UP_PATH, followUpDraftAnchor, followUpRowAnchor } from '@/lib/follow-up'
 import type { PriceReferenceDto } from '@/server/queries/price-reference'
+import type { FollowUpDto } from '@/server/services/assistants/follow-up'
 import type { MemberRefDto } from '@/server/queries/requests'
 import type { RequestFlagDto } from '@/server/services/requests/duplicates'
 import type { AssistantNoteView } from '@/ui/assistants/assistant-note'
@@ -30,9 +31,10 @@ export interface WaitingStep {
 
 /**
  * The step waiting now when its time is out, or ends within a day (the home card's measure); none otherwise. A reader who
- * follows the document (NEW-124: the follow-up assistant lists one of its tasks for them) is led to draft a nudge there.
+ * follows the document (NEW-124: the follow-up assistant lists one of its tasks for them) is led to draft a nudge there,
+ * or to the task's row while a nudge may not go yet.
  */
-export function stepNote(t: PanelT, locale: Locale, now: Date, me: string, waiting: WaitingStep | null, href: string, followUpTaskId: string | null = null): AssistantNoteView | null {
+export function stepNote(t: PanelT, locale: Locale, now: Date, me: string, waiting: WaitingStep | null, href: string, followUp: Pick<FollowUpDto, 'taskId' | 'hold'> | null = null): AssistantNoteView | null {
   if (!waiting?.dueAt || !waiting.assignee) return null
   const overdue = waiting.overdue || waiting.dueAt.getTime() <= now.getTime()
   if (!overdue && waiting.dueAt.getTime() - now.getTime() > ASSISTANT_DUE_SOON_MS) return null
@@ -44,8 +46,19 @@ export function stepNote(t: PanelT, locale: Locale, now: Date, me: string, waiti
     tone: overdue ? 'danger' : 'warn',
     title: t(`${kind}.title`, { when: when(locale, waiting.dueAt) }),
     why: mine ? t(`${kind}.whyMine`) : t(`${kind}.why`, { name: memberName(locale, waiting.assignee) }),
-    action: followUpTaskId && !mine ? { href: `${FOLLOW_UP_PATH}#${followUpDraftAnchor(followUpTaskId)}`, label: t('step.followUp') } : { href, label: t('step.action') },
+    action:
+      followUp && !mine
+        ? followUp.hold
+          ? { href: `${FOLLOW_UP_PATH}#${followUpRowAnchor(followUp.taskId)}`, label: t('step.followUpHeld') }
+          : { href: `${FOLLOW_UP_PATH}#${followUpDraftAnchor(followUp.taskId)}`, label: t('step.followUp') }
+        : { href, label: t('step.action') },
   }
+}
+
+/** Of the follow-up assistant's tasks of a document, the one of the holder the waiting step names (else the first) */
+export function followUpOf(items: readonly FollowUpDto[] | null | undefined, waiting: WaitingStep | null): FollowUpDto | null {
+  if (!items?.length) return null
+  return items.find((i) => i.assignee.id === waiting?.assignee?.id) ?? items[0]!
 }
 
 /** The request's duplicate or split flags of its latest route, as its approver's page shows them (BR-DUP-05) */

@@ -2787,7 +2787,8 @@
     },
     "step": {
       "action": "See the approval route",
-      "followUp": "Draft a follow-up"
+      "followUp": "Draft a follow-up",
+      "followUpHeld": "See the follow-up assistant"
     },
     "title": "From the assistants"
   },
@@ -5912,8 +5913,8 @@
       "REQUEST": "request"
     },
     "draft": {
-      "DUE_SOON": "Dear {name}, may I follow up on {document} {number}, which waits for your review and is due {due}; if you need anything more from me, please say so on the document's page, thank you.",
-      "OVERDUE": "Dear {name}, may I follow up on {document} {number}, which waits for your review and was due {due}; if you need anything more from me, please say so on the document's page, thank you.",
+      "DUE_SOON": "Dear {name}, may I follow up on {document} {number}, which waits for your review and is due {due}, thank you.",
+      "OVERDUE": "Dear {name}, may I follow up on {document} {number}, which waits for your review and was due {due}, thank you.",
       "back": "Back to edit",
       "confirmEMAIL": "The system tells them by e-mail that there is a follow-up on {document} {number}. The message below shows in the BCS of {name}, and you are recorded as the sender",
       "confirmLINE": "The system tells them by LINE (or e-mail if LINE is not linked) that there is a follow-up on {document} {number}. The message below shows in the BCS of {name}, and you are recorded as the sender",
@@ -5946,6 +5947,7 @@
       "NOT_FOLLOWER": "You no longer follow this document, so you may not follow up on it",
       "NO_ANSWER": "No answer came back, so it is not certain the follow-up went. You may press send again; it will not go twice",
       "OWN_TASK": "This task waits for your own decision",
+      "READ_ONLY": "You follow this document as an auditor, who reads only, so you may not follow up on it",
       "SENT_TODAY": "Someone already followed up on this task today; it may go again {when}",
       "STATE": "This task no longer waits for a decision. Reload the page to see where it stands",
       "TOLD_RECENTLY": "The holder was just told of this task by the system; it may go {when}",

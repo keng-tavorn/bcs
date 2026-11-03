@@ -3,12 +3,13 @@ import { z } from 'zod'
 import { err, ok, type Result } from '@/core/result'
 import { dueForFollowUp, FOLLOW_UP_DUE_SOON_MS, FOLLOW_UP_MAX, FOLLOW_UP_VIAS, followUpHold, type FollowUpHold, type FollowUpRelation } from '@/lib/follow-up'
 import { newId } from '@/lib/ids'
-import { authorize } from '@/server/authz'
+import { authorize, isAllowed, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { requestViewScope } from '../requests/view-scope'
 
 // The follow-up assistant (NEW-124 · ADR-082 · "ผู้ช่วยตามงาน" of docs/reports/bcs-assistants.md): the approval tasks of
 // the documents a member follows — a request they asked for or follow (request.follow), a PO they made — that are past
@@ -20,12 +21,14 @@ import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from 
 // approval_task.follow_up sends what a person read and confirmed to the holder of the task only — never to the band
 // above or anyone else (the DOA's order is the SLA job's to escalate) — in the app with their words, and by LINE or
 // e-mail with the document's number and a link (BR-NOTI-01). Only a member who follows the document sends it (BR-AI-01:
-// never an agent, never the system), at most FOLLOW_UPS_PER_TASK_PER_DAY times a task a day and not right after the
+// never an agent, never the system) and does not hold a task of the same step, at most FOLLOW_UPS_PER_TASK_PER_DAY times a task a day and not right after the
 // holder was told of it (src/lib/follow-up.ts). Each send is an Event naming who pressed it, without the words.
 
 const SUBJECTS = ['REQUEST', 'PURCHASE_ORDER'] as const
 type Subject = (typeof SUBJECTS)[number]
 const DELEGATION_LIVE = ['SCHEDULED', 'ACTIVE'] as const
+/** A task its holder still has: waiting for a decision, or for the requester's answer */
+const HELD = ['OPEN', 'INFO_REQUESTED'] as const
 /** The most tasks the list shows, the earliest due first */
 const LISTED = 50
 
@@ -92,6 +95,22 @@ async function followedDocuments(tx: TenantTx, me: string, only?: string): Promi
   ]
 }
 
+type Member = Extract<Principal, { kind: 'member' }>
+
+/**
+ * BR-AUTH-04: the AUDITOR reads only, so a follow that stands on that role alone sends nothing (as the board's reminder,
+ * src/server/services/board). Following makes a member an owner of the request (request.view OWN), so the question is
+ * whether they could read it without their follow and without AUDITOR: assigned to it, heading its department, or
+ * another role of the whole organization.
+ */
+async function followsAsWriter(tx: TenantTx, principal: Member, doc: Followed): Promise<boolean> {
+  if (doc.relation !== 'FOLLOWER' || !principal.roles.has('AUDITOR')) return true
+  const scope = await requestViewScope(tx, doc.id)
+  if (!scope) return false
+  const writer: Member = { ...principal, roles: new Set([...principal.roles].filter((r) => r !== 'AUDITOR')) }
+  return isAllowed(writer, 'request.view', { ...scope, ownerMemberIds: (scope.ownerMemberIds ?? []).filter((m) => m !== principal.memberId) })
+}
+
 /** How the member follows one document; null: they do not */
 async function relationTo(tx: TenantTx, me: string, type: string, id: string): Promise<Followed | null> {
   if (!(SUBJECTS as readonly string[]).includes(type)) return null
@@ -148,11 +167,14 @@ async function toldOf(tx: TenantTx, tasks: readonly TaskRow[], dayStart: Date) {
 }
 
 /** Every open task due soon or overdue on the documents followed, held by someone other than the member */
-async function followUpsOf(tx: TenantTx, ctx: Ctx, me: string, only?: string): Promise<FollowUpDto[]> {
-  const docs = await followedDocuments(tx, me, only)
+async function followUpsOf(tx: TenantTx, ctx: Ctx, principal: Member, only?: string): Promise<FollowUpDto[]> {
+  const me = principal.memberId
+  const docs: Followed[] = []
+  // one query at a time: they share the transaction's connection
+  for (const doc of await followedDocuments(tx, me, only)) if (await followsAsWriter(tx, principal, doc)) docs.push(doc)
   if (docs.length === 0) return []
   const soon = new Date(ctx.now.getTime() + FOLLOW_UP_DUE_SOON_MS)
-  const tasks = await tx.approvalTask.findMany({
+  const due = await tx.approvalTask.findMany({
     where: {
       status: 'OPEN',
       dueAt: { not: null, lte: soon },
@@ -177,6 +199,12 @@ async function followUpsOf(tx: TenantTx, ctx: Ctx, me: string, only?: string): P
       step: { select: { route: { select: { subjectType: true, subjectId: true } } } },
     },
   })
+  // Not the steps the member decides too (a slot of its own, or the co-assignee the SLA job added): theirs to decide, not
+  // to nudge — the DOA's order stays as it is
+  const mine = due.length
+    ? await tx.approvalTask.findMany({ where: { stepId: { in: [...new Set(due.map((t) => t.stepId))] }, status: { in: [...HELD] }, OR: [{ assigneeMemberId: me }, { principalMemberId: me }] }, select: { stepId: true } })
+    : []
+  const tasks = due.filter((t) => !mine.some((m) => m.stepId === t.stepId))
   if (tasks.length === 0) return []
   const day = await dayOf(tx, ctx.organizationId, ctx.now)
   const told = await toldOf(tx, tasks, day.start)
@@ -241,7 +269,7 @@ export async function listFollowUps(ctx: Ctx, filter: { readonly subjectId?: str
     const allowed = await authorize(tx, ctx, 'board.pending.view')
     if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
     if (allowed.data.kind !== 'member') return err('FORBIDDEN', 'the follow-up list is a member’s')
-    return ok({ items: await followUpsOf(tx, ctx, allowed.data.memberId, subjectId), asOf: ctx.now })
+    return ok({ items: await followUpsOf(tx, ctx, allowed.data, subjectId), asOf: ctx.now })
   })
 }
 
@@ -278,7 +306,8 @@ export const sendFollowUpCommand = defineCommand({
     const allowed = await authorize(tx, ctx, 'board.pending.view')
     if (!allowed.ok) return { ok: false, error: allowed.error }
     if (allowed.data.kind !== 'member') return fail('FORBIDDEN', 'only a member sends a nudge')
-    const me = allowed.data.memberId
+    const principal = allowed.data
+    const me = principal.memberId
     // Two nudges pressed at once queue on the task, so the second sees the first (READ COMMITTED, INV-PLT-03)
     const [locked] = await lockRowsForUpdate(tx, 'ApprovalTask', ctx.organizationId, [input.taskId])
     if (!locked) return fail('NOT_FOUND', 'task not found')
@@ -304,7 +333,10 @@ export const sendFollowUpCommand = defineCommand({
     // Only who follows the document: its requester or a follower of a request, the buyer who made a PO
     const doc = await relationTo(tx, me, route.subjectType, route.subjectId)
     if (!doc) return fail('FORBIDDEN', 'only who follows the document nudges its approvers', { reason: 'NOT_FOLLOWER', capability: 'board.pending.view' })
-    if (task.assigneeMemberId === me || task.principalMemberId === me) return fail('FORBIDDEN', 'the task is yours to decide', { reason: 'OWN_TASK' })
+    if (!(await followsAsWriter(tx, principal, doc))) return fail('FORBIDDEN', 'the auditor reads only: no nudges', { reason: 'READ_ONLY', capability: 'board.pending.view' })
+    // Not a task of a step the member decides too (this one, another slot, or the co-assignee's): the DOA's order stays
+    const holds = await tx.approvalTask.count({ where: { stepId: task.stepId, status: { in: [...HELD] }, OR: [{ assigneeMemberId: me }, { principalMemberId: me }] } })
+    if (holds > 0) return fail('FORBIDDEN', 'the step is yours to decide', { reason: 'OWN_TASK' })
     if (task.status !== 'OPEN' || route.status !== 'ACTIVE') {
       return fail('INVALID_STATE_TRANSITION', `approval_task.follow_up is not allowed from ${task.status}`, { from: task.status, command: 'approval_task.follow_up', ...(task.status === 'INFO_REQUESTED' ? { reason: 'WAITS_FOR_REQUESTER' } : {}) })
     }

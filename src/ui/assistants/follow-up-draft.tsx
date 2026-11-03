@@ -36,13 +36,13 @@ export interface FollowUpDraftView {
 }
 
 /** The words of a refusal, by what the service said of it */
-function errorKey(o: Exclude<FollowUpOutcome, { ok: true }>): 'SENT_TODAY' | 'TOLD_RECENTLY' | 'NOT_FOLLOWER' | 'OWN_TASK' | 'NOT_DUE_SOON' | 'HOLDER_INACTIVE' | 'STATE' | 'BUSY' | 'UNAUTHENTICATED' | 'NO_ANSWER' | 'FAILED' {
+function errorKey(o: Exclude<FollowUpOutcome, { ok: true }>): 'SENT_TODAY' | 'TOLD_RECENTLY' | 'NOT_FOLLOWER' | 'READ_ONLY' | 'OWN_TASK' | 'NOT_DUE_SOON' | 'HOLDER_INACTIVE' | 'STATE' | 'BUSY' | 'UNAUTHENTICATED' | 'NO_ANSWER' | 'FAILED' {
   switch (o.code) {
     case 'RATE_LIMITED':
       // the day's rule or the quiet time after the system's notice; any other RATE_LIMITED is a busy database
       return o.reason === 'SENT_TODAY' || o.reason === 'TOLD_RECENTLY' ? o.reason : 'BUSY'
     case 'FORBIDDEN':
-      return o.reason === 'OWN_TASK' ? 'OWN_TASK' : 'NOT_FOLLOWER'
+      return o.reason === 'OWN_TASK' || o.reason === 'READ_ONLY' ? o.reason : 'NOT_FOLLOWER'
     case 'VALIDATION_FAILED':
       return o.reason === 'NOT_DUE_SOON' || o.reason === 'HOLDER_INACTIVE' ? o.reason : 'FAILED'
     case 'INVALID_STATE_TRANSITION':

@@ -61,13 +61,14 @@
     "sent": "The follow-up was sent to {name}",
     "empty": "Write a message before sending",
     "tooLong": "A message may have at most {max} characters",
-    "OVERDUE": "Dear {name}, may I follow up on {document} {number}, which waits for your review and was due {due}; if you need anything more from me, please say so on the document's page, thank you.",
-    "DUE_SOON": "Dear {name}, may I follow up on {document} {number}, which waits for your review and is due {due}; if you need anything more from me, please say so on the document's page, thank you."
+    "OVERDUE": "Dear {name}, may I follow up on {document} {number}, which waits for your review and was due {due}, thank you.",
+    "DUE_SOON": "Dear {name}, may I follow up on {document} {number}, which waits for your review and is due {due}, thank you."
   },
   "errors": {
     "SENT_TODAY": "Someone already followed up on this task today; it may go again {when}",
     "TOLD_RECENTLY": "The holder was just told of this task by the system; it may go {when}",
     "NOT_FOLLOWER": "You no longer follow this document, so you may not follow up on it",
+    "READ_ONLY": "You follow this document as an auditor, who reads only, so you may not follow up on it",
     "OWN_TASK": "This task waits for your own decision",
     "NOT_DUE_SOON": "This task is not near its due time yet",
     "HOLDER_INACTIVE": "The holder of this task is no longer active; please tell your organization's administrator",

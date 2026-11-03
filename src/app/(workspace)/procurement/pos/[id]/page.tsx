@@ -37,7 +37,7 @@ import { downloadUrlAction } from '../../../../_lib/file-actions'
 import { getSession } from '../../../../_lib/session'
 import { giveAiFeedbackAction } from '../../../_shell/assistant-actions'
 import { canOpenDoaVersion, taskRight } from '../../../_tracking/access'
-import { askPart, assistantPanel, stepNote } from '../../../_tracking/document-assistant'
+import { askPart, assistantPanel, followUpOf, stepNote } from '../../../_tracking/document-assistant'
 import { commentViews, historyRows, poHistoryKinds, routeWhy, stepCards } from '../../../_tracking/document-present'
 import { day, doaHref, doaRefText, localeOf, memberName, money, roleText, routeSentence, when, type Locale } from '../../../_tracking/present'
 import { decideTaskAction } from '../../../tasks/actions'
@@ -208,7 +208,7 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
   ])
   const panel = assistantPanel(tp, {
     brief,
-    notes: [stepNote(tp, locale, ctx.now, state.member.id, po.waiting.kind === 'APPROVER' ? po.waiting : null, `/procurement/pos/${po.id}?tab=overview#po-route`, followUps?.ok ? (followUps.data.items[0]?.taskId ?? null) : null)],
+    notes: [stepNote(tp, locale, ctx.now, state.member.id, po.waiting.kind === 'APPROVER' ? po.waiting : null, `/procurement/pos/${po.id}?tab=overview#po-route`, followUpOf(followUps?.ok ? followUps.data.items : null, po.waiting.kind === 'APPROVER' ? po.waiting : null))],
     ask: askPart(tp, 'PURCHASE_ORDER', po.number, asking),
   })
   const doaLinks = canOpenDoaVersion(principal)

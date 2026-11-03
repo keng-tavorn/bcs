@@ -11,7 +11,7 @@ import { listFollowUps, sendFollowUp, type FollowUpDto } from '@/server/services
 import { remindTask } from '@/server/services/board'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
-import { manageFollowers } from '@/server/services/requests/followers'
+import { followRequest, manageFollowers } from '@/server/services/requests/followers'
 import { AP_NOW, key, ok } from '../support/ap'
 import type { DoaOrg } from '../support/doa-org'
 import { createP1Org } from '../support/p1-org'
@@ -54,6 +54,8 @@ beforeAll(async () => {
   const flow = p2p(org, NOW)
   // an ORG_ADMIN reads every request, so may follow one
   await prisma.roleAssignment.create({ data: { organizationId, memberId: org.member.admin!, role: 'ORG_ADMIN', grantedAt: NOW } })
+  // an AUDITOR reads every request, so may follow one too (FR-INT-013 AC1), and reads only (BR-AUTH-04)
+  await prisma.roleAssignment.create({ data: { organizationId, memberId: org.member.auditor!, role: 'AUDITOR', grantedAt: NOW } })
 
   // the buyer's PO of an approved request, sent for approval and not yet decided
   const supplierId = (await prisma.supplier.create({ data: { organizationId, code: 'S-FU', nameTh: 'ผู้ขายติดตาม', email: 'fu@test.bcs.local', isForeign: true } })).id
@@ -174,6 +176,13 @@ describe('[FR-VIS-001/AC5] a nudge goes to the holder only, named by who pressed
     expect(await sendFollowUp(as('req_con'), { taskId: acting.taskId, via: 'LINE', text: '   ' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } })
     expect(await followUps(acting.taskId)).toHaveLength(0)
   })
+
+  it('an auditor who follows a request reads it, and neither lists nor nudges its approver (BR-AUTH-04)', async () => {
+    ok(await followRequest(as('auditor'), { requestId: acting.requestId, follow: true }, key()))
+    expect(await list('auditor')).toEqual([])
+    expect(await nudge('auditor', acting.taskId)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN', details: { reason: 'READ_ONLY' } } })
+    expect(await followUps(acting.taskId)).toHaveLength(0)
+  })
 })
 
 describe('[FR-VIS-001/AC6] once a task a day, and not right after the holder was told', () => {
@@ -190,6 +199,10 @@ describe('[FR-VIS-001/AC6] once a task a day, and not right after the holder was
 
   it('not within the quiet time after the SLA job or the board told the holder', async () => {
     expect(await nudge('proc_officer', po.taskId)).toMatchObject({ ok: false, error: { code: 'RATE_LIMITED', details: { reason: 'TOLD_RECENTLY', nextAt: hours(1.5).toISOString() } } })
+    // the buyer, once the quiet time is over
+    const poTask = await prisma.approvalTask.findUniqueOrThrow({ where: { id: po.taskId }, select: { assigneeMemberId: true } })
+    expect(ok(await nudge('proc_officer', po.taskId, hours(1.5)))).toEqual({ taskId: po.taskId, recipientMemberId: poTask.assigneeMemberId, via: 'LINE' })
+    expect((await followUps(po.taskId)).map((e) => [e.actorMemberId, (e.data as { relation: string }).relation])).toEqual([[org.member.proc_officer, 'BUYER']])
     // the requester reminds the delegate from the board (FR-VIS-001 AC2), then drafts a nudge an hour later
     ok(await remindTask(as('req_con'), { taskId: acting.taskId }, key()))
     expect(await nudge('req_con', acting.taskId, hours(1))).toMatchObject({ ok: false, error: { code: 'RATE_LIMITED', details: { reason: 'TOLD_RECENTLY', nextAt: hours(2).toISOString() } } })
@@ -204,5 +217,24 @@ describe('[FR-VIS-001/AC5] a nudge waits for its task (FR-NOTI-003 AC3)', () => 
     expect(await deliverNotification(org.organizationId, email.id, new Date(NEXT_MIDNIGHT))).toEqual({ status: 'SKIPPED', why: TASK_CLOSED })
     // nor may a decided task be nudged
     expect(await nudge('req_con', printer.taskId, hours(48))).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION' } })
+  })
+})
+
+describe('[FR-VIS-001/AC4] [FR-VIS-001/AC5] an escalated step: who decides it too, and that they nudge nobody on it', () => {
+  it('the requester reads who joined; the co-assignee neither lists nor nudges the step they may decide', async () => {
+    const at = hours(3)
+    const task = await prisma.approvalTask.findUniqueOrThrow({ where: { id: acting.taskId } })
+    // past due six hours before, escalated two hours later: the admin joined the step as co-assignee (BR-SLA-04)
+    await prisma.approvalTask.update({ where: { id: task.id }, data: { dueAt: hours(-6), overdueAt: hours(-6), escalateAt: hours(-4), escalatedAt: hours(-4) } })
+    await prisma.approvalTask.create({
+      data: { organizationId: org.organizationId, stepId: task.stepId, slotNo: task.slotNo, assigneeMemberId: org.member.admin!, resolvedFrom: 'POSITION:TEST', status: 'OPEN', assignedAt: hours(-4), dueAt: hours(-6), overdueAt: hours(-6), escalateAt: hours(-4), escalatedAt: hours(-4) },
+    })
+    ok(await manageFollowers(as('req_con'), { requestId: acting.requestId, memberId: org.member.admin!, follow: true }, key()))
+
+    const row = (await list('req_con', at)).find((i) => i.taskId === acting.taskId)
+    expect(row).toMatchObject({ escalatedAt: hours(-4), escalatesAt: null, overdueAt: hours(-6) })
+    expect(row!.coAssignees).toHaveLength(1)
+    expect((await list('admin', at)).some((i) => i.document.id === acting.requestId)).toBe(false)
+    expect(await nudge('admin', acting.taskId, at)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN', details: { reason: 'OWN_TASK' } } })
   })
 })

@@ -77,7 +77,8 @@ async function apInvoiceOrNull(ctx: NonNullable<ReturnType<typeof ctxFromSession
       getTranslations('payRun.task'),
       isAgentAvailable(ctx, 'INSIGHT').then((a) => a.available),
       aiReviewsOf(ctx, invoice.data.aiReviews),
-      getExceptionHelp(ctx, id),
+      // Only an invoice the match stopped has a helper
+      invoice.data.status === 'EXCEPTION' ? getExceptionHelp(ctx, id) : null,
     ])
     const d = invoice.data
     const panel = assistantPanel(tp, {
@@ -85,7 +86,7 @@ async function apInvoiceOrNull(ctx: NonNullable<ReturnType<typeof ctxFromSession
       notes: invoiceNotes(tp, ta, tr, { id: d.id, supplierId: d.supplier.id, exceptions: d.exceptions, duplicateNumber: d.duplicateNumber, paymentFlags: d.paymentFlags }),
       ask: askPart(tp, 'INVOICE', d.number, asking),
     })
-    const helper = help.ok && help.data.helps.length ? <ExceptionHelper help={help.data} send={sendExceptionMessageAction} /> : null
+    const helper = help?.ok && help.data.helps.length ? <ExceptionHelper help={help.data} send={sendExceptionMessageAction} /> : null
     return <ApInvoicePage data={d} actions={AP_ACTIONS} openFile={downloadUrlAction} aiReviews={aiReviews} tab={tab} assistant={<AssistantPanel view={panel} />} helper={helper} />
   }
   const t = await getTranslations('apInvoice')

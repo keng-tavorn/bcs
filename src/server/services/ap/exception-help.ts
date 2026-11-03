@@ -16,6 +16,7 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { enqueueSupplierNotice, SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-notices'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { requireModule } from '../modules'
+import { hasTransferRule } from '../budget/dashboard'
 import { CHANGEABLE_PO } from '../purchase-orders/change'
 import { receivingDecision } from '../receiving/access'
 import { departmentReceivers } from '../receiving/receivers'
@@ -214,22 +215,26 @@ export async function getExceptionHelp(ctx: Ctx, invoiceId: string): Promise<Res
 
     const open = invoice.exceptions.filter((e) => e.status === 'OPEN')
     const record = isAllowed(principal, 'invoice.record')
-    const may: Readonly<Record<HelpFix, boolean>> = {
+    const offered = (fix: HelpFix) => mine.some((e) => (FIXES_OF[e.type] ?? []).includes(fix))
+    const may: Readonly<Record<Exclude<HelpFix, 'BUDGET_TRANSFER'>, boolean>> = {
       VARIANCE: isAllowed(principal, 'invoice.variance.request') && open.every((e) => e.type === 'PRICE_OVER'),
       PO_CHANGE: isAllowed(principal, 'po.change') && (CHANGEABLE_PO as readonly string[]).includes(invoice.po.status),
-      RECEIVE: RECEIVING_PO.includes(invoice.po.status) && (await receivesOn(tx, ctx, principal, invoice.po.id)),
+      // Read only when a difference of the reader offers it: the decision of the receiving page costs a few queries
+      RECEIVE: offered('RECEIVE') && RECEIVING_PO.includes(invoice.po.status) && (await receivesOn(tx, ctx, principal, invoice.po.id)),
       ASK: true,
       EMAIL_SUPPLIER: true,
       RECHECK: record || resolvesInvoice(principal, openRoles, scopes),
       DISMISS_DUPLICATE: record,
       REOPEN: record,
       REJECT: isAllowed(principal, 'invoice.reject'),
-      BUDGET_TRANSFER: scopesFor(principal, 'budget.transfer.submit').size > 0,
     }
+    // A transfer needs a BUDGET_TRANSFER rule in the DOA in effect, as the budget page offers it (budget/dashboard.ts)
+    const transfers = offered('BUDGET_TRANSFER') && scopesFor(principal, 'budget.transfer.submit').size > 0 && (await hasTransferRule(tx, ctx.now))
     const seesEveryPo = scopesFor(principal, 'po.view').has('ORG')
     const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
     const windowDays = s6SettingsOf(org.settings).priceRefWindowDays
-    const invoiceDay = invoice.invoiceDate ?? ctx.now
+    // The invoice's own day; without one, today in the organization's time (the agreements' dates are days)
+    const invoiceDay = invoice.invoiceDate ?? new Date(`${taxDateOf(ctx.now)}T00:00:00Z`)
 
     const helps: ExceptionHelpDto[] = []
     for (const e of mine) {
@@ -308,7 +313,13 @@ export async function getExceptionHelp(ctx: Ctx, invoiceId: string): Promise<Res
         REJECT: `${page}#invoice-exception-actions`,
         BUDGET_TRANSFER: '/budgets/transfers/new',
       }
-      const has = (fix: HelpFix) => (fix === 'ASK' ? recipients.length > 0 : fix === 'EMAIL_SUPPLIER' ? emailing && !!invoice.supplier.email : may[fix])
+      // A transfer into the budget line the difference is short on (the whole invoice's lines when it names none), as the
+      // transfer form lets the reader move it: a department head for their own department's lines only
+      const budgetDepartments = transfers
+        ? (await tx.poLine.findMany({ where: { id: { in: invoiceLine ? [invoiceLine.poLineId] : invoice.lines.map((l) => l.poLineId) } }, select: { budgetLine: { select: { departmentId: true } } } })).map((l) => l.budgetLine.departmentId)
+        : []
+      const transfersHere = budgetDepartments.some((departmentId) => isAllowed(principal, 'budget.transfer.submit', { departmentId }))
+      const has = (fix: HelpFix) => (fix === 'ASK' ? recipients.length > 0 : fix === 'EMAIL_SUPPLIER' ? emailing && !!invoice.supplier.email : fix === 'BUDGET_TRANSFER' ? transfersHere : may[fix])
       helps.push({
         exceptionId: e.id,
         type: e.type,

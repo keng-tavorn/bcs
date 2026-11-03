@@ -114,6 +114,21 @@ describe('[FR-AP-103/AC6] the helper of a difference: seen by whom it is sent to
     expect((await getExceptionHelp(systemCtx(ap.org.organizationId, AP_NOW, 'test'), invoiceId)).ok).toBe(false)
   })
 
+  it('offers a budget transfer only to one who may move the short line’s budget (the transfer form’s rule, DOA-P1 has a transfer rule)', async () => {
+    // A PO funded to the baht and an invoice 0.5% over its price: within tolerance, but no budget left for it
+    const po = await sentPo(ap, [{ quantity: '1', unitPrice: '1000.00', description: `ท่อ ${randomUUID().slice(0, 4)}` }], { fund: 1000n })
+    await receive(ap, po, { 0: '1' })
+    const draft = await codedDraft(ap, po, { no: `HB-${randomUUID().slice(0, 6)}`, date: nextDate(), vat: '70.35', lines: [{ line: 0, quantity: '1', unitPrice: '1005.00' }] })
+    expect(ok(await submit(ap, draft)).status).toBe('EXCEPTION')
+    expect((await prisma.matchException.findFirstOrThrow({ where: { invoiceId: draft.invoiceId, status: 'OPEN' } })).type).toBe('BUDGET_SHORT')
+    // dm_fin records invoices and heads FIN: it moves FIN's budget, not the CON line this invoice is short on
+    expect(await fixesOf('dm_fin', draft.invoiceId)).toEqual([['RECHECK']])
+    // A budget administrator moves any line's budget
+    await prisma.roleAssignment.create({ data: { organizationId: ap.org.organizationId, memberId: ap.org.member.dm_fin!, role: 'BUDGET_ADMIN', grantedAt: AP_NOW } })
+    expect(await fixesOf('dm_fin', draft.invoiceId)).toEqual([['BUDGET_TRANSFER', 'RECHECK']])
+    expect(ok(await getExceptionHelp(as('dm_fin'), draft.invoiceId)).helps[0]!.fixes[0]!.href).toBe('/budgets/transfers/new')
+  })
+
   it('works the same with the AI module off: nothing of it comes from an AI', async () => {
     const { invoiceId } = await priceOver(`ทราย ${randomUUID().slice(0, 4)}`)
     const before = ok(await getExceptionHelp(as('fin_officer'), invoiceId))

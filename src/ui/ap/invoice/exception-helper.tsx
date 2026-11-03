@@ -186,19 +186,23 @@ export async function ExceptionHelper({ help, send }: { help: InvoiceHelpDto; se
                   {t('fixesTitle')}
                 </p>
                 <ul aria-labelledby={`${itemId}-fixes`} className="flex flex-col">
-                  {h.fixes.map((f) => (
-                    <li key={f.key} data-fix={f.key}>
-                      {f.href.startsWith('#') ? (
-                        <a href={f.href} className={invoiceLinkClass}>
-                          {t(`fix.${f.key}`)}
-                        </a>
-                      ) : (
-                        <Link href={f.href} className={invoiceLinkClass}>
-                          {t(`fix.${f.key}`)}
-                        </Link>
-                      )}
-                    </li>
-                  ))}
+                  {h.fixes.map((f) => {
+                    // Rejecting a possible duplicate says it is one, not that a new invoice is coming
+                    const label = f.key === 'REJECT' && h.type === 'POSSIBLE_DUPLICATE' ? t('fix.REJECT_DUPLICATE') : t(`fix.${f.key}`)
+                    return (
+                      <li key={f.key} data-fix={f.key}>
+                        {f.href.startsWith('#') ? (
+                          <a href={f.href} className={invoiceLinkClass}>
+                            {label}
+                          </a>
+                        ) : (
+                          <Link href={f.href} className={invoiceLinkClass}>
+                            {label}
+                          </Link>
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             ) : null}

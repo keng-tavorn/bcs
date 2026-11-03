@@ -35,6 +35,7 @@
     "DISMISS_DUPLICATE": "Dismiss the warning if it is not a duplicate",
     "REOPEN": "Reopen as a draft if it was entered wrongly",
     "REJECT": "Reject the invoice when the supplier sends a new one",
+    "REJECT_DUPLICATE": "Reject the invoice if it really is a duplicate",
     "BUDGET_TRANSFER": "Ask for a budget transfer, then check again"
   },
   "ask": {

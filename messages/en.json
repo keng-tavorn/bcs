@@ -5525,6 +5525,7 @@
       "RECEIVE": "Receive the rest; the match runs again by itself",
       "RECHECK": "Check again once the cause is fixed",
       "REJECT": "Reject the invoice when the supplier sends a new one",
+      "REJECT_DUPLICATE": "Reject the invoice if it really is a duplicate",
       "REOPEN": "Reopen as a draft if it was entered wrongly",
       "VARIANCE": "Ask for a price variance approval under the DOA"
     },

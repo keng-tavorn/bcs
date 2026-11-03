@@ -61,14 +61,22 @@ export function ExceptionDraft({ view, send }: { view: ExceptionDraftView; send:
   const [confirming, setConfirming] = useState(false)
   const [sent, setSent] = useState<string | null>(null)
 
-  // The helper's way links here: reaching the anchor opens the draft
+  // The helper's way links here: reaching the anchor opens the draft, and so does pressing the link again once the hash
+  // already names it (closed, or sent) — that changes no hash
   useEffect(() => {
     const reach = () => {
       if (window.location.hash === `#${view.anchor}`) setOpen(true)
     }
+    const pressed = (e: MouseEvent) => {
+      if (e.target instanceof Element && e.target.closest(`a[href="#${view.anchor}"]`)) setOpen(true)
+    }
     reach()
     window.addEventListener('hashchange', reach)
-    return () => window.removeEventListener('hashchange', reach)
+    document.addEventListener('click', pressed)
+    return () => {
+      window.removeEventListener('hashchange', reach)
+      document.removeEventListener('click', pressed)
+    }
   }, [view.anchor])
 
   if (!recipient) return null

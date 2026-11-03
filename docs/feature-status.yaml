@@ -1,6 +1,6 @@
 # docs/feature-status.yaml — the only place that says what works (spec §0.5, §15.6).
 # Sales material may cite only `verified` and `live`. status: planned | in_progress | done | verified | live
-updatedAt: 2026-10-17
+updatedAt: 2026-11-03
 features:
   FR-PLT-001:
     status: done
@@ -949,7 +949,7 @@ features:
     verifiedBy: null
     notes: "S16-08: AC1 to AC5 · poIdleDays uses the OQ-36 default (30 days) until a setting exists · the supplier registry recheck that writes supplier.registry_status_changed is S4-16 [go-live], so that count stays 0 until then"
   FR-VIS-008:
-    status: in_progress
+    status: done
     step: S16
     evidence:
       - tests/golden/savings.test.ts

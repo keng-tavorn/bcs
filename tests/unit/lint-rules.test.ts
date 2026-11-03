@@ -26,6 +26,7 @@ import {
   evaluateCoverage,
   evaluateEslintRun,
   evaluatePlaywrightRun,
+  failedPlaywrightTests,
   mergePlaywrightReports,
   evaluateVitestRun,
   orphanTestFiles,
@@ -765,6 +766,32 @@ describe('pnpm verify vitest gates', () => {
     expect(merged.stats).toEqual({ expected: 5, skipped: 1, unexpected: 1, flaky: 0, duration: 9 })
     expect(merged.config).toEqual({ version: '1' })
     expect(evaluatePlaywrightRun({ code: 0, out: '', report: merged }).status).toBe('FAIL')
+  })
+  it('[EG-7] a failed run names its failed and flaky tests with their first error, not the last lines of the server (NEW-130)', () => {
+    const esc = String.fromCharCode(27)
+    const report = {
+      stats: { expected: 13, skipped: 0, unexpected: 1, flaky: 1 },
+      suites: [
+        {
+          file: 'p1demo/09-invoice-upload.spec.ts',
+          specs: [{ title: 'scene 9', tests: [{ projectName: 'p1demo', status: 'unexpected', results: [{ error: { message: `${esc}[31mError: expect(locator).toBeVisible() failed${esc}[39m\n\nLocator: getByRole('button')` } }] }] }],
+          suites: [{ specs: [{ title: 'inner', file: 'p1demo/10-wht.spec.ts', tests: [{ projectName: 'p1demo', status: 'flaky', results: [{ error: { message: 'Timeout 5000ms exceeded' } }, {}] }] }] }],
+        },
+        { file: 'p1demo/01.spec.ts', specs: [{ title: 'scene 1', tests: [{ projectName: 'p1demo', status: 'expected', results: [{}] }] }] },
+      ],
+    }
+    expect(failedPlaywrightTests(report)).toEqual([
+      'p1demo/09-invoice-upload.spec.ts › scene 9 [p1demo]: Error: expect(locator).toBeVisible() failed',
+      'p1demo/10-wht.spec.ts › inner [p1demo] (flaky): Timeout 5000ms exceeded',
+    ])
+    const crashed = evaluatePlaywrightRun({ code: 1, out: '[WebServer] ⨯ Error: The destination stream closed early.', report })
+    expect(crashed.status).toBe('FAIL')
+    expect(crashed.detail).toContain('2 เคสล้ม:')
+    expect(crashed.detail).toContain('09-invoice-upload.spec.ts › scene 9')
+    expect(crashed.detail).not.toContain('destination stream')
+    // Without a report (Playwright itself stopped): the output's last lines, as before
+    expect(evaluatePlaywrightRun({ code: 1, out: 'boom', report: null }).detail).toBe('boom')
+    expect(evaluatePlaywrightRun({ code: 0, out: '', report }).detail).toContain('10-wht.spec.ts › inner [p1demo] (flaky)')
   })
 })
 

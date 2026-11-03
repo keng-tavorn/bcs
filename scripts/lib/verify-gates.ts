@@ -314,7 +314,48 @@ export function evaluateCoverage(
 // ---------- Playwright ----------
 export interface PlaywrightJson {
   stats?: { expected?: number; skipped?: number; unexpected?: number; flaky?: number }
+  suites?: readonly PlaywrightSuite[]
 }
+
+/** What the gate reads of a suite of Playwright's JSON report: the specs, each test's status and its first error */
+interface PlaywrightSuite {
+  readonly title?: string
+  readonly file?: string
+  readonly specs?: ReadonlyArray<{
+    readonly title?: string
+    readonly file?: string
+    readonly tests?: ReadonlyArray<{ readonly projectName?: string; readonly status?: string; readonly results?: ReadonlyArray<{ readonly error?: { readonly message?: string } }> }>
+  }>
+  readonly suites?: readonly PlaywrightSuite[]
+}
+
+/** Colour codes of the terminal in Playwright's messages */
+const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
+/** Tests named in a failed gate at most */
+const FAILED_SHOWN = 5
+
+/**
+ * The tests of a report that failed or passed only when run again: "file › title [project]: the first line of the
+ * first error". The server's log ends the output of a failed run, so it does not say which test it was (NEW-130).
+ */
+export function failedPlaywrightTests(report: PlaywrightJson): string[] {
+  const found: string[] = []
+  const walk = (suite: PlaywrightSuite, file: string | undefined) => {
+    for (const spec of suite.specs ?? []) {
+      for (const test of spec.tests ?? []) {
+        if (test.status !== 'unexpected' && test.status !== 'flaky') continue
+        const error = test.results?.find((r) => r.error?.message)?.error?.message?.replace(ANSI, '').split(/\r?\n/).find((l) => l.trim())?.trim()
+        const where = [spec.file ?? file, spec.title].filter(Boolean).join(' › ')
+        found.push(`${where}${test.projectName ? ` [${test.projectName}]` : ''}${test.status === 'flaky' ? ' (flaky)' : ''}${error ? `: ${error}` : ''}`)
+      }
+    }
+    for (const inner of suite.suites ?? []) walk(inner, inner.file ?? file)
+  }
+  for (const suite of report.suites ?? []) walk(suite, suite.file)
+  return found
+}
+
+const failedLines = (failed: readonly string[]) => `\n      ${failed.slice(0, FAILED_SHOWN).join('\n      ')}${failed.length > FAILED_SHOWN ? `\n      และอีก ${failed.length - FAILED_SHOWN} เคส` : ''}`
 
 /**
  * One report of several `playwright test` runs (the screens, then the demo scenes on their own database): suites and
@@ -322,14 +363,14 @@ export interface PlaywrightJson {
  */
 export function mergePlaywrightReports(reports: ReadonlyArray<PlaywrightJson & Record<string, unknown>>): PlaywrightJson & Record<string, unknown> {
   const stats = { expected: 0, skipped: 0, unexpected: 0, flaky: 0 }
-  const suites: unknown[] = []
+  const suites: PlaywrightSuite[] = []
   const errors: unknown[] = []
   for (const report of reports) {
     stats.expected += report.stats?.expected ?? 0
     stats.skipped += report.stats?.skipped ?? 0
     stats.unexpected += report.stats?.unexpected ?? 0
     stats.flaky += report.stats?.flaky ?? 0
-    if (Array.isArray(report.suites)) suites.push(...(report.suites as unknown[]))
+    if (Array.isArray(report.suites)) suites.push(...(report.suites as PlaywrightSuite[]))
     if (Array.isArray(report.errors)) errors.push(...(report.errors as unknown[]))
   }
   const first = reports[0] ?? {}
@@ -342,7 +383,11 @@ export function mergePlaywrightReports(reports: ReadonlyArray<PlaywrightJson & R
  */
 export function evaluatePlaywrightRun(run: { code: number; out: string; report: PlaywrightJson | null }): GateResult {
   const fix = 'รัน pnpm test:e2e แล้วดูรายงานใน playwright-report'
-  if (run.code !== 0) return { status: 'FAIL', detail: lastLines(run.out, 8), impact: 'ฉาก demo ใช้งานจริงไม่ได้', fix }
+  const failed = run.report ? failedPlaywrightTests(run.report) : []
+  if (run.code !== 0) {
+    // The tests that failed by name when the report has them; the last lines of the output otherwise (a crash)
+    return { status: 'FAIL', detail: failed.length ? `${failed.length} เคสล้ม:${failedLines(failed)}` : lastLines(run.out, 8), impact: 'ฉาก demo ใช้งานจริงไม่ได้', fix }
+  }
   const stats = run.report?.stats
   if (!stats) {
     return {
@@ -355,7 +400,7 @@ export function evaluatePlaywrightRun(run: { code: number; out: string; report: 
   const { expected = 0, skipped = 0, unexpected = 0, flaky = 0 } = stats
   if (skipped > 0) return { status: 'FAIL', detail: `${skipped} เคส e2e ไม่ได้รัน (skip/fixme)`, impact: 'ฉากที่ถูกข้ามไม่ได้ตรวจอะไรเลย (CLAUDE.md §9)', fix: 'ลบ test.skip/test.fixme แล้วทำให้ฉากผ่านจริง' }
   if (unexpected > 0 || flaky > 0) {
-    return { status: 'FAIL', detail: `${unexpected} เคสล้ม · ${flaky} เคสผ่านเมื่อรันซ้ำ (flaky)`, impact: 'ฉาก demo ล้มได้ต่อหน้าผู้ใช้', fix }
+    return { status: 'FAIL', detail: `${unexpected} เคสล้ม · ${flaky} เคสผ่านเมื่อรันซ้ำ (flaky)${failed.length ? `:${failedLines(failed)}` : ''}`, impact: 'ฉาก demo ล้มได้ต่อหน้าผู้ใช้', fix }
   }
   if (expected === 0) return { status: 'FAIL', detail: 'ไม่มีเคส e2e ที่รัน', impact: 'ไม่ได้ตรวจฉาก demo เลย', fix }
   return { status: 'PASS', detail: `${expected} เคสผ่าน · ไม่มีเคสที่ข้าม` }

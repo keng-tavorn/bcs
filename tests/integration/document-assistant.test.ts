@@ -97,25 +97,39 @@ describe('[FR-INT-012/AC8] "ช่วยได้" and "ไม่ช่วย" o
     expect((await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).status).toBe('OPEN')
   })
 
-  it('[FR-INT-012/AC7] with the AI module or the Brief agent off, a Brief written before is not shown either', async () => {
+  it('[FR-INT-012/AC7] with the AI module or the Brief agent off, a Brief written before is not shown either, nor said to have helped', async () => {
     const { task, assignee } = await openTask()
     answering({ sentences: ['คำขอนี้ยอด {{v:amount}} บาท'] })
     expect(await runBrief(org.organizationId, task.id, NOW)).toBe('DRAFT')
     const decider = org.ctxOf(assignee, NOW)
-    expect(data(await approvalBriefOf(decider, task.id)).status).toBe('READY')
+    const shown = data(await approvalBriefOf(decider, task.id))
+    expect(shown.status).toBe('READY')
+    const agentActionId = shown.agentActionId!
+    const feedbackRefused = async () => {
+      expect(codeOf(await giveAgentFeedback(decider, { agentActionId, feedback: 'HELPFUL' }, key()))).toBe('FORBIDDEN')
+      expect(await prisma.event.count({ where: { aggregateId: agentActionId, type: 'agent_action.feedback_given' } })).toBe(0)
+    }
     await prisma.orgModule.updateMany({ where: { organizationId: org.organizationId, module: 'AI' }, data: { enabled: false } })
     try {
       expect(data(await approvalBriefOf(decider, task.id))).toMatchObject({ status: 'NONE', sentences: null, agentActionId: null })
+      await feedbackRefused()
     } finally {
       await prisma.orgModule.updateMany({ where: { organizationId: org.organizationId, module: 'AI' }, data: { enabled: true } })
     }
     expect((await updateAgentSetting(org.ctxOf('admin', NOW), { agent: 'APPROVAL_BRIEF', enabled: false }, key())).ok).toBe(true)
     try {
       expect(data(await approvalBriefOf(decider, task.id)).status).toBe('NONE')
+      await feedbackRefused()
     } finally {
       expect((await updateAgentSetting(org.ctxOf('admin', NOW), { agent: 'APPROVAL_BRIEF', enabled: true }, key())).ok).toBe(true)
     }
+    // The system's switch without a mode is off too, as for every call (agentSwitchedOn, BR-AI-11)
+    setAiRuntimeForTests({ ...FIXTURE, mode: undefined })
+    expect(data(await approvalBriefOf(decider, task.id)).status).toBe('NONE')
+    await feedbackRefused()
+    setAiRuntimeForTests(FIXTURE)
     expect(data(await approvalBriefOf(decider, task.id)).status).toBe('READY')
+    expect((await giveAgentFeedback(decider, { agentActionId, feedback: 'HELPFUL' }, key())).ok).toBe(true)
   })
 
   it('[FR-INT-012/AC8] no Brief to say anything of while it is written or when its text failed the checks', async () => {
@@ -158,6 +172,12 @@ describe('[FR-INT-012/AC8] "ถามเรื่องนี้" and "สรุ
     expect(mine.rows.map((r) => r.href)).toContain(`/procurement/pos/${po.id}`)
     const outside = await runTool(org.ctxOf('dm_it', NOW), 'search_documents', `สรุปใบสั่งซื้อ ${number}`)
     expect(outside.rows.map((r) => r.href)).not.toContain(`/procurement/pos/${po.id}`)
+
+    // A question that names two documents looks for each; a number said twice is one row
+    const both = await runTool(org.ctxOf('req_con', NOW), 'search_documents', `เทียบคำขอ ${request.number} กับใบสั่งซื้อ ${number} และ ${number}`)
+    const hrefs = both.rows.map((r) => r.href)
+    expect(hrefs).toEqual(expect.arrayContaining([`/requests/${request.id}`, `/procurement/pos/${po.id}`]))
+    expect(new Set(hrefs).size).toBe(hrefs.length)
   })
 })
 

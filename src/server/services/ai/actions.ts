@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { agentActionTransition, creditPeriodMonth, creditsForCall, redactForAi, type AgentActionState } from '@/core/ai-checks'
 import { err, ok, type Result } from '@/core/result'
-import { AI_LIMITS, AI_PURPOSES, CONTENT_RETENTION_DAYS, DEFAULT_MIN_CONFIDENCE_BP, priceOf, type AiPurposeName } from '@/lib/ai-config'
+import { AGENT_OF_PURPOSE, AI_LIMITS, AI_PURPOSES, CONTENT_RETENTION_DAYS, DEFAULT_MIN_CONFIDENCE_BP, priceOf, type AiPurposeName } from '@/lib/ai-config'
 import { BP_WHOLE, MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE } from '@/lib/constants'
 import { authorize } from '@/server/authz'
 import type { Capability } from '@/server/authz/permissions'
@@ -10,7 +10,7 @@ import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { checkCreditUsage } from './credits'
-import { checkCallGates, type CallPlan } from './gate'
+import { agentSwitchedOn, checkCallGates, type CallPlan } from './gate'
 import { listOrganizationsForPlatform } from '@/server/db/lookups'
 
 // AgentAction (spec §12.2, docs/sub-specs/S13.md "Entity และ migration" "State machine" BR-AI-04 BR-AI-11 BR-AI-18
@@ -284,8 +284,9 @@ export const rejectAgentActionCommand = defineCommand({
 
 /**
  * Who says whether an L0 result helped: the member who asked — or, for an Approval Brief the system wrote, whoever reads
- * it, the one who decides its task or the member they act for (BR-DLG-04, approvalBriefOf · NEW-122). Each says so in
- * their own Event; the row keeps the latest.
+ * it, the one who decides its task or the member they act for (BR-DLG-04, approvalBriefOf · NEW-122), and only while
+ * the Brief is shown at all (agentSwitchedOn: the system's switch, module AI, the Brief agent). Each says so in their own
+ * Event; the row keeps the latest.
  */
 async function loadForFeedback(tx: TenantTx, ctx: Ctx, id: string) {
   const row = await tx.agentAction.findFirst({ where: { id }, select: { id: true, status: true, level: true, requestedById: true, purpose: true, subjectType: true, subjectId: true } })
@@ -295,7 +296,9 @@ async function loadForFeedback(tx: TenantTx, ctx: Ctx, id: string) {
   if (row.requestedById === me) return { row }
   const brief = row.purpose === 'BRIEF' && row.subjectType === 'APPROVAL_TASK' && row.subjectId !== null
   const reads = brief && (await tx.approvalTask.count({ where: { id: row.subjectId!, OR: [{ assigneeMemberId: me }, { principalMemberId: me }] } })) > 0
-  return reads ? { row } : { error: fail('FORBIDDEN', 'only the member who asked, or the reader of the Brief, says whether it helped') }
+  if (!reads) return { error: fail('FORBIDDEN', 'only the member who asked, or the reader of the Brief, says whether it helped') }
+  const on = await agentSwitchedOn(ctx, AGENT_OF_PURPOSE.BRIEF, tx)
+  return on.ok ? { row } : { error: fail('FORBIDDEN', 'the Brief is not shown while its agent is off') }
 }
 
 export const giveFeedbackCommand = defineCommand({

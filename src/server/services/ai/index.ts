@@ -22,5 +22,5 @@ export { findSuppliersForAsker, listPurchaseOrdersForAsker, runTool, type ToolRe
 export { runDoaDraft, startDoaDraft, StartDoaDraftInput, type RuleProblem } from './agents/doa-drafter'
 export { intakeFromMessage, IntakeMessageInput, runIntake, startIntake, StartIntakeInput } from './agents/intake'
 export { checkCreditUsage, creditSummary, grantCredits, runMonthlyGrant, type CreditSummaryDto } from './credits'
-export { aiRuntime, checkCallGates, creditBalance, isAgentAvailable, setAiRuntimeForTests, type AgentAvailability, type AiRuntime, type CallPlan } from './gate'
+export { agentSwitchedOn, aiRuntime, checkCallGates, creditBalance, isAgentAvailable, setAiRuntimeForTests, type AgentAvailability, type AiRuntime, type CallPlan } from './gate'
 export { activeOrgAdminIds, listAgentSettings, updateAgentSetting, type AgentSettingDto } from './settings'

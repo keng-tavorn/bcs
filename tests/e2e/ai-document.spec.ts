@@ -281,6 +281,18 @@ test('[FR-AI-309/AC1] [FR-AI-309/AC2] [FR-AI-309/AC5] ⌘K asks BCS AI only whil
   await expect(sheet.getByText('ถาม BCS AI ตอบได้เฉพาะเรื่องคำขอ งานอนุมัติ งบ ใบสั่งซื้อ และผู้ขายในสิทธิ์ของคุณ')).toBeVisible({ timeout: 20_000 })
   await expect(sheet.getByText(question)).toBeVisible()
   await check(page, testInfo, 'ask-ai')
+
+  // [FR-INT-012/AC8] the member says the answer helped; closing the sheet and asking again keeps what they said
+  const said = sheet.getByRole('group', { name: 'ความเห็นต่อผลของ AI' })
+  await said.first().getByRole('button', { name: 'ช่วยได้' }).click()
+  await expect(said.first().getByRole('status')).toHaveText('บันทึกแล้วว่าช่วยได้ ขอบคุณ')
+  await page.keyboard.press('Escape')
+  await expect(sheet).toHaveCount(0)
+  await openPalette()
+  await page.getByRole('option', { name: `ถาม BCS AI: ${question}` }).click()
+  await expect(said).toHaveCount(2, { timeout: 20_000 })
+  await expect(said.first().getByRole('button', { name: 'ช่วยได้' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(said.last().getByRole('button', { name: 'ช่วยได้' })).toHaveAttribute('aria-pressed', 'false')
 })
 
 test('[FR-AI-308/AC1] [FR-AI-308/AC3] the DOA drafter: each rule with its source and page, confirmed one by one, then a draft of the admin\'s own', async ({ page }, testInfo) => {

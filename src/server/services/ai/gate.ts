@@ -82,17 +82,30 @@ export async function creditBalance(tx: TenantTx, periodMonth: string): Promise<
 }
 
 /**
+ * The first three gates of BR-AI-11: the switches that turn an agent off — the system's, the module `AI`, the agent's
+ * own — apart from what a call needs (evaluation, credits, rate). What an agent wrote is shown, and said to have helped,
+ * only while all three are on (NEW-122); the agent's setting when on.
+ */
+export async function agentSwitchedOn(ctx: Ctx, agent: AiAgentName, tx?: TenantTx) {
+  const runtime = aiRuntime()
+  if (!runtime.enabled || !runtime.mode) return err('AI_AGENT_DISABLED', 'AI is switched off for the whole system', { agent, reason: 'AI_OFF' })
+  const aiModule = await requireModule(ctx, 'AI', tx)
+  if (!aiModule.ok) return aiModule
+  const setting = await (tx ?? forTenant(ctx.organizationId)).aiAgentSetting.findFirst({ where: { agent }, select: { enabled: true, level: true, minConfidenceBp: true } })
+  if (!setting?.enabled) return err('AI_AGENT_DISABLED', `agent ${agent} is switched off`, { agent, reason: 'AGENT_OFF' })
+  return ok(setting)
+}
+
+/**
  * Every gate of BR-AI-11 for one purpose. `memberId` is the member who starts the call (the rate limit counts their
  * calls); SYSTEM calls (Approval Brief) pass null and are not limited.
  */
 export async function checkCallGates(tx: TenantTx, ctx: Ctx, purpose: AiPurposeName, memberId: string | null): Promise<Result<CallPlan>> {
   const agent = AGENT_OF_PURPOSE[purpose]
   const runtime = aiRuntime()
-  if (!runtime.enabled || !runtime.mode) return err('AI_AGENT_DISABLED', 'AI is switched off for the whole system', { agent, reason: 'AI_OFF' })
-  const aiModule = await requireModule(ctx, 'AI', tx)
-  if (!aiModule.ok) return aiModule
-  const setting = await tx.aiAgentSetting.findFirst({ where: { agent }, select: { enabled: true, level: true, minConfidenceBp: true } })
-  if (!setting?.enabled) return err('AI_AGENT_DISABLED', `agent ${agent} is switched off`, { agent, reason: 'AGENT_OFF' })
+  const on = await agentSwitchedOn(ctx, agent, tx)
+  if (!on.ok) return on
+  const setting = on.data
   const model = modelForPurpose(purpose, runtime.modelEnv)
   const promptVersion = PROMPT_VERSIONS[purpose]
   if (runtime.mode === 'live' && !isGated(runtime.gates, { agent, purpose, promptVersion, model, tier: requiredGateTier(runtime.appEnv) })) {

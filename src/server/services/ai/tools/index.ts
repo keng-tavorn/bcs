@@ -39,6 +39,9 @@ export interface ToolResult {
 export const TOOL_ROWS = 10
 const PO_CANDIDATES = 50
 const DOC_NUMBER = /\b[A-Z]{2,4}-\d{4}-\d{5}\b/
+const DOC_NUMBERS = new RegExp(DOC_NUMBER.source, 'g')
+/** Documents' numbers looked for in one question at most: a comparison names a few, a pasted list is cut */
+const NUMBERS_PER_QUESTION = 3
 const BP_PER_PERCENT = 100
 
 const money = (satang: bigint | null | undefined): TextValue | null => (satang === null || satang === undefined ? null : { kind: 'money', value: satangToAmount(satang) })
@@ -61,14 +64,17 @@ export async function findInvoiceForAsker(ctx: Ctx, number: string) {
 }
 
 async function searchDocuments(ctx: Ctx, question: string): Promise<ToolResult> {
-  // A document's number in the question is what is looked for, as the document page's "ถามเรื่องนี้" and "สรุปให้" send
-  // it (NEW-122); the ⌘K search finds requests and POs, an invoice is looked up by its number under its own rule
-  const number = DOC_NUMBER.exec(question)?.[0] ?? null
-  const [found, invoice] = await Promise.all([searchForMember(ctx, number ?? question), number ? findInvoiceForAsker(ctx, number) : Promise.resolve(null)])
-  const docs = found.ok ? found.data.documents.map((d) => row(d.href, { number: ref(d.number), title: text(d.title), status: { kind: 'enum', value: d.status } })) : []
-  const invoices = invoice ? [row(`/finance/invoices/${invoice.id}`, { number: ref(invoice.number), supplier: text(invoice.supplier.nameTh), status: { kind: 'enum', value: invoice.status }, gross: money(invoice.grossSatang) })] : []
-  const suppliers = found.ok ? found.data.suppliers.map((s) => row(s.href, { code: ref(s.code), name: text(s.nameTh) })) : []
-  return { tool: 'search_documents', rows: [...docs, ...invoices, ...suppliers].slice(0, TOOL_ROWS), values: {} }
+  // The documents' numbers in the question are what is looked for, each of them (a question may compare two), as the
+  // document page's "ถามเรื่องนี้" and "สรุปให้" send one (NEW-122); without a number, the question as before. The ⌘K
+  // search finds requests and POs, an invoice is looked up by its number under its own rule
+  const numbers = [...new Set(question.match(DOC_NUMBERS) ?? [])].slice(0, NUMBERS_PER_QUESTION)
+  const [found, invoices] = await Promise.all([Promise.all((numbers.length ? numbers : [question]).map((q) => searchForMember(ctx, q))), Promise.all(numbers.map((n) => findInvoiceForAsker(ctx, n)))])
+  const docs = found.flatMap((f) => (f.ok ? f.data.documents : [])).map((d) => row(d.href, { number: ref(d.number), title: text(d.title), status: { kind: 'enum', value: d.status } }))
+  const invoiceRows = invoices.flatMap((i) => (i ? [row(`/finance/invoices/${i.id}`, { number: ref(i.number), supplier: text(i.supplier.nameTh), status: { kind: 'enum', value: i.status }, gross: money(i.grossSatang) })] : []))
+  const suppliers = found.flatMap((f) => (f.ok ? f.data.suppliers : [])).map((s) => row(s.href, { code: ref(s.code), name: text(s.nameTh) }))
+  // One row a document, though two numbers found it
+  const rows = [...new Map([...docs, ...invoiceRows, ...suppliers].map((r, i) => [r.href ?? `#${i}`, r])).values()]
+  return { tool: 'search_documents', rows: rows.slice(0, TOOL_ROWS), values: {} }
 }
 
 async function getRequest(ctx: Ctx, question: string): Promise<ToolResult> {

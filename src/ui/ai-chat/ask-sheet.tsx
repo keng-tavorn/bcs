@@ -4,7 +4,7 @@ import { useChat, type UIMessage } from '@ai-sdk/react'
 import { Send, Sparkles } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { FeedbackButtons, type GiveAiFeedback } from '../assistants/feedback-buttons'
+import { FeedbackButtons, type AiFeedback, type GiveAiFeedback } from '../assistants/feedback-buttons'
 import { onAskAi } from '../shell/shell-events'
 import { Badge } from '../shadcn/badge'
 import { Bubble, BubbleContent } from '../shadcn/bubble'
@@ -41,6 +41,8 @@ export function AskAiSheet({ transport, give }: { transport?: AskTransport; give
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const input = useRef<HTMLInputElement>(null)
+  // What the member said of each answer: the sheet's content goes when it closes, the conversation stays
+  const [feedbackOf, setFeedbackOf] = useState<Readonly<Record<string, AiFeedback>>>({})
 
   useEffect(
     () =>
@@ -129,7 +131,7 @@ export function AskAiSheet({ transport, give }: { transport?: AskTransport; give
                       ))}
                     </section>
                   ) : null}
-                  {data?.agentActionId && give && !(i === messages.length - 1 && (status === 'submitted' || status === 'streaming')) ? <FeedbackButtons agentActionId={data.agentActionId} give={give} /> : null}
+                  {data?.agentActionId && give && !(i === messages.length - 1 && (status === 'submitted' || status === 'streaming')) ? <FeedbackButtons agentActionId={data.agentActionId} initial={feedbackOf[data.agentActionId] ?? null} give={give} onGiven={(feedback) => setFeedbackOf((before) => ({ ...before, [data.agentActionId!]: feedback }))} /> : null}
                 </MessageContent>
               </Message>
             )

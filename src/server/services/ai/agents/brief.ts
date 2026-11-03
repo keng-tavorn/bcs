@@ -13,8 +13,7 @@ import { poViewFacts } from '@/server/queries/receiving'
 import { budgetLineAvailable } from '../../budget/line-available'
 import { completeAgentAction, expireAgentAction, requestAgentAction } from '../actions'
 import { asDataValues } from '../data'
-import { aiRuntime } from '../gate'
-import { requireModule } from '../../modules'
+import { agentSwitchedOn, aiRuntime } from '../gate'
 
 // Approval Brief (FR-AI-301 AC1–AC6, BR-AI-20, BR-AI-27, ADR-144 ADR-145). Facts are built by code every time they are
 // read, under the rights of the one who reads — the assignee of the task or the member they act for (BR-DLG-04): the
@@ -179,9 +178,7 @@ export async function approvalBriefOf(ctx: Ctx, taskId: string): Promise<Result<
   if (!task) return err('NOT_FOUND', 'task not found')
   if (task.assigneeMemberId !== ctx.actor.memberId && task.principalMemberId !== ctx.actor.memberId) return err('FORBIDDEN', 'only the one who decides the task reads its Brief')
   const db = forTenant(ctx.organizationId)
-  const off = { status: 'NONE' as const, facts: [], sentences: null, agentActionId: null, feedback: null }
-  if (!aiRuntime().enabled || !(await requireModule(ctx, 'AI')).ok) return ok(off)
-  if (!(await db.aiAgentSetting.findFirst({ where: { agent: 'APPROVAL_BRIEF' }, select: { enabled: true } }))?.enabled) return ok(off)
+  if (!(await agentSwitchedOn(ctx, 'APPROVAL_BRIEF')).ok) return ok({ status: 'NONE', facts: [], sentences: null, agentActionId: null, feedback: null })
   const facts = await briefFacts(ctx, task)
   const shown = Object.entries(facts).map(([key, v]) => ({ key, text: renderValue(v) }))
   const action = await db.agentAction.findFirst({

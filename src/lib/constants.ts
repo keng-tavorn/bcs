@@ -252,3 +252,12 @@ export const CHAT_AI_READING_WINDOW_MS = 5 * MS_PER_MINUTE
 
 /** NEW-126: the longest message a person may send from the helper of an invoice's difference, in characters */
 export const EXCEPTION_HELP_MESSAGE_MAX_CHARS = 2_000
+
+/**
+ * NEW-124 (ADR-082): the follow-up assistant. A task is nudged by hand at most this many times a day of the
+ * organization, whoever sends; and not within this long after its assignee was told of it by the SLA job or reminded from
+ * the board, so a person's nudge never lands on top of the system's. A nudge is at most this many characters.
+ */
+export const FOLLOW_UPS_PER_TASK_PER_DAY = 1
+export const FOLLOW_UP_QUIET_MS = 2 * MS_PER_HOUR
+export const FOLLOW_UP_MESSAGE_MAX_CHARS = 1_000

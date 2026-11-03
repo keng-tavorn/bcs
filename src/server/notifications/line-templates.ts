@@ -31,6 +31,9 @@ export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   'invoice.variance_decided',
   // NEW-126: a question from the helper of a difference, with the numbers only (BR-NOTI-01)
   'invoice.question',
+  // NEW-124: a nudge sent "ทาง LINE" from the follow-up assistant, the document's number only; task.follow_up_email,
+  // sent "ทางอีเมล", is not here and goes by e-mail alone
+  'task.follow_up',
   // S9, in lane 2's own file (ADR-135)
   ...PAYMENT_LINE_TEMPLATES,
 ])

@@ -6,7 +6,8 @@
     "none": "Nothing to watch for in this document yet. The assistants tell you here when a step is about to run late, a request looks like another, a price is unusually high or an invoice has alerts."
   },
   "step": {
-    "action": "See the approval route"
+    "action": "See the approval route",
+    "followUp": "Draft a follow-up"
   },
   "STEP_OVERDUE": {
     "title": "The step waiting now is past due (due {when})",

@@ -58,6 +58,9 @@
     "escalated": {
       "title": "A task was passed to you"
     },
+    "follow_up": {
+      "title": "A follow-up on your approval"
+    },
     "overdue": {
       "title": "A task is past its due time"
     },

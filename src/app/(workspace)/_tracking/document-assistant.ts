@@ -1,5 +1,6 @@
 import type { getTranslations } from 'next-intl/server'
 import { ASSISTANT_DUE_SOON_MS } from '@/lib/assistant-suggestions'
+import { FOLLOW_UP_PATH, followUpDraftAnchor } from '@/lib/follow-up'
 import type { PriceReferenceDto } from '@/server/queries/price-reference'
 import type { MemberRefDto } from '@/server/queries/requests'
 import type { RequestFlagDto } from '@/server/services/requests/duplicates'
@@ -27,8 +28,11 @@ export interface WaitingStep {
   readonly overdue: boolean
 }
 
-/** The step waiting now when its time is out, or ends within a day (the home card's measure); none otherwise */
-export function stepNote(t: PanelT, locale: Locale, now: Date, me: string, waiting: WaitingStep | null, href: string): AssistantNoteView | null {
+/**
+ * The step waiting now when its time is out, or ends within a day (the home card's measure); none otherwise. A reader who
+ * follows the document (NEW-124: the follow-up assistant lists one of its tasks for them) is led to draft a nudge there.
+ */
+export function stepNote(t: PanelT, locale: Locale, now: Date, me: string, waiting: WaitingStep | null, href: string, followUpTaskId: string | null = null): AssistantNoteView | null {
   if (!waiting?.dueAt || !waiting.assignee) return null
   const overdue = waiting.overdue || waiting.dueAt.getTime() <= now.getTime()
   if (!overdue && waiting.dueAt.getTime() - now.getTime() > ASSISTANT_DUE_SOON_MS) return null
@@ -40,7 +44,7 @@ export function stepNote(t: PanelT, locale: Locale, now: Date, me: string, waiti
     tone: overdue ? 'danger' : 'warn',
     title: t(`${kind}.title`, { when: when(locale, waiting.dueAt) }),
     why: mine ? t(`${kind}.whyMine`) : t(`${kind}.why`, { name: memberName(locale, waiting.assignee) }),
-    action: { href, label: t('step.action') },
+    action: followUpTaskId && !mine ? { href: `${FOLLOW_UP_PATH}#${followUpDraftAnchor(followUpTaskId)}`, label: t('step.followUp') } : { href, label: t('step.action') },
   }
 }
 

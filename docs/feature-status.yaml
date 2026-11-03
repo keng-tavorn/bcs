@@ -715,8 +715,11 @@ features:
       - tests/integration/insight-screens.test.ts
       - tests/unit/insight-format.test.ts
       - tests/unit/insight-outcome.test.ts
+      - tests/unit/follow-up.test.ts
+      - tests/integration/follow-up.test.ts
+      - tests/e2e/follow-up.spec.ts
     verifiedBy: null
-    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
+    notes: "NEW-124 (ADR-082): AC4 to AC6 the follow-up assistant /follow-ups — tasks past or near their due time on the documents a member follows, with why they wait, and a nudge to the holder that a person drafts, confirms and sends (once a task a day, not within 2 hours of the system telling the holder) · AC1 to AC3: ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-VIS-002:
     status: in_progress
     step: S4

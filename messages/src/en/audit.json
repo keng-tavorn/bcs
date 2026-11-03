@@ -214,6 +214,7 @@
       "cancelled": "Approval task cancelled",
       "decided": "Approval task decided",
       "escalated": "Overdue approval task escalated",
+      "followed_up": "Sent a follow-up to the holder of an approval task",
       "overdue": "Approval task overdue",
       "reassigned": "Approval task reassigned",
       "reminded": "Approval task reminded"

@@ -41,7 +41,28 @@ const CHANGE_KIND: Readonly<Record<string, Text>> = {
 /** Where a policy document lives */
 const policyHref = (subjectType: unknown, subjectId: unknown) => (subjectType === 'DOA_VERSION' ? `/admin/doa/${str(subjectId)}` : '/admin/org-authority')
 
+/**
+ * NEW-124 (ADR-082): a nudge that a member who follows the document read and sent to the holder of its approval task.
+ * Outside BCS the kind and number of the document only, polite and neutral (BR-NOTI-01, §10.3); in the bell who sent it
+ * and their words. The holder opens the task, where they decide as always. One template for both ways it goes.
+ */
+const followUp: Template = (d) => {
+  const sender = { th: str(d.senderTh), en: str(d.senderEn) || str(d.senderTh) }
+  const kind = d.subjectType === 'PURCHASE_ORDER' ? { th: 'ใบสั่งซื้อ', en: 'purchase order' } : { th: 'คำขอ', en: 'request' }
+  return {
+    title: { th: `มีข้อความติดตามงานอนุมัติ${kind.th} ${ref(d)}`, en: `A follow-up on your approval of ${kind.en} ${ref(d)}` },
+    body: { th: 'เปิด BCS เพื่ออ่านข้อความและพิจารณา', en: 'Open BCS to read the message and decide' },
+    href: `/tasks/${str(d.taskId)}`,
+    inApp: {
+      title: { th: `${sender.th} ติดตามงานอนุมัติ${kind.th} ${ref(d)}`, en: `${sender.en} follows up on your approval of ${kind.en} ${ref(d)}` },
+      body: { th: str(d.text), en: str(d.text) },
+    },
+  }
+}
+
 export const TEMPLATES: Readonly<Record<string, Template>> = {
+  'task.follow_up': followUp,
+  'task.follow_up_email': followUp,
   'task.assigned': (d) => ({
     title: { th: `มีงานรออนุมัติ: ${ref(d)}`, en: `Waiting for your approval: ${ref(d)}` },
     href: d.taskId ? `/tasks/${str(d.taskId)}` : null,

@@ -1,7 +1,7 @@
 import { CalendarClock, Layers, Scale, Tag, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '../cn'
-import { ReportTable, type ReportColumnView, type ReportRowView } from '../insight/report-table'
+import { ReportTable, type ReportCellView, type ReportColumnView, type ReportRowView } from '../insight/report-table'
 import { Badge } from '../shadcn/badge'
 import { Button } from '../shadcn/button'
 import { Item, ItemContent, ItemMedia, ItemTitle } from '../shadcn/item'
@@ -44,6 +44,54 @@ export interface SavingsItemView {
   readonly stage: string | null
   readonly action: { readonly href: string; readonly label: string } | null
   readonly evidence: SavingsEvidenceView
+}
+
+function EvidenceCell({ cell }: { cell: ReportCellView | undefined }) {
+  if (cell?.text && cell.href)
+    return (
+      <Link href={cell.href} className="font-medium text-primary underline underline-offset-4 hover:no-underline">
+        {cell.text}
+      </Link>
+    )
+  if (cell?.text) return <>{cell.text}</>
+  return (
+    <>
+      <span aria-hidden="true">—</span>
+      {cell?.emptyLabel ? <span className="sr-only">{cell.emptyLabel}</span> : null}
+    </>
+  )
+}
+
+/**
+ * The evidence: the report table from 768 px; on a phone each row a short list headed by its first column, the label
+ * as wide as its words and the value wrapping beside it — a supplier's long name never squeezes the label under it
+ */
+function Evidence({ view }: { view: SavingsEvidenceView }) {
+  const [first, ...rest] = view.columns
+  return (
+    <>
+      <div className="hidden md:block">
+        <ReportTable caption={view.title} columns={view.columns} rows={view.rows} rowHeader={0} lead={1} />
+      </div>
+      <ul aria-label={view.title} className="flex flex-col divide-y divide-line border-y border-line md:hidden">
+        {view.rows.map((r) => (
+          <li key={r.id} className="flex flex-col gap-1.5 py-3">
+            <p className="font-semibold text-ink">{first ? <EvidenceCell cell={r.cells[first.key]} /> : null}</p>
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
+              {rest.map((c) => (
+                <div key={c.key} className="contents">
+                  <dt className="text-ink-muted">{c.header}</dt>
+                  <dd className={c.numeric ? 'text-right tabular-nums' : 'break-words'}>
+                    <EvidenceCell cell={r.cells[c.key]} />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
 }
 
 export function SavingsList({ items, labels }: { items: readonly SavingsItemView[]; labels: { readonly show: string; readonly hide: string } }) {
@@ -96,7 +144,7 @@ function SavingsRow({ item, labels }: { item: SavingsItemView; labels: { readonl
         >
           <h3 className="text-base font-medium md:text-sm">{item.evidence.title}</h3>
           {item.evidence.rows.length ? (
-            <ReportTable caption={item.evidence.title} columns={item.evidence.columns} rows={item.evidence.rows} rowHeader={0} lead={1} />
+            <Evidence view={item.evidence} />
           ) : (
             <p className="text-base text-ink-muted md:text-sm">{item.evidence.empty}</p>
           )}

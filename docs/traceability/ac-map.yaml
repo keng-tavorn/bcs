@@ -572,6 +572,6 @@ frs:
 # AC ที่ไม่มีข้อใดเป็นเจ้าของ (กลายเป็นข้อ NEW ใน §16.11)
 unowned: []
 # demo = AC ที่ demo: true · goLive = AC ที่ demo: false (รวม AC ที่ไม่มีเจ้าของแต่ข้ามได้ใน demo) · demo + goLive = acs
-counts: { frs: 84, acs: 303, demo: 277, goLive: 26, unowned: 0 }
+counts: { frs: 85, acs: 306, demo: 280, goLive: 26, unowned: 0 }
 # จำนวนตามที่มาของเจ้าของ (ดู basis ด้านบน)
-basisCounts: { named: 237, later: 30, builder: 36, none: 0 }
+basisCounts: { named: 240, later: 30, builder: 36, none: 0 }

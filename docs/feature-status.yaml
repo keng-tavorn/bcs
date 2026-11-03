@@ -950,7 +950,7 @@ features:
     notes: "S16-08: AC1 to AC5 · poIdleDays uses the OQ-36 default (30 days) until a setting exists · the supplier registry recheck that writes supplier.registry_status_changed is S4-16 [go-live], so that count stays 0 until then"
   FR-VIS-008:
     status: in_progress
-    step: NEW-123
+    step: S16
     evidence:
       - tests/golden/savings.test.ts
       - tests/property/savings.property.test.ts

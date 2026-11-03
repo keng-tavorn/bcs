@@ -9,7 +9,7 @@ spec_check.py — ตรวจ spec.md ของ BCS แบบรันจริ
 """
 import re, sys, shutil, subprocess, tempfile, csv, os, copy
 from decimal import Decimal, ROUND_HALF_UP
-from datetime import datetime, timedelta, timezone, time as dtime
+from datetime import date, datetime, timedelta, timezone, time as dtime
 from zoneinfo import ZoneInfo
 try:
     import yaml
@@ -1244,6 +1244,59 @@ def prc_reference(d, i):
         diff = (p - med) * 10000; dev = abs(diff) // med * (1 if diff >= 0 else -1)
         got.update(deviationBp=dev, alert="HIGH" if diff > med * st["alertBp"] else "LOW" if -diff > med * st["alertBp"] else None)
     return got
+def run_savings(d):
+    # BR-SAV-01 to BR-SAV-06 (§7.21 · NEW-123): savings of the lines still to be ordered, each the difference of two line
+    # amounts; a price above history is HIGH on enough samples (BR-PRC-03), an agreed price one in effect today, an
+    # agreement ending within agreementDays and not continued; the total counts each line's largest saving once
+    st, df = d["settings"], d["defaults"]; at = dt(df["at"]); today = date.fromisoformat(df["today"]); start = at - timedelta(days=st["windowDays"])
+    key = lambda x: "item:" + x["item"] if x.get("item") else x["d"]
+    out = []
+    for c in d["cases"]:
+        i = c["input"]
+        lines = sorted([{**{k: df[k] for k in ("stage", "dept", "site", "kind", "supplier", "qty", "includesVat")}, **l} for l in i.get("lines", [])], key=lambda l: l["ref"])
+        buys = [{**{"approvedAt": df["approvedAt"], "qty": df["qty"], "includesVat": False, "agreement": None}, **p} for p in i.get("purchases", [])]
+        ags = [{**{"ended": False}, **a} for a in i.get("agreements", [])]
+        inwin = lambda p: start <= dt(p["approvedAt"]) < at
+        latest = lambda ps: [p["ref"] for p in sorted(ps, key=lambda p: (-dt(p["approvedAt"]).timestamp(), p["ref"]))]
+        opp, best = [], {}
+        for l in lines:
+            if l["includesVat"]: continue
+            p, q = sat(l["unitPrice"]), l["qty"]
+            used = [b for b in buys if key(b) == key(l) and inwin(b) and not b["includesVat"]]
+            xs = sorted(sat(b["unitPrice"]) for b in used)
+            if len(xs) >= st["minSamples"]:
+                med = xs[(len(xs) - 1) // 2]
+                if med and (p - med) * 10000 > med * st["alertBp"]:
+                    s = line_net(q, p) - line_net(q, med)
+                    if s > 0: opp.append((s, 0, l["ref"], {"kind": "PRICE_ABOVE_HISTORY", "line": l["ref"], "saving": baht(s), "reference": baht(med), "count": len(xs), "purchases": latest(used)}))
+            if l.get("item"):
+                eff = [a for a in ags if a["item"] == l["item"] and a["validFrom"] <= df["today"] < a["validTo"]]
+                if eff and not any(a["supplier"] == l["supplier"] for a in eff):
+                    a = min(eff, key=lambda a: (sat(a["unitPrice"]), a["id"]))
+                    s = line_net(q, p) - line_net(q, sat(a["unitPrice"]))
+                    if s > 0: opp.append((s, 1, l["ref"], {"kind": "OFF_AGREEMENT", "line": l["ref"], "saving": baht(s), "agreement": a["id"], "agreed": baht(sat(a["unitPrice"]))}))
+        groups = {}
+        for l in lines:
+            if l["stage"] == "POOL" and not l["includesVat"]: groups.setdefault((key(l), l["kind"], l["site"]), []).append(l)
+        for g in groups.values():
+            if len({l["dept"] for l in g}) < 2: continue
+            low = min(sat(l["unitPrice"]) for l in g)
+            per = [(l["ref"], line_net(l["qty"], sat(l["unitPrice"])) - line_net(l["qty"], low)) for l in g]
+            tot = sum(s for _, s in per)
+            if tot > 0: opp.append((tot, 2, g[0]["ref"], {"kind": "SAME_ITEM_DEPARTMENTS", "lines": [r for r, _ in per], "saving": baht(tot), "lowest": baht(low)}, per))
+        for o in opp:
+            for r, s in (o[4] if len(o) > 4 else [(o[2], o[0])]): best[r] = max(best.get(r, 0), s)
+        opp.sort(key=lambda o: (-o[0], o[1], o[2]))
+        exp = []
+        for a in sorted(ags, key=lambda a: (a["validTo"], a["id"])):
+            left = (date.fromisoformat(a["validTo"]) - today).days
+            if a["ended"] or not (a["validFrom"] <= df["today"] < a["validTo"]) or left > st["agreementDays"]: continue
+            if any(b is not a and not b["ended"] and b["item"] == a["item"] and b["supplier"] == a["supplier"] and b["validFrom"] == a["validTo"] for b in ags): continue
+            bought = [b for b in buys if b["agreement"] == a["id"] and inwin(b) and not b["includesVat"]]
+            exp.append({"kind": "AGREEMENT_EXPIRING", "agreement": a["id"], "daysLeft": left, "spent": baht(sum(line_net(b["qty"], sat(b["unitPrice"])) for b in bought)), "purchases": latest(bought)})
+        got = {"total": baht(sum(best.values())), "opportunities": [o[3] for o in opp] + exp}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 def run_forms_s6(d):
     # BR-FORM-08: daysLeft by Thai calendar days; the smallest milestone not below them, once, never after the end.
     # BR-FORM-07: answers the current form still has; lines without the service end date, at the agreed price of the
@@ -2280,6 +2333,7 @@ RUNNERS = {
     "quotations": run_quotes,
     "receiving": run_gr,
     "retention": run_retention,
+    "savings": run_savings,
     "sla": run_sla,
     "sod": run_sod,
     "taxid": run_taxid,

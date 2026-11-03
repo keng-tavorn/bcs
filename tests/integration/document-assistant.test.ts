@@ -3,7 +3,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { setAiClientForTests, type AiClient } from '@/integrations/ai'
 import { PROMPT_VERSIONS } from '@/lib/ai-config'
 import { prisma } from '@/server/db/client'
-import { approvalBriefOf, askInsight, giveAgentFeedback, runBrief, runMonthlyGrant, runTool, setAiRuntimeForTests, updateAgentSetting, type AiRuntime } from '@/server/services/ai'
+import { approvalBriefOf, askInsight, giveAgentFeedback, listAgentActivity, monthResults, runBrief, runMonthlyGrant, runTool, setAiRuntimeForTests, updateAgentSetting, type AiRuntime } from '@/server/services/ai'
 import { apOrg, codedDraft, receive, sentPo, submit, type ApOrg } from '../support/ap'
 import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
@@ -212,5 +212,33 @@ describe('[FR-INT-012/AC8] an invoice by its number', () => {
     } finally {
       await prisma.orgModule.updateMany({ where: { organizationId: ap.org.organizationId, module: 'PAY' }, data: { enabled: true } })
     }
+  })
+})
+
+describe('[FR-INT-012/AC8] NEW-119: what the decider said of the Brief is read from the AI report', () => {
+  it('[FR-INT-012/AC8] "ช่วยได้" pressed on the panel is an Event, counted in the month and listed under its filter at /admin/ai', async () => {
+    const { task, assignee } = await openTask()
+    answering({ sentences: ['คำขอนี้ยอด {{v:amount}} บาท'] })
+    expect(await runBrief(org.organizationId, task.id, NOW)).toBe('DRAFT')
+    const decider = org.ctxOf(assignee, NOW)
+    const agentActionId = data(await approvalBriefOf(decider, task.id)).agentActionId!
+    const admin = org.ctxOf('admin', NOW)
+    const before = data(await monthResults(admin)).feedback
+
+    expect((await giveAgentFeedback(decider, { agentActionId, feedback: 'HELPFUL' }, key())).ok).toBe(true)
+    expect(await prisma.event.count({ where: { aggregateId: agentActionId, type: 'agent_action.feedback_given' } })).toBe(1)
+    expect(data(await monthResults(admin)).feedback).toEqual({ helpful: before.helpful + 1, notHelpful: before.notHelpful })
+    const helpful = data(await listAgentActivity(admin, { show: 'HELPFUL' })).rows.find((r) => r.id === agentActionId)
+    expect(helpful).toMatchObject({ agent: 'APPROVAL_BRIEF', feedback: 'HELPFUL' })
+
+    // Changed to "ไม่ช่วย": a second Event, and the report moves it to the other count and filter
+    expect((await giveAgentFeedback(decider, { agentActionId, feedback: 'NOT_HELPFUL' }, key())).ok).toBe(true)
+    expect(await prisma.event.count({ where: { aggregateId: agentActionId, type: 'agent_action.feedback_given' } })).toBe(2)
+    expect(data(await monthResults(admin)).feedback).toEqual({ helpful: before.helpful, notHelpful: before.notHelpful + 1 })
+    expect(data(await listAgentActivity(admin, { show: 'HELPFUL' })).rows.some((r) => r.id === agentActionId)).toBe(false)
+    expect(data(await listAgentActivity(admin, { show: 'NOT_HELPFUL' })).rows.some((r) => r.id === agentActionId)).toBe(true)
+
+    // The report is the admin's: the decider who gave the feedback does not read it
+    expect(codeOf(await monthResults(decider))).toBe('FORBIDDEN')
   })
 })

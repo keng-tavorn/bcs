@@ -2093,6 +2093,16 @@
       "title": "Let the AI fill this in (optional)"
     },
     "invoice": {
+      "did": {
+        "checkedClean": "Checked what it read and found nothing to look at",
+        "checkedFound": "Checked what it read and found {count, plural, one {# thing} other {# things}} to look at (in the box below)",
+        "doneMark": "Done:",
+        "filled": "Made the draft and filled {count, plural, one {# field} other {# fields}}",
+        "leftMark": "Still to do:",
+        "read": "Read the attached invoice file",
+        "title": "What the AI did for you",
+        "yours": "You confirmed {confirmed} of {count, plural, one {# field} other {# fields}} · changed {changed} yourself"
+      },
       "fields": {
         "discount": "Discount (THB)",
         "invoiceDate": "Invoice date",
@@ -2189,6 +2199,7 @@
       "confirmed": "Confirmed",
       "confirming": "Confirming the codes",
       "costCenter": "Cost center of line {no}",
+      "differs": "{code} differs from {used}, used before for this supplier and category ({source}). You can keep it; check that the change is intended.",
       "done": "Codes of every line confirmed",
       "from": {
         "BUDGET_LINE": "From the budget line",

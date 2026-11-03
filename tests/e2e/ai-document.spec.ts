@@ -181,6 +181,11 @@ test('[FR-AI-303/AC6] [FR-AI-303/AC8] FINANCE reads a supplier invoice with the 
   await expect(box.getByText('เติมโดย AI โปรดตรวจ')).toBeVisible()
   await expect(box.getByText('INV-E2E-1', { exact: true }).first()).toBeVisible()
   await expect(box.getByRole('checkbox', { checked: false }).first()).toBeVisible()
+  // NEW-119: "AI ทำอะไรให้" above the box says what the AI did, and what is left for FINANCE
+  const did = page.getByRole('region', { name: 'AI ทำอะไรให้' })
+  await expect(did.getByText('อ่านไฟล์ใบแจ้งหนี้ที่แนบ')).toBeVisible()
+  await expect(did.getByText(/สร้างร่างและเติมให้ \d+ ช่อง/)).toBeVisible()
+  await expect(did.getByText(/ยังเหลือ: คุณยืนยันแล้ว 0 จาก \d+ ช่อง · แก้เอง 0 ช่อง/)).toBeVisible()
   await check(page, testInfo, 'invoice-ai-review')
 
   // Coded, but not submitted while a value waits
@@ -201,6 +206,7 @@ test('[FR-AI-303/AC6] [FR-AI-303/AC8] FINANCE reads a supplier invoice with the 
   const waiting = box.getByRole('checkbox', { checked: false })
   for (let n = await waiting.count(); n > 0; n--) await waiting.first().click()
   await expect(box.getByRole('status').filter({ hasText: 'ยืนยันค่าที่ AI เติมครบแล้ว' })).toBeVisible()
+  await expect(did.getByText(/ทำแล้ว: คุณยืนยันแล้ว (\d+) จาก \1 ช่อง/)).toBeVisible()
   await check(page, testInfo, 'invoice-ai-confirmed')
   await page.getByRole('button', { name: 'บันทึกการยืนยัน' }).click()
   await expect(box).toHaveCount(0, { timeout: 20_000 })

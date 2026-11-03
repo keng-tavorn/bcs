@@ -223,6 +223,16 @@
       "statedVat": "VAT on the invoice (THB)",
       "quantity": "{description}: quantity",
       "unitPrice": "{description}: unit price (THB)"
+    },
+    "did": {
+      "title": "What the AI did for you",
+      "read": "Read the attached invoice file",
+      "filled": "Made the draft and filled {count, plural, one {# field} other {# fields}}",
+      "checkedFound": "Checked what it read and found {count, plural, one {# thing} other {# things}} to look at (in the box below)",
+      "checkedClean": "Checked what it read and found nothing to look at",
+      "yours": "You confirmed {confirmed} of {count, plural, one {# field} other {# fields}} · changed {changed} yourself",
+      "doneMark": "Done:",
+      "leftMark": "Still to do:"
     }
   },
   "feedback": {

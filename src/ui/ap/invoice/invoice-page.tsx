@@ -80,7 +80,7 @@ function codingViews(t: T, data: ApInvoicePageData): CodingLineView[] {
     whtIncomeTypeCode: l.whtIncomeTypeCode,
     budgetCostCenterId: l.budgetCostCenterId,
     confirmed: l.codingConfirmed,
-    suggestion: l.suggestion ? { accountCode: l.suggestion.accountCode, sourceText: sourceText(t, l.suggestion) } : null,
+    suggestion: l.suggestion ? { accountCode: l.suggestion.accountCode, sourceText: sourceText(t, l.suggestion), fromHistory: l.suggestion.source === 'HISTORY' } : null,
   }))
 }
 

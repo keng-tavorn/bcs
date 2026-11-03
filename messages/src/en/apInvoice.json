@@ -91,6 +91,7 @@
     "noCode": "No active account code found",
     "suggested": "Suggested: {code}",
     "noSuggestion": "No suggestion — choose one",
+    "differs": "{code} differs from {used}, used before for this supplier and category ({source}). You can keep it; check that the change is intended.",
     "from": {
       "HISTORY": "Used {count} times in 12 months",
       "BUDGET_LINE": "From the budget line",

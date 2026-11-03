@@ -72,6 +72,10 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     member: { model: 'Member', list: false },
     organization: { model: 'Organization', list: false },
   },
+  AssistantLearning: {
+    organization: { model: 'Organization', list: false },
+    updatedBy: { model: 'Member', list: false },
+  },
   AuthAttempt: {},
   BacktestRun: {
     organization: { model: 'Organization', list: false },
@@ -425,6 +429,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     invitationsSent: { model: 'MemberInvitation', list: true },
     invoiceLinesCoded: { model: 'InvoiceLine', list: true },
     invoicesRecorded: { model: 'InvoiceConfirmation', list: true },
+    learningsUpdated: { model: 'AssistantLearning', list: true },
     matchExceptionsClosed: { model: 'MatchException', list: true },
     notifications: { model: 'Notification', list: true },
     organization: { model: 'Organization', list: false },
@@ -487,6 +492,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     approvalSteps: { model: 'ApprovalStep', list: true },
     approvalTasks: { model: 'ApprovalTask', list: true },
     assistantDismissals: { model: 'AssistantDismissal', list: true },
+    assistantLearnings: { model: 'AssistantLearning', list: true },
     backtestRuns: { model: 'BacktestRun', list: true },
     bankAccountChanges: { model: 'BankAccountChange', list: true },
     bankAccounts: { model: 'BankAccount', list: true },

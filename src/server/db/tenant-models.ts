@@ -92,6 +92,8 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'PasskeyChallenge',
   // NEW-121: the home card suggestions a member set aside
   'AssistantDismissal',
+  // NEW-125: what an admin switched off or forgot of the assistants' notebook
+  'AssistantLearning',
   // S8-01
   'Invoice',
   'InvoiceLine',

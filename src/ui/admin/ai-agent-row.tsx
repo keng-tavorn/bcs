@@ -8,6 +8,7 @@ import { Button } from '../form/button'
 import { Field } from '../form/field'
 import { Notice } from '../form/notice'
 import { useSubmissionKey } from '../form/submission-key'
+import { ModuleState } from './module-state'
 import type { AdminFailure, AdminOutcome } from './outcome'
 
 export type UpdateAgentAction = (input: { agent: string; enabled?: boolean; minConfidenceBp?: number; expectedVersion?: number }, idempotencyKey: string) => Promise<AdminOutcome>
@@ -16,7 +17,8 @@ const BP_PER_PERCENT = 100
 
 // One AI agent at /admin/ai (docs/sub-specs/S13.md "หน้าจอ", BR-AI-24, OQ-147): a switch that takes effect for new
 // calls at once, and the confidence below which a field is confirmed one by one, in whole percent. The service checks
-// admin.ai.manage and the version shown; a refusal is explained in words.
+// admin.ai.manage and the version shown; a refusal is explained in words. NEW-125: the row says its version and who
+// saved it last (`meta`, translated), and AUDITOR reads it without the switch and the form (`readOnly`).
 export function AiAgentRow({
   agent,
   name,
@@ -24,6 +26,8 @@ export function AiAgentRow({
   enabled,
   minConfidenceBp,
   version,
+  meta,
+  readOnly = false,
   update,
 }: {
   agent: string
@@ -33,6 +37,10 @@ export function AiAgentRow({
   minConfidenceBp: number
   /** -1 when the agent has no setting yet */
   version: number
+  /** Its version and who saved it last, translated */
+  meta: string
+  /** A reader without admin.ai.manage: the state in words, no switch and no form */
+  readOnly?: boolean
   update: UpdateAgentAction
 }) {
   const t = useTranslations('admin.ai')
@@ -73,6 +81,21 @@ export function AiAgentRow({
   }
 
   const switchId = `ai-${agent}-enabled`
+  if (readOnly) {
+    return (
+      <li className="flex flex-col gap-1 py-4 first:pt-0 last:pb-0">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-0.5">
+            <span className="font-medium">{name}</span>
+            <p className="text-base text-ink-muted md:text-sm">{description}</p>
+          </div>
+          <ModuleState enabled={enabled} label={enabled ? t('on') : t('off')} className="shrink-0" />
+        </div>
+        <p className="text-base text-ink-muted md:text-sm">{t('confidenceValue', { percent: minConfidenceBp / BP_PER_PERCENT })}</p>
+        <p className="text-base text-ink-muted md:text-sm">{meta}</p>
+      </li>
+    )
+  }
   return (
     <li className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-4">
@@ -81,6 +104,7 @@ export function AiAgentRow({
             {name}
           </label>
           <p className="text-base text-ink-muted md:text-sm">{description}</p>
+          <p className="text-base text-ink-muted md:text-sm">{meta}</p>
         </div>
         <div className="flex min-h-11 items-center gap-2">
           <span className="text-base text-ink-muted md:text-sm" aria-hidden>

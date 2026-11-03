@@ -82,22 +82,35 @@ export interface AgentSettingDto {
   readonly minConfidenceBp: number
   /** -1 for an agent that has no row yet (off) */
   readonly version: number
+  /** NEW-125: who saved the setting last, and when (null for an agent that has no row yet, or saved by the system) */
+  readonly updatedBy: { readonly th: string; readonly en: string | null } | null
+  readonly updatedAt: string | null
 }
 
-/** Every agent with its setting, for /admin/ai (admin.ai.manage) */
+/** Every agent with its setting, for /admin/ai: ORG_ADMIN and AUDITOR read it (admin.ai.view · NEW-125), ORG_ADMIN changes it */
 export async function listAgentSettings(ctx: Ctx): Promise<Result<AgentSettingDto[]>> {
   const db = forTenant(ctx.organizationId)
   return db.$transaction(async (tx) => {
-    const allowed = await authorize(tx, ctx, 'admin.ai.manage')
+    const allowed = await authorize(tx, ctx, 'admin.ai.view')
     if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
-    const rows = await tx.aiAgentSetting.findMany({ select: { agent: true, enabled: true, level: true, minConfidenceBp: true, version: true } })
+    const rows = await tx.aiAgentSetting.findMany({
+      select: { agent: true, enabled: true, level: true, minConfidenceBp: true, version: true, updatedAt: true, updatedBy: { select: { displayNameTh: true, displayNameEn: true } } },
+    })
     const byAgent = new Map(rows.map((r) => [r.agent, r]))
     return ok(
       AI_AGENTS.map((agent) => {
         const r = byAgent.get(agent)
         return r
-          ? { agent, enabled: r.enabled, level: r.level, minConfidenceBp: r.minConfidenceBp, version: r.version }
-          : { agent, enabled: false, level: LEVEL_OF_AGENT[agent], minConfidenceBp: DEFAULT_MIN_CONFIDENCE_BP, version: -1 }
+          ? {
+              agent,
+              enabled: r.enabled,
+              level: r.level,
+              minConfidenceBp: r.minConfidenceBp,
+              version: r.version,
+              updatedBy: r.updatedBy ? { th: r.updatedBy.displayNameTh, en: r.updatedBy.displayNameEn } : null,
+              updatedAt: r.updatedAt.toISOString(),
+            }
+          : { agent, enabled: false, level: LEVEL_OF_AGENT[agent], minConfidenceBp: DEFAULT_MIN_CONFIDENCE_BP, version: -1, updatedBy: null, updatedAt: null }
       }),
     )
   })

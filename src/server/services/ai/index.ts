@@ -24,3 +24,17 @@ export { intakeFromMessage, IntakeMessageInput, runIntake, startIntake, StartInt
 export { checkCreditUsage, creditSummary, grantCredits, runMonthlyGrant, type CreditSummaryDto } from './credits'
 export { agentSwitchedOn, aiRuntime, checkCallGates, creditBalance, isAgentAvailable, setAiRuntimeForTests, type AgentAvailability, type AiRuntime, type CallPlan } from './gate'
 export { activeOrgAdminIds, listAgentSettings, updateAgentSetting, type AgentSettingDto } from './settings'
+export {
+  ACTIVITY_FILTERS,
+  ActivityQuery,
+  listAgentActivity,
+  listSettingChanges,
+  monthResults,
+  type ActivityFilter,
+  type ActivityPageDto,
+  type ActivityRowDto,
+  type AiAdminAccess,
+  type DataUsed,
+  type MonthResultsDto,
+  type SettingChangeDto,
+} from './report'

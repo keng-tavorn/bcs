@@ -146,7 +146,8 @@
     "withholding_tax": "ภาษีหัก ณ ที่จ่าย",
     "push_device": "โทรศัพท์ในแอป BCS Go",
     "chat_intake": "ขอผ่านแชท LINE",
-    "assistant": "ผู้ช่วย BCS"
+    "assistant": "ผู้ช่วย BCS",
+    "assistant_learning": "สมุดของผู้ช่วย"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -203,7 +204,8 @@
     "WithholdingTax": "ภาษีหัก ณ ที่จ่าย",
     "PushDevice": "โทรศัพท์ในแอป BCS Go",
     "ChatIntake": "ร่างคำขอจากแชท",
-    "Assistant": "รายการเรื่องของผู้ช่วย"
+    "Assistant": "รายการเรื่องของผู้ช่วย",
+    "AssistantLearning": "สิ่งที่ผู้ช่วยเรียนรู้"
   },
   "events": {
     "approval_step": {
@@ -581,6 +583,11 @@
     },
     "assistant": {
       "suggestion_dismissed": "ซ่อนเรื่องที่ผู้ช่วยเจอ"
+    },
+    "assistant_learning": {
+      "disabled": "ปิดสิ่งที่ผู้ช่วยเรียนรู้",
+      "enabled": "เปิดใช้สิ่งที่ผู้ช่วยเรียนรู้อีกครั้ง",
+      "forgotten": "ลบสิ่งที่ผู้ช่วยเรียนรู้"
     }
   }
 }

@@ -4232,6 +4232,7 @@ AC ของ FR ชั้น 2 ที่ขั้นของสายเขี�
 | `/tasks` · `/tasks/[id]` | ผู้รับงาน | กล่องงานอนุมัติ | S2 |
 | `/procurement/pool` | PROCUREMENT | กองคำขอรอจัดซื้อ | S4 |
 | `/procurement/pos` · `/procurement/pos/[id]` | PROCUREMENT | ใบสั่งซื้อ | S4 |
+| `/procurement/savings` | `po.view` และ `request.view` ระดับองค์กร | ผู้ช่วยหาเงินประหยัด: โอกาสประหยัดพร้อมยอดและหลักฐาน (FR-VIS-008) | NEW-123 |
 | `/receiving` · `/receiving/[poId]` | RECEIVER และผู้ขอที่ได้รับอนุญาต | ตรวจรับ | S4 |
 | `/finance/invoices` · `/finance/exports` | FINANCE | ยืนยันใบกำกับ ส่งออก Express | S4 |
 | `/budgets` · `/budgets/[lineId]` | ตามสิทธิ์ | dashboard งบ | S3 |
@@ -4572,6 +4573,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | (ไม่มีชื่อกลุ่ม) | คำขอ | `/requests` | ทุกคน | — |
 | จัดซื้อ | กองรอจัดซื้อ | `/procurement/pool` | `procurement.pool.view` | บรรทัดที่รอ |
 | จัดซื้อ | ใบสั่งซื้อ | `/procurement/pos` | `po.view` ระดับองค์กร | — |
+| จัดซื้อ | โอกาสประหยัด | `/procurement/savings` | `po.view` และ `request.view` ระดับองค์กร (NEW-123 · FR-VIS-008) | — |
 | จัดซื้อ | ตรวจรับ | `/receiving` | `gr.post` | PO ที่รอตรวจรับ |
 | จัดซื้อ | ผู้ขาย | `/suppliers` | ทุกคน | — |
 | จัดซื้อ | แคตตาล็อก | `/catalog` | `catalog.view` (ทุกคน · S6-10) | — |

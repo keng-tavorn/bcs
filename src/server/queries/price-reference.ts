@@ -1,5 +1,5 @@
 import { lineKey } from '@/core/duplicates'
-import { cardBadge, priceReference, quoteRange, type CardBadge, type PriceSample } from '@/core/pricing'
+import { cardBadge, priceReference, quoteRange, type CardBadge, type PriceRefSettings, type PriceSample } from '@/core/pricing'
 import { rateFor, taxDateOf } from '@/core/vat'
 import { MS_PER_DAY } from '@/lib/constants'
 import { OrgSettingsSchema, s6SettingsOf } from '@/lib/org-settings'
@@ -159,11 +159,16 @@ export async function priceReferenceForCard(organizationId: string, requestId: s
   })
 }
 
+/** The window, samples and alert of the price reference an organization's settings give (BR-PRC-01 to BR-PRC-03) */
+export function priceRefSettingsOf(orgSettings: unknown): PriceRefSettings {
+  const s6 = s6SettingsOf(orgSettings)
+  const alertPct = OrgSettingsSchema.shape.priceAlertPct.parse((orgSettings as { priceAlertPct?: unknown } | null)?.priceAlertPct)
+  return { windowDays: s6.priceRefWindowDays, minSamples: s6.priceRefMinSamples, alertBp: Math.round(alertPct * PERCENT_TO_BP) }
+}
+
 export async function priceReferenceOf(tx: TenantTx, organizationId: string, facts: PriceRequestFacts, now: Date): Promise<PriceReferenceDto> {
   const org = await tx.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { settings: true } })
-  const s6 = s6SettingsOf(org.settings)
-  const alertPct = OrgSettingsSchema.shape.priceAlertPct.parse((org.settings as { priceAlertPct?: unknown } | null)?.priceAlertPct)
-  const settings = { windowDays: s6.priceRefWindowDays, minSamples: s6.priceRefMinSamples, alertBp: Math.round(alertPct * PERCENT_TO_BP) }
+  const settings = priceRefSettingsOf(org.settings)
   const samples = await priceSamples(tx, facts.lines, new Date(now.getTime() - settings.windowDays * MS_PER_DAY), now)
   const lines = facts.lines.map((l): PriceLineReferenceDto => {
     const key = lineKey(l)

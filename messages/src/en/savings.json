@@ -1,0 +1,102 @@
+{
+  "metaTitle": "Savings",
+  "title": "Savings",
+  "intro": "The savings assistant reads the purchase history, the agreed prices and the purchasing queue, and shows where the organization could buy for less. Every amount is calculated from the data in BCS, never estimated by AI.",
+  "forbidden": "This page is for people who can see every purchase order and request of the organization (procurement, finance, executives and auditors), because past prices come from every PO.",
+  "homeLink": "Back to home",
+  "summary": {
+    "label": "Savings summary",
+    "total": "Could buy for {amount} baht less",
+    "totalNote": "A line found by more than one check counts its largest amount once · prices before VAT",
+    "none": "No amount to save found yet"
+  },
+  "filter": {
+    "label": "Show one kind",
+    "all": "All {count}",
+    "PRICE_ABOVE_HISTORY": "Above past prices {count}",
+    "OFF_AGREEMENT": "Off agreed price {count}",
+    "SAME_ITEM_DEPARTMENTS": "Same item, several departments {count}",
+    "AGREEMENT_EXPIRING": "Agreed prices ending {count}"
+  },
+  "list": "Savings found",
+  "shown": "{count} found",
+  "empty": {
+    "title": "No savings found yet",
+    "hint": "The assistant reads the requests waiting for approval and the purchasing queue each time this page opens. A request priced above past purchases or an agreed price about to end shows here.",
+    "filtered": "Nothing of this kind right now",
+    "showAll": "Show every kind"
+  },
+  "amount": {
+    "saving": "Could save {amount} baht",
+    "spent": "Bought at this price: {amount} baht"
+  },
+  "stage": {
+    "PENDING_APPROVAL": "Waiting for approval",
+    "POOL": "Waiting for a PO"
+  },
+  "kind": {
+    "PRICE_ABOVE_HISTORY": {
+      "title": "{number} line {line} {description} is {pct} above past prices",
+      "why": "The median of {count} POs in {days} days is {reference} baht per {uom} · this request asks {price} baht per {uom} for {quantity}",
+      "evidence": "POs the median comes from",
+      "stats": "Lowest {min} · median {median} · highest {max} baht"
+    },
+    "OFF_AGREEMENT": {
+      "title": "{number} line {line} {item} is off the agreed price",
+      "why": "The lowest agreed price in effect today is {agreed} baht per {uom} · this line asks {price} baht per {uom} for {quantity} {supplier}",
+      "supplier": "from {name}",
+      "noSupplier": "with no supplier chosen yet",
+      "reason": "The requester's reason: {reason}",
+      "evidence": "Agreed prices of this item in effect today"
+    },
+    "SAME_ITEM_DEPARTMENTS": {
+      "title": "{description} waits for a PO from {departments} departments, delivered to one place",
+      "why": "{lines} lines at different prices; the lowest is {lowest} baht per {uom} · bought together at this price they fit one PO",
+      "noSite": "No delivery site yet",
+      "site": "Delivered to {site}",
+      "evidence": "Each department's lines"
+    },
+    "AGREEMENT_EXPIRING": {
+      "title": "The agreed price of {item} from {supplier} holds {days} more days",
+      "why": "In effect until {lastDay} at {price} baht · in the last {window} days {spent} baht was bought at this price on {count} PO lines · renew or negotiate before it ends",
+      "evidence": "POs bought at this price"
+    }
+  },
+  "action": {
+    "request": "Open request",
+    "pool": "Open purchasing queue",
+    "catalogManage": "See agreed prices",
+    "catalog": "Open catalogue"
+  },
+  "evidence": {
+    "show": "Show evidence",
+    "hide": "Hide evidence",
+    "more": "Showing {shown} of {count}, latest first",
+    "none": "Nothing was bought at this price in this period",
+    "lowest": "Lowest",
+    "columns": {
+      "po": "PO",
+      "approvedAt": "Approved",
+      "supplier": "Supplier",
+      "quantity": "Quantity",
+      "unitPrice": "Unit price (baht)",
+      "net": "Amount (baht)",
+      "validFrom": "In effect from",
+      "lastDay": "Until",
+      "request": "Request",
+      "department": "Department",
+      "saving": "Could save (baht)"
+    },
+    "empty": "None"
+  },
+  "explain": {
+    "button": "Ask the assistant to explain",
+    "again": "Explain again",
+    "pending": "The assistant is writing",
+    "label": "The assistant's explanation",
+    "aiNote": "Written by the assistant from the figures of this item; check it against the evidence",
+    "failed": "The assistant could not explain this time. The figures and the evidence above still stand.",
+    "gone": "This item is no longer on the list. Reload the page for the latest list.",
+    "credits": "Uses AI credits each time"
+  }
+}

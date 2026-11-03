@@ -20,6 +20,7 @@ export type MenuKey =
   | 'receiving'
   | 'pool'
   | 'pos'
+  | 'savings'
   | 'suppliers'
   | 'catalog'
   | 'invoices'
@@ -83,6 +84,9 @@ export const MENU: readonly MenuItem[] = [
   { key: 'pool', href: '/procurement/pool', group: 'procurement', capability: 'procurement.pool.view', module: 'CORE', ready: true },
   // Every PO of the organization: for whoever may see all of them (§9.10, po.view at ORG scope); others open their own
   { key: 'pos', href: '/procurement/pos', group: 'procurement', capability: 'po.view', scopes: ['ORG'], module: 'CORE', ready: true },
+  // NEW-123 (FR-VIS-008): the savings the assistant finds, for whoever reads every PO — every one of them reads every
+  // request too (§2.4), which the page checks again with the PO's scope
+  { key: 'savings', href: '/procurement/savings', group: 'procurement', capability: 'po.view', scopes: ['ORG'], module: 'CORE', ready: true },
   { key: 'receiving', href: '/receiving', group: 'procurement', capability: 'gr.post', scopes: ['DEPT', 'ASSIGNED'], module: 'CORE', ready: true },
   { key: 'suppliers', href: '/suppliers', group: 'procurement', capability: 'supplier.view', module: 'CORE', ready: true },
   // The catalogue with its agreed prices (S6-10, FR-INT-102): every member searches it; PROCUREMENT keeps it from its page

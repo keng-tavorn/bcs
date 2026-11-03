@@ -21,13 +21,13 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
   })
 
   it.each<[StoredRole, MenuKey[]]>([
-    ['PROCUREMENT', ['pool', 'pos', 'insights', 'reports']],
-    ['FINANCE', ['pos', 'invoices', 'exports', 'budgets', 'insights', 'reports']],
+    ['PROCUREMENT', ['pool', 'pos', 'savings', 'insights', 'reports']],
+    ['FINANCE', ['pos', 'savings', 'invoices', 'exports', 'budgets', 'insights', 'reports']],
     ['BUDGET_ADMIN', ['budgets']],
     ['RECEIVER', ['receiving']],
-    ['EXECUTIVE', ['pos', 'budgets', 'insights', 'reports']],
+    ['EXECUTIVE', ['pos', 'savings', 'budgets', 'insights', 'reports']],
     // The policy history is an admin page, so its hub shows with it
-    ['AUDITOR', ['pos', 'budgets', 'insights', 'reports', 'audit', 'admin', 'policyHistory']],
+    ['AUDITOR', ['pos', 'savings', 'budgets', 'insights', 'reports', 'audit', 'admin', 'policyHistory']],
     ['ORG_ADMIN', ['audit', 'admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'workflows', 'orgAuthority', 'policyHistory', 'modules', 'config']],
   ])('%s also sees %j', (role, extra) => {
     const expected = withExtra(extra)
@@ -84,11 +84,11 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
     const admin = ['admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'workflows', 'orgAuthority', 'modules', 'config']
     expect(ready('ORG_ADMIN')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'catalog', 'board', 'audit', 'settings', ...admin, ...own.slice(1)])
     expect(ready()).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'catalog', 'board', ...own])
-    expect(ready('PROCUREMENT')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pool', 'pos', 'suppliers', 'catalog', 'insights', 'board', 'reports', ...own])
+    expect(ready('PROCUREMENT')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pool', 'pos', 'savings', 'suppliers', 'catalog', 'insights', 'board', 'reports', ...own])
     expect(ready('RECEIVER')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'receiving', 'suppliers', 'catalog', 'board', ...own])
-    expect(ready('FINANCE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'suppliers', 'catalog', 'invoices', 'exports', 'budgets', 'insights', 'board', 'reports', ...own])
-    expect(ready('EXECUTIVE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'suppliers', 'catalog', 'budgets', 'insights', 'board', 'reports', ...own])
-    expect(ready('AUDITOR')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'suppliers', 'catalog', 'budgets', 'insights', 'board', 'reports', 'audit', ...own])
+    expect(ready('FINANCE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'savings', 'suppliers', 'catalog', 'invoices', 'exports', 'budgets', 'insights', 'board', 'reports', ...own])
+    expect(ready('EXECUTIVE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'savings', 'suppliers', 'catalog', 'budgets', 'insights', 'board', 'reports', ...own])
+    expect(ready('AUDITOR')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'savings', 'suppliers', 'catalog', 'budgets', 'insights', 'board', 'reports', 'audit', ...own])
   })
 })
 
@@ -100,6 +100,8 @@ describe('[FR-PLT-013/AC2] [FR-PLT-002/AC1] the sidebar follows the table of §9
     ['main', 'requests', '/requests'],
     ['procurement', 'pool', '/procurement/pool'],
     ['procurement', 'pos', '/procurement/pos'],
+    // NEW-123 (FR-VIS-008): the savings assistant, for whoever reads every PO and request
+    ['procurement', 'savings', '/procurement/savings'],
     ['procurement', 'receiving', '/receiving'],
     ['procurement', 'suppliers', '/suppliers'],
     // S6-10 (FR-INT-102): the catalogue with its agreed prices, every member's (catalog.view)

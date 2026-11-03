@@ -3177,6 +3177,8 @@ enum AiPurpose {
   BRIEF
   QUESTION
   DOA_DRAFT
+  /// NEW-123: the assistant's words on a saving the code found (Insight · ADR-081)
+  SAVINGS_NOTE
 }
 
 /// Phase 1 opens L0 (suggests) and L1 (drafts for a person to confirm) only (§12.3, ADR-004)

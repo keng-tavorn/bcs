@@ -271,7 +271,7 @@ async function evalAgents(run: Run, client: AiClient, model: (a: AiAgentName) =>
       }
       const same = [...new Set(r.output.tools)].sort().join(',') === [...c.tools].sort().join(',')
       if (args.showWrong && !same) console.error(`wrong ${c.id}: expected ${c.tools.join(',')} chose ${r.output.tools.join(',')}`)
-      run.tally.add('INSIGHT', 'QUESTION', c.access ? 'ACCESS' : 'QUESTION', 'tools', same, { threshold: EVAL_THRESHOLDS_BP.insightTools })
+      run.tally.add('INSIGHT', 'QUESTION', c.group, 'tools', same, { threshold: EVAL_THRESHOLDS_BP.insightTools })
     }
   }
   if (args.agents.includes('DOA_DRAFTER')) {

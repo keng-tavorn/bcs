@@ -8,8 +8,8 @@ import { ROOT } from './ai-eval-cases'
 
 // The cases of the agents that do not read a document file on their own (S13-05, docs/sub-specs/S13.md "ชุดประเมิน"):
 // Intake from the requests of Request_History in the requester's words (60) and with a quotation attached (10), the
-// Approval Brief of 30 approval tasks with something to point out, Insight's 30 questions and 12 questions on access,
-// and the DOA drafter's two synthetic regulations. Each case holds the exact text the agent sends.
+// Approval Brief of 30 approval tasks with something to point out, Insight's 30 questions, 12 on access and 12 that a
+// document page sends (NEW-118), and the DOA drafter's two synthetic regulations. Each case holds the exact text the agent sends.
 
 export interface IntakeCase {
   readonly id: string
@@ -30,7 +30,8 @@ export interface BriefCase {
 export interface QuestionCase {
   readonly id: string
   readonly text: string
-  readonly access: boolean
+  /** QUESTION: the 30 questions · ACCESS: the 12 on access · DOCUMENT: what a document page sends (NEW-118) */
+  readonly group: 'QUESTION' | 'ACCESS' | 'DOCUMENT'
   readonly tools: readonly string[]
 }
 
@@ -150,10 +151,12 @@ export async function loadAgentCases(): Promise<AgentCases> {
   const q = parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'ai-eval', 'questions.yaml'), 'utf8')) as {
     questions: Array<{ id: string; text: string; tools: string[] }>
     access: Array<{ id: string; text: string; tools: string[] }>
+    documents: Array<{ id: string; text: string; tools: string[] }>
   }
   const questions: QuestionCase[] = [
-    ...q.questions.map((x) => ({ id: x.id, text: questionInputText(x.text), access: false, tools: x.tools })),
-    ...q.access.map((x) => ({ id: x.id, text: questionInputText(x.text), access: true, tools: x.tools })),
+    ...q.questions.map((x) => ({ id: x.id, text: questionInputText(x.text), group: 'QUESTION' as const, tools: x.tools })),
+    ...q.access.map((x) => ({ id: x.id, text: questionInputText(x.text), group: 'ACCESS' as const, tools: x.tools })),
+    ...q.documents.map((x) => ({ id: x.id, text: questionInputText(x.text), group: 'DOCUMENT' as const, tools: x.tools })),
   ]
 
   // DOA drafter: REG-A states DOA-SIMEC version 1 rule by rule; REG-B writes the second band of purchase requests from

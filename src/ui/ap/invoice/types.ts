@@ -1,3 +1,4 @@
+import type { HelpFix } from '@/lib/exception-help'
 import type { BadgeLook } from '../../document/badge-looks'
 
 // What the page of one tier-2 invoice receives (S8-13): the read model of src/server/services/ap/view-invoice.ts as the
@@ -118,4 +119,43 @@ export const MATCH_BADGES: Readonly<Record<string, BadgeLook>> = {
   PENDING: { tone: 'neutral', icon: 'CircleDot' },
   MATCHED: { tone: 'ok', icon: 'CircleCheck' },
   EXCEPTION: { tone: 'danger', icon: 'CircleX' },
+}
+
+/**
+ * NEW-126: the helper of an invoice's open differences, as src/server/services/ap/exception-help.ts reads it (its DTO
+ * fits as it is) — for each difference the reader may see, what code found, the ways the reader has, and who a
+ * question may go to
+ */
+export interface ExceptionHelpData {
+  readonly exceptionId: string
+  readonly type: string
+  readonly assigneeRole: 'PROCUREMENT' | 'RECEIVER' | 'FINANCE'
+  readonly amountSatang: bigint
+  readonly line: {
+    readonly lineNo: number
+    readonly poLineNo: number
+    readonly description: string
+    readonly uom: string
+    readonly ordered: string
+    readonly received: string
+    readonly invoicedElsewhere: string
+    readonly invoiced: string
+    readonly poUnitPriceSatang: bigint
+    readonly unitPriceSatang: bigint
+  } | null
+  readonly receipts: { readonly count: number; readonly lastOn: string | null } | null
+  readonly agreement: { readonly kind: 'FOUND'; readonly unitPriceSatang: bigint; readonly validTo: string } | { readonly kind: 'NONE' | 'NO_ITEM' } | null
+  readonly pastPrices: { readonly windowDays: number; readonly count: number; readonly recent: ReadonlyArray<{ readonly poNumber: string | null; readonly unitPriceSatang: bigint; readonly approvedOn: string; readonly priceIncludesVat: boolean }> } | null
+  readonly fixes: ReadonlyArray<{ readonly key: HelpFix; readonly href: string }>
+  readonly recipients: ReadonlyArray<{ readonly id: string; readonly th: string; readonly en: string | null; readonly relation: 'RECEIVER' | 'REQUESTER' }>
+  readonly email: { readonly hasEmail: boolean } | null
+}
+
+export interface InvoiceHelpData {
+  readonly number: string | null
+  readonly supplierInvoiceNo: string | null
+  readonly po: { readonly id: string; readonly number: string | null }
+  readonly supplier: { readonly nameTh: string; readonly nameEn: string | null }
+  readonly statedVatSatang: bigint
+  readonly helps: readonly ExceptionHelpData[]
 }

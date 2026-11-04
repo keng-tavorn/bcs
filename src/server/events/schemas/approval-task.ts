@@ -16,6 +16,18 @@ defineEvents('ApprovalTask', {
       via: z.enum(['MANUAL', 'SLA']),
     }),
   },
+  // NEW-124 (FR-VIS-001 AC5, ADR-082): a nudge a member who follows the document read and sent to the task's holder; the
+  // actor is who pressed send, and the words are never in the event (they stay in the holder's notice)
+  'approval_task.followed_up': {
+    schema: z.object({
+      subjectType: z.enum(['REQUEST', 'PURCHASE_ORDER']),
+      subjectId: z.uuid(),
+      recipientMemberId: z.uuid(),
+      via: z.enum(['LINE', 'EMAIL']),
+      relation: z.enum(['REQUESTER', 'FOLLOWER', 'BUYER']),
+      overdue: z.boolean(),
+    }),
+  },
   'approval_task.assigned': {
     schema: z.object({
       subjectType: z.enum(APPROVAL_SUBJECTS),

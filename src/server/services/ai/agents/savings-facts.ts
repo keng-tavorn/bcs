@@ -5,7 +5,7 @@ import { MS_PER_DAY } from '@/lib/constants'
 import type { SavingsItemDto } from '../../assistants/savings'
 import { asDataValues } from '../data'
 
-// The facts of one saving the AI explains (NEW-132 · ADR-081 item 5), by code and without the database, so the agent and
+// The facts of one saving the AI explains (NEW-134 · ADR-083 item 5), by code and without the database, so the agent and
 // the evaluation set (`pnpm ai:eval --agent insight`) give Claude exactly the same text for the same saving.
 
 export type SavingsFacts = Readonly<Record<string, TextValue>>

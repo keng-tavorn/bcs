@@ -30,7 +30,7 @@ const CAPABILITY_OF_PURPOSE: Readonly<Record<AiPurposeName, Capability | null>> 
   BRIEF: null,
   QUESTION: 'ai.ask',
   DOA_DRAFT: 'ai.doaDraft',
-  // NEW-132: the member asks for it like a question; the service checks who reads the savings first
+  // NEW-134: the member asks for it like a question; the service checks who reads the savings first
   SAVINGS_NOTE: 'ai.ask',
 }
 

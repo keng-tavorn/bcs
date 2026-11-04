@@ -105,6 +105,9 @@ function taskNoticeOf(templateKey: string, data: Data): { readonly taskId: strin
     case 'task.assigned':
     case 'task.review_assigned':
     case 'task.reminder':
+    // NEW-124: a nudge to the holder from the follow-up assistant
+    case 'task.follow_up':
+    case 'task.follow_up_email':
       return { taskId: data.taskId, toAssignee: true }
     case 'task.overdue':
       return { taskId: data.taskId, toAssignee: data.role === 'ASSIGNEE' }

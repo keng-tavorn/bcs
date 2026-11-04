@@ -53,7 +53,7 @@ export function ExceptionActions({
 
   if (!may.recheck && !may.variance && !may.dismiss && !may.reopen && !may.reject) return null
   return (
-    <section aria-label={t('exceptions.actionsTitle')} className="flex flex-col gap-4">
+    <section id="invoice-exception-actions" aria-label={t('exceptions.actionsTitle')} className="flex scroll-mt-24 flex-col gap-4">
       <h3 className="font-semibold text-ink">{t('exceptions.actionsTitle')}</h3>
       {may.recheck ? (
         <div className="flex flex-col gap-2">

@@ -3,7 +3,7 @@ import { lineNet, type Satang } from '../money/math'
 import { agreementsInEffect, type AgreementPeriod } from '../pricing/agreement'
 import { priceReference, type PriceRefSettings } from '../pricing/reference'
 
-// The savings the assistant finds (spec §7.21, BR-SAV-01 to BR-SAV-06 · NEW-123 · ADR-081). Pure: the caller gives the
+// The savings the assistant finds (spec §7.21, BR-SAV-01 to BR-SAV-06 · NEW-123 · ADR-083). Pure: the caller gives the
 // request lines still to be ordered, the lines of approved POs and the agreed prices; every amount is the difference of
 // two line amounts (BR-MONEY-02 (1)), so nothing is rounded here. No new threshold: a price above history is the HIGH
 // of the price reference (BR-PRC-03) with enough samples, an agreed price is one in effect today (BR-PRC-06), and an

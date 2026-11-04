@@ -715,8 +715,11 @@ features:
       - tests/integration/insight-screens.test.ts
       - tests/unit/insight-format.test.ts
       - tests/unit/insight-outcome.test.ts
+      - tests/unit/follow-up.test.ts
+      - tests/integration/follow-up.test.ts
+      - tests/e2e/follow-up.spec.ts
     verifiedBy: null
-    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
+    notes: "NEW-124 (ADR-082): AC4 to AC6 the follow-up assistant /follow-ups — tasks past or near their due time on the documents a member follows, with why they wait, and a nudge to the holder that a person drafts, confirms and sends (once a task a day, not within 2 hours of the system telling the holder) · AC1 to AC3: ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-VIS-002:
     status: in_progress
     step: S4
@@ -959,7 +962,7 @@ features:
       - tests/unit/ai-eval-savings.test.ts
       - tests/e2e/savings.spec.ts
     verifiedBy: null
-    notes: "NEW-123 (ADR-081): /procurement/savings, the four kinds of §7.21 from findSavings (golden GC-SAV-01 to 18), for po.view and request.view of the organization · a price above history and the departments' groups count goods only, which takes effect when NEW-96 sets the kind of a line · NEW-132: 'ให้ผู้ช่วยอธิบาย' on a press, purpose SAVINGS_NOTE of Insight (L0, credits), checked by BR-AI-27 before it shows, gated SAVINGS_NOTE@3 on Sonnet by 24 live cases (docs/reports/ai-eval/2026-11-03-savings_note-config-live.md · ADR-081 item 7); with AI off the button and the explanations go"
+    notes: "NEW-123 (ADR-083): /procurement/savings, the four kinds of §7.21 from findSavings (golden GC-SAV-01 to 18), for po.view and request.view of the organization · a price above history and the departments' groups count goods only, which takes effect when NEW-96 sets the kind of a line · NEW-132: 'ให้ผู้ช่วยอธิบาย' on a press, purpose SAVINGS_NOTE of Insight (L0, credits), checked by BR-AI-27 before it shows, gated SAVINGS_NOTE@3 on Sonnet by 24 live cases (docs/reports/ai-eval/2026-11-03-savings_note-config-live.md · ADR-081 item 7); with AI off the button and the explanations go"
   FR-INT-010:
     status: done
     step: S16

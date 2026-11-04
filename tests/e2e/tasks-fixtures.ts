@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { TZDate } from '@date-fns/tz'
 import { systemClock } from '@/lib/clock'
-import { MS_PER_DAY } from '@/lib/constants'
+import { MS_PER_DAY, MS_PER_HOUR } from '@/lib/constants'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
@@ -29,6 +29,8 @@ const DEMO_ORG = 'DEMO'
 //                                                  (followed by <follower>)
 //   request <requester> <gross> <name> [attach]  one request waiting for its approver, with a PDF attached on request
 //   overdue <requester> <name>                   one request whose approver's task is long past its due time (NEW-121)
+//   followup <requester> <name>                  one request whose approver got the task three days ago and let it pass
+//                                                  its due time an hour ago (NEW-124)
 //   policy <proposer> <member> <dept>            an appointment of <member> as DM of <dept>, waiting for the CEO
 //   doa <proposer> <versionNo>                    version 2 of the §7.4 fixture as DOA-DEMO <versionNo>, waiting for the CEO
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('e2e fixtures are created in the e2e database only')
@@ -140,6 +142,15 @@ switch (scenario) {
     const [requester, name] = args as [string, string]
     const made = await request(requester, '21500.00', name)
     await prisma.approvalTask.update({ where: { id: made.taskId }, data: { dueAt: new Date(now.getTime() - 3650 * MS_PER_DAY) } })
+    out = made
+    break
+  }
+  case 'followup': {
+    // NEW-124: nobody told the approver of it within the quiet time (src/lib/follow-up.ts), so the follow-up assistant
+    // offers a nudge at once
+    const [requester, name] = args as [string, string]
+    const made = await request(requester, '21500.00', name)
+    await prisma.approvalTask.update({ where: { id: made.taskId }, data: { assignedAt: new Date(now.getTime() - 3 * MS_PER_DAY), dueAt: new Date(now.getTime() - MS_PER_HOUR) } })
     out = made
     break
   }

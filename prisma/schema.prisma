@@ -3177,7 +3177,7 @@ enum AiPurpose {
   BRIEF
   QUESTION
   DOA_DRAFT
-  /// NEW-132: the assistant's words on a saving the code found (Insight · ADR-081)
+  /// NEW-134: the assistant's words on a saving the code found (Insight · ADR-083)
   SAVINGS_NOTE
 }
 

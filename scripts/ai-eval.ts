@@ -276,7 +276,7 @@ async function evalAgents(run: Run, client: AiClient, model: (a: AiAgentName) =>
     }
   }
   if (args.agents.includes('INSIGHT') && (!args.purpose || args.purpose === 'SAVINGS_NOTE')) {
-    // NEW-132: a saving's explanation names the amount the code calculated, never advises, and passes the checker the
+    // NEW-134: a saving's explanation names the amount the code calculated, never advises, and passes the checker the
     // page uses (BR-AI-27 Brief profile: placeholders of known facts only, no digit of its own, 4 short sentences); the
     // four kinds count as one group of 24, as the Brief's 30 tasks do, and --show-wrong names the kind of a miss
     for (const c of first(savings, args.limit)) {

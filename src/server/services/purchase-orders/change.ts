@@ -41,7 +41,7 @@ import { completeFinishedRequests, reorderSourceLine } from './requests'
 // PO lines, their sources and the PO's totals, holds or gives back the difference, and the PO is a new revision
 // whose PDF PROCUREMENT sends with po.sendRevision. The budget moves come from src/core/po-change only.
 
-const CHANGEABLE_PO = ['APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED'] as const
+export const CHANGEABLE_PO = ['APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED'] as const
 const PDF_MIME = 'application/pdf'
 // TODO(OQ-126): a quantity taken off a PO goes back to the request's pool unless PROCUREMENT says otherwise
 const DEFAULT_DISPOSITION = 'RETURN_TO_POOL' as const

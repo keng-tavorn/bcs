@@ -198,7 +198,7 @@ async function lineChanges(tx: TenantTx, lineIds: readonly string[]): Promise<Ma
 }
 
 /** The DOA version in effect has a BUDGET_TRANSFER rule (FR-BUD-103 AC4) */
-async function hasTransferRule(tx: TenantTx, now: Date): Promise<boolean> {
+export async function hasTransferRule(tx: TenantTx, now: Date): Promise<boolean> {
   const version = await tx.doaVersion.findFirst({
     where: { status: { in: ['PUBLISHED', 'SUPERSEDED'] }, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
     orderBy: { effectiveFrom: 'desc' },

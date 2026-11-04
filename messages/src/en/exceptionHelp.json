@@ -1,0 +1,96 @@
+{
+  "title": "Help with differences",
+  "hint": "The assistant gathers the PO, the goods received and the prices by the system's rules, then shows the ways you can settle each difference. It changes nothing itself, and a drafted message goes only when you send it.",
+  "itemTitle": "{type} · {where}",
+  "stepsTitle": "What the assistant has done",
+  "stepDone": "Done",
+  "stepWaiting": "Waiting for you",
+  "step": {
+    "poLine": "Read PO line {poLine}: ordered {ordered} {uom} at THB {price} each",
+    "invoiceLine": "Read line {line} of this invoice: billed {invoiced} {uom} at THB {price} each",
+    "elsewhere": "Checked other invoices of the line: they billed {quantity} {uom}",
+    "receipts": "Read the receipts: {received} {uom} received in {count} receipts, the last on {date}",
+    "receiptsNone": "Read the receipts: nothing of this line has been received",
+    "agreement": "Compared the agreed price with the supplier: THB {price} each, valid before {date}",
+    "agreementNone": "Compared the agreed price: the supplier has none on the invoice's date",
+    "agreementNoItem": "Compared the agreed price: the line is not a catalogue item, so there is none",
+    "pastPrices": "Compared past prices: bought {count} times in {days} days, last at THB {price} each on {po}, {date}",
+    "pastPricesWithVat": "Compared past prices: bought {count} times in {days} days, last at THB {price} each with VAT on {po}, {date}",
+    "pastPricesNone": "Compared past prices: not bought in the last {days} days",
+    "amount": "Read the difference: {where}",
+    "vatStated": "Read the VAT on the invoice: THB {stated}",
+    "fixes": "Found {count} ways you can take",
+    "fixesNone": "Looked for ways: none you can take yourself; the difference is sent to {role}",
+    "drafts": "Drafted a message for you to read, change and send yourself",
+    "choose": "Waiting for you to choose a way"
+  },
+  "fixesTitle": "Ways you can take",
+  "fix": {
+    "VARIANCE": "Ask for a price variance approval under the DOA",
+    "PO_CHANGE": "Change the PO with a PO change; the match runs again by itself",
+    "RECEIVE": "Receive the rest; the match runs again by itself",
+    "ASK": "Ask the receiver or the requester",
+    "EMAIL_SUPPLIER": "Ask the supplier for a credit note or a new invoice",
+    "RECHECK": "Check again once the cause is fixed",
+    "DISMISS_DUPLICATE": "Dismiss the warning if it is not a duplicate",
+    "REOPEN": "Reopen as a draft if it was entered wrongly",
+    "REJECT": "Reject the invoice when the supplier sends a new one",
+    "REJECT_DUPLICATE": "Reject the invoice if it really is a duplicate",
+    "BUDGET_TRANSFER": "Ask for a budget transfer, then check again"
+  },
+  "ask": {
+    "title": "Draft a question to the receiver or the requester",
+    "to": "Send to",
+    "relation": {
+      "RECEIVER": "receiver",
+      "REQUESTER": "requester"
+    },
+    "recipient": "{name} ({relation})",
+    "hint": "The recipient reads the whole message in BCS; LINE and e-mail carry the invoice and PO numbers only",
+    "review": "Review before sending the question",
+    "confirmTitle": "Send the question to {name}",
+    "confirmHint": "It goes in your name and the invoice's history records that you sent it",
+    "send": "Send the question",
+    "sending": "Sending the question",
+    "sent": "Question sent to {name}"
+  },
+  "email": {
+    "title": "Draft an e-mail to the supplier",
+    "to": "To the supplier {name}",
+    "noEmail": "The supplier has no e-mail address yet. Tell them another way, or ask procurement to add one",
+    "hint": "The e-mail carries the invoice and PO numbers and your name as the contact",
+    "review": "Review before sending the e-mail",
+    "confirmTitle": "Send the e-mail to {name}",
+    "confirmHint": "It goes in the organization's name with you as the contact, and the invoice's history records that you sent it. It cannot be taken back",
+    "send": "Send the e-mail to the supplier",
+    "sending": "Sending the e-mail",
+    "sent": "E-mail to the supplier sent; it goes out within a few minutes"
+  },
+  "message": "Message",
+  "back": "Back to edit",
+  "empty": "The message is empty. Write it before sending",
+  "tooLong": "The message is longer than {max} characters",
+  "errors": {
+    "RECIPIENT_NOT_ALLOWED": "This person is no longer a receiver or requester of the line. Open the page again and choose again",
+    "SUPPLIER_NOT_ALLOWED": "Finance e-mails the supplier, or procurement about the differences sent to procurement",
+    "SUPPLIER_NO_EMAIL": "The supplier has no e-mail address yet",
+    "INVALID_STATE_TRANSITION": "The difference was settled or changed. Open the page again to see where it stands"
+  },
+  "draft": {
+    "ask": {
+      "PRICE_OVER": "Dear {name}, line {line} ({description}) of invoice {invoice} on PO {po} is billed at THB {price} each, above the PO price of THB {poPrice}. Was a new price agreed with the supplier? Thank you",
+      "QTY_OVER_ORDERED": "Dear {name}, line {line} ({description}) of invoice {invoice} on PO {po} bills {invoiced} {uom}, more than the {ordered} {uom} ordered. Was more ordered from the supplier? Thank you",
+      "QTY_NOT_RECEIVED": "Dear {name}, line {line} ({description}) of invoice {invoice} on PO {po} bills {invoiced} {uom}, but {received} {uom} have been received{elsewhere}. Has everything on the invoice arrived? If so, please record the receipt in BCS. Thank you",
+      "ACCEPTANCE_PENDING": "Dear {name}, service line {line} ({description}) of invoice {invoice} on PO {po} bills {invoiced} {uom}, but {received} {uom} have been accepted{elsewhere}. Is the work on the invoice done? If so, please confirm it in BCS. Thank you"
+    },
+    "email": {
+      "PRICE_OVER": "Your invoice {supplierInvoiceNo} on our purchase order {po} bills {description} at THB {price} each, which does not match the order's THB {poPrice}. Please send a credit note, or a new invoice at the ordered price",
+      "QTY_OVER_ORDERED": "Your invoice {supplierInvoiceNo} on our purchase order {po} bills {invoiced} {uom} of {description}, more than the {ordered} {uom} ordered. Please send a credit note, or a new invoice for the ordered quantity",
+      "QTY_NOT_RECEIVED": "Your invoice {supplierInvoiceNo} on our purchase order {po} bills {invoiced} {uom} of {description}, but we have received {received} {uom}. Please tell us when the rest arrives, or send a new invoice for what was delivered",
+      "ACCEPTANCE_PENDING": "Your invoice {supplierInvoiceNo} on our purchase order {po} bills {invoiced} {uom} of {description}, but we have accepted {received} {uom}. Please tell us how the rest of the work stands, or send a new invoice for what was handed over",
+      "VAT_MISMATCH": "Your invoice {supplierInvoiceNo} on our purchase order {po} states VAT of THB {stated}, which does not match the VAT of its amounts. Please check it and send a correct tax invoice",
+      "VAT_SUPPLIER_NOT_REGISTERED": "Your invoice {supplierInvoiceNo} on our purchase order {po} charges VAT of THB {stated}, but our register shows you are not registered for VAT. Please check it and send a new invoice"
+    }
+  },
+  "draftElsewhere": ", and other invoices billed {quantity} {uom}"
+}

@@ -102,6 +102,7 @@
     "empty": "Nothing to look at yet",
     "emptyHint": "Your assistants tell you here when work is about to run late, a price is unusually high, or something needs a look before a payment.",
     "shown": "Showing {shown} of {total}",
+    "followUps": "Follow-up assistant: see every task near its due time and draft a follow-up",
     "dismiss": "Not this one",
     "dismissLabel": "Not this one: {title}",
     "dismissed": "Hidden",

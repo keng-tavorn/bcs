@@ -6,7 +6,7 @@ import { systemClock } from '@/lib/clock'
 import { ctxFromSession, resolveSession } from '@/server/auth/session'
 import { explainSaving } from '@/server/services/ai'
 
-// "ให้ผู้ช่วยอธิบาย" on a saving (NEW-132 · FR-VIS-008 AC3 · ADR-081). POST only; the service reads the saving through the
+// "ให้ผู้ช่วยอธิบาย" on a saving (NEW-134 · FR-VIS-008 AC3 · ADR-083). POST only; the service reads the saving through the
 // member's own list (who may not see it is refused before any call) and checks the AI's words before they come back.
 
 export type ExplainOutcome =

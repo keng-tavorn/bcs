@@ -13,7 +13,7 @@ import { completeAgentAction, requestAgentAction } from '../actions'
 import { agentSwitchedOn, aiRuntime, checkCallGates } from '../gate'
 import { savingsFacts, savingsNoteText } from './savings-facts'
 
-// The savings assistant's words (NEW-132 · FR-VIS-008 AC3 · ADR-081): on a member's press, the AI explains one saving
+// The savings assistant's words (NEW-134 · FR-VIS-008 AC3 · ADR-083): on a member's press, the AI explains one saving
 // the code found, from facts code builds out of that saving as the member's own list shows it — the amount, what it is
 // compared with, the evidence's counts. Every value is a placeholder of a fact and the sentences pass BR-AI-27 (Brief
 // profile, DECISION_ADVICE included) before anyone sees them; a text that fails is thrown away whole and the row keeps

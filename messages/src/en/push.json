@@ -18,6 +18,9 @@
     },
     "variance_decided": {
       "title": "Invoice variance decided"
+    },
+    "question": {
+      "title": "A question about an invoice"
     }
   },
   "po": {
@@ -54,6 +57,9 @@
     },
     "escalated": {
       "title": "A task was passed to you"
+    },
+    "follow_up": {
+      "title": "A follow-up on your approval"
     },
     "overdue": {
       "title": "A task is past its due time"

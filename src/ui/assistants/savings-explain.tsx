@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react'
 import { Button } from '../shadcn/button'
 import { FeedbackButtons, type AiFeedback, type GiveAiFeedback } from './feedback-buttons'
 
-// "ให้ผู้ช่วยอธิบาย" on one saving (NEW-132 · FR-VIS-008 AC3 · ADR-081): only a press asks the AI (NG-13), and every
+// "ให้ผู้ช่วยอธิบาย" on one saving (NEW-134 · FR-VIS-008 AC3 · ADR-083): only a press asks the AI (NG-13), and every
 // press uses credits, which the button's hint says. While it writes, a status line says so; what comes back is set apart
 // with Sparkles and the line that an assistant wrote it (§12.5), with "ช่วยได้" "ไม่ช่วย" under it. A text the checker
 // refused, or a saving that left the list, is said in the row — never in a toast alone (§9.9). The figures above stay

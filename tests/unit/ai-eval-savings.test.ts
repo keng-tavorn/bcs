@@ -8,7 +8,7 @@ import { savingsFacts, savingsNoteText } from '@/server/services/ai/agents/savin
 import { AI_ANSWERS_DIR } from '../../scripts/lib/ai-eval-cases'
 import { loadSavingsCases, type SavingsCase } from '../../scripts/ai-eval-savings'
 
-// NEW-132 (BR-AI-11 · ADR-081 item 5): the evaluation cases of a saving's explanation are savings of every kind as the
+// NEW-134 (BR-AI-11 · ADR-083 item 5): the evaluation cases of a saving's explanation are savings of every kind as the
 // page's DTO, each sent to Claude as exactly the text the agent sends for it, with a recorded answer of the prompt that
 // passed so fixture mode runs without a key.
 

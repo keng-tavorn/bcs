@@ -5,7 +5,7 @@ import { amountFactOf, savingsFacts, savingsNoteText, type SavingsFacts } from '
 import { INPUT_WORKBOOKS, loadInputWorkbook } from '../src/server/seed/workbook'
 import { ROOT } from './lib/ai-eval-cases'
 
-// The cases of the savings explanation for scripts/ai-eval.ts (NEW-132 · ADR-081 item 5 · BR-AI-11): 24 savings of the four kinds of §7.21,
+// The cases of the savings explanation for scripts/ai-eval.ts (NEW-134 · ADR-083 item 5 · BR-AI-11): 24 savings of the four kinds of §7.21,
 // six each, drawn from the goods and agreed prices of the phase 1 workbook with figures worked in satang the way
 // findSavings works them. Each case holds the saving as the page's DTO, so its facts and the text Claude reads come
 // from the agent's own code (savings-facts.ts): the evaluation measures the call the page makes.

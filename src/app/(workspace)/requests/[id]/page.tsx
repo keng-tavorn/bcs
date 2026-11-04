@@ -14,6 +14,7 @@ import { getPriceReference } from '@/server/services/price-reference'
 import { listRequestFlags } from '@/server/services/requests/duplicates'
 import { getRequestFollowers } from '@/server/services/requests/followers'
 import { Notice } from '@/ui/form/notice'
+import { listFollowUps } from '@/server/services/assistants/follow-up'
 import { AssistantPanel } from '@/ui/assistants/document-panel'
 import { PO_BADGES, REQUEST_BADGES, StatusBadge, URGENCY_BADGES } from '@/ui/document/badges'
 import { DecisionBar } from '@/ui/document/decision-bar'
@@ -43,7 +44,7 @@ import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
 import { giveAiFeedbackAction } from '../../_shell/assistant-actions'
 import { canOpenDoaVersion, canViewRequest, taskRight } from '../../_tracking/access'
-import { askPart, assistantPanel, flagNote, priceNote, stepNote } from '../../_tracking/document-assistant'
+import { askPart, assistantPanel, flagNote, followUpOf, priceNote, stepNote } from '../../_tracking/document-assistant'
 import { requestBudgetState } from '../../_tracking/budget-state'
 import { commentViews, historyRows, requestHistoryKinds, routeWhy, stepCards } from '../../_tracking/document-present'
 import { day, doaHref, doaRefText, dueText, fileKind, localeOf, memberName, money, nameIn, stageText, stageWaitingMinutes, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
@@ -145,11 +146,13 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
   const decide = task && task[0] && task[1] && taskRight(principal, task[0]) === 'DECIDE' && task[1].status === 'OPEN' ? task[1] : null
   // The panel "จากผู้ช่วย" (NEW-122): the AI's summary for the one who decides it now, as on the task page (FR-AI-301),
   // already made; the reference price of their task as its page reads it (priceReference.view); "ถาม BCS AI" when on
-  const [brief, priceRef, asking, tp] = await Promise.all([
+  // and, for who follows the request, its task the follow-up assistant lists (NEW-124), to draft a nudge there
+  const [brief, priceRef, asking, tp, followUps] = await Promise.all([
     decide ? briefView(ctx, decide.id) : Promise.resolve(null),
     decide ? getPriceReference(ctx, { requestId: view.id }) : Promise.resolve(null),
     isAgentAvailable(ctx, 'INSIGHT').then((a) => a.available),
     getTranslations('assistantPanel'),
+    view.stage.kind === 'APPROVER' ? listFollowUps(ctx, { subjectId: view.id }) : Promise.resolve(null),
   ])
 
   const named = (m: { id: string; name: { th: string; en: string | null } }) => ({ id: m.id, name: memberName(locale, m) })
@@ -183,7 +186,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
   const panel = assistantPanel(tp, {
     brief,
     notes: [
-      stepNote(tp, locale, ctx.now, state.member.id, stage.kind === 'APPROVER' ? stage : null, `${here}#route`),
+      stepNote(tp, locale, ctx.now, state.member.id, stage.kind === 'APPROVER' ? stage : null, `${here}#route`, followUpOf(followUps?.ok ? followUps.data.items : null, stage.kind === 'APPROVER' ? stage : null)),
       flagNote(tp, flags.ok ? flags.data : [], `${here}#request-flags`),
       decide && priceRef?.ok ? priceNote(tp, priceRef.data, `/tasks/${decide.id}#price-reference`) : null,
     ],

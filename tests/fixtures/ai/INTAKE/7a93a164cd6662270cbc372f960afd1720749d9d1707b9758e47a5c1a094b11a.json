@@ -1,0 +1,61 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "เช่ารถบดถนน 10 ตัน 3 วัน",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าเช่ารถบดถนน 10 ตัน",
+        "itemCode": "RNT-004",
+        "qty": "3",
+        "unit": "วัน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บ้านโป่งเหล็กกล้าแมชชีนเนอรี่ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 90
+      },
+      {
+        "field": "unitPrice",
+        "value": 0
+      }
+    ]
+  },
+  "usage": {
+    "input": 5661,
+    "output": 584,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

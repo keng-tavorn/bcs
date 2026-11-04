@@ -1,0 +1,81 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "CONTRACT_WORK",
+    "title": "งานฉาบปูนและทาสี",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "งานฉาบปูนและทาสี",
+        "itemCode": "SUB-005",
+        "qty": "9777",
+        "unit": "ตร.ม.",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "ห้างหุ้นส่วนจำกัด ไทยสินวัฒนาการโยธา",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 80
+      },
+      {
+        "field": "title",
+        "value": 75
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines.description",
+        "value": 90
+      },
+      {
+        "field": "lines.itemCode",
+        "value": 85
+      },
+      {
+        "field": "lines.qty",
+        "value": 95
+      },
+      {
+        "field": "lines.unit",
+        "value": 95
+      },
+      {
+        "field": "lines.unitPrice",
+        "value": 0
+      },
+      {
+        "field": "supplier.name",
+        "value": 90
+      },
+      {
+        "field": "supplier.taxId",
+        "value": 0
+      },
+      {
+        "field": "supplier.branch",
+        "value": 0
+      }
+    ]
+  },
+  "usage": {
+    "input": 5653,
+    "output": 692,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

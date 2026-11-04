@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ค่าป้ายโฆษณาไซต์งาน 3 ป้าย",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าป้ายโฆษณาไซต์งาน",
+        "itemCode": "MKT-006",
+        "qty": "3",
+        "unit": "ป้าย",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "ห้างหุ้นส่วนจำกัด ท่าเรือพาณิชย์มีเดีย",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 60
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 85
+      },
+      {
+        "field": "supplier",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 5659,
+    "output": 725,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

@@ -4,7 +4,7 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "BUY_GOODS",
-    "title": "เครนรถบรรทุก 25 ตัน 1 คัน",
+    "title": "เครนรถบรรทุก 25 ตัน",
     "siteCode": "EQP-YARD",
     "neededBy": "ภายใน 7 วัน",
     "lines": [
@@ -24,7 +24,7 @@
     "confidence": [
       {
         "field": "requestTypeCode",
-        "value": 70
+        "value": 60
       },
       {
         "field": "title",
@@ -32,11 +32,11 @@
       },
       {
         "field": "siteCode",
-        "value": 75
+        "value": 85
       },
       {
         "field": "neededBy",
-        "value": 60
+        "value": 70
       },
       {
         "field": "lines.description",
@@ -44,7 +44,7 @@
       },
       {
         "field": "lines.itemCode",
-        "value": 90
+        "value": 75
       },
       {
         "field": "lines.qty",
@@ -52,29 +52,29 @@
       },
       {
         "field": "lines.unit",
-        "value": 90
+        "value": 95
       },
       {
         "field": "lines.unitPrice",
-        "value": 0
+        "value": 100
       },
       {
         "field": "supplier.name",
-        "value": 0
+        "value": 100
       },
       {
         "field": "supplier.taxId",
-        "value": 0
+        "value": 100
       },
       {
         "field": "supplier.branch",
-        "value": 0
+        "value": 100
       }
     ]
   },
   "usage": {
     "input": 5675,
-    "output": 901,
+    "output": 918,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

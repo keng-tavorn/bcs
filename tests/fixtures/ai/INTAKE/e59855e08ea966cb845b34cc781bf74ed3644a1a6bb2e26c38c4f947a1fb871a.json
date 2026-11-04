@@ -24,7 +24,7 @@
     "confidence": [
       {
         "field": "requestTypeCode",
-        "value": 80
+        "value": 70
       },
       {
         "field": "title",
@@ -32,15 +32,15 @@
       },
       {
         "field": "siteCode",
-        "value": 90
+        "value": 85
       },
       {
         "field": "neededBy",
-        "value": 40
+        "value": 30
       },
       {
         "field": "lines",
-        "value": 85
+        "value": 80
       },
       {
         "field": "supplier",

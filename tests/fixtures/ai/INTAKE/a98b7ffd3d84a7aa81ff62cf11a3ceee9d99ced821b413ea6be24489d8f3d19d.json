@@ -4,7 +4,7 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "BUY_GOODS",
-    "title": null,
+    "title": "ซื้อป้ายเตือนความปลอดภัย",
     "siteCode": "SITE-P03",
     "neededBy": null,
     "lines": [
@@ -24,33 +24,41 @@
     "confidence": [
       {
         "field": "requestTypeCode",
-        "value": 80
+        "value": 90
       },
       {
         "field": "title",
-        "value": 0
+        "value": 80
       },
       {
         "field": "siteCode",
-        "value": 95
+        "value": 85
       },
       {
         "field": "neededBy",
-        "value": 0
+        "value": 100
       },
       {
         "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier.name",
+        "value": 95
+      },
+      {
+        "field": "supplier.taxId",
         "value": 90
       },
       {
-        "field": "supplier",
-        "value": 90
+        "field": "supplier.branch",
+        "value": 85
       }
     ]
   },
   "usage": {
     "input": 7063,
-    "output": 783,
+    "output": 822,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

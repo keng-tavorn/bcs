@@ -28,29 +28,29 @@
       },
       {
         "field": "title",
-        "value": 80
+        "value": 90
       },
       {
         "field": "siteCode",
-        "value": 70
+        "value": 55
       },
       {
         "field": "neededBy",
-        "value": 0
+        "value": 10
       },
       {
         "field": "lines",
-        "value": 85
+        "value": 90
       },
       {
         "field": "supplier",
-        "value": 0
+        "value": 100
       }
     ]
   },
   "usage": {
     "input": 5681,
-    "output": 774,
+    "output": 612,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

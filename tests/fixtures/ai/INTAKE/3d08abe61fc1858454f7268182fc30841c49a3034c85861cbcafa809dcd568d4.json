@@ -1,0 +1,61 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "IT_PURCHASE",
+    "title": "บริการคลาวด์สำรองข้อมูล รายปี",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "บริการคลาวด์สำรองข้อมูล รายปี",
+        "itemCode": "SWL-004",
+        "qty": "1",
+        "unit": "ปี",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท โปรเฟสชั่นแนลบิลด์ซอฟต์แวร์ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 85
+      },
+      {
+        "field": "supplier",
+        "value": 90
+      },
+      {
+        "field": "confidence",
+        "value": 80
+      }
+    ]
+  },
+  "usage": {
+    "input": 5663,
+    "output": 297,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

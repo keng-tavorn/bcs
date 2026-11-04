@@ -28,7 +28,7 @@
       },
       {
         "field": "title",
-        "value": 70
+        "value": 80
       },
       {
         "field": "siteCode",
@@ -40,11 +40,11 @@
       },
       {
         "field": "lines",
-        "value": 90
+        "value": 92
       },
       {
         "field": "supplier",
-        "value": 92
+        "value": 90
       }
     ]
   },

@@ -8,6 +8,7 @@ import { createFixtureClient, createLiveClient, fixtureKey, type AiCallResult, t
 import { AGENT_OF_PURPOSE, DECISION_ADVICE_WORDS, EVAL_THRESHOLDS_BP, modelFor, priceOf, PROMPT_VERSIONS, type AiAgentName, type AiPurposeName } from '../src/lib/ai-config'
 import { BriefText, DoaDraft, IntakeDraft, QuestionPlan } from '../src/lib/ai-schemas/agents'
 import { DocumentReading, isCriticalField } from '../src/lib/ai-schemas/document'
+import { companyNameKey } from '../src/core/thai/company-name'
 import { loadAgentCases, type AgentCases } from './lib/ai-eval-agents'
 import { AI_ANSWERS_DIR, AI_DOCS_DIR, loadEvalDocuments, ROOT, truthReading, type EvalDocument } from './lib/ai-eval-cases'
 
@@ -225,9 +226,8 @@ async function evalDocuments(run: Run, client: AiClient, model: (a: AiAgentName,
   }
 }
 
-/** The supplier's name as the Intake Agent matches it to the register (intake.ts: NFC, case and spaces aside) */
-const nameWords = (s: string) => s.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim()
-const sameName = (a: string | null, b: string) => a !== null && nameWords(a) === nameWords(b)
+/** The supplier's name as the Intake Agent matches it to the register (intake.ts: its legal form, case and spaces aside) */
+const sameName = (a: string | null, b: string) => a !== null && companyNameKey(a) === companyNameKey(b)
 
 async function evalAgents(run: Run, client: AiClient, model: (a: AiAgentName) => string, cases: AgentCases, args: Args, manifest: Map<string, { file: string; mediaType: string }>) {
   if (args.agents.includes('INTAKE')) {

@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "CONTRACT_WORK",
+    "title": "งานติดตั้งระบบประปาและสุขาภิบาล",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "งานติดตั้งระบบประปาและสุขาภิบาล",
+        "itemCode": "SUB-004",
+        "qty": "1",
+        "unit": "งาน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "ห้างหุ้นส่วนจำกัด โปรเฟสชั่นแนลบิลด์การโยธา",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 85
+      },
+      {
+        "field": "supplier",
+        "value": 80
+      }
+    ]
+  },
+  "usage": {
+    "input": 5658,
+    "output": 288,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

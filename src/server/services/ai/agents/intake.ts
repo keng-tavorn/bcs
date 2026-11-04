@@ -4,6 +4,7 @@ import type { Condition } from '@/core/forms'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import { lineNet, parseQuantity } from '@/core/money/math'
 import { err, ok, type Result } from '@/core/result'
+import { companyNameKey } from '@/core/thai/company-name'
 import { normalizeTaxId } from '@/core/thai/taxid'
 import { taxDateOf } from '@/core/vat'
 import { AI_FILE_MEDIA_TYPES, getAiClient, type AiFile, type AiFileMediaType } from '@/integrations/ai'
@@ -142,7 +143,6 @@ const quantity = (v: string | null): string | null => {
     return null
   }
 }
-const words = (s: string) => s.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim()
 
 export interface IntakeOutcome {
   readonly proposed: Record<string, string>
@@ -216,10 +216,11 @@ export async function runIntake(organizationId: string, agentActionId: string, n
   })
   const site = draft.siteCode ? sites.find((s) => s.code === draft.siteCode) : undefined
   put('deliverySiteId', site?.id ?? null, 'siteCode')
-  // The supplier of the register by tax id and branch, else by the exact name; otherwise the name stays text only
+  // The supplier of the register by tax id and branch, else by its name with or without its legal form ("บริษัท … จำกัด",
+  // companyNameKey · NEW-120) when exactly one has it; otherwise the name stays text only
   const taxId = draft.supplier.taxId ? normalizeTaxId(draft.supplier.taxId) : null
   const byTax = taxId ? await db.supplier.findFirst({ where: { taxId, branchCode: draft.supplier.branch ?? '00000', status: 'ACTIVE' }, select: { id: true, nameTh: true } }) : null
-  const byName = !byTax && draft.supplier.name ? (await db.supplier.findMany({ where: { status: 'ACTIVE' }, select: { id: true, nameTh: true } })).filter((s) => words(s.nameTh) === words(draft.supplier.name!)) : []
+  const byName = !byTax && draft.supplier.name ? (await db.supplier.findMany({ where: { status: 'ACTIVE' }, select: { id: true, nameTh: true } })).filter((s) => companyNameKey(s.nameTh) === companyNameKey(draft.supplier.name!)) : []
   const supplier = byTax ?? (byName.length === 1 ? byName[0]! : null)
   const supplierId = supplier?.id ?? null
   put('suggestedSupplierId', supplierId, 'supplier.taxId', true)

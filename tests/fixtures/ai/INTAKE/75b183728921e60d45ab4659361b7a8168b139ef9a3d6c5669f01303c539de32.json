@@ -36,15 +36,15 @@
       },
       {
         "field": "neededBy",
-        "value": 30
+        "value": 40
       },
       {
         "field": "lines",
-        "value": 75
+        "value": 70
       },
       {
         "field": "supplier",
-        "value": 90
+        "value": 95
       }
     ]
   },

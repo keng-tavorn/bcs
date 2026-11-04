@@ -1,0 +1,61 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "ค่าสำรวจรังวัดและวางผัง",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าสำรวจรังวัดและวางผัง",
+        "itemCode": "LAB-003",
+        "qty": "1",
+        "unit": "งาน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "สหมิตรวัสดุสำรวจและรังวัด จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 85
+      },
+      {
+        "field": "supplier",
+        "value": 90
+      },
+      {
+        "field": "confidence",
+        "value": 80
+      }
+    ]
+  },
+  "usage": {
+    "input": 5645,
+    "output": 278,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

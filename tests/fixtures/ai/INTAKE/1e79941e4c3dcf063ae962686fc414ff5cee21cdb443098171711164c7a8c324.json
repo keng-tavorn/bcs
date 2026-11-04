@@ -6,7 +6,7 @@
     "requestTypeCode": "BUY_GOODS",
     "title": "เหล็กข้ออ้อย DB12 SD40 5 ตัน",
     "siteCode": "SITE-P09",
-    "neededBy": null,
+    "neededBy": "20 วัน",
     "lines": [
       {
         "description": "เหล็กข้ออ้อย DB12 SD40",
@@ -36,11 +36,11 @@
       },
       {
         "field": "neededBy",
-        "value": 30
+        "value": 60
       },
       {
         "field": "lines",
-        "value": 90
+        "value": 93
       },
       {
         "field": "supplier",
@@ -50,7 +50,7 @@
   },
   "usage": {
     "input": 5670,
-    "output": 249,
+    "output": 254,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

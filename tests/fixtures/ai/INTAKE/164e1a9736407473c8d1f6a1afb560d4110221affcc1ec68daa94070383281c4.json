@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "คอนกรีตผสมเสร็จ 400 กก./ตร.ซม. 1 ลบ.ม.",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "คอนกรีตผสมเสร็จ 400 กก./ตร.ซม.",
+        "itemCode": "RMC-004",
+        "qty": "1",
+        "unit": "ลบ.ม.",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "รังสิตเทรดดิ้งคอนกรีต จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5665,
+    "output": 469,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

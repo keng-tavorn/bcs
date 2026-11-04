@@ -1,0 +1,61 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "IT_PURCHASE",
+    "title": "ไลเซนส์ชุดโปรแกรมสำนักงาน 1 ปี 3 ผู้ใช้",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ไลเซนส์ชุดโปรแกรมสำนักงาน 1 ปี",
+        "itemCode": "SWL-003",
+        "qty": "3",
+        "unit": "ผู้ใช้",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท พรพิพัฒน์ซอฟต์แวร์ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 92
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 88
+      },
+      {
+        "field": "confidence",
+        "value": 80
+      }
+    ]
+  },
+  "usage": {
+    "input": 5669,
+    "output": 322,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

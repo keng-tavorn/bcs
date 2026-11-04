@@ -4,7 +4,7 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "BUY_GOODS",
-    "title": "ท่อคอนกรีตเสริมเหล็ก ขนาด 1.00 ม.",
+    "title": "ท่อคอนกรีตเสริมเหล็ก ขนาด 1.00 ม. 24 ท่อน",
     "siteCode": "SITE-P08",
     "neededBy": null,
     "lines": [
@@ -28,7 +28,7 @@
       },
       {
         "field": "title",
-        "value": 80
+        "value": 85
       },
       {
         "field": "siteCode",
@@ -36,7 +36,7 @@
       },
       {
         "field": "neededBy",
-        "value": 60
+        "value": 30
       },
       {
         "field": "lines",
@@ -44,13 +44,13 @@
       },
       {
         "field": "supplier",
-        "value": 95
+        "value": 100
       }
     ]
   },
   "usage": {
     "input": 5703,
-    "output": 272,
+    "output": 280,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "ค่าที่ปรึกษากฎหมาย รายเดือน",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าที่ปรึกษากฎหมาย รายเดือน",
+        "itemCode": "PRF-002",
+        "qty": "1",
+        "unit": "เดือน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "ชัยมงคลกิจแอดไวเซอรี่ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 85
+      },
+      {
+        "field": "supplier",
+        "value": 80
+      }
+    ]
+  },
+  "usage": {
+    "input": 5658,
+    "output": 277,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

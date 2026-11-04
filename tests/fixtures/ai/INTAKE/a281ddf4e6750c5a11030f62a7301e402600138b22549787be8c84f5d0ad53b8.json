@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "ค่าขนส่งด้วยรถ 6 ล้อ",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าขนส่งด้วยรถ 6 ล้อ",
+        "itemCode": "TRN-002",
+        "qty": "12",
+        "unit": "เที่ยว",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท เอกวัฒนาโลจิสติกส์ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 80
+      },
+      {
+        "field": "title",
+        "value": 70
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5655,
+    "output": 278,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

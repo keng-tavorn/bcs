@@ -32,11 +32,11 @@
       },
       {
         "field": "siteCode",
-        "value": 88
+        "value": 80
       },
       {
         "field": "neededBy",
-        "value": 40
+        "value": 35
       },
       {
         "field": "lines",
@@ -44,7 +44,7 @@
       },
       {
         "field": "supplier",
-        "value": 95
+        "value": 0
       }
     ]
   },

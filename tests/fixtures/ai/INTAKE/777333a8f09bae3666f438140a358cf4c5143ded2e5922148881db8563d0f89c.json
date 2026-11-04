@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ซื้อท่อ PPR 1 นิ้ว",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ท่อ PPR 1 นิ้ว",
+        "itemCode": "PLB-002",
+        "qty": "18",
+        "unit": "ท่อน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 95
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5651,
+    "output": 269,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

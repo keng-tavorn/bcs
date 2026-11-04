@@ -4,7 +4,7 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "BUY_GOODS",
-    "title": "ปั๊มน้ำหอยโข่ง 5 แรงม้า 1 เครื่อง",
+    "title": "ปั๊มน้ำหอยโข่ง 5 แรงม้า",
     "siteCode": "SITE-P05",
     "neededBy": null,
     "lines": [
@@ -36,7 +36,7 @@
       },
       {
         "field": "neededBy",
-        "value": 30
+        "value": 40
       },
       {
         "field": "lines",
@@ -44,13 +44,13 @@
       },
       {
         "field": "supplier",
-        "value": 0
+        "value": 100
       }
     ]
   },
   "usage": {
     "input": 5687,
-    "output": 268,
+    "output": 259,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

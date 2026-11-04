@@ -6,7 +6,7 @@
     "requestTypeCode": "CONTRACT_WORK",
     "title": "งานเสาเข็มเจาะ ขนาด 0.60 ม. 215 ต้น",
     "siteCode": "SITE-P08",
-    "neededBy": null,
+    "neededBy": "13 วัน",
     "lines": [
       {
         "description": "งานเสาเข็มเจาะ ขนาด 0.60 ม.",
@@ -32,11 +32,11 @@
       },
       {
         "field": "siteCode",
-        "value": 90
+        "value": 95
       },
       {
         "field": "neededBy",
-        "value": 40
+        "value": 60
       },
       {
         "field": "lines",
@@ -44,13 +44,13 @@
       },
       {
         "field": "supplier",
-        "value": 95
+        "value": 100
       }
     ]
   },
   "usage": {
     "input": 5695,
-    "output": 266,
+    "output": 271,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "IT_PURCHASE",
+    "title": "เครื่องพิมพ์มัลติฟังก์ชัน A3",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "เครื่องพิมพ์มัลติฟังก์ชัน A3",
+        "itemCode": "ITM-004",
+        "qty": "1",
+        "unit": "เครื่อง",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท โปรเฟสชั่นแนลบิลด์ซอฟต์แวร์ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5669,
+    "output": 293,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

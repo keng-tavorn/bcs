@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ซื้อหินคลุก 17 ลบ.ม.",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "หินคลุก",
+        "itemCode": "MAT-007",
+        "qty": "17",
+        "unit": "ลบ.ม.",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท เพชรเกษมกิจโฮมมาร์ท จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 80
+      }
+    ]
+  },
+  "usage": {
+    "input": 5641,
+    "output": 260,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

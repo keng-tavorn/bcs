@@ -5,7 +5,7 @@
   "output": {
     "requestTypeCode": "HIRE_SERVICE",
     "title": "อบรมผู้ควบคุมปั้นจั่น",
-    "siteCode": "HQ-STORE",
+    "siteCode": null,
     "neededBy": null,
     "lines": [
       {
@@ -24,37 +24,33 @@
     "confidence": [
       {
         "field": "requestTypeCode",
-        "value": 90
-      },
-      {
-        "field": "title",
         "value": 85
       },
       {
+        "field": "title",
+        "value": 80
+      },
+      {
         "field": "siteCode",
-        "value": 60
+        "value": 20
       },
       {
         "field": "neededBy",
-        "value": 30
+        "value": 40
       },
       {
         "field": "lines",
-        "value": 90
+        "value": 85
       },
       {
         "field": "supplier",
-        "value": 100
-      },
-      {
-        "field": "confidence",
-        "value": 80
+        "value": 95
       }
     ]
   },
   "usage": {
     "input": 5684,
-    "output": 259,
+    "output": 239,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

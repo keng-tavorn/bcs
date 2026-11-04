@@ -4,9 +4,9 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "BUY_GOODS",
-    "title": "ท่อคอนกรีตเสริมเหล็ก ขนาด 1.00 ม. 38 ท่อน",
+    "title": "ท่อคอนกรีตเสริมเหล็ก ขนาด 1.00 ม.",
     "siteCode": "SITE-P04",
-    "neededBy": null,
+    "neededBy": "7 วัน",
     "lines": [
       {
         "description": "ท่อคอนกรีตเสริมเหล็ก ขนาด 1.00 ม.",
@@ -32,11 +32,11 @@
       },
       {
         "field": "siteCode",
-        "value": 90
+        "value": 95
       },
       {
         "field": "neededBy",
-        "value": 30
+        "value": 80
       },
       {
         "field": "lines",
@@ -44,13 +44,13 @@
       },
       {
         "field": "supplier",
-        "value": 100
+        "value": 0
       }
     ]
   },
   "usage": {
     "input": 5693,
-    "output": 280,
+    "output": 277,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

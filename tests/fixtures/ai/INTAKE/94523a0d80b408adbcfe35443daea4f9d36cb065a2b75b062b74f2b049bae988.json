@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "ค่าเช่าตู้สำนักงานหน้างาน",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าเช่าตู้สำนักงานหน้างาน",
+        "itemCode": "RNT-008",
+        "qty": "24",
+        "unit": "ตู้-เดือน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท พูนผลพาณิชย์เช่าเครื่องจักร จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 10
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 85
+      },
+      {
+        "field": "supplier",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 5662,
+    "output": 284,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

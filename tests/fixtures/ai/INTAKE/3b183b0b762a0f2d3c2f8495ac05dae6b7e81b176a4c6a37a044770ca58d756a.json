@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "งานติดตั้งระบบประปาและสุขาภิบาล",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "งานติดตั้งระบบประปาและสุขาภิบาล",
+        "itemCode": "SUB-004",
+        "qty": "1",
+        "unit": "งาน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท ยูไนเต็ดบิลด์การโยธา จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 45
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 60
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5647,
+    "output": 276,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

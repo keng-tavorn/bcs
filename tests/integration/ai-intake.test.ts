@@ -121,12 +121,14 @@ describe('[FR-AI-302/AC1] step 0 fills the request; every value is confirmed bef
     expect(await startIntake(org.ctxOf('req_con', NOW), { requestTypeCode: 'BUY_GOODS', text: '  ' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'EMPTY' } } })
   })
 
-  it('[FR-AI-302/AC4] the supplier of the register by tax id and branch or by its exact name; otherwise its name as text, nothing created', async () => {
+  it('[FR-AI-302/AC4] the supplier of the register by tax id and branch or by its name, legal form aside; otherwise its name as text, nothing created', async () => {
     const taxId = '0999999000012'
     const supplier = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `S-${randomUUID().slice(0, 6)}`, nameTh: 'บริษัท ปูนดีทดสอบ จำกัด', taxId, branchCode: '00000' } })
     for (const [who, expected] of [
       [{ name: null, taxId, branch: '00000' }, supplier.id],
       [{ name: 'บริษัท  ปูนดีทดสอบ จำกัด', taxId: null, branch: null }, supplier.id],
+      // NEW-120: the name without its legal form, as people write it
+      [{ name: 'ปูนดีทดสอบ', taxId: null, branch: null }, supplier.id],
       [{ name: 'ร้านใหม่ไม่อยู่ในทะเบียน', taxId: null, branch: null }, null],
     ] as const) {
       answering(draftOf({ supplier: who }))

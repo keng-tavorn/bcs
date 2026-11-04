@@ -4,7 +4,7 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "CONTRACT_WORK",
-    "title": "งานติดตั้งระบบประปาและสุขาภิบาล โรงพยาบาลนนทบุรี (ครั้งที่ 2)",
+    "title": "งานติดตั้งระบบประปาและสุขาภิบาล · โรงพยาบาลนนทบุรี (ครั้งที่ 2)",
     "siteCode": "SITE-P03",
     "neededBy": null,
     "lines": [
@@ -28,7 +28,7 @@
       },
       {
         "field": "title",
-        "value": 80
+        "value": 90
       },
       {
         "field": "siteCode",
@@ -44,17 +44,13 @@
       },
       {
         "field": "supplier",
-        "value": 0
-      },
-      {
-        "field": "confidence",
-        "value": 70
+        "value": 100
       }
     ]
   },
   "usage": {
     "input": 5689,
-    "output": 293,
+    "output": 281,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

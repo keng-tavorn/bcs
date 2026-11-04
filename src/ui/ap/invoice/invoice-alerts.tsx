@@ -32,19 +32,26 @@ export function InvoiceAlerts({ alerts, button, title, hint }: { alerts: readonl
           <PopoverTitle className="text-base font-semibold text-ink">{title}</PopoverTitle>
           <PopoverDescription className="text-base text-ink-muted md:text-sm">{hint}</PopoverDescription>
         </PopoverHeader>
-        <ul aria-label={title} className="flex flex-col divide-y divide-line border-y border-line">
-          {alerts.map((a) => (
-            <li key={a.key} className="flex gap-2 py-2.5">
-              <TriangleAlert className="mt-1 size-4 shrink-0 text-warn-ink" aria-hidden="true" />
-              <div className="flex min-w-0 flex-col gap-0.5 text-base md:text-sm">
-                <span className="font-medium break-words text-ink">{a.title}</span>
-                {a.where ? <span className="text-ink-muted">{a.where}</span> : null}
-                <span className="break-words text-ink">{a.text}</span>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <InvoiceAlertList alerts={alerts} label={title} />
       </PopoverContent>
     </Popover>
+  )
+}
+
+/** The alerts as a list, in the badge's popover and in the quick view of the list (NEW-117) */
+export function InvoiceAlertList({ alerts, label }: { alerts: readonly InvoiceAlertView[]; label: string }) {
+  return (
+    <ul aria-label={label} className="flex flex-col divide-y divide-line border-y border-line">
+      {alerts.map((a) => (
+        <li key={a.key} className="flex gap-2 py-2.5">
+          <TriangleAlert className="mt-1 size-4 shrink-0 text-warn-ink" aria-hidden="true" />
+          <div className="flex min-w-0 flex-col gap-0.5 text-base md:text-sm">
+            <span className="font-medium break-words text-ink">{a.title}</span>
+            {a.where ? <span className="text-ink-muted">{a.where}</span> : null}
+            <span className="break-words text-ink">{a.text}</span>
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 }

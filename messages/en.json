@@ -2493,6 +2493,20 @@
       "toPos": "Go to purchase orders",
       "uploading": "Uploading the file"
     },
+    "quick": {
+      "activity": "Latest activity",
+      "alerts": "Alerts ({count})",
+      "allActivity": "See all {count} activities on the full page",
+      "amount": "{amount} baht",
+      "description": "A read-only summary of this invoice. Nothing here changes it; checks and approvals happen on the full page.",
+      "full": "Open full page",
+      "gross": "Total",
+      "noAlerts": "No alerts",
+      "open": "Quick view",
+      "openLabel": "Quick view of {title}",
+      "po": "PO",
+      "supplier": "Supplier"
+    },
     "status": {
       "CANCELLED": "Cancelled",
       "DRAFT": "Draft",

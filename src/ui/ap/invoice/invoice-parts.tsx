@@ -8,6 +8,7 @@ import { CommentList } from '../../document/rail'
 import { formatDateTime } from '../../format'
 import { Panel } from '../../page/page'
 import { Badge } from '../../shadcn/badge'
+import type { InvoiceAlertView } from './invoice-alerts'
 import { MATCH_BADGES, type ApInvoicePageData } from './types'
 
 // The parts of the invoice's split page that only read (NEW-115 · FR-AP-102 AC7 AC8): the bar of what the PO has left,
@@ -151,3 +152,21 @@ export function InvoiceComments({ t, locale, data, eventText }: { t: InvoiceT; l
 }
 
 export const commentCount = (data: ApInvoicePageData) => data.events.filter((e) => e.reason).length
+
+type PayRunTaskT = Awaited<ReturnType<typeof getTranslations<'payRun.task'>>>
+
+/**
+ * Why the rules raised the invoice (NEW-116), in the words the head's badge and the quick view of the list (NEW-117) both
+ * say: the differences (a difference whose variance approval was asked for waits for the approver, so what is left is to
+ * wait, not to ask again), a number the supplier has used, and what a payment run would flag on the supplier
+ */
+export function invoiceAlertViews(t: InvoiceT, tp: PayRunTaskT, data: ApInvoicePageData): InvoiceAlertView[] {
+  const typeText = (type: string) => (t.has(`exceptions.type.${type}` as 'exceptions.type.PRICE_OVER') ? t(`exceptions.type.${type}` as 'exceptions.type.PRICE_OVER') : type)
+  const whereOf = (e: ApInvoicePageData['exceptions'][number]) =>
+    `${e.lineNo ? t('exceptions.line', { no: e.lineNo }) : t('exceptions.whole')} · ${t('exceptions.amount', { amount: money(e.amountSatang) })} · ${t('exceptions.sentTo', { role: t(`exceptions.role.${e.assigneeRole as 'FINANCE'}`) })}`
+  return [
+    ...data.exceptions.map((e) => ({ key: e.id, title: typeText(e.type), text: e.status === 'ACCEPT_REQUESTED' ? t('exceptions.asked') : t(`exceptions.explain.${e.type as 'PRICE_OVER'}`), where: whereOf(e) })),
+    ...(data.duplicateNumber ? [{ key: 'duplicate-number', title: t('alerts.duplicateNumberTitle'), text: t('alerts.duplicateNumberText'), where: null }] : []),
+    ...data.paymentFlags.map((f) => ({ key: f, title: tp(`flag.${f as 'REGISTRY_CHANGED'}`), text: tp(`flagExplain.${f as 'REGISTRY_CHANGED'}`), where: null })),
+  ]
+}

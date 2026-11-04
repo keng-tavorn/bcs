@@ -1,14 +1,17 @@
 import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
 import type { Ctx } from '@/server/context'
+import { getApInvoicePage } from '@/server/services/ap/view-invoice'
 import { AP_LIST_TABS, listApInvoices, type ApInvoiceRowDto, type ApListTab } from '@/server/services/ap/view-list'
 import type { ApInvoiceRowView } from '@/ui/ap/list/invoice-table'
 import { ApInvoiceTable } from '@/ui/ap/list/invoice-table'
 import { ApInvoiceTabs } from '@/ui/ap/list/invoice-tabs'
+import { InvoiceQuickView } from '@/ui/ap/list/invoice-quick-view'
 import { Notice } from '@/ui/form/notice'
 import { FilterBar, FilterSearch, FilterSummary } from '@/ui/page/filters'
 import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { Button } from '@/ui/shadcn/button'
+import { downloadUrlAction } from '../../../_lib/file-actions'
 import { day, localeOf, type Locale } from '../../_tracking/present'
 import { money } from '../present'
 
@@ -16,7 +19,8 @@ import { money } from '../present'
 // invoices in tabs ร่าง · ไม่ตรง · รออนุมัติ · พร้อมจ่าย · ทั้งหมด with their counts, searched with a plain GET form (it changes
 // nothing); the tab and the search are in the address. Each invoice opens its own page (/finance/invoices/<id>). The page
 // links to the inbox (invoice.inbox.manage) and to recording a new invoice. FINANCE's page: the view checks
-// invoice.record and PAY before anything is read.
+// invoice.record and PAY before anything is read. NEW-117: ?view=<id> opens that invoice's quick view over the list, read
+// by the invoice page's own service (it checks who may read the invoice); an invoice it does not give opens nothing.
 
 const SEARCH_MAX = 60
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
@@ -24,10 +28,14 @@ const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text
 type Params = Record<string, string | string[] | undefined>
 const one = (value: string | string[] | undefined): string | null => (typeof value === 'string' ? value : null)
 
-function hrefOf(tab: ApListTab, q: string): string {
+/** An invoice id is a UUID; anything else in the address opens nothing (and never reaches the database) */
+const VIEW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function hrefOf(tab: ApListTab, q: string, view: string | null = null): string {
   const params = new URLSearchParams()
   if (tab !== 'draft') params.set('tab', tab)
   if (q) params.set('q', q)
+  if (view) params.set('view', view)
   const query = params.toString()
   return query ? `/finance/invoices?${query}` : '/finance/invoices'
 }
@@ -37,7 +45,9 @@ export async function ApInvoicesPage({ ctx, searchParams }: { ctx: Ctx; searchPa
   const asked = one(searchParams.tab)
   const tab = (AP_LIST_TABS as readonly string[]).includes(asked ?? '') ? (asked as ApListTab) : 'draft'
   const q = (one(searchParams.q) ?? '').trim().slice(0, SEARCH_MAX)
-  const result = await listApInvoices(ctx, { tab, q })
+  const asView = one(searchParams.view)
+  const viewId = asView && VIEW_ID.test(asView) ? asView : null
+  const [result, viewed] = await Promise.all([listApInvoices(ctx, { tab, q }), viewId ? getApInvoicePage(ctx, viewId) : null])
   if (!result.ok) {
     return (
       <Page>
@@ -53,7 +63,7 @@ export async function ApInvoicesPage({ ctx, searchParams }: { ctx: Ctx; searchPa
   }
   const list = result.data
   const tabName = t(`tabs.${tab}`)
-  const rows = list.rows.map((row) => rowView(t, locale, row))
+  const rows = list.rows.map((row) => rowView(t, locale, row, hrefOf(tab, q, row.id)))
 
   return (
     <Page>
@@ -115,6 +125,7 @@ export async function ApInvoicesPage({ ctx, searchParams }: { ctx: Ctx; searchPa
                     due: t('list.columns.due'),
                     status: t('list.columns.status'),
                     unit: t('unit'),
+                    quick: t('quick.open'),
                   }}
                 />
                 {list.limited ? <p className="text-ink-muted">{t('list.limited', { shown: rows.length })}</p> : null}
@@ -134,6 +145,7 @@ export async function ApInvoicesPage({ ctx, searchParams }: { ctx: Ctx; searchPa
             )}
           </ApInvoiceTabs>
         </Panel>
+        {viewed?.ok ? <InvoiceQuickView key={viewed.data.id} data={viewed.data} closeHref={hrefOf(tab, q)} openFile={downloadUrlAction} /> : null}
       </PageBody>
     </Page>
   )
@@ -141,12 +153,14 @@ export async function ApInvoicesPage({ ctx, searchParams }: { ctx: Ctx; searchPa
 
 type ApListT = Awaited<ReturnType<typeof getTranslations<'apList'>>>
 
-function rowView(t: ApListT, locale: Locale, row: ApInvoiceRowDto): ApInvoiceRowView {
+function rowView(t: ApListT, locale: Locale, row: ApInvoiceRowDto, quickHref: string): ApInvoiceRowView {
   const supplierName = locale === 'en' && row.supplier.nameEn ? row.supplier.nameEn : row.supplier.nameTh
   const title = row.number ?? (row.supplierInvoiceNo ? t('list.draftTitle', { no: row.supplierInvoiceNo }) : t('list.draftOfPo', { po: row.po.number ?? '-' }))
   return {
     id: row.id,
     href: `/finance/invoices/${row.id}`,
+    quickHref,
+    quickLabel: t('quick.openLabel', { title }),
     title,
     supplierNo: row.supplierInvoiceNo ? t('list.supplierNo', { no: row.supplierInvoiceNo }) : t('list.noSupplierNo'),
     supplier: `${supplierName} (${row.supplier.code})`,

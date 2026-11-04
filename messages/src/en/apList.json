@@ -187,5 +187,19 @@
     "REASON_TOO_LONG": "The reason is longer than 500 characters",
     "INVALID": "Something is missing or wrong. Reload the page and try again.",
     "FAILED": "It did not work. Try again; if it still fails, tell your administrator."
+  },
+  "quick": {
+    "open": "Quick view",
+    "openLabel": "Quick view of {title}",
+    "description": "A read-only summary of this invoice. Nothing here changes it; checks and approvals happen on the full page.",
+    "supplier": "Supplier",
+    "po": "PO",
+    "gross": "Total",
+    "amount": "{amount} baht",
+    "full": "Open full page",
+    "alerts": "Alerts ({count})",
+    "noAlerts": "No alerts",
+    "activity": "Latest activity",
+    "allActivity": "See all {count} activities on the full page"
   }
 }

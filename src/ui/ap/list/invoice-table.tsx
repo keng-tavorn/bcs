@@ -1,15 +1,25 @@
+'use client'
+
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import type { MouseEvent } from 'react'
 import { DuplicateBadge, InvoiceStatusBadge } from './badges'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../shadcn/table'
 
 // The tier-2 invoices of one tab of /finance/invoices (S8-13, FR-AP-103 AC1): each invoice as a link to its page, with
 // the supplier's invoice number, the supplier, the PO, the amounts before VAT, the VAT and the total (right-aligned,
 // tabular digits), the due date, its status badge, and a "possible duplicate" badge when the match flagged one. A table
-// on wide screens; phones get a list instead, so nothing scrolls sideways (§9.9). Strings arrive translated.
+// on wide screens; phones get a list instead, so nothing scrolls sideways (§9.9). Strings arrive translated. NEW-117: each
+// row has "ดูเร็ว", a plain link that puts the invoice in the address (?view=<id>) and opens the quick view; a press anywhere
+// else on the row does the same, while the row's own links keep theirs. Opening it only reads.
 
 export interface ApInvoiceRowView {
   readonly id: string
   readonly href: string
+  /** NEW-117: the list's address with this invoice's quick view */
+  readonly quickHref: string
+  /** "ดูเร็ว" with the invoice's name, for screen readers */
+  readonly quickLabel: string
   /** The BCS number, or "draft" */
   readonly title: string
   readonly supplierNo: string
@@ -36,7 +46,11 @@ export interface ApInvoiceTableLabels {
   readonly due: string
   readonly status: string
   readonly unit: string
+  /** NEW-117: the link's visible word */
+  readonly quick: string
 }
+
+const QUICK = 'inline-flex min-h-11 items-center self-start text-primary underline underline-offset-4 hover:no-underline lg:min-h-0'
 
 const LINK = 'inline-flex min-h-11 items-center font-semibold break-words text-primary underline underline-offset-4 hover:no-underline lg:min-h-0'
 
@@ -49,7 +63,21 @@ function States({ row }: { row: ApInvoiceRowView }) {
   )
 }
 
+function QuickLink({ row, label, desktop }: { row: ApInvoiceRowView; label: string; desktop: boolean }) {
+  // Two lists draw the same rows, one hidden by width: the quick view gives focus back to the one on screen
+  return (
+    <Link href={row.quickHref} scroll={false} aria-label={row.quickLabel} data-quick-view={row.id} className={`${QUICK} ${desktop ? 'hidden lg:inline-flex' : 'lg:hidden'}`}>
+      {label}
+    </Link>
+  )
+}
+
 export function ApInvoiceTable({ rows, labels }: { rows: readonly ApInvoiceRowView[]; labels: ApInvoiceTableLabels }) {
+  const router = useRouter()
+  const openQuick = (row: ApInvoiceRowView) => (event: MouseEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest('a, button')) return
+    router.push(row.quickHref, { scroll: false })
+  }
   const figures = [
     { key: 'net', label: labels.net },
     { key: 'vat', label: labels.vat },
@@ -74,12 +102,13 @@ export function ApInvoiceTable({ rows, labels }: { rows: readonly ApInvoiceRowVi
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={row.id}>
+            <TableRow key={row.id} onClick={openQuick(row)} className="cursor-pointer">
               <TableCell className="align-top whitespace-normal">
                 <Link href={row.href} className={LINK}>
                   {row.title}
                 </Link>
                 <span className="block text-ink-muted">{row.supplierNo}</span>
+                <QuickLink row={row} label={labels.quick} desktop />
                 {row.notes.map((n) => (
                   <span key={n} className="block text-ink-muted">
                     {n}
@@ -104,7 +133,7 @@ export function ApInvoiceTable({ rows, labels }: { rows: readonly ApInvoiceRowVi
       </Table>
       <ul aria-label={labels.list} className="flex flex-col divide-y divide-line border-y border-line lg:hidden">
         {rows.map((row) => (
-          <li key={row.id} className="flex flex-col gap-2 py-3">
+          <li key={row.id} onClick={openQuick(row)} className="flex cursor-pointer flex-col gap-2 py-3">
             <div className="flex min-w-0 flex-col">
               <Link href={row.href} className={`${LINK} self-start`}>
                 {row.title}
@@ -121,6 +150,7 @@ export function ApInvoiceTable({ rows, labels }: { rows: readonly ApInvoiceRowVi
               ))}
             </div>
             <States row={row} />
+            <QuickLink row={row} label={labels.quick} desktop={false} />
             <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-3">
               {figures.map((f) => (
                 <div key={f.key} className="flex items-baseline justify-between gap-3">

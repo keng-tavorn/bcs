@@ -14,10 +14,10 @@ import { CodingForm, NO_WITHHOLDING, type CodingLineView } from './coding-form'
 import { DraftActions, ExceptionActions } from './exception-actions'
 import { HeaderForm } from './header-form'
 import { InvoiceAiReview, type InvoiceAiReviewView } from './invoice-ai'
-import { InvoiceAlerts, type InvoiceAlertView } from './invoice-alerts'
+import { InvoiceAlerts } from './invoice-alerts'
 import { InvoiceFilePane } from './invoice-file-pane'
 import { InvoiceLines, type LineView } from './invoice-lines'
-import { commentCount, dayText, InvoiceComments, invoiceLinkClass as linkClass, MatchPanel, money, nameOf, PoBalancePanel, SourcePanel, type InvoiceLocale as Locale, type InvoiceT as T } from './invoice-parts'
+import { commentCount, dayText, InvoiceComments, invoiceAlertViews, invoiceLinkClass as linkClass, MatchPanel, money, nameOf, PoBalancePanel, SourcePanel, type InvoiceLocale as Locale, type InvoiceT as T } from './invoice-parts'
 import type { ApInvoiceActions } from './outcome'
 import { SourceLabel } from './source-label'
 import { INVOICE_BADGES, type ApInvoicePageData } from './types'
@@ -166,12 +166,7 @@ export async function ApInvoicePage({
   const transfer = data.payableSatang - data.expectedWhtSatang
   const whereOf = (e: ApInvoicePageData['exceptions'][number]) =>
     `${e.lineNo ? t('exceptions.line', { no: e.lineNo }) : t('exceptions.whole')} · ${t('exceptions.amount', { amount: money(e.amountSatang) })} · ${t('exceptions.sentTo', { role: t(`exceptions.role.${e.assigneeRole as 'FINANCE'}`) })}`
-  const alerts: InvoiceAlertView[] = [
-    // A difference whose variance approval was asked for waits for the approver: what is left is to wait, not to ask again
-    ...data.exceptions.map((e) => ({ key: e.id, title: typeText(e.type), text: e.status === 'ACCEPT_REQUESTED' ? t('exceptions.asked') : t(`exceptions.explain.${e.type as 'PRICE_OVER'}`), where: whereOf(e) })),
-    ...(data.duplicateNumber ? [{ key: 'duplicate-number', title: t('alerts.duplicateNumberTitle'), text: t('alerts.duplicateNumberText'), where: null }] : []),
-    ...data.paymentFlags.map((f) => ({ key: f, title: tp(`flag.${f as 'REGISTRY_CHANGED'}`), text: tp(`flagExplain.${f as 'REGISTRY_CHANGED'}`), where: null })),
-  ]
+  const alerts = invoiceAlertViews(t, tp, data)
   const incomeTypes = [
     { value: NO_WITHHOLDING, label: t('coding.noWithholding') },
     ...data.options.incomeTypes.map((x) => {

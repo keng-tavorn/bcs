@@ -107,11 +107,14 @@ export function RequestForm({
   actions,
   autosaveUrl,
   locale,
+  intakeFrom,
 }: {
   data: RequestFormData
   actions: RequestFormActions
   autosaveUrl: string
   locale: ScreenLocale
+  /** The Intake reading the home page's box made (NEW-120), filled into a new form to be checked */
+  intakeFrom?: string
 }) {
   const t = useTranslations('requestForm')
   const [values, dispatch] = useReducer(formReducer, data, initialValues)
@@ -517,7 +520,7 @@ export function RequestForm({
               <>
                 {/* Step 0 (FR-AI-302): only on the first step, only when the Intake Agent is available to this member */}
                 {actions.intake && index === 0 ? (
-                  <IntakeAi data={data} values={values} requestId={autosave.requestId} actions={actions.intake} uploads={{ requestUpload: actions.requestUpload, completeUpload: actions.completeUpload }} update={update} />
+                  <IntakeAi data={data} values={values} requestId={autosave.requestId} actions={actions.intake} {...(intakeFrom ? { from: intakeFrom } : {})} uploads={{ requestUpload: actions.requestUpload, completeUpload: actions.completeUpload }} update={update} />
                 ) : null}
                 <StepBody step={current} props={stepProps} documents={documentsProps} endDateRequired={endDateRequired} />
               </>

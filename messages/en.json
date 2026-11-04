@@ -6405,6 +6405,27 @@
       "summary": "{total, plural, one {# request} other {# requests}} · {open} open"
     },
     "greeting": "Hello {name}. What would you like to do today?",
+    "intake": {
+      "again": "Start over",
+      "attach": "Attach a quotation or a photo",
+      "empty": "Write what you need or attach a file first",
+      "fileAttached": "Attached: {name}",
+      "hint": "The assistant suggests the type of request and the supplier, then opens the form with a draft for you to check. It never sends the request itself.",
+      "label": "Tell us what you need",
+      "noType": "The assistant could not pick a request type. You can pick one yourself.",
+      "notSent": "Nothing is saved or sent yet: you check what the assistant filled in and send it yourself in the form.",
+      "open": "Open the {type} form with the draft",
+      "pickType": "Pick a request type",
+      "placeholder": "e.g. 20 bags of cement to the Bang Na site, or attach a quotation",
+      "proposalTitle": "The assistant suggests",
+      "search": "Search instead",
+      "start": "Ask the assistant",
+      "supplier": "Supplier",
+      "supplierFound": "{name} (in the register)",
+      "supplierNone": "Not given, pick one in the form",
+      "supplierText": "{name} (not in the register, pick one in the form)",
+      "type": "Request type"
+    },
     "loading": "Loading {card}",
     "onTime": {
       "DEPARTMENT": "My department",

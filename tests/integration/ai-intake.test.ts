@@ -142,6 +142,40 @@ describe('[FR-AI-302/AC1] step 0 fills the request; every value is confirmed bef
   })
 })
 
+describe('[FR-AI-302/AC2] NEW-120 the home page box: no form yet, so the agent proposes the type and the supplier', () => {
+  // asst_con: another requester, so these calls stay out of req_con's calls per minute (AI_LIMITS)
+  it('[FR-AI-302/AC2] without a type it proposes one of the organization, named, and the supplier of the register by name; nothing is created', async () => {
+    const supplier = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `S-${randomUUID().slice(0, 6)}`, nameTh: 'บริษัท หน้าแรกทดสอบ จำกัด', taxId: '0999999000098', branchCode: '00000' } })
+    const goods = await prisma.requestType.findFirstOrThrow({ where: { organizationId: org.organizationId, code: 'BUY_GOODS' }, select: { nameTh: true } })
+    answering(draftOf({ supplier: { name: 'บริษัท หน้าแรกทดสอบ จำกัด', taxId: null, branch: null } }))
+    const [requests, before] = [await prisma.request.count({ where: { organizationId: org.organizationId } }), await prisma.supplier.count({ where: { organizationId: org.organizationId } })]
+    const started = await startIntake(org.ctxOf('asst_con', NOW), { text: 'อยากได้ปูน 20 ถุงจากบริษัท หน้าแรกทดสอบ จำกัด' }, key())
+    if (!started.ok) throw new Error(JSON.stringify(started.error))
+    expect((await action(started.data.agentActionId)).inputRefs).toEqual({ fileIds: [] })
+    expect(await runIntake(org.organizationId, started.data.agentActionId, NOW)).toBe('DRAFT')
+    const done = await action(started.data.agentActionId)
+    const review = done.review as { proposed: Record<string, string>; requiredPaths: string[] }
+    // The type is proposed as a value that waits (it opens the form of that type), with the supplier of the register
+    expect(review.proposed).toMatchObject({ requestTypeCode: 'BUY_GOODS', suggestedSupplierId: supplier.id })
+    expect(review.requiredPaths).toEqual(expect.arrayContaining(['requestTypeCode', 'suggestedSupplierId']))
+    expect(done.output).toMatchObject({ suggestedType: null, proposedType: 'BUY_GOODS', proposedTypeName: goods.nameTh, supplierName: 'บริษัท หน้าแรกทดสอบ จำกัด', supplierText: null })
+    // [BR-AI-01] Nothing created or sent: no request, no supplier
+    expect(await prisma.request.count({ where: { organizationId: org.organizationId } })).toBe(requests)
+    expect(await prisma.supplier.count({ where: { organizationId: org.organizationId } })).toBe(before)
+  })
+
+  it('[FR-AI-302/AC2] a type that is not the organization’s is never proposed; a draft’s reading names its form’s type', async () => {
+    answering(draftOf({ requestTypeCode: 'NO_SUCH_TYPE' }))
+    const started = await startIntake(org.ctxOf('asst_con', NOW), { text: 'ของบางอย่าง' }, key())
+    if (!started.ok) throw new Error('start')
+    await runIntake(org.organizationId, started.data.agentActionId, NOW)
+    const done = await action(started.data.agentActionId)
+    expect((done.review as { proposed: Record<string, string> }).proposed.requestTypeCode).toBeUndefined()
+    expect(done.output).not.toHaveProperty('proposedType')
+    expect(await startIntake(org.ctxOf('asst_con', NOW), { text: 'ขอปูน', requestId: randomUUID() }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'requestTypeCode' } } })
+  })
+})
+
 describe('[FR-AI-302/AC5] [FR-AI-303/AC9] the chat path of S17: in the caller’s job, no text kept, one action per key', () => {
   it('[FR-AI-302/AC5] reads at once, keeps no text, creates no request; the same key returns the same action without a call', async () => {
     const photo = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...new TextEncoder().encode(`photo-${randomUUID()}`)])

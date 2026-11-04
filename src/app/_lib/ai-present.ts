@@ -59,6 +59,8 @@ export function presentAiResult(dto: AgentActionDto): AiResultView {
     notes: content ? notesOf(content.verification, content.output) : [],
     suggestedType: text(obj(content?.output).suggestedType) ? { code: text(obj(content?.output).suggestedType)!, name: text(obj(content?.output).suggestedTypeName) ?? text(obj(content?.output).suggestedType)! } : null,
     supplierText: text(obj(content?.output).supplierText),
+    proposedType: text(obj(content?.output).proposedType) ? { code: text(obj(content?.output).proposedType)!, name: text(obj(content?.output).proposedTypeName) ?? text(obj(content?.output).proposedType)! } : null,
+    supplierName: text(obj(content?.output).supplierName),
     doa: content && typeof obj(content.output).yaml === 'string' ? (content.output as AiDoaDraftView) : null,
   }
 }

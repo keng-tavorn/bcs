@@ -147,5 +147,26 @@
       "why": "{count, plural, one {# invoice waits} other {# invoices wait}} for payment · this doesn’t stop the payment, but the run approver sees it",
       "action": "View invoice"
     }
+  },
+  "intake": {
+    "label": "Tell us what you need",
+    "placeholder": "e.g. 20 bags of cement to the Bang Na site, or attach a quotation",
+    "hint": "The assistant suggests the type of request and the supplier, then opens the form with a draft for you to check. It never sends the request itself.",
+    "attach": "Attach a quotation or a photo",
+    "fileAttached": "Attached: {name}",
+    "start": "Ask the assistant",
+    "search": "Search instead",
+    "empty": "Write what you need or attach a file first",
+    "proposalTitle": "The assistant suggests",
+    "type": "Request type",
+    "supplier": "Supplier",
+    "supplierFound": "{name} (in the register)",
+    "supplierText": "{name} (not in the register, pick one in the form)",
+    "supplierNone": "Not given, pick one in the form",
+    "noType": "The assistant could not pick a request type. You can pick one yourself.",
+    "notSent": "Nothing is saved or sent yet: you check what the assistant filled in and send it yourself in the form.",
+    "open": "Open the {type} form with the draft",
+    "pickType": "Pick a request type",
+    "again": "Start over"
   }
 }

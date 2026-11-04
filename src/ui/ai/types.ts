@@ -44,6 +44,10 @@ export interface AiResultView {
   readonly suggestedType: { readonly code: string; readonly name: string } | null
   /** Intake: the supplier named but not in the register, as text */
   readonly supplierText: string | null
+  /** Intake without a form (the home page's box, NEW-120): the type proposed, to open its form with the draft */
+  readonly proposedType: { readonly code: string; readonly name: string } | null
+  /** Intake: the supplier of the register it matched, by name */
+  readonly supplierName: string | null
   /** The DOA drafter: the draft version, each rule with its source and page and what code found, and the lint */
   readonly doa: AiDoaDraftView | null
 }

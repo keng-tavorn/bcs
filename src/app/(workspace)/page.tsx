@@ -19,6 +19,8 @@ import { TodoList } from '@/ui/home/todo-list'
 import { Button } from '@/ui/shadcn/button'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/shadcn/empty'
 import { ItemGroup } from '@/ui/shadcn/item'
+import { intakeAiFor } from '../_lib/ai-read'
+import { completeUploadAction, requestUploadAction } from '../_lib/file-actions'
 import { getSession } from '../_lib/session'
 import { dismissAssistantAction } from './_shell/assistant-actions'
 import { assistantNotes } from './_tracking/assistant-present'
@@ -202,12 +204,15 @@ export default async function HomePage() {
   const name = firstName(locale === 'en' && state.member.displayNameEn ? state.member.displayNameEn : state.member.displayNameTh)
   // The chip opens the same door as the shell's button, for the same members (request.create, FR-INT-010)
   const canRequest = isAllowed(memberPrincipal(state.member.id, state.roles), 'request.create')
+  // The box "บอกสิ่งที่อยากได้" (NEW-120) takes the search field's place when the Intake Agent serves this member now
+  const intake = canRequest ? await intakeAiFor(ctx) : undefined
   const skeleton = (id: string, title: string) => <HomeCardSkeleton id={id} title={title} loading={t('loading', { card: title })} />
 
   return (
     <div className="flex flex-col gap-6">
       <HomeHero
         canRequest={canRequest}
+        {...(intake ? { intake: { actions: intake, uploads: { requestUpload: requestUploadAction, completeUpload: completeUploadAction } } } : {})}
         texts={{
           greeting: t('greeting', { name }),
           search: t('search'),

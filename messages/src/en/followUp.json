@@ -1,0 +1,81 @@
+{
+  "title": "Follow-up assistant",
+  "intro": "Approval tasks of the documents you asked for, follow or made the purchase order of that are past their due time or due within a day, with why each still waits",
+  "source": "From the system's rules and data, not from AI",
+  "rule": "A follow-up goes only when you press send, and only to the task's holder in the DOA's own order · one follow-up per task a day, and none within 2 hours after the system told the holder of the task",
+  "asOf": "As of {when}",
+  "refresh": "Reload",
+  "list": "Tasks past or near their due time",
+  "forbidden": "You may not open this page",
+  "home": "Back to home",
+  "empty": {
+    "title": "No task is past or near its due time",
+    "hint": "The approval tasks of the documents you follow have more than a day left. The assistant lists them here when they come near their due time",
+    "action": "See my requests"
+  },
+  "document": {
+    "REQUEST": "request",
+    "PURCHASE_ORDER": "purchase order"
+  },
+  "relation": {
+    "REQUESTER": "You asked for it",
+    "FOLLOWER": "You follow this request",
+    "BUYER": "You made this purchase order"
+  },
+  "overdue": "Past its due time (due {when})",
+  "dueSoon": "Due {when}",
+  "reasons": "Why it still waits",
+  "reason": {
+    "holder": "Waiting for {name} to decide",
+    "acting": "Waiting for {name} to decide on behalf of {principal}, who set an acting delegate",
+    "actingUntil": "Waiting for {name} to decide on behalf of {principal}, who set an acting delegate until {until}",
+    "away": "{name} set an acting delegate until {until}, but this task did not move to the delegate, so it still waits for {name}",
+    "slaReminded": "The system reminded {name} on time at {when}",
+    "overdueTold": "The system told {name} it was overdue at {when}",
+    "escalates": "If still undecided, the system escalates it under the SLA at {when}",
+    "escalated": "The system escalated it at {when}",
+    "escalatedWith": "The system escalated it at {when}: {names} now decides it too",
+    "sentToday": "{name} sent a follow-up on this task today at {when}",
+    "sentTodayMe": "You sent a follow-up on this task today at {when}"
+  },
+  "hold": {
+    "SENT_TODAY": "This task may be followed up again {when}",
+    "TOLD_RECENTLY": "{name} was just told of this task by the system; a follow-up may go {when}"
+  },
+  "open": "Open the {document}",
+  "draft": {
+    "toggle": "Draft a follow-up",
+    "to": "To {name}, who holds this task",
+    "via": "Tell them by",
+    "viaLINE": "LINE (e-mail if LINE is not linked)",
+    "viaEMAIL": "E-mail",
+    "message": "Message",
+    "hint": "{name} reads this message in BCS · LINE and e-mail carry only the document's number and a link, not your words",
+    "review": "Review before sending",
+    "confirmTitle": "Send the follow-up to {name}",
+    "confirmLINE": "The system tells them by LINE (or e-mail if LINE is not linked) that there is a follow-up on {document} {number}. The message below shows in the BCS of {name}, and you are recorded as the sender",
+    "confirmEMAIL": "The system tells them by e-mail that there is a follow-up on {document} {number}. The message below shows in the BCS of {name}, and you are recorded as the sender",
+    "back": "Back to edit",
+    "send": "Send the follow-up",
+    "sending": "Sending…",
+    "sent": "The follow-up was sent to {name}",
+    "empty": "Write a message before sending",
+    "tooLong": "A message may have at most {max} characters",
+    "OVERDUE": "Dear {name}, may I follow up on {document} {number}, which waits for your review and was due {due}, thank you.",
+    "DUE_SOON": "Dear {name}, may I follow up on {document} {number}, which waits for your review and is due {due}, thank you."
+  },
+  "errors": {
+    "SENT_TODAY": "Someone already followed up on this task today; it may go again {when}",
+    "TOLD_RECENTLY": "The holder was just told of this task by the system; it may go {when}",
+    "NOT_FOLLOWER": "You no longer follow this document, so you may not follow up on it",
+    "READ_ONLY": "You follow this document as an auditor, who reads only, so you may not follow up on it",
+    "OWN_TASK": "This task waits for your own decision",
+    "NOT_DUE_SOON": "This task is not near its due time yet",
+    "HOLDER_INACTIVE": "The holder of this task is no longer active; please tell your organization's administrator",
+    "STATE": "This task no longer waits for a decision. Reload the page to see where it stands",
+    "BUSY": "The system is busy. Please try again in a moment",
+    "UNAUTHENTICATED": "Your session has ended. Please sign in again",
+    "NO_ANSWER": "No answer came back, so it is not certain the follow-up went. You may press send again; it will not go twice",
+    "FAILED": "It could not be sent. Please try again"
+  }
+}

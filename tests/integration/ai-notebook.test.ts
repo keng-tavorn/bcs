@@ -9,7 +9,7 @@ import { creditSummary, listAgentActivity, listAgentSettings, listSettingChanges
 import { listNotebook, setAssistantLearning } from '@/server/services/assistants/notebook'
 import { AP_NOW, apOrg, codedDraft, fin, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
 
-// NEW-125 (ADR-081 · BR-AI-28 · BR-AI-04 · BR-AP-10): /admin/ai for ORG_ADMIN and AUDITOR — the assistants' notebook
+// NEW-125 (ADR-083 · BR-AI-28 · BR-AI-04 · BR-AP-10): /admin/ai for ORG_ADMIN and AUDITOR — the assistants' notebook
 // (the account codes learned from what FINANCE confirmed, switched off or forgotten by ORG_ADMIN, with an event), the
 // history of the work from AgentAction (the values only for AUDITOR and the member who asked), the history of the
 // settings from the events, and the month's results counted from AgentAction and Event.

@@ -53,7 +53,7 @@ export async function apOrg(options: { modules?: Array<'PAY' | 'AI' | 'BCS_GO'>;
 }
 
 /** A PO of these lines (quantity, unit price) on a funded budget line, approved and sent to the supplier */
-export async function sentPo(ap: ApOrg, lines: Array<{ quantity: string; unitPrice: string }>, options: { fund?: bigint; accountCode?: string | null } = {}) {
+export async function sentPo(ap: ApOrg, lines: Array<{ quantity: string; unitPrice: string; description?: string }>, options: { fund?: bigint; accountCode?: string | null } = {}) {
   const budgetLineId = await ap.flow.fundedLine(options.fund ?? 10_000_000n)
   await prisma.budgetLine.update({ where: { id: budgetLineId }, data: { accountCode: options.accountCode === undefined ? '510101' : options.accountCode } })
   const pr = await ap.flow.approvedRequest(budgetLineId, lines)

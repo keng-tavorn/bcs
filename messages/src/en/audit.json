@@ -216,6 +216,7 @@
       "cancelled": "Approval task cancelled",
       "decided": "Approval task decided",
       "escalated": "Overdue approval task escalated",
+      "followed_up": "Sent a follow-up to the holder of an approval task",
       "overdue": "Approval task overdue",
       "reassigned": "Approval task reassigned",
       "reminded": "Approval task reminded"
@@ -333,7 +334,9 @@
       "reopened": "Invoice reopened as a draft",
       "variance_approved": "Invoice price variance approved",
       "variance_rejected": "Invoice price variance not approved or returned",
-      "variance_submitted": "Invoice price variance sent for approval"
+      "variance_submitted": "Invoice price variance sent for approval",
+      "question_sent": "Asked a receiver or requester about a difference",
+      "supplier_asked": "E-mailed the supplier about a difference"
     },
     "invoice_confirmation": {
       "recorded": "Invoice confirmation recorded"

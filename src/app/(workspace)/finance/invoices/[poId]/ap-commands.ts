@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type { Ctx } from '@/server/context'
 import { cancelInvoice, confirmInvoiceCoding, submitInvoice, updateInvoice } from '@/server/services/ap'
+import { HELP_MESSAGE_MAX } from '@/lib/exception-help'
+import { sendExceptionMessage } from '@/server/services/ap/exception-help'
 import { dismissMatchException, recheckInvoice, rejectInvoice, reopenInvoice, requestVarianceApproval } from '@/server/services/ap/exceptions'
 import { toApFailure, type ApFailure, type ApOutcome } from '@/ui/ap/invoice/outcome'
 import { cleanAmount } from '@/ui/finance/money'
@@ -192,4 +194,23 @@ export async function requestApVarianceFor(ctx: Ctx, input: unknown, idempotency
   const reason = reasonOf(p.value.reason)
   if (!reason) return invalid('reason', 'REASON_REQUIRED')
   return outcomeOf(await requestVarianceApproval(ctx, { invoiceId: p.value.invoiceId, version: p.value.version, reason }, { idempotencyKey: p.key }))
+}
+
+// ---------- NEW-126: what a person sends from the helper of a difference ----------
+
+const MessageInput = z.object({
+  exceptionId: z.uuid(),
+  to: z.enum(['MEMBER', 'SUPPLIER']),
+  memberId: z.uuid().optional(),
+  text: z.string().max(HELP_MESSAGE_MAX),
+})
+
+/** A question to a receiver or requester of the line, or an e-mail to the supplier, as the person confirmed it */
+export async function sendExceptionMessageFor(ctx: Ctx, input: unknown, idempotencyKey: unknown): Promise<ApOutcome> {
+  const p = parsed(MessageInput, input, idempotencyKey)
+  if (!p.ok) return p
+  const text = p.value.text.trim()
+  if (!text) return invalid('text', 'REQUIRED')
+  if (p.value.to === 'MEMBER' && !p.value.memberId) return invalid('memberId')
+  return outcomeOf(await sendExceptionMessage(ctx, { exceptionId: p.value.exceptionId, to: p.value.to, ...(p.value.memberId ? { memberId: p.value.memberId } : {}), text }, { idempotencyKey: p.key }))
 }

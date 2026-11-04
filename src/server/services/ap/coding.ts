@@ -54,7 +54,7 @@ export async function suggestionsFor(tx: TenantTx, invoiceId: string, now: Date)
         select: { accountCode: true, codingConfirmedAt: true, poLine: { select: { categoryCode: true } }, invoice: { select: { invoiceDate: true } } },
       })
     : []
-  // NEW-125 (ADR-081): a pair an ORG_ADMIN switched off, and the lines it made the assistant forget, teach nothing
+  // NEW-125 (ADR-083): a pair an ORG_ADMIN switched off, and the lines it made the assistant forget, teach nothing
   const controls = taxId && history.length ? await accountCodeControls(tx, taxId) : new Map<string, LearningControl>()
   const rows = history
     .filter((h) => learningInUse(controls.get(categoryKey(h.poLine.categoryCode)), h.codingConfirmedAt!))

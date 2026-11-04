@@ -8,7 +8,7 @@ import { updateAgentSetting } from '@/server/services/ai'
 import { AP_NOW, apOrg, codedDraft, fin, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
 import { E2E_DB } from '../support/e2e-env'
 
-// Run by tests/e2e/admin-ai.spec.ts against the e2e database only (NEW-125 · ADR-081): a phase-1 organization of its own
+// Run by tests/e2e/admin-ai.spec.ts against the e2e database only (NEW-125 · ADR-083): a phase-1 organization of its own
 // per run (PAY AI on, as tests/e2e/s8-scene.ts makes it), every member able to sign in — e-mail <code>.<tag>@s8.bcs.local
 // as tests/e2e/s8-support.ts signs in — with admin as ORG_ADMIN and auditor as AUDITOR, and what /admin/ai reads:
 //   notebook <tag>  two invoices of category SAFETY whose line FINANCE coded 530101 (the notebook's entry), an invoice

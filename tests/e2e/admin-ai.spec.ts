@@ -109,7 +109,7 @@ function aiScene<T>(...args: string[]): T {
   return JSON.parse(r.stdout.trim().split('\n').at(-1)!) as T
 }
 
-// NEW-125 (ADR-081 · BR-AI-28): the month's results, the assistants' notebook and the history of their work and settings.
+// NEW-125 (ADR-083 · BR-AI-28): the month's results, the assistants' notebook and the history of their work and settings.
 // AUDITOR reads all of it without a switch or a button, and sees the values the AI read and the amount found on
 // invoices; ORG_ADMIN follows a number to the history it counts, switches a learning off and on, and deletes it after
 // confirming. Every state is checked with axe and no sideways scrolling, with pictures at 375 px and 1440 px.

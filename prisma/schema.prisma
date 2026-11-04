@@ -4358,14 +4358,14 @@ model AssistantDismissal {
   @@unique([organizationId, memberId, key])
 }
 
-// ===== NEW-125 · the assistants' notebook (ADR-081) =====
+// ===== NEW-125 · the assistants' notebook (ADR-083) =====
 
 /// What an assistant learned, by kind. Phase 1 has one: the account code FINANCE confirmed for a supplier and a category (BR-AP-10)
 enum AssistantLearningKind {
   ACCOUNT_CODE
 }
 
-/// NEW-125 (ADR-081): what an ORG_ADMIN decided about one thing an assistant learned. The learning itself is read by
+/// NEW-125 (ADR-083): what an ORG_ADMIN decided about one thing an assistant learned. The learning itself is read by
 /// code from the organization's own records (ACCOUNT_CODE: the confirmed lines of invoices); this row only switches it
 /// off, or forgets what was confirmed up to forgottenAt. No row = in use as learned.
 model AssistantLearning {

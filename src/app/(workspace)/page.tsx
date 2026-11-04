@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Suspense, type ReactNode } from 'react'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
+import { FOLLOW_UP_PATH } from '@/lib/follow-up'
 import { logger } from '@/lib/logger'
 import { ctxFromSession } from '@/server/auth/session'
 import { isAllowed, memberPrincipal } from '@/server/authz'
@@ -153,6 +154,12 @@ async function AssistantCard({ ctx, texts }: { ctx: Ctx; texts: Texts }) {
           ))}
         </ItemGroup>
         {total > items.length ? <p className="text-base text-ink-muted md:text-sm">{t('assistant.shown', { shown: items.length, total })}</p> : null}
+        {/* NEW-124: the follow-up assistant lists every such task with why it waits, and drafts a nudge */}
+        {items.some((s) => s.kind === 'FOLLOW_OVERDUE' || s.kind === 'FOLLOW_DUE_SOON') ? (
+          <Link href={FOLLOW_UP_PATH} className="inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline">
+            {t('assistant.followUps')}
+          </Link>
+        ) : null}
       </>
     )
   })

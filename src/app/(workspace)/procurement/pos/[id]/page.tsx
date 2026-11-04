@@ -8,6 +8,7 @@ import { businessDaysTaken, getMyOpenTask, getRouteStepDetails, listPoInvoices, 
 import { getPoAccess, getPurchaseOrderView, type PoViewDto } from '@/server/queries/purchase-orders'
 import { getTaskAccess, getTaskView } from '@/server/queries/tasks'
 import { isAgentAvailable } from '@/server/services/ai'
+import { listFollowUps } from '@/server/services/assistants/follow-up'
 import { previewPoSubmit, type PoSubmitPreviewDto } from '@/server/services/purchase-orders'
 import { getPoS8View } from '@/server/services/purchase-orders/view-change'
 import { AssistantPanel } from '@/ui/assistants/document-panel'
@@ -36,7 +37,7 @@ import { downloadUrlAction } from '../../../../_lib/file-actions'
 import { getSession } from '../../../../_lib/session'
 import { giveAiFeedbackAction } from '../../../_shell/assistant-actions'
 import { canOpenDoaVersion, taskRight } from '../../../_tracking/access'
-import { askPart, assistantPanel, stepNote } from '../../../_tracking/document-assistant'
+import { askPart, assistantPanel, followUpOf, stepNote } from '../../../_tracking/document-assistant'
 import { commentViews, historyRows, poHistoryKinds, routeWhy, stepCards } from '../../../_tracking/document-present'
 import { day, doaHref, doaRefText, localeOf, memberName, money, roleText, routeSentence, when, type Locale } from '../../../_tracking/present'
 import { decideTaskAction } from '../../../tasks/actions'
@@ -198,10 +199,16 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
   const decide = task && task[0] && task[1] && taskRight(principal, task[0]) === 'DECIDE' && task[1].status === 'OPEN' ? task[1] : null
   // The panel "จากผู้ช่วย" (NEW-122): the AI's summary for the one who decides it now, as on the task page (FR-AI-301),
   // already made; "ถาม BCS AI" when on; and the step waiting now when its time runs out
-  const [brief, asking, tp] = await Promise.all([decide ? briefView(ctx, decide.id) : Promise.resolve(null), isAgentAvailable(ctx, 'INSIGHT').then((a) => a.available), getTranslations('assistantPanel')])
+  // — for the buyer who made it, to draft a nudge in the follow-up assistant (NEW-124)
+  const [brief, asking, tp, followUps] = await Promise.all([
+    decide ? briefView(ctx, decide.id) : Promise.resolve(null),
+    isAgentAvailable(ctx, 'INSIGHT').then((a) => a.available),
+    getTranslations('assistantPanel'),
+    po.waiting.kind === 'APPROVER' ? listFollowUps(ctx, { subjectId: po.id }) : Promise.resolve(null),
+  ])
   const panel = assistantPanel(tp, {
     brief,
-    notes: [stepNote(tp, locale, ctx.now, state.member.id, po.waiting.kind === 'APPROVER' ? po.waiting : null, `/procurement/pos/${po.id}?tab=overview#po-route`)],
+    notes: [stepNote(tp, locale, ctx.now, state.member.id, po.waiting.kind === 'APPROVER' ? po.waiting : null, `/procurement/pos/${po.id}?tab=overview#po-route`, followUpOf(followUps?.ok ? followUps.data.items : null, po.waiting.kind === 'APPROVER' ? po.waiting : null))],
     ask: askPart(tp, 'PURCHASE_ORDER', po.number, asking),
   })
   const doaLinks = canOpenDoaVersion(principal)

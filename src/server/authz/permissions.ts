@@ -12,7 +12,7 @@
 // (FR-DOA-101, BR-PRC-07, OQ-116). S6-12 added request.reorder (FR-INT-101, BR-FORM-07). S6-15 added
 // budget.transfer.submit and the ASSIGNED reader of budget.view (FR-BUD-103, OQ-105). S6-16 added budget.overrun.submit
 // (FR-BUD-101, OQ-104). S6-21 added config.export, config.import and platform.sandbox.manage (FR-PLT-101, OQ-108).
-// NEW-125 added admin.ai.view (ORG_ADMIN and AUDITOR read /admin/ai), which the user confirmed with NEW-125 (ADR-080, ADR-081).
+// NEW-125 added admin.ai.view (ORG_ADMIN and AUDITOR read /admin/ai), which the user confirmed with NEW-125 (ADR-080, ADR-083).
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -201,7 +201,7 @@ export const PERMISSIONS = {
   'ai.doaDraft': [role('ORG_ADMIN', 'ORG', 'AI_DOA_DRAFT_HOLDER')],
   'ai.actions.view': [role('AUDITOR', 'ORG'), anyMember('OWN'), role('ORG_ADMIN', 'ORG', 'AI_METADATA_ONLY')],
   'admin.ai.manage': ORG_ADMIN_ONLY,
-  // NEW-125 (ADR-081): reading /admin/ai — the month's results, the assistants' notebook, their work and their settings
+  // NEW-125 (ADR-083): reading /admin/ai — the month's results, the assistants' notebook, their work and their settings
   'admin.ai.view': roles(['ORG_ADMIN', 'AUDITOR'], 'ORG'),
   'platform.ai.credits': [platformAdmin('CONTRACT_REF_AND_REASON')],
   // S6-21 (FR-PLT-101, BR-UAT-01 to BR-UAT-04 · OQ-108): a UAT sandbox of a customer, empty, with the contract; never a

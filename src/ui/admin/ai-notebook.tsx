@@ -35,7 +35,7 @@ export type SetLearningAction = (
 
 const KNOWN_ERRORS = ['CONFLICT_VERSION', 'NOT_LEARNED', 'NO_CHANGE', 'FORBIDDEN', 'MODULE_DISABLED', 'NOT_FOUND', 'UNAUTHENTICATED'] as const
 
-// "สมุดของผู้ช่วย" at /admin/ai (NEW-125 · ADR-081): what the assistants learned, each with where it came from in
+// "สมุดของผู้ช่วย" at /admin/ai (NEW-125 · ADR-083): what the assistants learned, each with where it came from in
 // words; ORG_ADMIN switches an entry off or on, or deletes it after a confirmation (it cannot be undone, §9.9). The
 // service checks admin.ai.manage and the version shown. AUDITOR (canManage false) reads the same list without buttons.
 export function AiNotebook({ entries, canManage, windowDays, update }: { entries: readonly NotebookEntryView[]; canManage: boolean; windowDays: number; update: SetLearningAction }) {

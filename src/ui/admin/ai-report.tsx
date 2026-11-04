@@ -4,7 +4,7 @@ import { formatSatang } from '@/core/money/format'
 import { formatDateTime } from '../format'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../shadcn/table'
 
-// The parts of /admin/ai that NEW-125 adds (ADR-081), drawn on the server from what the AI module's report service
+// The parts of /admin/ai that NEW-125 adds (ADR-083), drawn on the server from what the AI module's report service
 // read: the month's results (every number a link to the history it counts, §9.9), the history of the settings, and the
 // history of the work (a table on a computer, a list on a phone, §9.9). The values the AI read and what the person typed
 // instead come only when the service gave them (AUDITOR and the member who asked).

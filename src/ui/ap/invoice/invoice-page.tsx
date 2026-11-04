@@ -137,6 +137,7 @@ export async function ApInvoicePage({
   aiReviews = [],
   tab,
   assistant,
+  helper,
 }: {
   data: ApInvoicePageData
   actions: ApInvoiceActions
@@ -147,6 +148,8 @@ export async function ApInvoicePage({
   tab?: string | string[] | undefined
   /** The panel "จากผู้ช่วย" (NEW-122): from 1280 px on top of the right column, under the header below that */
   assistant?: ReactNode
+  /** NEW-126: the helper of the open differences the reader may see, under the differences and above their ways */
+  helper?: ReactNode
 }) {
   const [t, ta, tai, tp, rawLocale] = await Promise.all([getTranslations('apInvoice'), getTranslations('audit'), getTranslations('aiAssist.invoice'), getTranslations('payRun.task'), getLocale()])
   const locale: Locale = rawLocale === 'en' ? 'en' : 'th'
@@ -343,6 +346,7 @@ export async function ApInvoicePage({
                     </li>
                   ))}
                 </ul>
+                {helper}
                 {data.status === 'EXCEPTION' ? (
                   <ExceptionActions
                     invoiceId={data.id}

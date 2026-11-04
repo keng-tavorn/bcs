@@ -59,6 +59,14 @@ defineEvents('Invoice', {
   'match_exception.dismissed': { schema: z.object({ exceptionId: z.uuid(), type: exceptionType, reason: z.string().min(1) }) },
 })
 
+// NEW-126 (ADR-081): a person of the organization sent what the helper of a difference drafted and they confirmed — a
+// question to a receiver or requester of the line, or an e-mail to the supplier. The actor is who pressed send; the text
+// is never carried (it lives in the recipient's notification or the supplier's notice).
+defineEvents('Invoice', {
+  'invoice.question_sent': { schema: z.object({ exceptionId: z.uuid(), type: exceptionType, recipientMemberId: z.uuid(), relation: z.enum(['RECEIVER', 'REQUESTER']) }) },
+  'invoice.supplier_asked': { schema: z.object({ exceptionId: z.uuid(), type: exceptionType, noticeId: z.uuid() }) },
+})
+
 // S8-08 (ADR-127): what S9's commands do to an invoice through ./services/ap/payment.ts, and the withholding tax
 defineEvents('Invoice', {
   'invoice.payment_held': { schema: z.object({ paymentRunId: z.uuid() }) },

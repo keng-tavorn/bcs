@@ -25,7 +25,7 @@ export async function updateAgentAction(
   return { ok: true }
 }
 
-// NEW-125 (ADR-081): an entry of the assistants' notebook switched off or on, or forgotten; the service checks
+// NEW-125 (ADR-083): an entry of the assistants' notebook switched off or on, or forgotten; the service checks
 // admin.ai.manage, the PAY module and the version the screen showed
 export async function setLearningAction(
   input: { supplierId: string; categoryCode: string | null; action: 'DISABLE' | 'ENABLE' | 'FORGET'; expectedVersion: number },

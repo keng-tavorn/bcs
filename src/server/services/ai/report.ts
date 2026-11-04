@@ -7,7 +7,7 @@ import type { Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { creditBalance } from './gate'
 
-// What /admin/ai reads besides the switches (NEW-125 · ADR-081 · BR-AI-04), for ORG_ADMIN and AUDITOR (admin.ai.view):
+// What /admin/ai reads besides the switches (NEW-125 · ADR-083 · BR-AI-04), for ORG_ADMIN and AUDITOR (admin.ai.view):
 //  · the history of every call of an assistant from AgentAction — who asked, through which channel, what for, the
 //    document, what it read (references and tools, never the document or the question), how many fields it filled and
 //    which ones the person changed. The values the AI read and the person typed instead are content (ai.actions.view):

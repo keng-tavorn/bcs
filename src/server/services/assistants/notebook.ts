@@ -12,7 +12,7 @@ import { CODING_HISTORY_STATUSES, CODING_WINDOW_DAYS } from '../ap/coding'
 import { requireModule } from '../modules'
 import { accountCodeControls, categoryKey, learningInUse, type LearningControl } from './learning'
 
-// "สมุดของผู้ช่วย" at /admin/ai (NEW-125 · ADR-081): what the assistants learned from what people in the organization
+// "สมุดของผู้ช่วย" at /admin/ai (NEW-125 · ADR-083): what the assistants learned from what people in the organization
 // confirmed, with where it came from, for ORG_ADMIN and AUDITOR (admin.ai.view); ORG_ADMIN switches a learning off or
 // on again, or makes the assistant forget it (admin.ai.manage). Phase 1 learns the account code of a supplier and a
 // category (BR-AP-10, no AI): each entry is what the coding screen would offer for an invoice dated today, computed by

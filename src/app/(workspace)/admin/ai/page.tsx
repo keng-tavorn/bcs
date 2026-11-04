@@ -24,7 +24,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
 // The organization's AI assistants (docs/sub-specs/S13.md "หน้าจอ" and "ฐานของโมดูล" AC1 AC2): ORG_ADMIN switches each
 // agent on or off and sets the confidence below which a field is confirmed one by one, and sees the month's credits.
-// Credits are granted by the BCS team only (/platform/tenants/[orgId]/ai). NEW-125 (ADR-081): ORG_ADMIN and AUDITOR
+// Credits are granted by the BCS team only (/platform/tenants/[orgId]/ai). NEW-125 (ADR-083): ORG_ADMIN and AUDITOR
 // (admin.ai.view) also read the month's results, the assistants' notebook, the history of the settings and of the work
 // (?show= month= agent= before= filter it, each number of the results links there); AUDITOR reads without the buttons.
 export default async function AiSettingsPage({ searchParams }: { searchParams: SearchParams }) {

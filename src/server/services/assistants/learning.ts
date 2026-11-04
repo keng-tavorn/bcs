@@ -1,6 +1,6 @@
 import type { TenantTx } from '@/server/db/tenant'
 
-// What an ORG_ADMIN decided about the things the assistants learned (NEW-125 · ADR-081 · BR-AP-10). Phase 1 learns one
+// What an ORG_ADMIN decided about the things the assistants learned (NEW-125 · ADR-083 · BR-AP-10). Phase 1 learns one
 // kind, the account code FINANCE confirmed for a supplier (its tax id, every branch together) and a category; the
 // learning is the confirmed invoice lines themselves, read by code, and an AssistantLearning row only switches a pair
 // off or forgets the lines confirmed up to its forgottenAt. The coding suggestion (services/ap/coding.ts) and the

@@ -6,6 +6,7 @@ import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { accountCodeControls, categoryKey, learningInUse, type LearningControl } from '../assistants/learning'
 import { requireModule } from '../modules'
 import { fail, type Fail } from './common'
 import { INVOICED_STATUSES } from './match-run'
@@ -17,8 +18,11 @@ import { INVOICED_STATUSES } from './match-run'
 // one the history offered.
 
 // TODO(OQ-128): the days of history a suggestion looks back over
-const WINDOW_DAYS = (AP_DEFAULTS as { coding?: { windowDays?: number } }).coding?.windowDays ?? 365
-const READY_OR_LATER = INVOICED_STATUSES.filter((s) => s !== 'PENDING_APPROVAL')
+export const CODING_WINDOW_DAYS = (AP_DEFAULTS as { coding?: { windowDays?: number } }).coding?.windowDays ?? 365
+const WINDOW_DAYS = CODING_WINDOW_DAYS
+/** The invoices whose confirmed lines are the history of BR-AP-10 (the assistants' notebook reads the same, NEW-125) */
+export const CODING_HISTORY_STATUSES = INVOICED_STATUSES.filter((s) => s !== 'PENDING_APPROVAL')
+const READY_OR_LATER = CODING_HISTORY_STATUSES
 
 export interface LineSuggestion extends CodingSuggestion {
   readonly invoiceLineId: string
@@ -47,10 +51,14 @@ export async function suggestionsFor(tx: TenantTx, invoiceId: string, now: Date)
           // a line without a category matches the history of lines without one (BR-AP-10 compares them as equal)
           poLine: { OR: [{ categoryCode: { in: categories.filter((c): c is string => c !== null) } }, ...(categories.includes(null) ? [{ categoryCode: null }] : [])] },
         },
-        select: { accountCode: true, poLine: { select: { categoryCode: true } }, invoice: { select: { invoiceDate: true } } },
+        select: { accountCode: true, codingConfirmedAt: true, poLine: { select: { categoryCode: true } }, invoice: { select: { invoiceDate: true } } },
       })
     : []
-  const rows = history.map((h) => ({ taxId: taxId!, categoryCode: h.poLine.categoryCode, accountCode: h.accountCode!, invoiceDate: h.invoice.invoiceDate!.toISOString().slice(0, 10) }))
+  // NEW-125 (ADR-083): a pair an ORG_ADMIN switched off, and the lines it made the assistant forget, teach nothing
+  const controls = taxId && history.length ? await accountCodeControls(tx, taxId) : new Map<string, LearningControl>()
+  const rows = history
+    .filter((h) => learningInUse(controls.get(categoryKey(h.poLine.categoryCode)), h.codingConfirmedAt!))
+    .map((h) => ({ taxId: taxId!, categoryCode: h.poLine.categoryCode, accountCode: h.accountCode!, invoiceDate: h.invoice.invoiceDate!.toISOString().slice(0, 10) }))
   return invoice.lines.map((l) => ({
     invoiceLineId: l.id,
     costCenterId: l.poLine.budgetLine.costCenterId,

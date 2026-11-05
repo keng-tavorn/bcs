@@ -5,7 +5,7 @@ import { e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
 import { expectNoBlockingAxe, expectNoSideways, shot, signIn } from './tasks-support'
 
-// NEW-123 on screen (FR-VIS-008 AC1 AC2 · ADR-083 · spec §7.21): three POs of a drill were approved at 2,400.00,
+// NEW-123 on screen (FR-VIS-008 AC1 AC2 · ADR-084 · spec §7.21): three POs of a drill were approved at 2,400.00,
 // 2,380.00 and 2,450.00, then a request for two of it at 2,700.00 waits for approval (price-reference-scene.ts, in the
 // demo organization, fresh for each Playwright project). Procurement opens "โอกาสประหยัด" from the menu and finds the
 // drill 12.50% above past prices, 600.00 baht to save — 2 × (2,700.00 − 2,400.00) by findSavings — with the three POs as
@@ -105,7 +105,7 @@ test('[FR-VIS-008/AC2] the requester, who may not read the prices of every PO, i
   await shot(page, testInfo, 'savings-refused')
 })
 
-// NEW-134 (FR-VIS-008 AC3 · ADR-083): with the AI module and the Insight agent on, each saving has "ให้ผู้ช่วยอธิบาย",
+// NEW-136 (FR-VIS-008 AC3 · ADR-084): with the AI module and the Insight agent on, each saving has "ให้ผู้ช่วยอธิบาย",
 // which says it uses credits. The e2e app plays recorded answers only and the drill is new each run, so a press finds
 // none and the row says the assistant could not explain, the figures staying; the explanation the member then asks for
 // through the same service (savings-ai-scene.ts) reads after a reload set apart with Sparkles, the line that the

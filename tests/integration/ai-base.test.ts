@@ -275,11 +275,12 @@ describe('[BR-AI-05] ORG_ADMIN switches agents; everyone else is refused', () =>
     expect(stale.ok ? null : stale.error.code).toBe('CONFLICT_VERSION')
     const events = await prisma.event.findMany({ where: { organizationId: org.organizationId, aggregateType: 'AiAgentSetting', aggregateId: setting.id }, select: { type: true }, orderBy: { seq: 'asc' } })
     expect(events.map((e) => e.type)).toEqual(['ai_agent.enabled', 'ai_agent.updated'])
-    for (const ctx of [org.ctx('req_con'), org.ctx('auditor'), org.platform]) {
+    for (const [who, ctx] of [['req_con', org.ctx('req_con')], ['auditor', org.ctx('auditor')], ['platform', org.platform]] as const) {
       const denied = await updateAgentSetting(ctx, { agent: 'INTAKE', enabled: false }, key())
       expect(denied.ok ? null : denied.error.code).toBe('FORBIDDEN')
+      // NEW-125 (admin.ai.view · BR-AI-28): AUDITOR reads the settings without changing them; nobody else reads them
       const list = await listAgentSettings(ctx)
-      expect(list.ok ? null : list.error.code).toBe('FORBIDDEN')
+      expect(list.ok ? null : list.error.code, who).toBe(who === 'auditor' ? null : 'FORBIDDEN')
     }
     const list = await listAgentSettings(org.ctx('admin'))
     expect(list.ok && list.data.find((s) => s.agent === 'INTAKE')).toMatchObject({ enabled: true, minConfidenceBp: 9000 })

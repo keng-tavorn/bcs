@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ซื้อหมวกนิรภัย 27 ใบ",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "หมวกนิรภัย",
+        "itemCode": "SAF-001",
+        "qty": "27",
+        "unit": "ใบ",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "ห้างหุ้นส่วนจำกัด ทองไทยพาณิชย์อุปกรณ์นิรภัย",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 95
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 80
+      }
+    ]
+  },
+  "usage": {
+    "input": 5654,
+    "output": 274,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

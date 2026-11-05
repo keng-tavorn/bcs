@@ -6,7 +6,7 @@
     "requestTypeCode": "BUY_GOODS",
     "title": "แผ่นยิปซัมบอร์ด 9 มม. 131 แผ่น",
     "siteCode": "SITE-P02",
-    "neededBy": "20 วัน",
+    "neededBy": null,
     "lines": [
       {
         "description": "แผ่นยิปซัมบอร์ด 9 มม.",
@@ -36,7 +36,7 @@
       },
       {
         "field": "neededBy",
-        "value": 60
+        "value": 30
       },
       {
         "field": "lines",
@@ -50,7 +50,7 @@
   },
   "usage": {
     "input": 5670,
-    "output": 263,
+    "output": 258,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

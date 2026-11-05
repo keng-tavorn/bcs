@@ -24,7 +24,7 @@
     "confidence": [
       {
         "field": "requestTypeCode",
-        "value": 85
+        "value": 90
       },
       {
         "field": "title",
@@ -39,42 +39,42 @@
         "value": 0
       },
       {
-        "field": "lines.description",
-        "value": 90
-      },
-      {
-        "field": "lines.itemCode",
+        "field": "lines[0].description",
         "value": 85
       },
       {
-        "field": "lines.qty",
-        "value": 75
-      },
-      {
-        "field": "lines.unit",
+        "field": "lines[0].itemCode",
         "value": 90
       },
       {
-        "field": "lines.unitPrice",
+        "field": "lines[0].qty",
+        "value": 85
+      },
+      {
+        "field": "lines[0].unit",
+        "value": 90
+      },
+      {
+        "field": "lines[0].unitPrice",
         "value": 75
       },
       {
         "field": "supplier.name",
-        "value": 70
-      },
-      {
-        "field": "supplier.taxId",
         "value": 60
       },
       {
-        "field": "supplier.branch",
+        "field": "supplier.taxId",
         "value": 65
+      },
+      {
+        "field": "supplier.branch",
+        "value": 70
       }
     ]
   },
   "usage": {
     "input": 7067,
-    "output": 827,
+    "output": 974,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

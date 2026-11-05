@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "กระเบื้องพอร์ซเลน 60x60 ซม.",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "กระเบื้องพอร์ซเลน 60x60 ซม.",
+        "itemCode": "FIN-002",
+        "qty": "158",
+        "unit": "ตร.ม.",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท ทวีทรัพย์ดีไซน์แมททีเรียล จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5663,
+    "output": 285,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

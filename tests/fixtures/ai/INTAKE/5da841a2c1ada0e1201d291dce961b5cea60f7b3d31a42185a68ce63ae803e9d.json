@@ -4,7 +4,7 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "BUY_GOODS",
-    "title": "ตามใบเสนอราคา QT-05905 อิฐมวลเบา หนา 7.5 ซม.",
+    "title": null,
     "siteCode": "SITE-P05",
     "neededBy": null,
     "lines": [
@@ -19,7 +19,7 @@
     "supplier": {
       "name": "บริษัท มีนบุรีกิจการค้าวัสดุ จำกัด",
       "taxId": "0999998010049",
-      "branch": "สำนักงานใหญ่"
+      "branch": "Head office"
     },
     "confidence": [
       {
@@ -28,29 +28,53 @@
       },
       {
         "field": "title",
-        "value": 70
+        "value": 0
       },
       {
         "field": "siteCode",
-        "value": 95
+        "value": 92
       },
       {
         "field": "neededBy",
         "value": 0
       },
       {
-        "field": "lines",
+        "field": "line.description",
         "value": 90
       },
       {
-        "field": "supplier",
-        "value": 85
+        "field": "line.itemCode",
+        "value": 88
+      },
+      {
+        "field": "line.qty",
+        "value": 95
+      },
+      {
+        "field": "line.unit",
+        "value": 95
+      },
+      {
+        "field": "line.unitPrice",
+        "value": 95
+      },
+      {
+        "field": "supplier.name",
+        "value": 93
+      },
+      {
+        "field": "supplier.taxId",
+        "value": 93
+      },
+      {
+        "field": "supplier.branch",
+        "value": 80
       }
     ]
   },
   "usage": {
     "input": 7240,
-    "output": 318,
+    "output": 891,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

@@ -4,7 +4,7 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "CONTRACT_WORK",
-    "title": "งานโครงสร้างเหล็กหลังคา 4 ตัน · อาคารสำนักงานพระราม 9 (ครั้งที่ 2)",
+    "title": "งานโครงสร้างเหล็กหลังคา อาคารสำนักงานพระราม 9 (ครั้งที่ 2)",
     "siteCode": "SITE-P01",
     "neededBy": null,
     "lines": [
@@ -40,17 +40,21 @@
       },
       {
         "field": "lines",
-        "value": 90
+        "value": 88
       },
       {
         "field": "supplier",
-        "value": 100
+        "value": 95
+      },
+      {
+        "field": "confidence",
+        "value": 85
       }
     ]
   },
   "usage": {
     "input": 5693,
-    "output": 280,
+    "output": 285,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

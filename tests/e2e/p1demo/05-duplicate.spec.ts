@@ -1,4 +1,4 @@
-import { type Page } from '@playwright/test'
+import { type Page, type Request } from '@playwright/test'
 import { anotherDesk, baht, cardRow, cardTo, cardWord, lineUserOf, literally, phoneOf, th, typed, wordsOf } from '../demo/support'
 import { expect, test } from '../fixtures'
 import { budgetLineOf, columnOf, countedOf, day, expectedOf, historyOf, p1Sheet, ruleOf, sceneOf, script, signInAs, userOf, type P1Scene, type P1Sheet } from './support'
@@ -196,13 +196,24 @@ test('@p1demo [FR-INT-103/AC2] [FR-INT-101/AC1] scene 5: the engineer sends the 
   await expect(copied).toContainText(th('requestForm.lines.amount', { amount: baht(columnOf(scene, 'net')) }))
   const again = await toReview(page)
   // The send is the form's server action that names the request's version and whether it is sent again: the server's
-  // answer to it is read as it came, for the reason it refused with
-  const sendAnswer = page.waitForResponse((r) => {
-    const request = r.request()
-    return request.method() === 'POST' && request.headers()['next-action'] !== undefined && (request.postData() ?? '').includes('"resubmit"')
+  // answer to it is read as it came, for the reason it refused with. The answer is fetched through a route and handed on,
+  // so its body is in hand before the page refreshes (a response read afterwards may be gone: "No data found for resource")
+  const isSend = (request: Request) => request.method() === 'POST' && request.headers()['next-action'] !== undefined && (request.postData() ?? '').includes('"resubmit"')
+  const sendAnswer = new Promise<string>((resolve, reject) => {
+    void page.route('**/*', async (route) => {
+      if (!isSend(route.request())) return route.fallback()
+      try {
+        const response = await route.fetch()
+        resolve(await response.text())
+        await route.fulfill({ response })
+      } catch (e) {
+        reject(e)
+      }
+    })
   })
   await again.click()
-  expect(await (await sendAnswer).text(), `the server refused the copy with ${refusalReason}`).toContain(`"reason":"${refusalReason}"`)
+  expect(await sendAnswer, `the server refused the copy with ${refusalReason}`).toContain(`"reason":"${refusalReason}"`)
+  await page.unroute('**/*')
 
   // FR-INT-103 AC2: an inline panel, not a pop-up, linking the first request, with an empty reason box
   const panel = page.getByRole('status').filter({ has: page.getByRole('heading', { name: th('requestForm.duplicate.title') }) })

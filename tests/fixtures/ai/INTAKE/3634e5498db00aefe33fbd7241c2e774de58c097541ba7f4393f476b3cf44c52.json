@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ปูนกาวซีเมนต์ ถุง 20 กก. 307 ถุง",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ปูนกาวซีเมนต์ ถุง 20 กก.",
+        "itemCode": "MAT-004",
+        "qty": "307",
+        "unit": "ถุง",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท อุดมสุขค้าวัสดุ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 88
+      }
+    ]
+  },
+  "usage": {
+    "input": 5651,
+    "output": 280,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ยางมะตอยผสมเสร็จ (Asphalt concrete) 54 ตัน",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ยางมะตอยผสมเสร็จ (Asphalt concrete)",
+        "itemCode": "MAT-018",
+        "qty": "54",
+        "unit": "ตัน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท เมืองทองการช่างโฮมมาร์ท จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 70
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5657,
+    "output": 288,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

@@ -23,7 +23,7 @@ export interface CodingLineView {
   readonly budgetCostCenterId: string
   readonly confirmed: boolean
   /** The suggestion and where it came from (BR-AP-10): "ใช้ 3 ครั้งใน 12 เดือน", "จากบรรทัดงบ" */
-  readonly suggestion: { readonly accountCode: string | null; readonly sourceText: string } | null
+  readonly suggestion: { readonly accountCode: string | null; readonly sourceText: string; readonly fromHistory: boolean } | null
 }
 
 export interface CodingChoices {
@@ -42,6 +42,7 @@ export const NO_WITHHOLDING = '-'
  * category used most, or the budget line's — shown with its source beside it. Another cost center than the budget
  * line's needs a reason (the budget does not change). One button confirms every line (invoice.confirmCoding) with the
  * version read; the service checks the codes are active and the member is FINANCE. No AI (FR-AP-108 AC3).
+ * A code other than the one the history used gets a warning in the line, never a dialog, and stays chosen (NEW-119).
  */
 export function CodingForm({
   invoiceId,
@@ -141,6 +142,11 @@ export function CodingForm({
                   <span className="text-base text-ink-muted md:text-sm">
                     {l.suggestion?.accountCode ? `${t('coding.suggested', { code: l.suggestion.accountCode })} · ${l.suggestion.sourceText}` : t('coding.noSuggestion')}
                   </span>
+                  {l.suggestion?.fromHistory && l.suggestion.accountCode && r.accountCode && r.accountCode !== l.suggestion.accountCode ? (
+                    <Notice tone="warning" role="status">
+                      {t('coding.differs', { code: r.accountCode, used: l.suggestion.accountCode, source: l.suggestion.sourceText })}
+                    </Notice>
+                  ) : null}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor={`${id}-cc-${l.lineNo}`} className="text-base text-ink">

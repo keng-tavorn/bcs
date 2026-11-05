@@ -1,0 +1,81 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "เช่ารถเครน 25 ตัน พร้อมผู้ควบคุม 6 วัน",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าเช่ารถเครน 25 ตัน พร้อมผู้ควบคุม",
+        "itemCode": "RNT-002",
+        "qty": "6",
+        "unit": "วัน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "พูนผลพาณิชย์เช่าเครื่องจักร จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 70
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines.description",
+        "value": 90
+      },
+      {
+        "field": "lines.itemCode",
+        "value": 90
+      },
+      {
+        "field": "lines.qty",
+        "value": 95
+      },
+      {
+        "field": "lines.unit",
+        "value": 90
+      },
+      {
+        "field": "lines.unitPrice",
+        "value": 0
+      },
+      {
+        "field": "supplier.name",
+        "value": 92
+      },
+      {
+        "field": "supplier.taxId",
+        "value": 0
+      },
+      {
+        "field": "supplier.branch",
+        "value": 0
+      }
+    ]
+  },
+  "usage": {
+    "input": 5667,
+    "output": 771,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

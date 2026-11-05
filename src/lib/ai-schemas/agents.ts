@@ -58,7 +58,7 @@ export function briefInputText(facts: Readonly<Record<string, string | number | 
   return ['Facts of the approval task (key = value):', ...Object.entries(facts).map(([k, v]) => `${k} = ${String(v)}`)].join('\n')
 }
 
-/** The facts of one saving (NEW-134 · ADR-083): the explanation writes placeholders of these keys, never the values */
+/** The facts of one saving (NEW-136 · ADR-084): the explanation writes placeholders of these keys, never the values */
 export function savingsNoteInputText(facts: Readonly<Record<string, string | number | boolean>>): string {
   return ['Facts of the saving (key = value):', ...Object.entries(facts).map(([k, v]) => `${k} = ${String(v)}`)].join('\n')
 }

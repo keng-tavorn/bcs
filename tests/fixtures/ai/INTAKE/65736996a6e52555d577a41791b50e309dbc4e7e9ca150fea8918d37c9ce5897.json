@@ -4,9 +4,9 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "BUY_GOODS",
-    "title": "เสื้อสะท้อนแสง ระบบระบายน้ำสมุทรปราการ",
+    "title": "เสื้อสะท้อนแสง 241 ตัว ระบบระบายน้ำสมุทรปราการ",
     "siteCode": "SITE-P08",
-    "neededBy": null,
+    "neededBy": "15 วัน",
     "lines": [
       {
         "description": "เสื้อสะท้อนแสง",
@@ -24,7 +24,7 @@
     "confidence": [
       {
         "field": "requestTypeCode",
-        "value": 95
+        "value": 92
       },
       {
         "field": "title",
@@ -36,21 +36,21 @@
       },
       {
         "field": "neededBy",
-        "value": 40
+        "value": 60
       },
       {
         "field": "lines",
-        "value": 92
+        "value": 93
       },
       {
         "field": "supplier",
-        "value": 0
+        "value": 100
       }
     ]
   },
   "usage": {
     "input": 5682,
-    "output": 251,
+    "output": 263,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

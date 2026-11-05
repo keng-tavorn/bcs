@@ -8,6 +8,7 @@ import { createFixtureClient, createLiveClient, fixtureKey, type AiCallResult, t
 import { AGENT_OF_PURPOSE, BRIEF_PROFILE, DECISION_ADVICE_WORDS, EVAL_THRESHOLDS_BP, modelFor, priceOf, PROMPT_VERSIONS, type AiAgentName, type AiPurposeName } from '../src/lib/ai-config'
 import { BriefText, DoaDraft, IntakeDraft, QuestionPlan } from '../src/lib/ai-schemas/agents'
 import { DocumentReading, isCriticalField } from '../src/lib/ai-schemas/document'
+import { companyNameKey } from '../src/core/thai/company-name'
 import { loadAgentCases, type AgentCases } from './lib/ai-eval-agents'
 import { AI_ANSWERS_DIR, AI_DOCS_DIR, loadEvalDocuments, ROOT, truthReading, type EvalDocument } from './lib/ai-eval-cases'
 import { loadSavingsCases, type SavingsCase } from './ai-eval-savings'
@@ -226,6 +227,9 @@ async function evalDocuments(run: Run, client: AiClient, model: (a: AiAgentName,
   }
 }
 
+/** The supplier's name as the Intake Agent matches it to the register (intake.ts: its legal form, case and spaces aside) */
+const sameName = (a: string | null, b: string) => a !== null && companyNameKey(a) === companyNameKey(b)
+
 async function evalAgents(run: Run, client: AiClient, model: (a: AiAgentName) => string, cases: AgentCases, savings: readonly SavingsCase[], args: Args, manifest: Map<string, { file: string; mediaType: string }>) {
   if (args.agents.includes('INTAKE')) {
     for (const c of first(cases.intake, args.limit)) {
@@ -235,8 +239,17 @@ async function evalAgents(run: Run, client: AiClient, model: (a: AiAgentName) =>
         run.failures.push(`${c.id} ${r.errorCode}`)
         continue
       }
-      const kind = c.fileOf ? 'WITH_QUOTATION' : 'TEXT'
+      const kind = c.group
       run.tally.add('INTAKE', 'INTAKE', kind, 'requestType', r.output.requestTypeCode === c.expect.requestTypeCode, { threshold: EVAL_THRESHOLDS_BP.intakeType })
+      // The home page's box (NEW-120): the type and the supplier the requester named, as the register writes it (the
+      // agent matches the register by the exact name); its lines are the step 0 groups' to score
+      if (c.expect.supplierName !== undefined) {
+        const named = sameName(r.output.supplier.name, c.expect.supplierName)
+        if (args.showWrong && (!named || r.output.requestTypeCode !== c.expect.requestTypeCode))
+          console.error(`wrong ${c.id}: expected ${c.expect.requestTypeCode} ${c.expect.supplierName} read ${r.output.requestTypeCode} ${r.output.supplier.name}`)
+        run.tally.add('INTAKE', 'INTAKE', kind, 'supplier', named, { threshold: EVAL_THRESHOLDS_BP.other })
+        continue
+      }
       const line = r.output.lines[0]
       const want = c.expect.lines[0]!
       const ok = Boolean(line) && line!.itemCode === want.itemCode && matchField('qty', want.qty, line!.qty) && line!.unit === want.unit
@@ -272,11 +285,11 @@ async function evalAgents(run: Run, client: AiClient, model: (a: AiAgentName) =>
       }
       const same = [...new Set(r.output.tools)].sort().join(',') === [...c.tools].sort().join(',')
       if (args.showWrong && !same) console.error(`wrong ${c.id}: expected ${c.tools.join(',')} chose ${r.output.tools.join(',')}`)
-      run.tally.add('INSIGHT', 'QUESTION', c.access ? 'ACCESS' : 'QUESTION', 'tools', same, { threshold: EVAL_THRESHOLDS_BP.insightTools })
+      run.tally.add('INSIGHT', 'QUESTION', c.group, 'tools', same, { threshold: EVAL_THRESHOLDS_BP.insightTools })
     }
   }
   if (args.agents.includes('INSIGHT') && (!args.purpose || args.purpose === 'SAVINGS_NOTE')) {
-    // NEW-134: a saving's explanation names the amount the code calculated, never advises, and passes the checker the
+    // NEW-136: a saving's explanation names the amount the code calculated, never advises, and passes the checker the
     // page uses (BR-AI-27 Brief profile: placeholders of known facts only, no digit of its own, 4 short sentences); the
     // four kinds count as one group of 24, as the Brief's 30 tasks do, and --show-wrong names the kind of a miss
     for (const c of first(savings, args.limit)) {
@@ -377,7 +390,7 @@ async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, sa
       siteCode: null,
       neededBy: null,
       lines: [{ description: null, itemCode: l.itemCode, qty: l.qty, unit: l.unit, unitPrice: null }],
-      supplier: { name: null, taxId: null, branch: null },
+      supplier: { name: c.expect.supplierName ?? null, taxId: null, branch: null },
       confidence: [{ field: 'requestTypeCode', value: 92 }],
     }
     save('INTAKE', fixtureKey({ purpose: 'INTAKE', text: c.text, files }), output, model('INTAKE'))

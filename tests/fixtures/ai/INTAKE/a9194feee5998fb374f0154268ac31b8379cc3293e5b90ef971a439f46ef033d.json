@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ซื้อทรายหยาบ 128 ลบ.ม.",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ทรายหยาบ",
+        "itemCode": "MAT-005",
+        "qty": "128",
+        "unit": "ลบ.ม.",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท มีนบุรีกิจการค้าวัสดุ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 92
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5643,
+    "output": 264,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

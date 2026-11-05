@@ -4,7 +4,7 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "BUY_GOODS",
-    "title": null,
+    "title": "ขอซื้อบ่อพักสำเร็จรูป 6 ชุด หน้างาน P06",
     "siteCode": "SITE-P06",
     "neededBy": null,
     "lines": [
@@ -28,7 +28,7 @@
       },
       {
         "field": "title",
-        "value": 0
+        "value": 60
       },
       {
         "field": "siteCode",
@@ -40,17 +40,25 @@
       },
       {
         "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier.name",
+        "value": 90
+      },
+      {
+        "field": "supplier.taxId",
         "value": 85
       },
       {
-        "field": "supplier",
-        "value": 90
+        "field": "supplier.branch",
+        "value": 80
       }
     ]
   },
   "usage": {
     "input": 7065,
-    "output": 843,
+    "output": 885,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

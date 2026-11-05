@@ -146,7 +146,8 @@
     "withholding_tax": "Withholding tax",
     "push_device": "BCS Go phones",
     "chat_intake": "Requests through the LINE chat",
-    "assistant": "BCS assistants"
+    "assistant": "BCS assistants",
+    "assistant_learning": "Assistants' notebook"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -203,7 +204,8 @@
     "WithholdingTax": "Withholding tax",
     "PushDevice": "BCS Go phone",
     "ChatIntake": "Chat request draft",
-    "Assistant": "Assistant suggestions"
+    "Assistant": "Assistant suggestions",
+    "AssistantLearning": "What an assistant learned"
   },
   "events": {
     "approval_step": {
@@ -584,6 +586,11 @@
     },
     "assistant": {
       "suggestion_dismissed": "Assistant suggestion hidden"
+    },
+    "assistant_learning": {
+      "disabled": "Learning switched off",
+      "enabled": "Learning used again",
+      "forgotten": "Learning deleted"
     }
   }
 }

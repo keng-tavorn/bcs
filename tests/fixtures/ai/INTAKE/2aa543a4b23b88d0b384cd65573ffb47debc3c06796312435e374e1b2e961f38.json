@@ -4,7 +4,7 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "BUY_GOODS",
-    "title": "กระดาษ A4 80 แกรม",
+    "title": "กระดาษ A4 80 แกรม 76 รีม",
     "siteCode": "HQ-STORE",
     "neededBy": null,
     "lines": [
@@ -24,7 +24,7 @@
     "confidence": [
       {
         "field": "requestTypeCode",
-        "value": 92
+        "value": 90
       },
       {
         "field": "title",
@@ -32,11 +32,11 @@
       },
       {
         "field": "siteCode",
-        "value": 80
+        "value": 70
       },
       {
         "field": "neededBy",
-        "value": 35
+        "value": 60
       },
       {
         "field": "lines",
@@ -44,13 +44,13 @@
       },
       {
         "field": "supplier",
-        "value": 0
+        "value": 95
       }
     ]
   },
   "usage": {
     "input": 5659,
-    "output": 233,
+    "output": 239,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

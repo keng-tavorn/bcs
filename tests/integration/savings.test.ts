@@ -11,7 +11,7 @@ import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
 import { createDraft, submitRequest } from '../support/requests'
 
-// NEW-123 (FR-VIS-008 · ADR-083 · spec §7.21): the savings assistant against Postgres, through the real services. One
+// NEW-123 (FR-VIS-008 · ADR-084 · spec §7.21): the savings assistant against Postgres, through the real services. One
 // organization holds one saving of each kind — a drill asked for above the median of three POs, a helmet off its agreed
 // price, cement waiting in the pool from two departments at two prices, and gloves whose agreed price ends in ten days
 // after a PO bought at it — and only who reads every PO and request sees them.

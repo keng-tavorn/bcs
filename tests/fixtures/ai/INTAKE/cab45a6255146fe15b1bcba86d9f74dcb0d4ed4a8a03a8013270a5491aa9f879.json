@@ -36,25 +36,21 @@
       },
       {
         "field": "neededBy",
-        "value": 30
+        "value": 40
       },
       {
         "field": "lines",
-        "value": 90
+        "value": 92
       },
       {
         "field": "supplier",
-        "value": 95
-      },
-      {
-        "field": "unitPrice",
         "value": 95
       }
     ]
   },
   "usage": {
     "input": 5671,
-    "output": 259,
+    "output": 244,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

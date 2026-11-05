@@ -17,7 +17,7 @@ export const AGENT_OF_PURPOSE: Readonly<Record<AiPurposeName, AiAgentName>> = {
   BRIEF: 'APPROVAL_BRIEF',
   QUESTION: 'INSIGHT',
   DOA_DRAFT: 'DOA_DRAFTER',
-  // NEW-134 (ADR-083): words on a saving the code found, asked for by a member like a question
+  // NEW-136 (ADR-084): words on a saving the code found, asked for by a member like a question
   SAVINGS_NOTE: 'INSIGHT',
 }
 
@@ -151,11 +151,12 @@ export const EVAL_GATES: readonly EvalGate[] = [
   { agent: 'DOCUMENT', purpose: 'QUOTATION_READ', promptVersion: 'QUOTATION_READ@2', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-10-14-document-config-live.md' },
   { agent: 'DOCUMENT', purpose: 'DELIVERY_NOTE_READ', promptVersion: 'DELIVERY_NOTE_READ@2', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-10-14-document-config-live.md' },
   { agent: 'DOCUMENT', purpose: 'INVOICE_READ', promptVersion: 'INVOICE_READ@2', model: 'claude-opus-5-5', tier: 'SYNTHETIC', report: '2026-10-14-document-config-live.md' },
-  { agent: 'INTAKE', purpose: 'INTAKE', promptVersion: 'INTAKE@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: '2026-10-14-intake-config-live.md' },
+  { agent: 'INTAKE', purpose: 'INTAKE', promptVersion: 'INTAKE@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: '2026-11-04-intake-claude-haiku-5-5-live.md' }, // NEW-120 adds the home page box (HOME)
   { agent: 'APPROVAL_BRIEF', purpose: 'BRIEF', promptVersion: 'BRIEF@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: '2026-10-14-approval_brief-config-live.md' },
-  { agent: 'INSIGHT', purpose: 'QUESTION', promptVersion: 'QUESTION@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-10-14-insight-config-live.md' },
+  // NEW-118: Insight measured again with the 12 questions a document page sends (2026-11-04, same prompt and model)
+  { agent: 'INSIGHT', purpose: 'QUESTION', promptVersion: 'QUESTION@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-11-04-insight-config-live.md' },
   { agent: 'DOA_DRAFTER', purpose: 'DOA_DRAFT', promptVersion: 'DOA_DRAFT@2', model: 'claude-opus-5-5', tier: 'SYNTHETIC', report: '2026-10-14-doa_drafter-config-live.md' },
-  // NEW-134: a saving's explanation, 24 savings of the four kinds of §7.21 (SAVINGS_NOTE@1 and @2 had sentences too long)
+  // NEW-136: a saving's explanation, 24 savings of the four kinds of §7.21 (SAVINGS_NOTE@1 and @2 had sentences too long)
   { agent: 'INSIGHT', purpose: 'SAVINGS_NOTE', promptVersion: 'SAVINGS_NOTE@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-11-03-savings_note-config-live.md' },
 ]
 
@@ -189,7 +190,7 @@ export const AI_CREDIT_DEFAULTS = { monthlyCredits: 20_000, alertAtBp: 8000 } as
  */
 export const CONTENT_RETENTION_DAYS = { chatIntake: 7, unused: 90 } as const // TODO(OQ-144)
 
-/** Brief profile of BR-AI-27: at most 4 sentences of 120 characters (the Approval Brief, and a saving's explanation · NEW-134) */
+/** Brief profile of BR-AI-27: at most 4 sentences of 120 characters (the Approval Brief, and a saving's explanation · NEW-136) */
 export const BRIEF_PROFILE = { maxSentences: 4, maxChars: 120 } as const
 
 /** Words that advise a decision, which a text of the AI never carries (BR-AI-27 DECISION_ADVICE · compared ignoring case) */

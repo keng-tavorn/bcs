@@ -4,6 +4,7 @@ import type { Condition } from '@/core/forms'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import { lineNet, parseQuantity } from '@/core/money/math'
 import { err, ok, type Result } from '@/core/result'
+import { companyNameKey } from '@/core/thai/company-name'
 import { normalizeTaxId } from '@/core/thai/taxid'
 import { taxDateOf } from '@/core/vat'
 import { AI_FILE_MEDIA_TYPES, getAiClient, type AiFile, type AiFileMediaType } from '@/integrations/ai'
@@ -11,7 +12,7 @@ import { readObject } from '@/integrations/storage'
 import { AI_LIMITS, modelForPurpose } from '@/lib/ai-config'
 import { IntakeDraft, intakeInputText } from '@/lib/ai-schemas/agents'
 import { getEnv } from '@/lib/env'
-import { loadPrincipal } from '@/server/authz'
+import { authorize, loadPrincipal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { formDefinition } from '@/server/forms/schema'
@@ -33,7 +34,8 @@ import { aiRuntime } from '../gate'
 //   intakeFromMessage  S17's chat job: synchronous in the caller's job, the text never kept, idempotent by key
 
 export const StartIntakeInput = z.strictObject({
-  requestTypeCode: z.string().min(1).max(50),
+  /** The form's type; none from the home page's box (NEW-120), where the agent proposes the type */
+  requestTypeCode: z.string().min(1).max(50).optional(),
   text: z.string().max(AI_LIMITS.maxInputTextChars).default(''),
   fileIds: z.array(z.uuid()).max(AI_LIMITS.intakeMaxFiles).default([]),
   /** The draft the values go into, once it exists */
@@ -70,10 +72,16 @@ export async function startIntake(ctx: Ctx, rawInput: z.input<typeof StartIntake
   if (!parsed.success) return err('VALIDATION_FAILED', 'invalid input', { field: parsed.error.issues[0]?.path.join('.') || 'text' })
   const input = parsed.data
   if (!input.text.trim() && input.fileIds.length === 0) return err('VALIDATION_FAILED', 'write what you need or attach a file', { field: 'text', reason: 'EMPTY' })
+  // Only a member who may start a request has it drafted (request.create, FR-INT-010): the form checks it on its page,
+  // the home page's box (NEW-120) has no page of its own
+  const allowed = await forTenant(ctx.organizationId).$transaction((tx) => authorize(tx, ctx, 'request.create'))
+  if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
   const files = await readableFiles(ctx, input.fileIds)
   if (!files.ok) return files
   const db = forTenant(ctx.organizationId)
-  if (!(await db.requestType.count({ where: { code: input.requestTypeCode, active: true } }))) return err('NOT_FOUND', 'unknown request type', { field: 'requestTypeCode' })
+  if (input.requestTypeCode && !(await db.requestType.count({ where: { code: input.requestTypeCode, active: true } }))) return err('NOT_FOUND', 'unknown request type', { field: 'requestTypeCode' })
+  // A draft's own type is the form's: the home page's box starts before any draft exists
+  if (input.requestId && !input.requestTypeCode) return err('VALIDATION_FAILED', 'the form of a draft names its type', { field: 'requestTypeCode' })
   if (input.requestId) {
     const r = await db.request.findFirst({ where: { id: input.requestId }, select: { requesterMemberId: true, status: true } })
     if (!r) return err('NOT_FOUND', 'request not found')
@@ -85,7 +93,7 @@ export async function startIntake(ctx: Ctx, rawInput: z.input<typeof StartIntake
     {
       purpose: 'INTAKE',
       ...(input.requestId ? { subjectType: 'REQUEST', subjectId: input.requestId } : {}),
-      inputRefs: { requestTypeCode: input.requestTypeCode, fileIds: input.fileIds },
+      inputRefs: { ...(input.requestTypeCode ? { requestTypeCode: input.requestTypeCode } : {}), fileIds: input.fileIds },
       ...(input.text.trim() ? { inputText: input.text } : {}),
     },
     options,
@@ -135,7 +143,6 @@ const quantity = (v: string | null): string | null => {
     return null
   }
 }
-const words = (s: string) => s.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim()
 
 export interface IntakeOutcome {
   readonly proposed: Record<string, string>
@@ -209,11 +216,13 @@ export async function runIntake(organizationId: string, agentActionId: string, n
   })
   const site = draft.siteCode ? sites.find((s) => s.code === draft.siteCode) : undefined
   put('deliverySiteId', site?.id ?? null, 'siteCode')
-  // The supplier of the register by tax id and branch, else by the exact name; otherwise the name stays text only
+  // The supplier of the register by tax id and branch, else by its name with or without its legal form ("บริษัท … จำกัด",
+  // companyNameKey · NEW-120) when exactly one has it; otherwise the name stays text only
   const taxId = draft.supplier.taxId ? normalizeTaxId(draft.supplier.taxId) : null
-  const byTax = taxId ? await db.supplier.findFirst({ where: { taxId, branchCode: draft.supplier.branch ?? '00000', status: 'ACTIVE' }, select: { id: true } }) : null
-  const byName = !byTax && draft.supplier.name ? (await db.supplier.findMany({ where: { status: 'ACTIVE' }, select: { id: true, nameTh: true } })).filter((s) => words(s.nameTh) === words(draft.supplier.name!)) : []
-  const supplierId = byTax?.id ?? (byName.length === 1 ? byName[0]!.id : null)
+  const byTax = taxId ? await db.supplier.findFirst({ where: { taxId, branchCode: draft.supplier.branch ?? '00000', status: 'ACTIVE' }, select: { id: true, nameTh: true } }) : null
+  const byName = !byTax && draft.supplier.name ? (await db.supplier.findMany({ where: { status: 'ACTIVE' }, select: { id: true, nameTh: true } })).filter((s) => companyNameKey(s.nameTh) === companyNameKey(draft.supplier.name!)) : []
+  const supplier = byTax ?? (byName.length === 1 ? byName[0]! : null)
+  const supplierId = supplier?.id ?? null
   put('suggestedSupplierId', supplierId, 'supplier.taxId', true)
 
   // The channel (golden ai-intake-channel): no catalogue items before S6, so a reorder or a standard request
@@ -233,7 +242,16 @@ export async function runIntake(organizationId: string, agentActionId: string, n
   return finish({
     outcome: 'DRAFT',
     model: answer.model,
-    output: { draft, suggestedType, suggestedTypeName: suggestedType ? (types.find((t) => t.code === suggestedType)?.nameTh ?? null) : null, supplierText: outcome.supplierText, channel },
+    output: {
+      draft,
+      suggestedType,
+      suggestedTypeName: suggestedType ? (types.find((t) => t.code === suggestedType)?.nameTh ?? null) : null,
+      // Without a form (the home page's box, NEW-120): the type proposed, by its code and name, to open its form with
+      ...(!formType && known ? { proposedType: known, proposedTypeName: types.find((t) => t.code === known)?.nameTh ?? known } : {}),
+      supplierText: outcome.supplierText,
+      supplierName: supplier?.nameTh ?? null,
+      channel,
+    },
     fieldConfidence: Object.fromEntries(draft.confidence.map((c) => [c.field, Math.min(100, Math.max(0, Math.trunc(c.value))) * 100])),
     review: { requiredPaths: outcome.requiredPaths, confirmedPaths: [], proposed },
     usage: answer.usage,

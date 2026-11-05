@@ -165,6 +165,8 @@ model Organization {
   passkeyChallenges    PasskeyChallenge[]
   // --- NEW-121 ---
   assistantDismissals  AssistantDismissal[]
+  // --- NEW-125 ---
+  assistantLearnings   AssistantLearning[]
 }
 
 enum ModuleKey {
@@ -313,6 +315,8 @@ model Member {
   passkeyChallenges PasskeyChallenge[] @relation("PasskeyChallengeMember")
   // --- NEW-121 ---
   assistantDismissals AssistantDismissal[] @relation("AssistantDismissalMember")
+  // --- NEW-125 ---
+  learningsUpdated AssistantLearning[] @relation("AssistantLearningUpdatedBy")
 
   @@unique([organizationId, id])
   @@unique([organizationId, userId])
@@ -3177,7 +3181,7 @@ enum AiPurpose {
   BRIEF
   QUESTION
   DOA_DRAFT
-  /// NEW-134: the assistant's words on a saving the code found (Insight · ADR-083)
+  /// NEW-136: the assistant's words on a saving the code found (Insight · ADR-084)
   SAVINGS_NOTE
 }
 
@@ -4354,4 +4358,38 @@ model AssistantDismissal {
 
   @@unique([organizationId, id])
   @@unique([organizationId, memberId, key])
+}
+
+// ===== NEW-125 · the assistants' notebook (ADR-083) =====
+
+/// What an assistant learned, by kind. Phase 1 has one: the account code FINANCE confirmed for a supplier and a category (BR-AP-10)
+enum AssistantLearningKind {
+  ACCOUNT_CODE
+}
+
+/// NEW-125 (ADR-083): what an ORG_ADMIN decided about one thing an assistant learned. The learning itself is read by
+/// code from the organization's own records (ACCOUNT_CODE: the confirmed lines of invoices); this row only switches it
+/// off, or forgets what was confirmed up to forgottenAt. No row = in use as learned.
+model AssistantLearning {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  organizationId String                @db.Uuid
+  kind           AssistantLearningKind
+  /// ACCOUNT_CODE: the supplier's tax id (every branch learns together, as BR-AP-10 compares tax ids)
+  supplierTaxId  String
+  /// ACCOUNT_CODE: the category of the PO line; '' for lines without one (BR-AP-10 compares them as equal)
+  categoryCode   String                @default("") @db.VarChar(100)
+  /// true: the assistant does not use it until switched on again; what it learned is kept
+  disabled       Boolean               @default(false)
+  /// Lines confirmed at or before this moment are never used again; null = nothing forgotten
+  forgottenAt    DateTime?             @db.Timestamptz(6)
+  updatedById    String?               @db.Uuid
+  version        Int                   @default(0)
+  createdAt      DateTime              @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime              @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  updatedBy    Member?      @relation("AssistantLearningUpdatedBy", fields: [organizationId, updatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, kind, supplierTaxId, categoryCode])
 }

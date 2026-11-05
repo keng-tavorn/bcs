@@ -13,7 +13,7 @@ import { freeLines } from '../procurement/pool'
 import { reportTx } from '../reports/tx'
 import { AGREEMENT_DAYS, setKey } from './suggestions'
 
-// The savings assistant (NEW-123 · FR-VIS-008 · ADR-083 · spec §7.21): what the organization's own data shows could be
+// The savings assistant (NEW-123 · FR-VIS-008 · ADR-084 · spec §7.21): what the organization's own data shows could be
 // bought for less — a price above what was paid before, a catalogue line off its agreed price, one item several
 // departments wait for in the pool, and agreed prices ending soon with what was bought at them. The amounts come from
 // findSavings (src/core/savings), never from the AI, and nothing here changes a document or calls the AI.

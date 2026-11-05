@@ -47,13 +47,15 @@ describe('[FR-AI-303/AC1] the screen gets what was read, what is proposed and wh
     ])
   })
   it('shows nothing of the content to whoever does not get it, and a failed read by its code', () => {
-    expect(presentAiResult({ ...base, status: 'FAILED', errorCode: 'FIXTURE_MISSING', content: null })).toEqual({ id: 'a1', status: 'FAILED', errorCode: 'FIXTURE_MISSING', proposed: {}, requiredPaths: [], reading: null, notes: [], suggestedType: null, supplierText: null, doa: null })
+    expect(presentAiResult({ ...base, status: 'FAILED', errorCode: 'FIXTURE_MISSING', content: null })).toEqual({ id: 'a1', status: 'FAILED', errorCode: 'FIXTURE_MISSING', proposed: {}, requiredPaths: [], reading: null, notes: [], suggestedType: null, supplierText: null, proposedType: null, supplierName: null, doa: null })
     const empty = presentAiResult({ ...base, content: { ...base.content!, output: { reading: { seller: null, priceIncludesVat: true } }, verification: null, review: null } })
     expect(empty).toMatchObject({ proposed: {}, requiredPaths: [], notes: [], reading: { sellerName: null, priceIncludesVat: true, lines: [] } })
     expect(presentAiResult({ ...base, content: { ...base.content!, output: null } }).reading).toBeNull()
     // An Intake result: the better type with its name (or its code when the name is gone) and the supplier as text
     const intake = presentAiResult({ ...base, content: { ...base.content!, output: { suggestedType: 'HIRE', suggestedTypeName: 'จ้างงาน', supplierText: 'ร้านใหม่' } } })
     expect(intake).toMatchObject({ suggestedType: { code: 'HIRE', name: 'จ้างงาน' }, supplierText: 'ร้านใหม่' })
+    // NEW-120: the reading of the home page's box names the type it proposed and the supplier of the register it matched
+    expect(presentAiResult({ ...base, content: { ...base.content!, output: { proposedType: 'BUY', proposedTypeName: 'ซื้อของ', supplierName: 'บริษัท ก จำกัด' } } })).toMatchObject({ proposedType: { code: 'BUY', name: 'ซื้อของ' }, supplierName: 'บริษัท ก จำกัด', suggestedType: null })
     expect(presentAiResult({ ...base, content: { ...base.content!, output: { suggestedType: 'HIRE' } } }).suggestedType).toEqual({ code: 'HIRE', name: 'HIRE' })
   })
 })

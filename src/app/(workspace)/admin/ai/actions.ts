@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { updateAgentSetting } from '@/server/services/ai'
+import { setAssistantLearning } from '@/server/services/assistants/notebook'
 import { toFailure, type AdminOutcome } from '@/ui/admin/outcome'
 import { getSession } from '../../../_lib/session'
 
@@ -19,6 +20,21 @@ export async function updateAgentAction(
   if (!z.uuid().safeParse(idempotencyKey).success) return { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
   // The agent arrives as a plain string; the service's schema refuses an unknown one
   const result = await updateAgentSetting(ctx, { ...input, agent: input.agent as Parameters<typeof updateAgentSetting>[1]['agent'] }, { idempotencyKey })
+  if (!result.ok) return toFailure(result.error)
+  revalidatePath('/admin/ai')
+  return { ok: true }
+}
+
+// NEW-125 (ADR-083): an entry of the assistants' notebook switched off or on, or forgotten; the service checks
+// admin.ai.manage, the PAY module and the version the screen showed
+export async function setLearningAction(
+  input: { supplierId: string; categoryCode: string | null; action: 'DISABLE' | 'ENABLE' | 'FORGET'; expectedVersion: number },
+  idempotencyKey: string,
+): Promise<AdminOutcome> {
+  const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
+  if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
+  if (!z.uuid().safeParse(idempotencyKey).success) return { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
+  const result = await setAssistantLearning(ctx, { kind: 'ACCOUNT_CODE', ...input }, { idempotencyKey })
   if (!result.ok) return toFailure(result.error)
   revalidatePath('/admin/ai')
   return { ok: true }

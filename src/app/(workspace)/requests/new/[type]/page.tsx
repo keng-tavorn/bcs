@@ -16,11 +16,15 @@ export async function generateMetadata() {
 }
 
 const TYPE_CODE = /^[A-Za-z0-9_-]{1,50}$/
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // The form of a new request of one type (§9.1 /requests/new/[type], FR-INT-002, FR-INT-003): nothing is stored until the
 // requester types — the first autosave creates the draft (a GET never changes state).
-export default async function NewRequestFormPage({ params }: { params: Promise<{ type: string }> }) {
-  const { type } = await params
+export default async function NewRequestFormPage({ params, searchParams }: { params: Promise<{ type: string }>; searchParams: Promise<{ intake?: string | string[] }> }) {
+  const [{ type }, query] = await Promise.all([params, searchParams])
+  // The home page's box (NEW-120) opens the form of the type it proposed with its reading: the form reads it back as
+  // the requester's own result (getAgentAction), so another member's reading fills nothing
+  const intakeFrom = typeof query.intake === 'string' && UUID.test(query.intake) ? query.intake : undefined
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null
   const [t, locale] = await Promise.all([getTranslations('requestForm.page'), getLocale()])
@@ -45,6 +49,7 @@ export default async function NewRequestFormPage({ params }: { params: Promise<{
         // A new form has no catalogue lines yet: it knows the catalogue items its lines are picked from (S6-10)
         data={{ ...result.data, catalogItems: [] }}
         locale={screen}
+        {...(intake && intakeFrom ? { intakeFrom } : {})}
         autosaveUrl="/requests/new/autosave"
         actions={{
           preview: previewRequestAction,

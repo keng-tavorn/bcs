@@ -4,9 +4,9 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "HIRE_SERVICE",
-    "title": "ค่าทดสอบดิน (Boring test) - ระบบระบายน้ำสมุทรปราการ",
+    "title": "ค่าทดสอบดิน (Boring test) ระบบระบายน้ำสมุทรปราการ",
     "siteCode": "SITE-P08",
-    "neededBy": "7 วัน",
+    "neededBy": null,
     "lines": [
       {
         "description": "ค่าทดสอบดิน (Boring test)",
@@ -28,7 +28,7 @@
       },
       {
         "field": "title",
-        "value": 70
+        "value": 75
       },
       {
         "field": "siteCode",
@@ -36,21 +36,21 @@
       },
       {
         "field": "neededBy",
-        "value": 60
+        "value": 40
       },
       {
         "field": "lines",
-        "value": 92
+        "value": 90
       },
       {
         "field": "supplier",
-        "value": 100
+        "value": 0
       }
     ]
   },
   "usage": {
     "input": 5686,
-    "output": 267,
+    "output": 261,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

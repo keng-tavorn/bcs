@@ -183,12 +183,12 @@ export interface CreditSummaryDto {
   readonly grants: readonly { readonly source: string; readonly credits: number; readonly contractRef: string | null; readonly occurredAt: string }[]
 }
 
-/** The credits of the month for ORG_ADMIN (admin.ai.manage) and the BCS team (platform.ai.credits); no business data */
+/** The credits of the month for ORG_ADMIN and AUDITOR (admin.ai.view · NEW-125) and the BCS team (platform.ai.credits); no business data */
 export async function creditSummary(ctx: Ctx): Promise<Result<CreditSummaryDto>> {
   const db = forTenant(ctx.organizationId)
   if (ctx.actor.type === 'PLATFORM_ADMIN' && !(await isActivePlatformAdmin(ctx.actor.platformAdminId))) return err('FORBIDDEN', 'only the BCS team')
   return db.$transaction(async (tx) => {
-    const allowed = await authorize(tx, ctx, ctx.actor.type === 'PLATFORM_ADMIN' ? 'platform.ai.credits' : 'admin.ai.manage')
+    const allowed = await authorize(tx, ctx, ctx.actor.type === 'PLATFORM_ADMIN' ? 'platform.ai.credits' : 'admin.ai.view')
     if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
     const periodMonth = creditPeriodMonth(ctx.now)
     const balance = await creditBalance(tx, periodMonth)

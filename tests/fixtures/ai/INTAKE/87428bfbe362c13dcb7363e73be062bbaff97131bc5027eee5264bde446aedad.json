@@ -28,11 +28,11 @@
       },
       {
         "field": "title",
-        "value": 80
+        "value": 85
       },
       {
         "field": "siteCode",
-        "value": 70
+        "value": 80
       },
       {
         "field": "neededBy",
@@ -45,16 +45,12 @@
       {
         "field": "supplier",
         "value": 100
-      },
-      {
-        "field": "confidence",
-        "value": 80
       }
     ]
   },
   "usage": {
     "input": 5680,
-    "output": 273,
+    "output": 260,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

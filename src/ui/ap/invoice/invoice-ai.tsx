@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleAlert } from 'lucide-react'
+import { Check, CircleAlert, CircleDashed } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { AiReviewBox, useAiNoteText, type AiFieldView } from '../../ai/ai-review'
@@ -14,6 +14,7 @@ import { useApAction, useApErrorText } from './use-ap-action'
 // the header and the lines; here each one is confirmed on its own, beside the original file. A value FINANCE changed in
 // the header or a line counts as confirmed (the server compares the draft with what the AI said). "บันทึกการยืนยัน" is
 // invoice.update with aiAssist; invoice.submit refuses with AI_REVIEW_PENDING until nothing waits. Workspace only.
+// Above the box, "AI ทำอะไรให้" lists what the AI did and what is left, counted from the same review (NEW-119).
 
 export interface InvoiceAiReviewView {
   readonly agentActionId: string
@@ -91,8 +92,31 @@ export function InvoiceAiReview({
     if (outcome.ok) setChecked(new Set())
   }
 
+  const did: Array<{ text: string; done: boolean }> = [
+    ...(review.fileId || review.reading ? [{ text: t('invoice.did.read'), done: true }] : []),
+    { text: t('invoice.did.filled', { count: fields.length }), done: true },
+    { text: review.notes.length ? t('invoice.did.checkedFound', { count: review.notes.length }) : t('invoice.did.checkedClean'), done: true },
+    { text: t('invoice.did.yours', { confirmed: fields.filter((f) => confirmed.has(f.path)).length, count: fields.length, changed: changed.length }), done },
+  ]
+
   return (
     <div className="flex flex-col gap-3">
+      <section aria-labelledby={`${review.agentActionId}-did`} className="flex flex-col gap-2">
+        <h4 id={`${review.agentActionId}-did`} className="font-semibold">
+          {t('invoice.did.title')}
+        </h4>
+        <ul className="flex flex-col gap-1.5">
+          {did.map((d) => (
+            <li key={d.text} className="flex items-start gap-2">
+              {d.done ? <Check className="mt-1 size-4 shrink-0 text-ok-ink" aria-hidden="true" /> : <CircleDashed className="mt-1 size-4 shrink-0 text-ink-muted" aria-hidden="true" />}
+              <span>
+                <span className="sr-only">{d.done ? t('invoice.did.doneMark') : t('invoice.did.leftMark')}</span>{' '}
+                {d.text}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
       <AiReviewBox
         title={t('invoice.title')}
         fields={fields}

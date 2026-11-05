@@ -181,6 +181,11 @@ test('[FR-AI-303/AC6] [FR-AI-303/AC8] FINANCE reads a supplier invoice with the 
   await expect(box.getByText('เติมโดย AI โปรดตรวจ')).toBeVisible()
   await expect(box.getByText('INV-E2E-1', { exact: true }).first()).toBeVisible()
   await expect(box.getByRole('checkbox', { checked: false }).first()).toBeVisible()
+  // NEW-119: "AI ทำอะไรให้" above the box says what the AI did, and what is left for FINANCE
+  const did = page.getByRole('region', { name: 'AI ทำอะไรให้' })
+  await expect(did.getByText('อ่านไฟล์ใบแจ้งหนี้ที่แนบ')).toBeVisible()
+  await expect(did.getByText(/สร้างร่างและเติมให้ \d+ ช่อง/)).toBeVisible()
+  await expect(did.getByText(/ยังเหลือ: คุณยืนยันแล้ว 0 จาก \d+ ช่อง · แก้เอง 0 ช่อง/)).toBeVisible()
   await check(page, testInfo, 'invoice-ai-review')
 
   // Coded, but not submitted while a value waits
@@ -201,6 +206,7 @@ test('[FR-AI-303/AC6] [FR-AI-303/AC8] FINANCE reads a supplier invoice with the 
   const waiting = box.getByRole('checkbox', { checked: false })
   for (let n = await waiting.count(); n > 0; n--) await waiting.first().click()
   await expect(box.getByRole('status').filter({ hasText: 'ยืนยันค่าที่ AI เติมครบแล้ว' })).toBeVisible()
+  await expect(did.getByText(/ทำแล้ว: คุณยืนยันแล้ว (\d+) จาก \1 ช่อง/)).toBeVisible()
   await check(page, testInfo, 'invoice-ai-confirmed')
   await page.getByRole('button', { name: 'บันทึกการยืนยัน' }).click()
   await expect(box).toHaveCount(0, { timeout: 20_000 })
@@ -235,6 +241,48 @@ test('[FR-AI-302/AC1] [FR-AI-302/AC5] step 0: what the requester wrote fills the
   await check(page, testInfo, 'intake-ai-confirmed')
   await page.getByRole('button', { name: 'บันทึกร่างตอนนี้' }).click()
   await expect.poll(() => ai<{ status: string }>('state').status, { timeout: 30_000 }).toBe('ACCEPTED')
+})
+
+test('[FR-AI-302/AC2] NEW-120 the home page box proposes the type, opens its form with the draft to check and sends nothing; with Intake off the search field stays', async ({ page }, testInfo) => {
+  ai('off')
+  await signIn(page, 'req_con2')
+  await expect(page.getByRole('button', { name: /ค้นหาเลขเอกสาร/ })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'บอกสิ่งที่อยากได้' })).toHaveCount(0)
+
+  ai('on')
+  await page.reload()
+  const box = page.getByRole('textbox', { name: 'บอกสิ่งที่อยากได้' })
+  await expect(page.getByRole('button', { name: /ค้นหาเลขเอกสาร/ })).toHaveCount(0)
+  await page.getByRole('button', { name: 'ให้ผู้ช่วยแนะนำ' }).click()
+  await expect(page.getByText('เขียนสิ่งที่ต้องการหรือแนบไฟล์ก่อน')).toBeVisible()
+  await box.fill('อยากได้ปูนซีเมนต์ 20 ถุง ถุงละ 150 บาท')
+  await check(page, testInfo, 'home-intake-box')
+  await page.getByRole('button', { name: 'ให้ผู้ช่วยแนะนำ' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'กำลังอ่านเอกสาร' })).toBeVisible()
+  expect(ai<{ drafted: number }>('run').drafted).toBeGreaterThanOrEqual(1)
+
+  const proposal = page.getByRole('region', { name: 'ผู้ช่วยแนะนำ' })
+  await expect(proposal.getByText('ซื้อของ', { exact: true })).toBeVisible()
+  await expect(proposal.getByText(/ยังไม่มีอะไรถูกบันทึกหรือส่ง/)).toBeVisible()
+  // The desktop project at 1440 px and the mobile one at 375 px
+  await check(page, testInfo, 'home-intake-proposal')
+  // [BR-AI-01] The box created nothing: the AI action waits as a draft, with no request of its own
+  expect(ai<{ status: string; subjectType: string | null }>('state')).toMatchObject({ status: 'DRAFT', subjectType: null })
+
+  await proposal.getByRole('link', { name: /^เปิดฟอร์ม.*พร้อมร่าง$/ }).click()
+  await expect(page).toHaveURL(/\/requests\/new\/BUY_GOODS\?intake=/)
+  await expect(page.getByRole('textbox', { name: /^ชื่อคำขอ/ })).toHaveValue('ปูนซีเมนต์สำหรับไซต์งาน')
+  const review = page.getByRole('region', { name: 'ค่าที่ AI เติมจากสิ่งที่คุณเขียน' })
+  await expect(review.getByText('เติมโดย AI โปรดตรวจ')).toBeVisible()
+  await check(page, testInfo, 'home-intake-form')
+  await review.getByRole('button', { name: /ยืนยันค่าที่เหลือทั้งหมด/ }).click()
+  const waiting = review.getByRole('checkbox', { checked: false })
+  for (let n = await waiting.count(); n > 0; n--) await waiting.first().click()
+  await expect(review.getByRole('status').filter({ hasText: 'ยืนยันค่าที่ AI เติมครบแล้ว' })).toBeVisible()
+  await page.getByRole('button', { name: 'บันทึกร่างตอนนี้' }).click()
+  // Saved by the requester, as a draft: the reading reached the request, which was not sent
+  await expect.poll(() => ai<{ status: string; subjectType: string | null }>('state').status, { timeout: 30_000 }).toBe('ACCEPTED')
+  expect(ai<{ subjectType: string | null }>('state').subjectType).toBe('REQUEST')
 })
 
 test('[FR-AI-301/AC1] [FR-AI-301/AC3] the decider sees the Brief apart on the decision bar, with the facts and no button of its own', async ({ page }, testInfo) => {

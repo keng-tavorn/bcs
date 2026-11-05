@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "อิฐมวลเบา หนา 7.5 ซม. 4,354 ก้อน",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "อิฐมวลเบา หนา 7.5 ซม.",
+        "itemCode": "MAT-010",
+        "qty": "4354",
+        "unit": "ก้อน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท มีนบุรีกิจการค้าวัสดุ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 92
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 88
+      }
+    ]
+  },
+  "usage": {
+    "input": 5655,
+    "output": 283,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

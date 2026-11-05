@@ -186,7 +186,7 @@ function viewOf(t: SavingsT, locale: Locale, item: SavingsItemDto, windowDays: n
   }
 }
 
-// The savings assistant (NEW-123 · FR-VIS-008 · ADR-083): the total that could be saved (each line once, BR-SAV-06),
+// The savings assistant (NEW-123 · FR-VIS-008 · ADR-084): the total that could be saved (each line once, BR-SAV-06),
 // one link per kind with its count (every number leads to its list, §9.9), then each saving with its amount and its
 // evidence. The page opens for whoever reads every PO and request; the service checks again before reading anything.
 // Nothing here changes a document, and no AI is called to draw it.

@@ -8,7 +8,7 @@ import { Button } from '../shadcn/button'
 import { Item, ItemContent, ItemMedia, ItemTitle } from '../shadcn/item'
 import { SavingsEvidence } from './savings-evidence'
 
-// The savings the assistant found (NEW-123 · FR-VIS-008 · ADR-083), one row each in the look of every assistant note
+// The savings the assistant found (NEW-123 · FR-VIS-008 · ADR-084), one row each in the look of every assistant note
 // (ADR-078): the icon of the kind of saving on a tinted ground, what was found, why, the amount the code calculated in
 // tabular digits, one way to the page where it is dealt with, the evidence as a table that becomes a list on a phone
 // (§9.9), and the place where the assistant's own words go when the reader asks for them. No Sparkles here: the rows

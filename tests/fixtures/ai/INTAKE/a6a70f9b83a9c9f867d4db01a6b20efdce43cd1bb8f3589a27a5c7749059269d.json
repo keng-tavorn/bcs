@@ -40,41 +40,41 @@
       },
       {
         "field": "lines.description",
-        "value": 85
+        "value": 92
       },
       {
         "field": "lines.itemCode",
-        "value": 88
-      },
-      {
-        "field": "lines.qty",
-        "value": 80
-      },
-      {
-        "field": "lines.unit",
         "value": 85
       },
       {
+        "field": "lines.qty",
+        "value": 88
+      },
+      {
+        "field": "lines.unit",
+        "value": 90
+      },
+      {
         "field": "lines.unitPrice",
-        "value": 75
+        "value": 85
       },
       {
         "field": "supplier.name",
-        "value": 70
+        "value": 80
       },
       {
         "field": "supplier.taxId",
-        "value": 65
+        "value": 75
       },
       {
         "field": "supplier.branch",
-        "value": 70
+        "value": 80
       }
     ]
   },
   "usage": {
     "input": 7056,
-    "output": 948,
+    "output": 859,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

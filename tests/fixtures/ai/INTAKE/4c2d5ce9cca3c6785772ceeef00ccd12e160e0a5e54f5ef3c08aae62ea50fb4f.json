@@ -4,7 +4,7 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "BUY_GOODS",
-    "title": null,
+    "title": "แผ่นยิปซัมบอร์ด 9 มม. ตามใบเสนอราคา QT-12107",
     "siteCode": "SITE-P02",
     "neededBy": null,
     "lines": [
@@ -28,29 +28,53 @@
       },
       {
         "field": "title",
-        "value": 0
+        "value": 70
       },
       {
         "field": "siteCode",
-        "value": 92
+        "value": 95
       },
       {
         "field": "neededBy",
-        "value": 0
+        "value": 100
       },
       {
-        "field": "lines",
+        "field": "lines[0].description",
+        "value": 90
+      },
+      {
+        "field": "lines[0].itemCode",
+        "value": 92
+      },
+      {
+        "field": "lines[0].qty",
+        "value": 97
+      },
+      {
+        "field": "lines[0].unit",
+        "value": 95
+      },
+      {
+        "field": "lines[0].unitPrice",
+        "value": 96
+      },
+      {
+        "field": "supplier.name",
+        "value": 96
+      },
+      {
+        "field": "supplier.taxId",
+        "value": 95
+      },
+      {
+        "field": "supplier.branch",
         "value": 88
-      },
-      {
-        "field": "supplier",
-        "value": 85
       }
     ]
   },
   "usage": {
     "input": 7234,
-    "output": 694,
+    "output": 795,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

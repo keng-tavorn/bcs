@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "เหล็กข้ออ้อย DB16 SD40",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "เหล็กข้ออ้อย DB16 SD40",
+        "itemCode": "STL-003",
+        "qty": "1",
+        "unit": "ตัน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท บางนาวัสดุสตีล จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5643,
+    "output": 259,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

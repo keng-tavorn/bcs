@@ -1,6 +1,9 @@
 # Insight questions of the AI evaluation set, demo tier (S13-05, docs/sub-specs/S13.md "ชุดประเมิน" and "เครื่องมือของ
 # Insight"): 30 questions in Thai with the tools that answer them, and 12 questions on access that every seeded role
-# asks (tests/integration of S13-10 checks every ref of the answers against the asker's access). `tools` lists the
+# asks (tests/integration of S13-10 checks every ref of the answers against the asker's access), then 12 questions a
+# document page sends (NEW-118 · ADR-079): "สรุปให้" as it is, "ถามเรื่องนี้" with the words a member adds after the number;
+# the plan is the same whoever asks: a member who may not see the document gets nothing from the tool and is told
+# nothing was found (tests/integration/document-assistant.test.ts). `tools` lists the
 # read-only tools a right answer uses; the order does not count.
 questions:
   - { id: Q-01, text: งบไหนใกล้หมด, tools: [budget_status] }
@@ -46,3 +49,16 @@ access:
   - { id: A-10, text: คำขอ PR-2569-00001 ของคนอื่น, tools: [get_request] }
   - { id: A-11, text: งบฝ่ายการเงินเหลือเท่าไร, tools: [budget_status] }
   - { id: A-12, text: ราคาที่ผู้ขายรายนี้เสนอให้ฝ่ายอื่น, tools: [purchase_orders] }
+documents:
+  - { id: D-01, text: สรุปคำขอ PR-2569-00120, tools: [get_request] }
+  - { id: D-02, text: คำขอ PR-2569-00045 ใครเป็นผู้อนุมัติ, tools: [get_request] }
+  - { id: D-03, text: คำขอ PR-2569-00088 ตอนนี้รอใครอยู่, tools: [get_request] }
+  - { id: D-04, text: สรุปใบสั่งซื้อ PO-2569-00012, tools: [search_documents] }
+  - { id: D-05, text: ใบสั่งซื้อ PO-2569-00007 ส่งผู้ขายแล้วหรือยัง, tools: [search_documents] }
+  - { id: D-06, text: ใบสั่งซื้อ PO-2569-00013 สั่งจากผู้ขายรายไหน, tools: [search_documents] }
+  - { id: D-07, text: สรุปใบแจ้งหนี้ AP-2569-00002, tools: [search_documents] }
+  - { id: D-08, text: ใบแจ้งหนี้ AP-2569-00005 ยอดรวมเท่าไร, tools: [search_documents] }
+  - { id: D-09, text: ใบแจ้งหนี้ AP-2569-00009 ถึงขั้นไหนแล้ว, tools: [search_documents] }
+  - { id: D-10, text: สรุปคำขอ PR-2569-00001, tools: [get_request] }
+  - { id: D-11, text: สรุปใบสั่งซื้อ PO-2569-00001, tools: [search_documents] }
+  - { id: D-12, text: ใบแจ้งหนี้ AP-2569-00001 จ่ายแล้วหรือยัง, tools: [search_documents] }

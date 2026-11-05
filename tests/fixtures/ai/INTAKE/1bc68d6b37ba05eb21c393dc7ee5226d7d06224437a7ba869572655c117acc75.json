@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "ค่าทดสอบกำลังอัดคอนกรีต",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าทดสอบกำลังอัดคอนกรีต",
+        "itemCode": "LAB-001",
+        "qty": "70",
+        "unit": "ก้อน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท สหมิตรวัสดุสำรวจและรังวัด จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 85
+      },
+      {
+        "field": "supplier",
+        "value": 75
+      }
+    ]
+  },
+  "usage": {
+    "input": 5656,
+    "output": 278,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

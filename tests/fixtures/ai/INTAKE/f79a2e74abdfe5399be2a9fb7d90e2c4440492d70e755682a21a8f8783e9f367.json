@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "เหล็กแผ่นดำ 6 มม.",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "เหล็กแผ่นดำ 6 มม.",
+        "itemCode": "STL-007",
+        "qty": "1",
+        "unit": "แผ่น",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท ชลบุรีภัณฑ์เหล็กกล้า จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 75
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5653,
+    "output": 268,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

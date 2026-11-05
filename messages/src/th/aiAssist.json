@@ -223,6 +223,16 @@
       "statedVat": "VAT ตามใบ (บาท)",
       "quantity": "{description}: จำนวน",
       "unitPrice": "{description}: ราคาต่อหน่วย (บาท)"
+    },
+    "did": {
+      "title": "AI ทำอะไรให้",
+      "read": "อ่านไฟล์ใบแจ้งหนี้ที่แนบ",
+      "filled": "สร้างร่างและเติมให้ {count} ช่อง",
+      "checkedFound": "ตรวจค่าที่อ่านได้ เจอ {count} เรื่องที่ต้องดู (อยู่ในกล่องด้านล่าง)",
+      "checkedClean": "ตรวจค่าที่อ่านได้ ไม่เจอเรื่องที่ต้องดู",
+      "yours": "คุณยืนยันแล้ว {confirmed} จาก {count} ช่อง · แก้เอง {changed} ช่อง",
+      "doneMark": "ทำแล้ว:",
+      "leftMark": "ยังเหลือ:"
     }
   },
   "feedback": {

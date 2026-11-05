@@ -26,7 +26,8 @@ if (mode !== 'notebook' || !tag) throw new Error('usage: admin-ai-scene.ts noteb
 async function organization(runTag: string): Promise<ApOrg> {
   const ap = await apOrg()
   const { organizationId } = ap.org
-  await prisma.organization.update({ where: { id: organizationId }, data: { code: `AI-${runTag.toUpperCase()}` } })
+  // A Z code like every scene: DEMO stays first among the customers, which admin.spec.ts and uat-config.spec.ts open
+  await prisma.organization.update({ where: { id: organizationId }, data: { code: `ZE2E-AI-${runTag.toUpperCase()}` } })
   await prisma.orgModule.create({ data: { organizationId, module: 'CORE', enabled: true, enabledAt: AP_NOW, contractRef: 'TEST-P1', reason: 'องค์กรทดสอบระยะ 1' } })
   await prisma.roleAssignment.create({ data: { organizationId, memberId: ap.org.member.admin!, role: 'ORG_ADMIN', grantedAt: AP_NOW } })
   for (const [code, memberId] of Object.entries(ap.org.member)) {

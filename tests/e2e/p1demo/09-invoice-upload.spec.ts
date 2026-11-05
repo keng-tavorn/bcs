@@ -109,7 +109,7 @@ test('@p1demo [FR-AP-101/AC1] [FR-AP-103/AC2] [FR-AP-105/AC2] [FR-AP-105/AC3] sc
   const number = await submitDraft(page, 'EXCEPTION')
 
   // The difference, on which line, how much and to whom
-  const differences = page.getByRole('region', { name: th('apInvoice.exceptions.title') })
+  const differences = page.getByRole('region', { name: th('apInvoice.exceptions.title'), exact: true })
   await expect(differences).toContainText(th(`apInvoice.exceptions.type.${exceptionType}`))
   await expect(differences).toContainText(
     `${th('apInvoice.exceptions.line', { no: 1 })} · ${th('apInvoice.exceptions.amount', { amount: baht(variance) })} · ${th('apInvoice.exceptions.sentTo', { role: th(`apInvoice.exceptions.role.${assignee}`) })}`,

@@ -101,7 +101,8 @@ export const totpOf = (code: string) => totp(deriveSeedTotpSecret(process.env.SE
 
 /** Runs a fixture script of tests/e2e against the e2e database and returns what it created (its FIXTURE line) */
 function runFixture<T>(script: string, args: readonly string[]): T {
-  const r = spawnSync(`pnpm exec tsx tests/e2e/${script} ${args.join(' ')}`, { shell: true, env: { ...process.env, ...e2eEnv() }, encoding: 'utf8' })
+  // No shell: each argument reaches the script whole, so a title with spaces or brackets works on Linux (CI) as on Windows
+  const r = spawnSync(process.execPath, ['--import', 'tsx', `tests/e2e/${script}`, ...args], { env: { ...process.env, ...e2eEnv() }, encoding: 'utf8' })
   const line = (r.stdout ?? '').split(/\r?\n/).find((l) => l.startsWith('FIXTURE '))
   if (r.status !== 0 || !line) throw new Error(`fixture ${script} ${args.join(' ')} failed:\n${r.stdout}\n${r.stderr}`)
   return JSON.parse(line.slice('FIXTURE '.length)) as T

@@ -39,7 +39,9 @@ test('[FR-INT-012/AC7] the requester reads what the rules found on their request
   const note = found.locator('[data-assistant-note="STEP_OVERDUE"]')
   await expect(note.getByText(/^ขั้นที่รออยู่เกินกำหนดแล้ว \(ครบเมื่อ .+\)$/)).toBeVisible()
   await expect(note.getByText(/^ยังรอ .+ ตัดสิน · ระบบเตือนผู้อนุมัติตามเวลาแล้ว$/)).toBeVisible()
-  await expect(note.getByRole('link', { name: 'ดูเส้นทางอนุมัติ' })).toHaveAttribute('href', `/requests/${made.requestId}?tab=overview#route`)
+  // The requester follows the request, so the note leads to the follow-up assistant (ADR-082 point 8): its draft of a nudge,
+  // or the task's row while a nudge may not go yet
+  await expect(note.getByRole('link', { name: /^(ร่างข้อความทวง|ดูผู้ช่วยตามงาน)$/ })).toHaveAttribute('href', /^\/follow-ups#/)
   // The AI module is off: no Brief, no shortcuts, no Sparkles (the rules' words carry the icon of the work)
   await expect(panel.getByRole('region', { name: 'สรุปจาก AI' })).toHaveCount(0)
   await expect(panel.getByRole('button', { name: 'ถามเรื่องนี้' })).toHaveCount(0)
@@ -53,10 +55,10 @@ test('[FR-INT-012/AC7] the requester reads what the rules found on their request
   await expectNoSideways(page)
   await shot(page, testInfo, 'assistant-panel-rules')
 
-  // Its one link leads to the route of the overview
-  await note.getByRole('link', { name: 'ดูเส้นทางอนุมัติ' }).click()
-  await expect(page).toHaveURL(new RegExp(`/requests/${made.requestId}\\?tab=overview#route$`))
-  await expect(page.getByRole('heading', { name: 'เส้นทางอนุมัติ' })).toBeVisible()
+  // Its one link leads to the follow-up assistant's page
+  await note.getByRole('link', { name: /^(ร่างข้อความทวง|ดูผู้ช่วยตามงาน)$/ }).click()
+  await expect(page).toHaveURL(/\/follow-ups#/)
+  await expect(page.getByRole('heading', { level: 1, name: 'ผู้ช่วยตามงาน' })).toBeVisible()
 })
 
 test('[FR-INT-012/AC7] [FR-INT-012/AC8] the one who decides reads the Brief in the panel, says it helped, and asks about the request', async ({ page }, testInfo) => {

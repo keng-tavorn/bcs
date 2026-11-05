@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "อบรมความปลอดภัยในการทำงานบนที่สูง",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "อบรมความปลอดภัยในการทำงานบนที่สูง",
+        "itemCode": "TRA-001",
+        "qty": "3",
+        "unit": "คน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "ราชพฤกษ์อะคาเดมี จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5651,
+    "output": 270,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

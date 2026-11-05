@@ -148,7 +148,7 @@ export const EVAL_GATES: readonly EvalGate[] = [
   { agent: 'DOCUMENT', purpose: 'QUOTATION_READ', promptVersion: 'QUOTATION_READ@2', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-10-14-document-config-live.md' },
   { agent: 'DOCUMENT', purpose: 'DELIVERY_NOTE_READ', promptVersion: 'DELIVERY_NOTE_READ@2', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-10-14-document-config-live.md' },
   { agent: 'DOCUMENT', purpose: 'INVOICE_READ', promptVersion: 'INVOICE_READ@2', model: 'claude-opus-5-5', tier: 'SYNTHETIC', report: '2026-10-14-document-config-live.md' },
-  { agent: 'INTAKE', purpose: 'INTAKE', promptVersion: 'INTAKE@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: '2026-10-14-intake-config-live.md' },
+  { agent: 'INTAKE', purpose: 'INTAKE', promptVersion: 'INTAKE@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: '2026-11-04-intake-claude-haiku-5-5-live.md' }, // NEW-120 adds the home page box (HOME)
   { agent: 'APPROVAL_BRIEF', purpose: 'BRIEF', promptVersion: 'BRIEF@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: '2026-10-14-approval_brief-config-live.md' },
   // NEW-118: Insight measured again with the 12 questions a document page sends (2026-11-04, same prompt and model)
   { agent: 'INSIGHT', purpose: 'QUESTION', promptVersion: 'QUESTION@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-11-04-insight-config-live.md' },

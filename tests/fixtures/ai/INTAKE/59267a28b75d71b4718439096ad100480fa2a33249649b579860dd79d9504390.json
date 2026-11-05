@@ -6,7 +6,7 @@
     "requestTypeCode": "CONTRACT_WORK",
     "title": "งานติดตั้งระบบประปาและสุขาภิบาล · สะพานข้ามแยกลำลูกกา",
     "siteCode": "SITE-P06",
-    "neededBy": "17 วัน",
+    "neededBy": null,
     "lines": [
       {
         "description": "งานติดตั้งระบบประปาและสุขาภิบาล",
@@ -36,21 +36,21 @@
       },
       {
         "field": "neededBy",
-        "value": 60
+        "value": 40
       },
       {
         "field": "lines",
-        "value": 88
+        "value": 85
       },
       {
         "field": "supplier",
-        "value": 100
+        "value": 0
       }
     ]
   },
   "usage": {
     "input": 5681,
-    "output": 276,
+    "output": 271,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

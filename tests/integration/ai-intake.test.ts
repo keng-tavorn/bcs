@@ -121,12 +121,14 @@ describe('[FR-AI-302/AC1] step 0 fills the request; every value is confirmed bef
     expect(await startIntake(org.ctxOf('req_con', NOW), { requestTypeCode: 'BUY_GOODS', text: '  ' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'EMPTY' } } })
   })
 
-  it('[FR-AI-302/AC4] the supplier of the register by tax id and branch or by its exact name; otherwise its name as text, nothing created', async () => {
+  it('[FR-AI-302/AC4] the supplier of the register by tax id and branch or by its name, legal form aside; otherwise its name as text, nothing created', async () => {
     const taxId = '0999999000012'
     const supplier = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `S-${randomUUID().slice(0, 6)}`, nameTh: 'บริษัท ปูนดีทดสอบ จำกัด', taxId, branchCode: '00000' } })
     for (const [who, expected] of [
       [{ name: null, taxId, branch: '00000' }, supplier.id],
       [{ name: 'บริษัท  ปูนดีทดสอบ จำกัด', taxId: null, branch: null }, supplier.id],
+      // NEW-120: the name without its legal form, as people write it
+      [{ name: 'ปูนดีทดสอบ', taxId: null, branch: null }, supplier.id],
       [{ name: 'ร้านใหม่ไม่อยู่ในทะเบียน', taxId: null, branch: null }, null],
     ] as const) {
       answering(draftOf({ supplier: who }))
@@ -139,6 +141,40 @@ describe('[FR-AI-302/AC1] step 0 fills the request; every value is confirmed bef
       if (!expected) expect(done.output).toMatchObject({ supplierText: 'ร้านใหม่ไม่อยู่ในทะเบียน' })
       expect(await prisma.supplier.count({ where: { organizationId: org.organizationId } })).toBe(before)
     }
+  })
+})
+
+describe('[FR-AI-302/AC2] NEW-120 the home page box: no form yet, so the agent proposes the type and the supplier', () => {
+  // asst_con: another requester, so these calls stay out of req_con's calls per minute (AI_LIMITS)
+  it('[FR-AI-302/AC2] without a type it proposes one of the organization, named, and the supplier of the register by name; nothing is created', async () => {
+    const supplier = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `S-${randomUUID().slice(0, 6)}`, nameTh: 'บริษัท หน้าแรกทดสอบ จำกัด', taxId: '0999999000098', branchCode: '00000' } })
+    const goods = await prisma.requestType.findFirstOrThrow({ where: { organizationId: org.organizationId, code: 'BUY_GOODS' }, select: { nameTh: true } })
+    answering(draftOf({ supplier: { name: 'บริษัท หน้าแรกทดสอบ จำกัด', taxId: null, branch: null } }))
+    const [requests, before] = [await prisma.request.count({ where: { organizationId: org.organizationId } }), await prisma.supplier.count({ where: { organizationId: org.organizationId } })]
+    const started = await startIntake(org.ctxOf('asst_con', NOW), { text: 'อยากได้ปูน 20 ถุงจากบริษัท หน้าแรกทดสอบ จำกัด' }, key())
+    if (!started.ok) throw new Error(JSON.stringify(started.error))
+    expect((await action(started.data.agentActionId)).inputRefs).toEqual({ fileIds: [] })
+    expect(await runIntake(org.organizationId, started.data.agentActionId, NOW)).toBe('DRAFT')
+    const done = await action(started.data.agentActionId)
+    const review = done.review as { proposed: Record<string, string>; requiredPaths: string[] }
+    // The type is proposed as a value that waits (it opens the form of that type), with the supplier of the register
+    expect(review.proposed).toMatchObject({ requestTypeCode: 'BUY_GOODS', suggestedSupplierId: supplier.id })
+    expect(review.requiredPaths).toEqual(expect.arrayContaining(['requestTypeCode', 'suggestedSupplierId']))
+    expect(done.output).toMatchObject({ suggestedType: null, proposedType: 'BUY_GOODS', proposedTypeName: goods.nameTh, supplierName: 'บริษัท หน้าแรกทดสอบ จำกัด', supplierText: null })
+    // [BR-AI-01] Nothing created or sent: no request, no supplier
+    expect(await prisma.request.count({ where: { organizationId: org.organizationId } })).toBe(requests)
+    expect(await prisma.supplier.count({ where: { organizationId: org.organizationId } })).toBe(before)
+  })
+
+  it('[FR-AI-302/AC2] a type that is not the organization’s is never proposed; a draft’s reading names its form’s type', async () => {
+    answering(draftOf({ requestTypeCode: 'NO_SUCH_TYPE' }))
+    const started = await startIntake(org.ctxOf('asst_con', NOW), { text: 'ของบางอย่าง' }, key())
+    if (!started.ok) throw new Error('start')
+    await runIntake(org.organizationId, started.data.agentActionId, NOW)
+    const done = await action(started.data.agentActionId)
+    expect((done.review as { proposed: Record<string, string> }).proposed.requestTypeCode).toBeUndefined()
+    expect(done.output).not.toHaveProperty('proposedType')
+    expect(await startIntake(org.ctxOf('asst_con', NOW), { text: 'ขอปูน', requestId: randomUUID() }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'requestTypeCode' } } })
   })
 })
 

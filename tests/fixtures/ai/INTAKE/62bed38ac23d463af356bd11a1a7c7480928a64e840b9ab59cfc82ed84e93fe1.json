@@ -44,13 +44,17 @@
       },
       {
         "field": "supplier",
-        "value": 0
+        "value": 100
+      },
+      {
+        "field": "confidence",
+        "value": 80
       }
     ]
   },
   "usage": {
     "input": 5695,
-    "output": 272,
+    "output": 285,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

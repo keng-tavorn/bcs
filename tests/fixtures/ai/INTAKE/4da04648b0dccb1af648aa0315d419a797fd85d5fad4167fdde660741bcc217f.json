@@ -4,7 +4,7 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "BUY_GOODS",
-    "title": "สีน้ำอะคริลิกภายนอก 18 ลิตร ตามใบเสนอราคา QT-16003",
+    "title": "ขอซื้อสีน้ำอะคริลิกภายนอก 18 ลิตร ตามใบเสนอราคา QT-16003",
     "siteCode": "SITE-P08",
     "neededBy": null,
     "lines": [
@@ -24,39 +24,39 @@
     "confidence": [
       {
         "field": "requestTypeCode",
-        "value": 85
-      },
-      {
-        "field": "title",
-        "value": 60
-      },
-      {
-        "field": "siteCode",
         "value": 90
       },
       {
-        "field": "neededBy",
-        "value": 100
+        "field": "title",
+        "value": 70
       },
       {
-        "field": "lines[0].description",
-        "value": 88
-      },
-      {
-        "field": "lines[0].itemCode",
-        "value": 92
-      },
-      {
-        "field": "lines[0].qty",
-        "value": 97
-      },
-      {
-        "field": "lines[0].unit",
+        "field": "siteCode",
         "value": 95
       },
       {
-        "field": "lines[0].unitPrice",
-        "value": 96
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines.description",
+        "value": 90
+      },
+      {
+        "field": "lines.itemCode",
+        "value": 85
+      },
+      {
+        "field": "lines.qty",
+        "value": 95
+      },
+      {
+        "field": "lines.unit",
+        "value": 90
+      },
+      {
+        "field": "lines.unitPrice",
+        "value": 90
       },
       {
         "field": "supplier.name",
@@ -64,17 +64,17 @@
       },
       {
         "field": "supplier.taxId",
-        "value": 93
+        "value": 90
       },
       {
         "field": "supplier.branch",
-        "value": 90
+        "value": 85
       }
     ]
   },
   "usage": {
     "input": 7067,
-    "output": 859,
+    "output": 729,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

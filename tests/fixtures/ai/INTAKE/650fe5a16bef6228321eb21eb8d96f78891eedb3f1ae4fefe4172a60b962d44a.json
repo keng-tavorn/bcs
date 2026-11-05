@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "ค่าเช่าเครนหอสูง (Tower crane) 1 เดือน",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าเช่าเครนหอสูง (Tower crane)",
+        "itemCode": "RNT-001",
+        "qty": "1",
+        "unit": "เดือน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท สุวรรณภูมิกิจนั่งร้าน จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5654,
+    "output": 283,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

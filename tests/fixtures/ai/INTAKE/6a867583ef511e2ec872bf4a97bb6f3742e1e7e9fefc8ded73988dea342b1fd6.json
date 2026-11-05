@@ -24,7 +24,7 @@
     "confidence": [
       {
         "field": "requestTypeCode",
-        "value": 80
+        "value": 85
       },
       {
         "field": "title",
@@ -44,7 +44,7 @@
       },
       {
         "field": "supplier",
-        "value": 95
+        "value": 100
       }
     ]
   },

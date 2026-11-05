@@ -2,7 +2,7 @@
 
 import { Sparkles } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import { AI_LIMITS } from '@/lib/ai-config'
@@ -25,7 +25,7 @@ import { UploadButton, type UploadActions } from './upload-button'
 // only when the Intake Agent is available to this member (EG-1): otherwise the form starts at its details as before.
 
 export interface IntakeActions {
-  readonly start: (input: { requestTypeCode: string; text: string; fileIds: string[]; requestId?: string }, idempotencyKey: string) => Promise<AiStartOutcome>
+  readonly start: (input: { requestTypeCode?: string; text: string; fileIds: string[]; requestId?: string }, idempotencyKey: string) => Promise<AiStartOutcome>
   readonly result: (agentActionId: string) => Promise<AiResultOutcome>
   readonly fileUrl: (fileId: string) => Promise<string | null>
 }
@@ -66,11 +66,14 @@ export function IntakeAi({
   actions,
   uploads,
   update,
+  from,
 }: {
   data: RequestFormData
   values: FormValues
   requestId: string | null
   actions: IntakeActions
+  /** The reading of the home page's box (NEW-120): filled in once, when it proposed this form's type */
+  from?: string
   uploads: UploadActions
   update: (action: FormAction) => void
 }) {
@@ -99,13 +102,16 @@ export function IntakeAi({
     if (!text.trim() && files.length === 0) return setEmpty(true)
     setEmpty(false)
     const done = await read({ requestTypeCode: data.type.code, text, fileIds: files.map((f) => f.fileId), ...(requestId ? { requestId } : {}) }, uuidv4())
-    if (!done) return
+    if (done) fill(done)
+  }
+
+  function fill(done: AiResultView) {
     setResult(done)
     const p = done.proposed
     const lines = linesOf(p)
     update({
       type: 'intakeFilled',
-      review: { agentActionId: done.id, proposed: p, requiredPaths: done.requiredPaths, confirmed: [] },
+      review: { agentActionId: done.id, proposed: p, requiredPaths: done.requiredPaths, confirmed: p.requestTypeCode === data.type.code ? ['requestTypeCode'] : [] },
       patch: {
         ...(p.title !== undefined ? { title: p.title } : {}),
         ...(p.deliverySiteId !== undefined ? { deliverySiteId: p.deliverySiteId } : {}),
@@ -114,6 +120,17 @@ export function IntakeAi({
       },
     })
   }
+
+  // The home page's box read it already: its values go into this form as a reading of step 0 would, to be checked. The
+  // type is the one the requester opened from the box's button, so it counts as confirmed; any other form takes nothing
+  const handedOff = useRef(false)
+  useEffect(() => {
+    if (!from || handedOff.current || review) return
+    handedOff.current = true
+    void actions.result(from).then((r) => {
+      if (r.ok && r.result.status === 'DRAFT' && r.result.proposed.requestTypeCode === data.type.code) fill(r.result)
+    })
+  })
 
   const labelOf = (path: string): string => {
     const m = /^lines\.(\d+)\.(\w+)$/.exec(path)
@@ -193,7 +210,8 @@ function IntakeReview({
     const m = /^lines\.(\d+)\.(\w+)$/.exec(path)
     return m ? 10 + Number(m[1]) * 10 + LINE_ORDER.indexOf(m[2] as LineField) : HEAD_ORDER.indexOf(path)
   }
-  const fields: AiFieldView[] = Object.entries(review.proposed).sort(([a], [b]) => rank(a) - rank(b)).map(([path, value]) => ({ path, label: labelOf(path), value: shown(path, value), required: review.requiredPaths.includes(path) }))
+  // The type of a reading from the home page's box is this form's own: not a field to check here
+  const fields: AiFieldView[] = Object.entries(review.proposed).filter(([path]) => path !== 'requestTypeCode').sort(([a], [b]) => rank(a) - rank(b)).map(([path, value]) => ({ path, label: labelOf(path), value: shown(path, value), required: review.requiredPaths.includes(path) }))
   // A value the requester changed counts as confirmed (the server compares what is saved with what was proposed)
   const confirmed = new Set([...review.confirmed, ...Object.entries(review.proposed).filter(([path, value]) => currentValue(values, path) !== value).map(([path]) => path)])
   return (

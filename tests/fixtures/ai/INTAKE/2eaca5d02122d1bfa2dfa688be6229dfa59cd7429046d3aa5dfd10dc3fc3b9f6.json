@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "CONTRACT_WORK",
+    "title": "งานฉาบปูนและทาสี",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "งานฉาบปูนและทาสี",
+        "itemCode": "SUB-005",
+        "qty": "2407",
+        "unit": "ตร.ม.",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "ห้างหุ้นส่วนจำกัด เกียรติไพศาลการโยธา",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5651,
+    "output": 264,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

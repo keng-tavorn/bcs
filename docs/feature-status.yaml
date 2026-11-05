@@ -1,6 +1,6 @@
 # docs/feature-status.yaml — the only place that says what works (spec §0.5, §15.6).
 # Sales material may cite only `verified` and `live`. status: planned | in_progress | done | verified | live
-updatedAt: 2026-11-03
+updatedAt: 2026-11-04
 features:
   FR-PLT-001:
     status: done
@@ -939,8 +939,11 @@ features:
       - tests/unit/assistant-suggestions.test.ts
       - tests/unit/home-assistant-present.test.tsx
       - tests/e2e/home-assistant.spec.ts
+      - tests/integration/ai-intake.test.ts
+      - tests/unit/company-name.test.ts
+      - tests/e2e/ai-document.spec.ts
     verifiedBy: null
-    notes: "NEW-121 (ADR-078): AC7 AC8 the card ผู้ช่วยเจอให้คุณ from six existing rule sources by their own permissions, set aside per member, no AI · S16-09: AC1 to AC6 · every to-do row is its list's own count, links carry the filter (nuqs) · the queue target uses the OQ-38 default (960 business minutes) unless settings.procurement sets it · rows that wait for the requester link with scope=mine so the list holds exactly what they count"
+    notes: "NEW-120: the box บอกสิ่งที่อยากได้ in the greeting in place of the search field when the Intake Agent serves the member — the type and the supplier proposed (FR-AI-302), the form opens with the draft to check, nothing sent by AI (BR-AI-01) · HOME group of pnpm ai:eval passes on claude-haiku-5-5 (2026-11-04) · NEW-121 (ADR-078): AC7 AC8 the card ผู้ช่วยเจอให้คุณ from six existing rule sources by their own permissions, set aside per member, no AI · S16-09: AC1 to AC6 · every to-do row is its list's own count, links carry the filter (nuqs) · the queue target uses the OQ-38 default (960 business minutes) unless settings.procurement sets it · rows that wait for the requester link with scope=mine so the list holds exactly what they count"
   FR-VIS-007:
     status: done
     step: S16

@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ปูนซีเมนต์ปอร์ตแลนด์ประเภท 1 ถุง 50 กก. 1,006 ถุง",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ปูนซีเมนต์ปอร์ตแลนด์ประเภท 1 ถุง 50 กก.",
+        "itemCode": "MAT-001",
+        "qty": "1006",
+        "unit": "ถุง",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท ชัยมงคลกิจวัสดุภัณฑ์ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5677,
+    "output": 323,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

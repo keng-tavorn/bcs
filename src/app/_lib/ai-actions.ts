@@ -31,7 +31,7 @@ export async function aiResultAction(agentActionId: string): Promise<AiResultOut
   return r.ok ? { ok: true, result: presentAiResult(r.data) } : { ok: false, code: r.error.code }
 }
 
-export async function startIntakeAction(input: { requestTypeCode: string; text: string; fileIds: string[]; requestId?: string }, idempotencyKey: string): Promise<AiStartOutcome> {
+export async function startIntakeAction(input: { requestTypeCode?: string; text: string; fileIds: string[]; requestId?: string }, idempotencyKey: string): Promise<AiStartOutcome> {
   const ctx = await currentCtx()
   if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
   const r = await startIntake(ctx, input, { idempotencyKey })

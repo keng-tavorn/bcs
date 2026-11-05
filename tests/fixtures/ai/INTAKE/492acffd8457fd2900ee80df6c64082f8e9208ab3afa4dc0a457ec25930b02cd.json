@@ -4,7 +4,7 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "BUY_GOODS",
-    "title": "กระจกเทมเปอร์ 10 มม. 8 ตร.ม. · สะพานข้ามแยกลำลูกกา",
+    "title": "กระจกเทมเปอร์ 10 มม. 8 ตร.ม.",
     "siteCode": "SITE-P06",
     "neededBy": null,
     "lines": [
@@ -24,7 +24,7 @@
     "confidence": [
       {
         "field": "requestTypeCode",
-        "value": 92
+        "value": 90
       },
       {
         "field": "title",
@@ -36,7 +36,7 @@
       },
       {
         "field": "neededBy",
-        "value": 30
+        "value": 60
       },
       {
         "field": "lines",
@@ -50,7 +50,7 @@
   },
   "usage": {
     "input": 5686,
-    "output": 273,
+    "output": 254,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

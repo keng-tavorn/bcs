@@ -32,15 +32,15 @@
       },
       {
         "field": "siteCode",
-        "value": 85
+        "value": 80
       },
       {
         "field": "neededBy",
-        "value": 60
+        "value": 40
       },
       {
         "field": "lines",
-        "value": 90
+        "value": 92
       },
       {
         "field": "supplier",
@@ -51,7 +51,7 @@
   "usage": {
     "input": 5674,
     "output": 242,
-    "cacheRead": 0,
-    "cacheWrite": 1286
+    "cacheRead": 1286,
+    "cacheWrite": 0
   }
 }

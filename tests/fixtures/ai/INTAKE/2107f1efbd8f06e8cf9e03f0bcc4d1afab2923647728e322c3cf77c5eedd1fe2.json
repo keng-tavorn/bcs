@@ -6,7 +6,7 @@
     "requestTypeCode": "BUY_GOODS",
     "title": "เหล็กแผ่นดำ 6 มม. 3 แผ่น",
     "siteCode": "SITE-P02",
-    "neededBy": null,
+    "neededBy": "14 วัน",
     "lines": [
       {
         "description": "เหล็กแผ่นดำ 6 มม.",
@@ -36,7 +36,7 @@
       },
       {
         "field": "neededBy",
-        "value": 40
+        "value": 60
       },
       {
         "field": "lines",
@@ -44,13 +44,13 @@
       },
       {
         "field": "supplier",
-        "value": 95
+        "value": 100
       }
     ]
   },
   "usage": {
     "input": 5666,
-    "output": 249,
+    "output": 254,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

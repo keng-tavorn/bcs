@@ -4,12 +4,16 @@ import { FilePlus2, ListTodo, Search, Store } from 'lucide-react'
 import Link from 'next/link'
 import { useSyncExternalStore, type MouseEvent } from 'react'
 import { cn } from '../cn'
+import type { IntakeActions } from '../request-form/intake-ai'
+import type { UploadActions } from '../request-form/upload-button'
 import { Button } from '../shadcn/button'
 import { Kbd } from '../shadcn/kbd'
 import { openNewRequest, openPalette } from '../shell/shell-events'
+import { HomeIntake } from './home-intake'
 
 // The top of the home page (spec §9.10 "หน้าแรก", FR-VIS-006 AC1): the greeting in the middle, the search field that
-// opens the shell's ⌘K palette (560 px wide, 48 px high), and three chips — "งานของฉัน" the view shown now (pressed),
+// opens the shell's ⌘K palette (560 px wide, 48 px high) — or, when the Intake Agent serves this member, the box
+// "บอกสิ่งที่อยากได้" in its place (NEW-120, home-intake.tsx) — and three chips — "งานของฉัน" the view shown now (pressed),
 // "เริ่มคำขอใหม่" the shell's dialog of request types (a link to /requests/new before the script runs or for a member the
 // door does not serve), "ผู้ขายและราคา" the searchable supplier register. On the page's white, no picture, no gradient
 // (§9.9: not a hero section).
@@ -29,7 +33,7 @@ export interface HomeHeroTexts {
   readonly chips: { readonly label: string; readonly mine: string; readonly newRequest: string; readonly suppliers: string }
 }
 
-export function HomeHero({ texts, canRequest }: { texts: HomeHeroTexts; canRequest: boolean }) {
+export function HomeHero({ texts, canRequest, intake }: { texts: HomeHeroTexts; canRequest: boolean; intake?: { readonly actions: IntakeActions; readonly uploads: UploadActions } }) {
   const mac = useSyncExternalStore(noSubscription, isMac, notMac)
   function onNewRequest(e: MouseEvent<HTMLAnchorElement>) {
     // A new tab or window is the catalogue page itself; so is a page whose shell has no door to open
@@ -41,6 +45,9 @@ export function HomeHero({ texts, canRequest }: { texts: HomeHeroTexts; canReque
       <h1 id="home-greeting" className="text-2xl font-semibold text-balance lg:text-[1.75rem]">
         {texts.greeting}
       </h1>
+      {intake ? (
+        <HomeIntake actions={intake.actions} uploads={intake.uploads} shortcut={mac ? texts.shortcutMac : texts.shortcutOther} />
+      ) : (
       <button
         type="button"
         onClick={openPalette}
@@ -51,6 +58,7 @@ export function HomeHero({ texts, canRequest }: { texts: HomeHeroTexts; canReque
         <span className="min-w-0 flex-1 truncate">{texts.search}</span>
         <Kbd className="hidden sm:inline-flex">{mac ? texts.shortcutMac : texts.shortcutOther}</Kbd>
       </button>
+      )}
       <ul aria-label={texts.chips.label} className="flex flex-wrap justify-center gap-2">
         <li>
           <Button type="button" variant="outline" aria-pressed="true" className={cn(CHIP, 'border-primary bg-primary-tint')}>

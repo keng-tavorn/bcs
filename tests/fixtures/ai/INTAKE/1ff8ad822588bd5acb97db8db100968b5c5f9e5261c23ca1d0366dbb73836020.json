@@ -4,9 +4,9 @@
   "recorded": "LIVE",
   "output": {
     "requestTypeCode": "HIRE_SERVICE",
-    "title": "ค่าขนส่งวัสดุด้วยรถ 10 ล้อ 9 เที่ยว",
+    "title": "ค่าขนส่งวัสดุด้วยรถ 10 ล้อ 9 เที่ยว ไปคอนโดบางนา",
     "siteCode": "SITE-P02",
-    "neededBy": null,
+    "neededBy": "ภายใน 17 วัน",
     "lines": [
       {
         "description": "ค่าขนส่งวัสดุด้วยรถ 10 ล้อ",
@@ -24,11 +24,11 @@
     "confidence": [
       {
         "field": "requestTypeCode",
-        "value": 85
+        "value": 70
       },
       {
         "field": "title",
-        "value": 80
+        "value": 75
       },
       {
         "field": "siteCode",
@@ -39,18 +39,42 @@
         "value": 60
       },
       {
-        "field": "lines",
+        "field": "lines.description",
+        "value": 85
+      },
+      {
+        "field": "lines.itemCode",
         "value": 90
       },
       {
-        "field": "supplier",
+        "field": "lines.qty",
+        "value": 95
+      },
+      {
+        "field": "lines.unit",
+        "value": 95
+      },
+      {
+        "field": "lines.unitPrice",
+        "value": 100
+      },
+      {
+        "field": "supplier.name",
+        "value": 100
+      },
+      {
+        "field": "supplier.taxId",
+        "value": 100
+      },
+      {
+        "field": "supplier.branch",
         "value": 100
       }
     ]
   },
   "usage": {
     "input": 5677,
-    "output": 274,
+    "output": 836,
     "cacheRead": 1286,
     "cacheWrite": 0
   }

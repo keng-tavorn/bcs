@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "ค่าทดสอบกำลังอัดคอนกรีต",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าทดสอบกำลังอัดคอนกรีต",
+        "itemCode": "LAB-001",
+        "qty": "40",
+        "unit": "ก้อน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท ราชพฤกษ์ทดสอบวัสดุ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 92
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5656,
+    "output": 278,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

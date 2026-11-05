@@ -7,16 +7,24 @@ import { INPUT_WORKBOOKS, loadInputWorkbook } from '../../src/server/seed/workbo
 import { ROOT } from './ai-eval-cases'
 
 // The cases of the agents that do not read a document file on their own (S13-05, docs/sub-specs/S13.md "ชุดประเมิน"):
-// Intake from the requests of Request_History in the requester's words (60) and with a quotation attached (10), the
-// Approval Brief of 30 approval tasks with something to point out, Insight's 30 questions, 12 on access and 12 that a
-// document page sends (NEW-118), and the DOA drafter's two synthetic regulations. Each case holds the exact text the agent sends.
+// Intake from the requests of Request_History in the requester's words (60), with a quotation attached (10) and as
+// written in the home page's box (HOME, NEW-120), the Approval Brief of 30 approval tasks with something to point out,
+// Insight's 30 questions, 12 on access and 12 that a document page sends (NEW-118), and the DOA drafter's two synthetic
+// regulations. Each case holds the exact text the agent sends.
 
 export interface IntakeCase {
   readonly id: string
   readonly text: string
   /** A quotation the requester attached (an evaluation document id), read in the same call */
   readonly fileOf: string | null
-  readonly expect: { readonly requestTypeCode: string; readonly lines: readonly { readonly itemCode: string; readonly qty: string; readonly unit: string }[] }
+  readonly expect: {
+    readonly requestTypeCode: string
+    readonly lines: readonly { readonly itemCode: string; readonly qty: string; readonly unit: string }[]
+    /** The home page's box (NEW-120): the supplier the requester named, as the register writes it */
+    readonly supplierName?: string
+  }
+  /** TEXT and WITH_QUOTATION come from the form's step 0; HOME is what someone writes in the home page's box (NEW-120) */
+  readonly group: 'TEXT' | 'WITH_QUOTATION' | 'HOME'
 }
 
 export interface BriefCase {
@@ -114,6 +122,7 @@ export async function loadAgentCases(): Promise<AgentCases> {
         text: intakeInputText({ ...ctx, message: `${h.title} ส่งที่${where(h.site)} ต้องการภายใน ${7 + (Number(h.daysAgo) % 14)} วัน` }),
         fileOf: null,
         expect: { requestTypeCode: h.requestType!, lines: [{ itemCode: h.itemCode!, qty: h.qty!, unit: h.unit! }] },
+        group: 'TEXT',
       }),
     )
   const byRef = new Map(history.map((h) => [h.ref!, h]))
@@ -127,8 +136,23 @@ export async function loadAgentCases(): Promise<AgentCases> {
         text: intakeInputText({ ...ctx, message: `ขอตามใบเสนอราคาที่แนบ ส่งที่${where(h.site)}` }),
         fileOf: v.sampleId!,
         expect: { requestTypeCode: h.requestType!, lines: [{ itemCode: h.itemCode!, qty: h.qty!, unit: h.unit! }] },
+        group: 'WITH_QUOTATION',
       }
     })
+  // The home page's box (NEW-120): other requests of the history (the second of every four) as someone writes them there
+  // before any form is open — what they want and from whom, no site, no type — so the type is the agent's choice alone
+  const supplierName = new Map(rows('Suppliers').map((v) => [v.code!, v.nameTh!]))
+  const home = history
+    .filter((h, i) => i % 4 === 2 && h.supplier && supplierName.has(h.supplier))
+    .map(
+      (h): IntakeCase => ({
+        id: `INT-H-${h.ref}`,
+        text: intakeInputText({ ...ctx, message: `อยากได้${h.title!.split(' · ')[0]} จาก${supplierName.get(h.supplier!)}` }),
+        fileOf: null,
+        expect: { requestTypeCode: h.requestType!, lines: [{ itemCode: h.itemCode!, qty: h.qty!, unit: h.unit! }], supplierName: supplierName.get(h.supplier!)! },
+        group: 'HOME',
+      }),
+    )
 
   // Brief: every request of the history with a pattern, then the large ones with a single quotation, to 30
   const flagged = history.filter((h) => h.pattern && h.pattern !== 'NORMAL')
@@ -177,7 +201,7 @@ export async function loadAgentCases(): Promise<AgentCases> {
     { id: 'REG-A', text, rules: doaRows.map((r, i) => ruleOf(r, i, false)), lint: [] },
     { id: 'REG-B', text, rules: doaRows.map((r, i) => ruleOf(r, i, true)), lint: ['DOA_LINT_GAP'] },
   ]
-  return { intake: [...typed, ...quoted], brief, questions, doa }
+  return { intake: [...typed, ...quoted, ...home], brief, questions, doa }
 }
 
 /** The DOA rows of the workbook, for drawing the regulations */

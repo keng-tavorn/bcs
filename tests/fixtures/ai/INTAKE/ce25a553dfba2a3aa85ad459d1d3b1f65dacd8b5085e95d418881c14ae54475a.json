@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ลวดผูกเหล็ก 500 กก.",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ลวดผูกเหล็ก",
+        "itemCode": "MAT-014",
+        "qty": "500",
+        "unit": "กก.",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "เอเชียบิลด์วัสดุก่อสร้าง จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 85
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 5657,
+    "output": 256,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

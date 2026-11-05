@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "ค่าเช่ารถแบ็คโฮ PC200 พร้อมผู้ควบคุม",
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าเช่ารถแบ็คโฮ PC200 พร้อมผู้ควบคุม",
+        "itemCode": "RNT-003",
+        "qty": "20",
+        "unit": "วัน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": "ตะวันออกพัฒนาแมชชีนเนอรี่ จำกัด",
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 0
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 88
+      }
+    ]
+  },
+  "usage": {
+    "input": 5672,
+    "output": 303,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

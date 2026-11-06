@@ -6302,7 +6302,7 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-137** `[go-live]` การ์ด "ผู้ช่วยเจอให้คุณ" เรื่องราคาตกลงใกล้หมด (พบใน NEW-123): (1) เขียน "สิ้นสุด {date}" ด้วย validTo ซึ่งเป็นวันแรกที่ไม่มีผล ขณะที่ `/catalog` และหน้าโอกาสประหยัดแสดงวันสุดท้ายที่ใช้ได้ (validTo − 1 วัน · BR-PRC-06) · (2) นับราคาตกลงที่มีฉบับต่อเริ่มวัน validTo พอดีแล้ว ซึ่งหน้าโอกาสประหยัดไม่นับ (BR-SAV-04)
   - เสร็จเมื่อ: การ์ดแสดงวันสุดท้ายแบบเดียวกับ `/catalog` · ราคาตกลงที่ต่ออายุต่อเนื่องแล้วไม่ขึ้นบนการ์ด · เทสต์ของการ์ดครอบทั้งสองกรณี · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **NEW-138** `[go-live]` ประวัติการทำงานบน `/admin/ai` ไม่มีชื่อ purpose `SAVINGS_NOTE` (พบตอนถ่ายวิดีโอ demo 2026-11-06 · NEW-136 กับ NEW-125 มาจากคนละสาย): เพิ่ม `admin.ai.activity.purposes.SAVINGS_NOTE` ทั้งไทยและอังกฤษ และให้ `src/ui/admin/ai-report.tsx` ใช้ชนิด `AiPurposeName` แทน cast เป็น `'QUESTION'` เพื่อให้ TypeScript ฟ้องเมื่อ purpose ใหม่ไม่มีข้อความ
+- [x] **NEW-138** `[go-live]` ประวัติการทำงานบน `/admin/ai` ไม่มีชื่อ purpose `SAVINGS_NOTE` (พบตอนถ่ายวิดีโอ demo 2026-11-06 · NEW-136 กับ NEW-125 มาจากคนละสาย): เพิ่ม `admin.ai.activity.purposes.SAVINGS_NOTE` ทั้งไทยและอังกฤษ และให้ `src/ui/admin/ai-report.tsx` ใช้ชนิด `AiPurposeName` แทน cast เป็น `'QUESTION'` เพื่อให้ TypeScript ฟ้องเมื่อ purpose ใหม่ไม่มีข้อความ — เสร็จ 2026-11-06 · 8c72966b
   - เสร็จเมื่อ: `messages/th.json` และ `en.json` มี `admin.ai.activity.purposes.SAVINGS_NOTE` (ที่ `t(`purposes.${purpose}`)` ของประวัติอ่าน) · ไม่มี key แล้ว `tsc` ล้มที่ `ai-report.tsx` · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
 

@@ -25,10 +25,14 @@ const ELEMENTS = [
   // The parts of src/server that app and channels may reach besides services and queries
   { type: 'auth', pattern: 'src/server/auth/**', partialMatch: false },
   { type: 'authz', pattern: 'src/server/authz/**', partialMatch: false },
+  // S7: the supplier portal's own identity and data scope (BR-PORTAL-01 to 05); never Better Auth (ADR-183)
+  { type: 'portal', pattern: 'src/server/portal/**', partialMatch: false },
   { type: 'server', pattern: 'src/server/**', partialMatch: false },
   { type: 'channels', pattern: 'src/channels/**', partialMatch: false },
   { type: 'ai', pattern: 'src/integrations/ai/**', partialMatch: false },
   { type: 'integrations', pattern: 'src/integrations/**', partialMatch: false },
+  // S7: the portal's pages and route handlers under /portal/[org] (ADR-184)
+  { type: 'portal-app', pattern: 'src/app/portal/**', partialMatch: false },
   { type: 'app', pattern: 'src/app/**', partialMatch: false },
   { type: 'ui', pattern: 'src/ui/**', partialMatch: false },
   { type: 'i18n', pattern: 'src/i18n/**', partialMatch: false },
@@ -62,7 +66,12 @@ const POLICIES = [
   { from: { element: { type: 'services' } }, allow: to('core', 'services', ...SERVER, 'db', 'queries', 'integrations', 'lib', 'context') },
   { from: { element: { type: 'queries' } }, allow: to('core', 'db', 'queries', 'lib', 'context') },
   { from: { element: { type: 'db' } }, allow: to('db', 'core', 'lib') },
-  { from: { element: { type: 'jobs' } }, allow: to('jobs', 'services', 'queries', ...SERVER, 'core', 'integrations', 'channels', 'lib', 'context') },
+  { from: { element: { type: 'jobs' } }, allow: to('jobs', 'services', 'queries', ...SERVER, 'portal', 'core', 'integrations', 'channels', 'lib', 'context') },
+  // S7 (§4.10): the portal layer reaches the database, services and core; the portal's pages reach it, services, the
+  // portal's light components (src/ui/portal) and core/{thai,money}, never the database
+  { from: { element: { type: 'portal' } }, allow: to('portal', 'db', 'services', 'queries', 'core', 'lib', 'context') },
+  { from: { element: { type: 'portal-app' } }, allow: to('portal-app', 'portal', 'services', 'queries', 'ui', 'lib', 'i18n', 'context') },
+  { from: { element: { type: 'portal-app' } }, allow: coreFormatting },
   { from: { element: { types: { anyOf: SERVER } } }, allow: to(...SERVER, 'db', 'core', 'queries', 'integrations', 'channels', 'lib', 'i18n', 'context') },
   // §4.10: channels may import services · queries · core/{thai,money} · lib, and nothing else (no auth, i18n or
   // context: the current channel code needs none of them); app also gets the auth/authz/inngest/jobs glue.
@@ -332,7 +341,8 @@ export default defineConfig([
   // LIFF keeps its light set (§4.10 LIFF row, ADR-052, FR-PLT-013 AC5): none of the workspace's libraries, its shadcn/ui
   // components, or the class merger (tailwind-merge) its components bring
   {
-    files: [`src/app/liff/**/*.${CODE}`, `src/ui/liff/**/*.${CODE}`],
+    // S7: the supplier portal keeps the same light set (docs/sub-specs/S7.md "สถาปัตยกรรม")
+    files: [`src/app/liff/**/*.${CODE}`, `src/ui/liff/**/*.${CODE}`, `src/app/portal/**/*.${CODE}`, `src/ui/portal/**/*.${CODE}`],
     plugins: { bcs },
     rules: {
       'bcs/liff-imports': [

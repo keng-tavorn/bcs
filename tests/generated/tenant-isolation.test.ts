@@ -81,6 +81,13 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   PaymentRunDocument: { status: 'RELEASED' },
   PaymentFile: { sha256: 'a'.repeat(64), status: 'SUPERSEDED' },
   BacktestRun: { subjectType: 'DOA_VERSION' }, // backtest_run_subject: a backtest tries a DOA or a workflow draft
+  // S7: supplier_contact_owner (lower-case email; supplier_contact_active_email is unique per organization, so each row its own)
+  SupplierContact: { email: () => `c-${randomUUID().slice(0, 8)}@example.test` },
+  // portal_*: sha256 in lower-case hex; the token and the session hash are unique per organization, so each row draws its own
+  PortalInviteLink: { tokenHash: () => createHash('sha256').update(randomUUID()).digest('hex'), expiresAt: new Date('2099-01-01T00:00:00Z') },
+  PortalOtpChallenge: { codeHash: 'a'.repeat(64), requestIpHash: 'b'.repeat(64), userAgentHash: 'c'.repeat(64), expiresAt: new Date('2099-01-01T00:00:00Z') },
+  PortalSession: { sessionHash: () => createHash('sha256').update(randomUUID()).digest('hex'), csrfTokenHash: 'a'.repeat(64), ipHash: 'b'.repeat(64), userAgentHash: 'c'.repeat(64), expiresAt: new Date('2099-01-01T00:00:00Z') },
+  SupplierApplication: { branchCode: '00000' }, // supplier_application_shape: a five-digit branch
 }
 // Relations that need their own parent row instead of the shared one: delegation_not_self (delegator <> delegate)
 const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
@@ -91,8 +98,14 @@ const OPTIONAL_PARENTS: Record<string, ReadonlySet<string>> = {
   BudgetGrant: new Set(['granteeDepartment']),
   BudgetTransfer: new Set(['toBudgetLine']), // budget_transfer_lines: an INCREASE names the line that receives
   WithholdingTax: new Set(['invoice']), // withholding_tax_one_document: an invoice or a retention
-  BankAccountChange: new Set(['supplier']), // bank_account_change_shape: the same
   PaymentRunDocument: new Set(['invoice']), // payment_run_document_kind: an INVOICE row names its invoice
+  // bank_account_change_shape (a supplier's change names it) and S7's bank_account_change_submitter (an INTERNAL change has
+  // its member) · S7's supplier_contact_owner,
+  // supplier_document_shape and supplier_notice_recipient (a supplier, an application or a contact)
+  BankAccountChange: new Set(['supplier', 'submittedBy']),
+  SupplierContact: new Set(['supplier']),
+  SupplierDocument: new Set(['supplier']),
+  SupplierNotice: new Set(['supplier']),
 }
 // Columns that must name an existing row without a relation in the schema: ledger_event_exists (INV-BUD-04)
 const EXISTING_ROWS: Record<string, Record<string, string>> = {

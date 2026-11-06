@@ -169,6 +169,15 @@ model Organization {
   assistantLearnings   AssistantLearning[]
 
   // --- S7 ---
+  supplierContacts      SupplierContact[]
+  portalInviteLinks     PortalInviteLink[]
+  portalOtpChallenges   PortalOtpChallenge[]
+  portalSessions        PortalSession[]
+  supplierApplications  SupplierApplication[]
+  supplierDocumentTypes SupplierDocumentType[]
+  supplierDocuments     SupplierDocument[]
+  poAcknowledgements    PoAcknowledgement[]
+  portalRateLimits      PortalRateLimit[]
 
   // --- S10 ---
 
@@ -325,6 +334,14 @@ model Member {
   learningsUpdated    AssistantLearning[]  @relation("AssistantLearningUpdatedBy")
 
   // --- S7 ---
+  supplierContactsCreated     SupplierContact[]     @relation("SupplierContactCreatedBy")
+  portalInviteLinksCreated    PortalInviteLink[]    @relation("PortalInviteLinkCreatedBy")
+  supplierApplicationsInvited SupplierApplication[] @relation("SupplierApplicationInvitedBy")
+  supplierApplicationsFilled  SupplierApplication[] @relation("SupplierApplicationFilledOnBehalfBy")
+  supplierApplicationsRouted  SupplierApplication[] @relation("SupplierApplicationRoutedBy")
+  supplierDocumentsUploaded   SupplierDocument[]    @relation("SupplierDocumentUploadedBy")
+  supplierDocumentsVerified   SupplierDocument[]    @relation("SupplierDocumentVerifiedBy")
+  bankAccountCallsVerified    BankAccountChange[]   @relation("BankAccountChangeCallVerifiedBy")
 
   // --- S10 ---
 
@@ -469,6 +486,8 @@ model Event {
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   // --- S7 ---
+  /// The supplier contact who acted when actorType = SUPPLIER (BR-PORTAL-06 · INV-SUP-05 · ADR-183); no relation, like actorMemberId
+  actorSupplierContactId String? @db.Uuid
 
   // --- S10 ---
 
@@ -578,6 +597,7 @@ model FileObject {
   chatIntakeItems ChatIntakeItem[]
 
   // --- S7 ---
+  supplierDocuments SupplierDocument[]
 
   // --- S10 ---
 
@@ -601,6 +621,8 @@ enum FileLinkKind {
   WHT_CERT
   /// S9: the supplier's letter or passbook page behind a bank account change (BR-SUP-06)
   BANK_PROOF
+  /// S7: a SupplierDocument file and evidence the supplier uploads
+  SUPPLIER_DOC
 }
 
 model FileLink {
@@ -1354,6 +1376,8 @@ enum DoaDocumentType {
   PO_CHANGE
   PAYMENT_RUN
   BANK_ACCOUNT_CHANGE
+  /// S7: approving a new supplier (BR-DOA-26 · ADR-182)
+  SUPPLIER_APPROVAL
 }
 
 /// A published version never changes; the next one is a new row. versionNo is the edition (ฉบับ); `version` is the
@@ -1552,6 +1576,7 @@ enum ApprovalSubjectType {
   PO_CHANGE
   PAYMENT_RUN
   BANK_ACCOUNT_CHANGE
+  SUPPLIER_APPLICATION
 }
 
 enum ApprovalRouteStatus {
@@ -1604,6 +1629,7 @@ model ApprovalRoute {
   // --- S17 ---
 
   // --- S7 ---
+  supplierApplications SupplierApplication[] @relation("SupplierApplicationCurrentRoute")
 
   // --- S10 ---
 
@@ -2247,6 +2273,18 @@ model Supplier {
   // --- S17 ---
 
   // --- S7 ---
+  /// Its contacts may sign in to the supplier portal (BR-PORTAL-01)
+  portalEnabled        Boolean               @default(false)
+  /// The application that created this supplier (BR-SUP-11 · INV-SUP-02)
+  applicationId        String?               @db.Uuid
+  onboardedAt          DateTime?             @db.Timestamptz(6)
+  originApplication    SupplierApplication?  @relation("SupplierOriginApplication", fields: [organizationId, applicationId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  contacts             SupplierContact[]
+  documents            SupplierDocument[]
+  applications         SupplierApplication[] @relation("SupplierApplicationSupplier")
+  approvedApplications SupplierApplication[] @relation("SupplierApplicationApprovedSupplier")
+  poAcknowledgements   PoAcknowledgement[]
+  portalInviteLinks    PortalInviteLink[]
 
   // --- S10 ---
 
@@ -2485,6 +2523,11 @@ model PurchaseOrder {
   // --- S17 ---
 
   // --- S7 ---
+  /// Projection of the latest PoAcknowledgement of this revision (BR-SUP-14 · ADR-188)
+  supplierAckStatus          PoSupplierAckStatus @default(NOT_ACKNOWLEDGED)
+  supplierPromisedDeliveryOn DateTime?           @db.Date
+  supplierAcknowledgedAt     DateTime?           @db.Timestamptz(6)
+  poAcknowledgements         PoAcknowledgement[]
 
   // --- S10 ---
 
@@ -3237,6 +3280,8 @@ enum AiAgent {
   APPROVAL_BRIEF
   INSIGHT
   DOA_DRAFTER
+  /// S7: Supplier Onboarding Agent (FR-AI-304 · ADR-189)
+  SUPPLIER_ONBOARDING
 }
 
 enum AiPurpose {
@@ -3249,6 +3294,8 @@ enum AiPurpose {
   DOA_DRAFT
   /// NEW-136: the assistant's words on a saving the code found (Insight · ADR-084)
   SAVINGS_NOTE
+  /// S7: reading a supplier document (BR-AI-29)
+  SUPPLIER_DOC_READ
 }
 
 /// Phase 1 opens L0 (suggests) and L1 (drafts for a person to confirm) only (§12.3, ADR-004)
@@ -3352,6 +3399,14 @@ model AgentAction {
   invoices     Invoice[]
   /// S17-08: chat drafts whose latest reading this is (ChatIntake.agentActionId)
   chatIntakes  ChatIntake[]
+
+  // --- S7 ---
+  /// The supplier contact whose upload caused the reading (BR-AI-29) and who confirmed its values (BR-AI-30)
+  requestedByContactId String?            @db.Uuid
+  appliedByContactId   String?            @db.Uuid
+  requestedByContact   SupplierContact?   @relation("AgentActionRequestedByContact", fields: [organizationId, requestedByContactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  appliedByContact     SupplierContact?   @relation("AgentActionAppliedByContact", fields: [organizationId, appliedByContactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplierDocuments    SupplierDocument[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, idempotencyKey])
@@ -3647,6 +3702,9 @@ model Invoice {
   agentAction AgentAction? @relation(fields: [organizationId, agentActionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   // --- S7 ---
+  /// The supplier contact who drafted it in the portal (channel PORTAL · BR-SUP-15 · ADR-188); createdById stays empty then
+  createdByContactId String?          @db.Uuid
+  createdByContact   SupplierContact? @relation("InvoiceCreatedByContact", fields: [organizationId, createdByContactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   // --- S10 ---
 
@@ -4019,7 +4077,7 @@ model PoChangeLine {
 model SupplierNotice {
   id             String               @id @default(uuid(7)) @db.Uuid
   organizationId String               @db.Uuid
-  supplierId     String               @db.Uuid
+  supplierId     String?              @db.Uuid
   templateKey    String
   subjectType    String
   subjectId      String               @db.Uuid
@@ -4036,7 +4094,14 @@ model SupplierNotice {
   updatedAt      DateTime             @updatedAt @db.Timestamptz(6)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  supplier     Supplier     @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier     Supplier?    @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  // --- S7 ---
+  /// A notice to the contact of an application that has no supplier yet (BR-NOTI-09); one of supplierId, applicationId, contactId
+  applicationId String?              @db.Uuid
+  contactId     String?              @db.Uuid
+  application   SupplierApplication? @relation(fields: [organizationId, applicationId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  contact       SupplierContact?     @relation(fields: [organizationId, contactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([organizationId, id])
   @@unique([organizationId, dedupeKey])
@@ -4193,7 +4258,7 @@ model BankAccountChange {
   callVerificationNote String?
   source               BankAccountChangeSource @default(INTERNAL)
   status               BankAccountChangeStatus @default(DRAFT)
-  submittedById        String                  @db.Uuid
+  submittedById        String?                 @db.Uuid
   submittedAt          DateTime?               @db.Timestamptz(6)
   decidedAt            DateTime?               @db.Timestamptz(6)
   currentRouteId       String?                 @db.Uuid
@@ -4206,11 +4271,18 @@ model BankAccountChange {
   supplier        Supplier?      @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   target          BankAccount?   @relation("BankAccountChangeTarget", fields: [organizationId, targetBankAccountId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   applied         BankAccount?   @relation("BankAccountChangeApplied", fields: [organizationId, appliedBankAccountId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  submittedBy     Member         @relation("BankAccountChangeSubmittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  submittedBy     Member?        @relation("BankAccountChangeSubmittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   currentRoute    ApprovalRoute? @relation("BankAccountChangeCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   accountsInForce BankAccount[]  @relation("BankAccountSourceChange")
 
   // --- S7 ---
+  /// source PORTAL: the supplier contact who proposed it; FINANCE claims it (submittedById) before anything else (ADR-190)
+  proposedByContactId String?          @db.Uuid
+  claimedAt           DateTime?        @db.Timestamptz(6)
+  /// The member who recorded the call (callVerificationNote) · a conflicted person of BR-SOD-12
+  callVerifiedById    String?          @db.Uuid
+  proposedByContact   SupplierContact? @relation("BankAccountChangeProposedByContact", fields: [organizationId, proposedByContactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  callVerifiedBy      Member?          @relation("BankAccountChangeCallVerifiedBy", fields: [organizationId, callVerifiedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   // --- S10 ---
 
@@ -4470,4 +4542,436 @@ model AssistantLearning {
 
   @@unique([organizationId, id])
   @@unique([organizationId, kind, supplierTaxId, categoryCode])
+}
+
+// =====================================================================================================================
+// S7 · suppliers and the supplier portal (docs/sub-specs/S7.md "Entity และ migration" · ADR-182 to ADR-190)
+// The portal has its own identity (SupplierContact + one-time link + OTP + PortalSession), never Better Auth (ADR-183)
+// =====================================================================================================================
+
+enum SupplierContactStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+/// What a one-time portal link is for; S10 adds RFX_INVITE and S11 RISK_QUESTIONNAIRE with their own migration
+enum PortalInviteLinkPurpose {
+  INVITATION
+  LOGIN
+  DOCUMENT_REQUEST
+}
+
+enum PortalOtpChannel {
+  EMAIL
+  SMS
+}
+
+enum PortalSessionRevokeReason {
+  LOGOUT
+  IDLE
+  ABSOLUTE
+  CONTACT_DEACTIVATED
+  SUPPLIER_INACTIVE
+  APPLICATION_CLOSED
+  ADMIN
+}
+
+enum SupplierApplicationKind {
+  NEW
+  EXISTING
+}
+
+enum SupplierApplicationStatus {
+  INVITED
+  DRAFT
+  SUBMITTED
+  PENDING_APPROVAL
+  RETURNED
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum SupplierDocumentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  EXPIRED
+  SUPERSEDED
+}
+
+enum PoAcknowledgementKind {
+  ACK
+  DELIVERY_UPDATE
+}
+
+enum PoSupplierAckStatus {
+  NOT_ACKNOWLEDGED
+  ACKNOWLEDGED
+  DELIVERY_UPDATED
+}
+
+enum PortalRateLimitScope {
+  CONTACT
+  SUPPLIER
+  APPLICATION
+}
+
+enum PortalRateLimitBucket {
+  LINK
+  OTP
+  UPLOAD
+  INVOICE
+}
+
+/// A person of a supplier (or of an application not yet a supplier) who may use the portal (BR-PORTAL-01)
+model SupplierContact {
+  id                      String                @id @default(uuid(7)) @db.Uuid
+  organizationId          String                @db.Uuid
+  supplierId              String?               @db.Uuid
+  applicationId           String?               @db.Uuid
+  nameTh                  String
+  nameEn                  String?
+  /// Kept in lower case
+  email                   String
+  phone                   String?
+  /// Free text, e.g. บัญชี ขาย
+  roleLabel               String?
+  isPrimary               Boolean               @default(false)
+  locale                  String                @default("th")
+  portalEnabled           Boolean               @default(true)
+  status                  SupplierContactStatus @default(ACTIVE)
+  /// A privacy notice, not consent (BR-PORTAL-08 · OQ-188)
+  privacyNoticeAcceptedAt DateTime?             @db.Timestamptz(6)
+  privacyNoticeVersion    String?
+  /// Holds back a new contact's bank account proposal (BR-SUP-17)
+  firstSignedInAt         DateTime?             @db.Timestamptz(6)
+  /// null when the supplier registered itself
+  createdById             String?               @db.Uuid
+  deactivatedAt           DateTime?             @db.Timestamptz(6)
+  /// BR-PORTAL-09
+  anonymizedAt            DateTime?             @db.Timestamptz(6)
+  version                 Int                   @default(0)
+  createdAt               DateTime              @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime              @updatedAt @db.Timestamptz(6)
+
+  organization          Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier              Supplier?             @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  application           SupplierApplication?  @relation(fields: [organizationId, applicationId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy             Member?               @relation("SupplierContactCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  inviteLinks           PortalInviteLink[]
+  otpChallenges         PortalOtpChallenge[]
+  sessions              PortalSession[]
+  applicationsSubmitted SupplierApplication[] @relation("SupplierApplicationSubmittedByContact")
+  documentsUploaded     SupplierDocument[]
+  poAcknowledgements    PoAcknowledgement[]
+  invoicesCreated       Invoice[]             @relation("InvoiceCreatedByContact")
+  bankAccountChanges    BankAccountChange[]   @relation("BankAccountChangeProposedByContact")
+  agentActionsRequested AgentAction[]         @relation("AgentActionRequestedByContact")
+  agentActionsApplied   AgentAction[]         @relation("AgentActionAppliedByContact")
+  supplierNotices       SupplierNotice[]
+
+  @@unique([organizationId, id])
+  /// One active contact per email in an organization, one active primary contact per supplier
+  @@unique([organizationId, email], map: "supplier_contact_active_email", where: raw("status = 'ACTIVE'::\"SupplierContactStatus\""))
+  @@unique([organizationId, supplierId], map: "supplier_contact_one_primary", where: raw("(\"isPrimary\" AND (status = 'ACTIVE'::\"SupplierContactStatus\"))"))
+  @@index([organizationId, supplierId])
+  @@index([organizationId, applicationId])
+}
+
+/// A one-time link into the portal; only the sha256 of the token is kept (BR-PORTAL-01 · BR-TOK-04)
+model PortalInviteLink {
+  id             String                  @id @default(uuid(7)) @db.Uuid
+  organizationId String                  @db.Uuid
+  contactId      String                  @db.Uuid
+  purpose        PortalInviteLinkPurpose
+  /// sha256 hex of the token
+  tokenHash      String
+  expiresAt      DateTime                @db.Timestamptz(6)
+  usedAt         DateTime?               @db.Timestamptz(6)
+  revokedAt      DateTime?               @db.Timestamptz(6)
+  createdById    String?                 @db.Uuid
+  applicationId  String?                 @db.Uuid
+  supplierId     String?                 @db.Uuid
+  createdAt      DateTime                @default(now()) @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contact      SupplierContact      @relation(fields: [organizationId, contactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy    Member?              @relation("PortalInviteLinkCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  application  SupplierApplication? @relation(fields: [organizationId, applicationId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier     Supplier?            @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  /// The route names the organization (/portal/[org]), so the token is looked up inside it
+  @@unique([organizationId, tokenHash])
+  @@index([organizationId, contactId, purpose])
+}
+
+/// A one-time code sent to a contact (BR-PORTAL-02)
+model PortalOtpChallenge {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @db.Uuid
+  contactId      String           @db.Uuid
+  /// sha256 hex of `<challengeId>:<code>`
+  codeHash       String
+  channel        PortalOtpChannel @default(EMAIL)
+  /// Where the code went; cleared after 24 hours (portal-session-sweep · OQ-188)
+  sentTo         String?
+  expiresAt      DateTime         @db.Timestamptz(6)
+  attempts       Int              @default(0)
+  lockedUntil    DateTime?        @db.Timestamptz(6)
+  usedAt         DateTime?        @db.Timestamptz(6)
+  /// sha256 hex of the IP and of the user agent that asked; the code is verified only from the same (BR-PORTAL-02)
+  requestIpHash  String
+  userAgentHash  String
+  createdAt      DateTime         @default(now()) @db.Timestamptz(6)
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contact      SupplierContact @relation(fields: [organizationId, contactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, contactId, createdAt])
+}
+
+/// A signed-in portal session; no supplierId or applicationId, the actor is rebuilt from the contact per request
+model PortalSession {
+  id             String                     @id @default(uuid(7)) @db.Uuid
+  organizationId String                     @db.Uuid
+  contactId      String                     @db.Uuid
+  /// sha256 hex of the session id in the cookie bcs_portal (BR-PORTAL-03)
+  sessionHash    String
+  csrfTokenHash  String
+  lastSeenAt     DateTime                   @db.Timestamptz(6)
+  /// Absolute end (supplier.sessionMaxHours)
+  expiresAt      DateTime                   @db.Timestamptz(6)
+  revokedAt      DateTime?                  @db.Timestamptz(6)
+  revokedReason  PortalSessionRevokeReason?
+  userAgentHash  String
+  ipHash         String
+  createdAt      DateTime                   @default(now()) @db.Timestamptz(6)
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contact      SupplierContact @relation(fields: [organizationId, contactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, sessionHash])
+  @@index([organizationId, contactId, revokedAt])
+}
+
+/// A supplier's application, invited by procurement or (OQ-185) registered by itself; approved through DOA SUPPLIER_APPROVAL
+model SupplierApplication {
+  id                   String                    @id @default(uuid(7)) @db.Uuid
+  organizationId       String                    @db.Uuid
+  /// SUP-{BE}-{SEQ5}: issued at the first submit (numbering.SUP · BR-NUM-01)
+  number               String?
+  kind                 SupplierApplicationKind
+  /// EXISTING: the supplier it belongs to · NEW: set when approved
+  supplierId           String?                   @db.Uuid
+  status               SupplierApplicationStatus @default(INVITED)
+  invitedById          String?                   @db.Uuid
+  /// The number procurement knows from its own source, to call back about a new supplier's account (BR-SUP-11 · ADR-190)
+  inviterPhone         String?
+  invitedAt            DateTime                  @db.Timestamptz(6)
+  lastActivityAt       DateTime                  @db.Timestamptz(6)
+  remindedAt           DateTime?                 @db.Timestamptz(6)
+  escalatedAt          DateTime?                 @db.Timestamptz(6)
+  expiresAt            DateTime                  @db.Timestamptz(6)
+  filledOnBehalfById   String?                   @db.Uuid
+  submittedAt          DateTime?                 @db.Timestamptz(6)
+  submittedByContactId String?                   @db.Uuid
+  /// Who sent it into the route: a conflicted person of the route (BR-SOD-11)
+  routedById           String?                   @db.Uuid
+  decidedAt            DateTime?                 @db.Timestamptz(6)
+  approvedSupplierId   String?                   @db.Uuid
+  returnReason         String?
+  rejectReason         String?
+  currentRouteId       String?                   @db.Uuid
+  // The application's fields
+  nameTh               String
+  nameEn               String?
+  taxId                String?
+  branchCode           String                    @default("00000")
+  isVatRegistered      Boolean                   @default(true)
+  payeeType            PayeeType                 @default(JURISTIC)
+  address              String?
+  phone                String?
+  email                String?
+  category             String?
+  whtIncomeTypeCode    String?
+  paymentTermDays      Int?
+  bankCode             String?
+  /// AES-256-GCM with ENCRYPTION_KEY; screens show only the last 4 digits (BR-SUP-07)
+  accountNoEnc         String?
+  accountNoLast4       String?
+  accountName          String?
+  bankBranch           String?
+  registryData         Json?
+  registrySource       RegistrySource?
+  registryCheckedAt    DateTime?                 @db.Timestamptz(6)
+  /// The duplicate warnings and the reason given for each (BR-SUP-09)
+  duplicateWarnings    Json                      @default("[]")
+  /// Where each field came from: MANUAL AI REGISTRY ON_BEHALF
+  fieldSources         Json                      @default("{}")
+  version              Int                       @default(0)
+  createdAt            DateTime                  @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime                  @updatedAt @db.Timestamptz(6)
+
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier           Supplier?          @relation("SupplierApplicationSupplier", fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  approvedSupplier   Supplier?          @relation("SupplierApplicationApprovedSupplier", fields: [organizationId, approvedSupplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  invitedBy          Member?            @relation("SupplierApplicationInvitedBy", fields: [organizationId, invitedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  filledOnBehalfBy   Member?            @relation("SupplierApplicationFilledOnBehalfBy", fields: [organizationId, filledOnBehalfById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  routedBy           Member?            @relation("SupplierApplicationRoutedBy", fields: [organizationId, routedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  submittedByContact SupplierContact?   @relation("SupplierApplicationSubmittedByContact", fields: [organizationId, submittedByContactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute       ApprovalRoute?     @relation("SupplierApplicationCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdSuppliers   Supplier[]         @relation("SupplierOriginApplication")
+  contacts           SupplierContact[]
+  inviteLinks        PortalInviteLink[]
+  documents          SupplierDocument[]
+  supplierNotices    SupplierNotice[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  /// One open NEW application per tax id and branch (BR-SUP-09 · INV-SUP-02)
+  @@unique([organizationId, taxId, branchCode], map: "supplier_application_open_tax_id", where: raw("((kind = 'NEW'::\"SupplierApplicationKind\") AND (\"taxId\" IS NOT NULL) AND (status <> ALL (ARRAY['REJECTED'::\"SupplierApplicationStatus\", 'EXPIRED'::\"SupplierApplicationStatus\", 'CANCELLED'::\"SupplierApplicationStatus\"])))"))
+  @@index([organizationId, status, lastActivityAt])
+  @@index([organizationId, invitedById])
+}
+
+/// The kinds of documents an organization asks of its suppliers (BR-SDOC-01)
+model SupplierDocumentType {
+  id                      String      @id @default(uuid(7)) @db.Uuid
+  organizationId          String      @db.Uuid
+  code                    String
+  nameTh                  String
+  nameEn                  String
+  appliesTo               PayeeType[]
+  required                Boolean     @default(false)
+  /// empty = the expiry date written on the document
+  validityDays            Int?
+  reminderDaysBefore      Int         @default(30)
+  requiresVerification    Boolean     @default(true)
+  /// A download is logged in SensitiveAccessLog (ID card)
+  sensitive               Boolean     @default(false)
+  aiReadable              Boolean     @default(false)
+  /// The payee types whose document the AI may read (BR-AI-29)
+  aiReadablePayeeTypes    PayeeType[] @default([])
+  /// false = several at once, one per scope (ISO_CERT · BR-SDOC-03)
+  singleInstance          Boolean     @default(true)
+  /// For S11
+  linkedRiskQuestionCodes String[]    @default([])
+  sortOrder               Int         @default(0)
+  active                  Boolean     @default(true)
+  version                 Int         @default(0)
+  createdAt               DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime    @updatedAt @db.Timestamptz(6)
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  documents    SupplierDocument[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+}
+
+/// A document of a supplier or of an application (BR-SDOC-01 to 07)
+model SupplierDocument {
+  id                  String                 @id @default(uuid(7)) @db.Uuid
+  organizationId      String                 @db.Uuid
+  supplierId          String?                @db.Uuid
+  applicationId       String?                @db.Uuid
+  documentTypeCode    String
+  fileId              String                 @db.Uuid
+  docNumber           String?
+  issuer              String?
+  scope               String?
+  /// normalizeScope(scope) when the type is not single-instance, '' when it is; set by the service (ADR-185)
+  scopeKey            String                 @default("")
+  issuedOn            DateTime               @db.Date
+  expiresOn           DateTime               @db.Date
+  statedExpiresOn     DateTime?              @db.Date
+  status              SupplierDocumentStatus @default(PENDING)
+  uploadedByContactId String?                @db.Uuid
+  uploadedByMemberId  String?                @db.Uuid
+  verifiedById        String?                @db.Uuid
+  verifiedAt          DateTime?              @db.Timestamptz(6)
+  rejectReason        String?
+  /// The newer document that replaced this one
+  supersededById      String?                @db.Uuid
+  reminderSentAt      DateTime?              @db.Timestamptz(6)
+  expiredAt           DateTime?              @db.Timestamptz(6)
+  agentActionId       String?                @db.Uuid
+  version             Int                    @default(0)
+  createdAt           DateTime               @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime               @updatedAt @db.Timestamptz(6)
+
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier          Supplier?            @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  application       SupplierApplication? @relation(fields: [organizationId, applicationId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  documentType      SupplierDocumentType @relation(fields: [organizationId, documentTypeCode], references: [organizationId, code], onDelete: Restrict, onUpdate: Restrict)
+  file              FileObject           @relation(fields: [organizationId, fileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  uploadedByContact SupplierContact?     @relation(fields: [organizationId, uploadedByContactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  uploadedByMember  Member?              @relation("SupplierDocumentUploadedBy", fields: [organizationId, uploadedByMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  verifiedBy        Member?              @relation("SupplierDocumentVerifiedBy", fields: [organizationId, verifiedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supersededBy      SupplierDocument?    @relation("SupplierDocumentSupersededBy", fields: [organizationId, supersededById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supersedes        SupplierDocument[]   @relation("SupplierDocumentSupersededBy")
+  agentAction       AgentAction?         @relation(fields: [organizationId, agentActionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  /// One VERIFIED document per owner, type and scope (BR-SDOC-03 · ADR-185)
+  @@unique([organizationId, supplierId, documentTypeCode, scopeKey], map: "supplier_document_one_verified", where: raw("((status = 'VERIFIED'::\"SupplierDocumentStatus\") AND (\"supplierId\" IS NOT NULL))"))
+  @@unique([organizationId, applicationId, documentTypeCode, scopeKey], map: "supplier_document_one_verified_application", where: raw("((status = 'VERIFIED'::\"SupplierDocumentStatus\") AND (\"supplierId\" IS NULL))"))
+  @@index([organizationId, supplierId, documentTypeCode, status])
+  @@index([organizationId, applicationId])
+  @@index([organizationId, status, expiresOn])
+}
+
+/// The supplier's acknowledgement of a PO revision and its delivery date; append-only (BR-SUP-14 · ADR-188)
+model PoAcknowledgement {
+  id                 String                @id @default(uuid(7)) @db.Uuid
+  organizationId     String                @db.Uuid
+  poId               String                @db.Uuid
+  revisionNo         Int
+  supplierId         String                @db.Uuid
+  contactId          String                @db.Uuid
+  kind               PoAcknowledgementKind
+  acknowledgedAt     DateTime              @db.Timestamptz(6)
+  promisedDeliveryOn DateTime?             @db.Date
+  previousPromisedOn DateTime?             @db.Date
+  note               String?
+  createdAt          DateTime              @default(now()) @db.Timestamptz(6)
+
+  organization  Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  purchaseOrder PurchaseOrder   @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier      Supplier        @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  contact       SupplierContact @relation(fields: [organizationId, contactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, poId, createdAt])
+}
+
+/// Portal rate limits per contact, supplier or application, counted in Postgres (BR-PORTAL-04)
+model PortalRateLimit {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  organizationId String                @db.Uuid
+  scopeKind      PortalRateLimitScope
+  scopeKey       String
+  bucket         PortalRateLimitBucket
+  windowStart    DateTime              @db.Timestamptz(6)
+  count          Int                   @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, scopeKind, scopeKey, bucket, windowStart])
+}
+
+/// Portal rate limits per IP (sha256) before anyone is known; global, no organizationId (§4.8 · BR-PORTAL-04)
+model PortalIpRateLimit {
+  id          String                @id @default(uuid(7)) @db.Uuid
+  scopeKey    String
+  bucket      PortalRateLimitBucket
+  windowStart DateTime              @db.Timestamptz(6)
+  count       Int                   @default(0)
+
+  @@unique([scopeKey, bucket, windowStart])
 }

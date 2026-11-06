@@ -12,9 +12,9 @@ export type NumberedDocument = 'PR' | 'PO' | 'GR' | 'RQ'
 /**
  * Documents of phase 1 whose rule is optional in settings (an organization saved before them has none): BT and OB (S6
  * budget transfer and over-budget approval) read their default from s6SettingsOf; AP and WHT_CERT (S8), PAY and BAC
- * (S9) from OQ-12 (OPTIONAL_DEFAULT_RULES)
+ * (S9) and SUP (S7 supplier application) from OQ-12 (OPTIONAL_DEFAULT_RULES)
  */
-export type IssuedDocument = NumberedDocument | 'BT' | 'OB' | 'AP' | 'WHT_CERT' | 'PAY' | 'BAC'
+export type IssuedDocument = NumberedDocument | 'BT' | 'OB' | 'AP' | 'WHT_CERT' | 'PAY' | 'BAC' | 'SUP'
 
 // The rule of an S8 or S9 document an organization has not set: the pattern of OQ-12 ("the same form for every
 // document") with the document's own prefix. TODO(OQ-12)
@@ -23,6 +23,8 @@ const OPTIONAL_DEFAULT_RULES = {
   WHT_CERT: { pattern: '{BE}/{SEQ5}', reset: 'YEARLY' },
   PAY: { pattern: 'PAY-{BE}-{SEQ5}', reset: 'YEARLY' },
   BAC: { pattern: 'BAC-{BE}-{SEQ5}', reset: 'YEARLY' },
+  // S7: the supplier application, numbered at its first submit (BR-NUM-01)
+  SUP: { pattern: 'SUP-{BE}-{SEQ5}', reset: 'YEARLY' },
 } as const
 const isOptional = (d: IssuedDocument): d is keyof typeof OPTIONAL_DEFAULT_RULES => d in OPTIONAL_DEFAULT_RULES
 

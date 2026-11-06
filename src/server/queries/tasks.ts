@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { DOA_DOCUMENT_TYPES, stepApprovers, type DoaRuleSnapshot, type DoaStepSpec } from '@/core/doa'
-import type { ApprovalSubject } from '@/core/sod'
+import { APPROVAL_SUBJECTS, type ApprovalSubject } from '@/core/sod'
 import { stepUpNeeded, type StepKind } from '@/core/pin'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantDb, type TenantTx } from '@/server/db/tenant'
@@ -170,6 +170,16 @@ export interface InboxDto {
 export type InboxDue = 'OVERDUE' | 'INFO' | null
 
 /** The member's open tasks in a filter: assigned to them, or held for them by their delegate (BR-DLG-04) */
+/**
+ * A route's subject as the screens know it. The database knows SUPPLIER_APPLICATION since S7-01 (one migration of the
+ * step) and the screens from S7-05, its adapter (ADR-182); a task of a subject with no screen yet is an error, never
+ * a task hidden from its approver.
+ */
+function screenSubjectOf(type: string): ApprovalSubject {
+  if (!(APPROVAL_SUBJECTS as readonly string[]).includes(type)) throw new Error(`approval subject ${type} has no screen yet`)
+  return type as ApprovalSubject
+}
+
 function inboxWhere(me: string, due: InboxDue | 'DECIDING', now: Date) {
   const mine = [{ assigneeMemberId: me }, { principalMemberId: me }]
   if (due === 'OVERDUE') return { status: 'OPEN' as const, dueAt: { lt: now }, OR: mine }
@@ -387,7 +397,7 @@ export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number; 
       return {
         id: t.id,
         status: t.status as 'OPEN' | 'INFO_REQUESTED',
-        subjectType: t.step.route.subjectType,
+        subjectType: screenSubjectOf(t.step.route.subjectType),
         subjectId: t.step.route.subjectId,
         subject: subject(t.step.route.subjectType, t.step.route.subjectId),
         assignedAt: t.assignedAt,
@@ -430,7 +440,7 @@ export async function getTaskAccess(ctx: Ctx, taskId: string): Promise<TaskAcces
   return {
     taskId: task.id,
     status: task.status,
-    subjectType: task.step.route.subjectType,
+    subjectType: screenSubjectOf(task.step.route.subjectType),
     subjectId: task.step.route.subjectId,
     assigneeMemberId: task.assigneeMemberId,
     principalMemberId: task.principalMemberId,
@@ -910,7 +920,7 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
     },
   })
   if (!task) return null
-  const subjectType = task.step.route.subjectType
+  const subjectType = screenSubjectOf(task.step.route.subjectType)
   const subjectId = task.step.route.subjectId
   const departments = await departmentsOf(db)
   const roleOf = await approverRoles(db, departments.byCode)

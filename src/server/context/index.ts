@@ -11,7 +11,9 @@ export type Actor =
   | { readonly type: 'SYSTEM'; readonly job?: string }
   | { readonly type: 'PLATFORM_ADMIN'; readonly platformAdminId: string }
   | { readonly type: 'AI_AGENT'; readonly agentId: string }
-  | { readonly type: 'SUPPLIER'; readonly supplierContactId: string }
+  // A supplier contact in the portal (BR-PORTAL-01 · ADR-183): the session keeps only the contact, so supplierId and
+  // applicationId are read from SupplierContact at each request (the contact moves to the supplier when approved)
+  | { readonly type: 'SUPPLIER'; readonly supplierContactId: string; readonly supplierId?: string; readonly applicationId?: string }
 
 export interface Ctx {
   readonly organizationId: string

@@ -202,6 +202,8 @@ export const NEW_REQUEST_SEARCH_OVER = 6
 // ---------- S6 settings (src/lib/org-settings.ts) ----------
 /** The longest window or lapse an S6 day setting takes: about ten years */
 export const SETTINGS_MAX_DAYS = 3660
+/** S7: the longest a portal link, code lock or idle session may be set to, in minutes (one day) */
+export const SETTINGS_MAX_MINUTES = 1440
 /** One hundred percent in basis points, and the highest budget alert threshold (ten times the current budget) */
 export const BP_PER_WHOLE = 10_000
 export const BUDGET_ALERT_MAX_BP = 10 * BP_PER_WHOLE

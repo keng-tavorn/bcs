@@ -6932,6 +6932,7 @@
         "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
         "PURCHASE_ORDER": "ใบสั่งซื้อ {label}",
         "REQUEST": "คำขอ {label}",
+        "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
         "VARIANCE": "ผลต่างจากการตรวจรับของ {label}",
         "WORKFLOW_VERSION": "การเปลี่ยน workflow",
         "unknown": "เอกสารที่ไม่พบ"
@@ -6973,6 +6974,7 @@
       "PO_CHANGE": "ใบแก้ไข PO",
       "PURCHASE_ORDER": "ใบสั่งซื้อ",
       "PURCHASE_REQUEST": "คำขอซื้อ",
+      "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
       "VARIANCE": "ผลต่างจากการตรวจรับ",
       "WORKFLOW_VERSION": "ฉบับผู้ตรวจคู่ขนาน"
     },
@@ -9682,6 +9684,7 @@
       "PO_CHANGE": "ใบแก้ไข PO",
       "PURCHASE_ORDER": "ใบสั่งซื้อ",
       "PURCHASE_REQUEST": "คำขอซื้อ",
+      "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
       "VARIANCE": "ผลต่างจากการตรวจรับ",
       "WORKFLOW_VERSION": "ฉบับผู้ตรวจคู่ขนาน"
     },

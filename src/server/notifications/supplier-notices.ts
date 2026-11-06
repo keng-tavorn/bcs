@@ -36,7 +36,8 @@ const templates = new Map<string, SupplierTemplate>()
 /** Who else hears that a notice of this template failed (S9: the preparer of the payment), in the failure's transaction */
 export type SupplierNoticeFailed = (
   tx: TenantTx,
-  notice: { readonly id: string; readonly supplierId: string; readonly subjectType: string; readonly subjectId: string },
+  // supplierId is empty for a notice to the contact of an application that is not a supplier yet (BR-NOTI-09 · S7)
+  notice: { readonly id: string; readonly supplierId: string | null; readonly subjectType: string; readonly subjectId: string },
   reason: 'NO_EMAIL' | 'TEMPLATE_UNKNOWN' | 'PROVIDER_REFUSED' | 'ATTACHMENT_UNAVAILABLE',
 ) => Promise<NotificationDraft[]>
 
@@ -154,7 +155,7 @@ export async function sendSupplierNotice(organizationId: string, noticeId: strin
     return 'FAILED'
   }
   if (!template) return failForGood('TEMPLATE_UNKNOWN')
-  const email = template(notice.data as Record<string, unknown>, { organizationName: org.displayName ?? org.legalNameTh, supplierName: notice.supplier.nameTh })
+  const email = template(notice.data as Record<string, unknown>, { organizationName: org.displayName ?? org.legalNameTh, supplierName: notice.supplier?.nameTh ?? '' })
   // the files the template attaches: one no longer available fails the notice (never an e-mail without it); a read from
   // storage that throws is a retry
   const files = email.attachFileIds?.length ? await db.fileObject.findMany({ where: { id: { in: [...email.attachFileIds] }, status: 'AVAILABLE' }, select: { storageKey: true, fileName: true, mimeType: true } }) : []

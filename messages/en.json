@@ -6932,6 +6932,7 @@
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order {label}",
         "REQUEST": "Request {label}",
+        "SUPPLIER_APPLICATION": "Supplier application",
         "VARIANCE": "Receiving variance of {label}",
         "WORKFLOW_VERSION": "Workflow change",
         "unknown": "Document not found"
@@ -6973,6 +6974,7 @@
       "PO_CHANGE": "PO changes",
       "PURCHASE_ORDER": "purchase orders",
       "PURCHASE_REQUEST": "purchase requests",
+      "SUPPLIER_APPLICATION": "supplier applications",
       "VARIANCE": "receiving variances",
       "WORKFLOW_VERSION": "reviewer workflow versions"
     },
@@ -9682,6 +9684,7 @@
       "PO_CHANGE": "PO changes",
       "PURCHASE_ORDER": "purchase orders",
       "PURCHASE_REQUEST": "purchase requests",
+      "SUPPLIER_APPLICATION": "supplier applications",
       "VARIANCE": "receiving variances",
       "WORKFLOW_VERSION": "reviewer workflow versions"
     },

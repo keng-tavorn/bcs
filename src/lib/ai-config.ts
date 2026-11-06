@@ -8,6 +8,10 @@ export type AiAgentName = (typeof AI_AGENTS)[number]
 export const AI_PURPOSES = ['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT', 'SAVINGS_NOTE'] as const
 export type AiPurposeName = (typeof AI_PURPOSES)[number]
 
+/** A purpose of the database that this configuration serves: SUPPLIER_DOC_READ is in the schema since S7-01 and gets its
+ * prompt, model and evaluation gate in S7-14 (ADR-189), so a row of it is not served before then */
+export const isAiPurposeName = (purpose: string): purpose is AiPurposeName => (AI_PURPOSES as readonly string[]).includes(purpose)
+
 /** The agent that serves each purpose (one agent may serve several, e.g. the Document Agent reads three kinds) */
 export const AGENT_OF_PURPOSE: Readonly<Record<AiPurposeName, AiAgentName>> = {
   QUOTATION_READ: 'DOCUMENT',

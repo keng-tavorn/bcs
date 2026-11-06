@@ -21,7 +21,8 @@ export const bankAccountChangeSubject: SubjectAdapter = {
       changeKind: null,
       poId: null,
       ownerMemberId: change?.submittedById ?? null,
-      conflictMemberIds: change ? [change.submittedById] : [],
+      // a route starts only once a member sent it (ADR-190: a change from the portal is claimed first)
+      conflictMemberIds: change?.submittedById ? [change.submittedById] : [],
       chargedDepartmentId: change ? await rootDepartmentId(tx) : null,
     }
   },

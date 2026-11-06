@@ -96,7 +96,8 @@
     "INVOICE": "invoices",
     "PO_CHANGE": "PO changes",
     "PAYMENT_RUN": "payment runs",
-    "BANK_ACCOUNT_CHANGE": "bank account changes"
+    "BANK_ACCOUNT_CHANGE": "bank account changes",
+    "SUPPLIER_APPLICATION": "supplier applications"
   },
   "values": {
     "noneYet": "No data in this period",
@@ -137,6 +138,7 @@
       "PO_CHANGE": "PO change",
       "PAYMENT_RUN": "Payment run",
       "BANK_ACCOUNT_CHANGE": "Bank account change",
+      "SUPPLIER_APPLICATION": "Supplier application",
       "unknown": "Document not found"
     },
     "decision": {

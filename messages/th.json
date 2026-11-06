@@ -133,7 +133,8 @@
           "INTAKE": "ร่างคำขอ",
           "INVOICE_READ": "อ่านใบแจ้งหนี้",
           "QUESTION": "ตอบคำถาม",
-          "QUOTATION_READ": "อ่านใบเสนอราคา"
+          "QUOTATION_READ": "อ่านใบเสนอราคา",
+          "SAVINGS_NOTE": "อธิบายโอกาสประหยัด"
         },
         "showing": "แสดงเฉพาะ{filter}",
         "statusDone": "ทำเสร็จ",

@@ -133,7 +133,8 @@
           "INTAKE": "Drafted a request",
           "INVOICE_READ": "Read an invoice",
           "QUESTION": "Answered a question",
-          "QUOTATION_READ": "Read a quotation"
+          "QUOTATION_READ": "Read a quotation",
+          "SAVINGS_NOTE": "Explained a saving"
         },
         "showing": "Showing only {filter}",
         "statusDone": "Done",

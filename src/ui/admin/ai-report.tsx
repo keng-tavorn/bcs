@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { useLocale, useTranslations } from 'next-intl'
 import { formatSatang } from '@/core/money/format'
+import type { AiPurposeName } from '@/lib/ai-config'
 import { formatDateTime } from '../format'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../shadcn/table'
 
@@ -279,7 +280,7 @@ function useActivityCells({ row }: { row: ActivityRowView }) {
     ),
     what: (
       <span className="flex flex-col">
-        <span>{t(`purposes.${row.purpose as 'QUESTION'}`)}</span>
+        <span>{t(`purposes.${row.purpose as AiPurposeName}`)}</span>
         <span className="text-base text-ink-muted md:text-sm">{row.subject ? `${t(`subjects.${row.subject.type as 'REQUEST'}`)}${row.subject.number ? ` ${row.subject.number}` : ''} · ${status}` : status}</span>
         {row.errorCode ? <span className="text-base text-ink-muted md:text-sm">{t('error', { code: row.errorCode })}</span> : null}
       </span>

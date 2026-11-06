@@ -352,7 +352,8 @@
         "INTAKE": "Drafted a request",
         "BRIEF": "Summarized a task for the approver",
         "QUESTION": "Answered a question",
-        "DOA_DRAFT": "Drafted a DOA from the rules"
+        "DOA_DRAFT": "Drafted a DOA from the rules",
+        "SAVINGS_NOTE": "Explained a saving"
       },
       "statuses": {
         "PENDING": "Working",

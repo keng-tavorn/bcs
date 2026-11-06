@@ -167,6 +167,12 @@ model Organization {
   assistantDismissals  AssistantDismissal[]
   // --- NEW-125 ---
   assistantLearnings   AssistantLearning[]
+
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
 }
 
 enum ModuleKey {
@@ -309,14 +315,20 @@ model Member {
   aiAgentSettingsSet    AiAgentSetting[] @relation("AiAgentSettingUpdatedBy")
 
   // --- S17 ---
-  chatIntakes       ChatIntake[]       @relation("ChatIntakeMember")
-  pushDevices       PushDevice[]       @relation("PushDeviceMember")
-  passkeys          MemberPasskey[]    @relation("MemberPasskeyMember")
-  passkeyChallenges PasskeyChallenge[] @relation("PasskeyChallengeMember")
+  chatIntakes         ChatIntake[]         @relation("ChatIntakeMember")
+  pushDevices         PushDevice[]         @relation("PushDeviceMember")
+  passkeys            MemberPasskey[]      @relation("MemberPasskeyMember")
+  passkeyChallenges   PasskeyChallenge[]   @relation("PasskeyChallengeMember")
   // --- NEW-121 ---
   assistantDismissals AssistantDismissal[] @relation("AssistantDismissalMember")
   // --- NEW-125 ---
-  learningsUpdated AssistantLearning[] @relation("AssistantLearningUpdatedBy")
+  learningsUpdated    AssistantLearning[]  @relation("AssistantLearningUpdatedBy")
+
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
 
   @@unique([organizationId, id])
   @@unique([organizationId, userId])
@@ -456,6 +468,12 @@ model Event {
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
+
   @@index([organizationId, aggregateType, aggregateId, seq])
   /// The documents a member acted on last (⌘K "ล่าสุด", FR-PLT-014)
   @@index([organizationId, actorMemberId, seq])
@@ -558,6 +576,12 @@ model FileObject {
 
   // --- S17 ---
   chatIntakeItems ChatIntakeItem[]
+
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
 
   @@unique([organizationId, id])
   @@index([organizationId])
@@ -999,6 +1023,12 @@ model RequestType {
   // --- S17 ---
   chatIntakes ChatIntake[]
 
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
+
   @@unique([organizationId, id])
   @@unique([organizationId, code])
 }
@@ -1131,6 +1161,12 @@ model Request {
   // --- S17 ---
   chatIntake ChatIntake?
 
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
+
   @@unique([organizationId, id])
   @@unique([organizationId, number])
   @@index([organizationId, requesterMemberId, submittedAt])
@@ -1176,6 +1212,12 @@ model RequestLine {
   catalogItem      CatalogItem?    @relation(fields: [organizationId, catalogItemId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   priceAgreement   PriceAgreement? @relation(fields: [organizationId, priceAgreementId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   renewals         Request[]       @relation("RequestRenewalOfLine")
+
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
 
   @@unique([organizationId, id])
   @@unique([organizationId, requestId, lineNo])
@@ -1561,6 +1603,12 @@ model ApprovalRoute {
 
   // --- S17 ---
 
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
+
   @@unique([organizationId, id])
   @@unique([organizationId, subjectType, subjectId, routeNo])
 }
@@ -1877,6 +1925,12 @@ model BudgetLine {
 
   // --- S17 ---
 
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
+
   @@unique([organizationId, id])
   @@unique([organizationId, fiscalYearId, code])
   @@index([organizationId, departmentId])
@@ -2192,6 +2246,12 @@ model Supplier {
 
   // --- S17 ---
 
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
+
   @@unique([organizationId, id])
   @@unique([organizationId, code])
   @@unique([organizationId, taxId, branchCode])
@@ -2423,6 +2483,12 @@ model PurchaseOrder {
   // --- S13 ---
 
   // --- S17 ---
+
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
 
   @@unique([organizationId, id])
   @@unique([organizationId, number])
@@ -3580,6 +3646,12 @@ model Invoice {
   /// The reading of the Document Agent this draft came from (S13-12)
   agentAction AgentAction? @relation(fields: [organizationId, agentActionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
+
   @@unique([organizationId, id])
   @@unique([organizationId, number])
   /// INV-AP-06: a draft may repeat a number (it is labelled DUPLICATE_INVOICE and cannot be submitted)
@@ -4137,6 +4209,12 @@ model BankAccountChange {
   submittedBy     Member         @relation("BankAccountChangeSubmittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   currentRoute    ApprovalRoute? @relation("BankAccountChangeCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   accountsInForce BankAccount[]  @relation("BankAccountSourceChange")
+
+  // --- S7 ---
+
+  // --- S10 ---
+
+  // --- S11 ---
 
   @@unique([organizationId, id])
   @@unique([organizationId, number])

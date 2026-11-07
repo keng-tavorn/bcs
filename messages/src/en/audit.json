@@ -630,6 +630,8 @@
       "approved": "Supplier application approved",
       "rejected": "Supplier application not approved",
       "expired": "Supplier application expired",
+      "reminded": "Supplier reminded to finish its application",
+      "escalated": "Supplier application overdue, procurement told",
       "cancelled": "Supplier application cancelled"
     },
     "supplier_document": {

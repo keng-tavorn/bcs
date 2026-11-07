@@ -85,5 +85,10 @@
     "decided": {
       "title": "Payment run decided"
     }
+  },
+  "supplier": {
+    "application_escalated": {
+      "title": "A supplier application is overdue"
+    }
   }
 }

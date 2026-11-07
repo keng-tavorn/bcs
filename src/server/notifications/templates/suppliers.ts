@@ -16,6 +16,14 @@ export const SUPPLIER_TEMPLATES: Readonly<Record<string, Template>> = {
     },
     href: `/suppliers/applications/${str(d.applicationId)}`,
   }),
+  // S7-07 (BR-SUP ข้อ 12): an application still waiting for its supplier at escalateAt, to its inviter and PROCUREMENT
+  'supplier.application_escalated': (d) => ({
+    title: {
+      th: d.nameTh ? `ใบสมัครผู้ขาย ${str(d.nameTh)} ค้างเกินกำหนด ผู้ขายยังไม่ส่ง` : `ใบสมัครผู้ขาย${d.number ? ` ${str(d.number)}` : ''} ค้างเกินกำหนด ผู้ขายยังไม่ส่ง`,
+      en: d.nameTh ? `The supplier application of ${str(d.nameTh)} is overdue: not sent yet` : `A supplier application${d.number ? ` ${str(d.number)}` : ''} is overdue: not sent yet`,
+    },
+    href: `/suppliers/applications/${str(d.applicationId)}`,
+  }),
   // S7-06 (BR-SDOC ข้อ 04): one line of PROCUREMENT's digest per document reminded of
   'supplier.documents_expiring_digest': (d) => ({
     title: { th: `เอกสาร ${str(d.typeName)} ของผู้ขายจะหมดอายุวันที่ ${str(d.expiresOn)}`, en: `A supplier's ${str(d.typeName)} expires on ${str(d.expiresOn)}` },
@@ -26,3 +34,6 @@ export const SUPPLIER_TEMPLATES: Readonly<Record<string, Template>> = {
     href: `/finance/bank-accounts/changes/${str(d.changeId)}`,
   }),
 }
+
+/** §10.1 rows of S7 whose channel is "LINE → อีเมล": deliver.ts sends these by LINE (LINE_TEMPLATES) */
+export const SUPPLIER_LINE_TEMPLATES: readonly string[] = ['supplier.application_escalated']

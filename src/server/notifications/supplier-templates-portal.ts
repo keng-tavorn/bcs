@@ -16,6 +16,9 @@ export const PORTAL_SUPPLIER_TEMPLATES = {
   applicationReturned: 'supplier.application_returned',
   applicationRejected: 'supplier.application_rejected',
   applicationApproved: 'supplier.application_approved',
+  // S7-07 (BR-SUP ข้อ 12)
+  applicationReminder: 'supplier.application_reminder',
+  applicationExpired: 'supplier.application_expired',
   // S7-06 (BR-SDOC ข้อ 03 ข้อ 04)
   documentRejected: 'supplier.document_rejected',
   documentExpiring: 'supplier.document_expiring',
@@ -117,6 +120,39 @@ registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.applicationApproved, (d, c) =
     `${c.organizationName} อนุมัติท่านเป็นผู้ขายแล้ว / You are now a supplier`,
     [`เรียน ${c.supplierName}`, `${c.organizationName} อนุมัติใบสมัครเลขที่ ${str(d.number)} แล้ว รหัสผู้ขายของท่านคือ ${str(d.code)}`, 'ท่านเข้าพอร์ทัลเพื่อดูใบสั่งซื้อและสถานะการจ่ายเงินได้ด้วยอีเมลนี้'],
     [`${c.organizationName} approved application ${str(d.number)}. Your supplier code is ${str(d.code)}.`, 'You may sign in to the portal with this e-mail to see purchase orders and payments.'],
+  ),
+)
+
+// ---------- S7-07: an application waiting for its supplier (BR-SUP ข้อ 12) ----------
+
+const list = (v: unknown) => (Array.isArray(v) ? v.map(str).filter(Boolean) : [])
+
+registerSupplierTemplate(
+  PORTAL_SUPPLIER_TEMPLATES.applicationReminder,
+  (d, c) => {
+    const th = list(d.missingTh)
+    const en = list(d.missingEn)
+    return supplierMail(
+      `ใบสมัครผู้ขายของ ${c.organizationName} ยังไม่เสร็จ / Your application is not finished`,
+      [
+        `เรียน ${c.supplierName}`,
+        `ใบสมัครผู้ขายของท่านที่ ${c.organizationName} ยังไม่ได้ส่ง${th.length ? ' ยังขาด:' : ' โปรดตรวจและส่งใบสมัคร'}`,
+        ...th.map((m) => `- ${m}`),
+        `กดลิงก์นี้เพื่อเข้าพอร์ทัลและกรอกต่อ (ใช้ได้ครั้งเดียว ภายใน ${at(d.expiresAt)}):`,
+        str(d.url),
+        `ใบสมัครจะหมดอายุ ${at(d.applicationExpiresAt)} หากยังไม่ส่ง`,
+      ],
+      [`Your supplier application with ${c.organizationName} is not sent yet.${en.length ? ` Still missing: ${en.join(', ')}.` : ' Please check it and send it.'}`, `Open this link to continue (once, until ${atEn(d.expiresAt)}):`, str(d.url), `The application expires ${atEn(d.applicationExpiresAt)} if it is not sent.`],
+    )
+  },
+  { redactAfterSend: ['url'] },
+)
+
+registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.applicationExpired, (_d, c) =>
+  supplierMail(
+    `ใบสมัครผู้ขายของ ${c.organizationName} หมดอายุแล้ว / Your application expired`,
+    [`เรียน ${c.supplierName}`, `ใบสมัครผู้ขายของท่านที่ ${c.organizationName} หมดอายุแล้วเพราะไม่ได้ส่งภายในกำหนด`, `หากยังต้องการขึ้นทะเบียน โปรดติดต่อฝ่ายจัดซื้อของ ${c.organizationName} เพื่อขอลิงก์ใหม่`],
+    [`Your supplier application with ${c.organizationName} expired: it was not sent in time.`, 'If you still wish to register, please ask its procurement team for a new link.'],
   ),
 )
 

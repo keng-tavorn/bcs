@@ -3488,9 +3488,11 @@
         "approved": "Supplier application approved",
         "cancelled": "Supplier application cancelled",
         "drafted": "Supplier started its application",
+        "escalated": "Supplier application overdue, procurement told",
         "expired": "Supplier application expired",
         "invited": "Supplier invited to apply",
         "rejected": "Supplier application not approved",
+        "reminded": "Supplier reminded to finish its application",
         "returned": "Supplier application returned",
         "routed": "Supplier application sent for approval",
         "submitted": "Supplier application sent",
@@ -9457,6 +9459,11 @@
       },
       "info_requested": {
         "title": "A question for you"
+      }
+    },
+    "supplier": {
+      "application_escalated": {
+        "title": "A supplier application is overdue"
       }
     },
     "task": {

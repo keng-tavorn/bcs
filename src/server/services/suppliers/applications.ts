@@ -129,7 +129,7 @@ function absorb(into: Effects, notice: { events: readonly EventDraft[]; notifica
   into.outbox.push(...notice.outbox)
 }
 
-async function orgCodeOf(tx: TenantTx, organizationId: string): Promise<string> {
+export async function orgCodeOf(tx: TenantTx, organizationId: string): Promise<string> {
   return (await tx.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { code: true } })).code.toLowerCase()
 }
 
@@ -293,7 +293,7 @@ export const reinviteSupplierCommand = defineCommand({
 })
 
 /** Closes what an application gave its contacts: their sessions end, the links unused stop working (BR-PORTAL ข้อ 03) */
-async function closeAccess(tx: TenantTx, ctx: Ctx, applicationId: string): Promise<EventDraft[]> {
+export async function closeAccess(tx: TenantTx, ctx: Ctx, applicationId: string): Promise<EventDraft[]> {
   await tx.portalInviteLink.updateMany({ where: { applicationId, usedAt: null, revokedAt: null }, data: { revokedAt: ctx.now } })
   const contacts = await tx.supplierContact.findMany({ where: { applicationId, supplierId: null }, select: { id: true }, orderBy: { id: 'asc' } })
   const events: EventDraft[] = []
@@ -400,6 +400,16 @@ export const updateApplicationCommand = defineCommand({
   },
 })
 
+/**
+ * What the application still lacks before a submit (BR-SUP ข้อ 11 · BR-SDOC ข้อ 01): the fields by name, then each required
+ * document type with no copy pending or verified as `document:<code>`. The reminder of BR-SUP ข้อ 12 names the same list.
+ */
+export async function missingItems(tx: TenantTx, app: { id: string; nameTh: string; taxId: string | null; branchCode: string; payeeType: string; address: string | null }): Promise<string[]> {
+  const types = await requiredTypes(tx, app.payeeType)
+  const have = new Set((await tx.supplierDocument.findMany({ where: { applicationId: app.id, status: { in: ['PENDING', 'VERIFIED'] } }, select: { documentTypeCode: true } })).map((d) => d.documentTypeCode))
+  return [...missingFields(app), ...types.filter((t) => !have.has(t)).map((t) => `document:${t}`)]
+}
+
 /** The fields BR-SUP ข้อ 11 needs before a submit, by the application's payee type */
 function missingFields(app: { nameTh: string; taxId: string | null; branchCode: string; payeeType: string; address: string | null }): string[] {
   const missing: string[] = []
@@ -411,7 +421,7 @@ function missingFields(app: { nameTh: string; taxId: string | null; branchCode: 
 }
 
 /** The document types the application must have (BR-SDOC ข้อ 01): active, required, for its payee type */
-async function requiredTypes(tx: TenantTx, payeeType: string): Promise<string[]> {
+export async function requiredTypes(tx: TenantTx, payeeType: string): Promise<string[]> {
   const types = await tx.supplierDocumentType.findMany({ where: { active: true, required: true }, select: { code: true, appliesTo: true }, orderBy: { code: 'asc' } })
   return types.filter((t) => (t.appliesTo as string[]).includes(payeeType)).map((t) => t.code)
 }
@@ -434,9 +444,7 @@ export const submitApplicationCommand = defineCommand({
     // BR-AI-17: values an AI put in wait for the person first
     const ai = await assertNoPendingAiReview(tx, ctx, { type: 'SUPPLIER_APPLICATION', id: app.id })
     if (!ai.ok) return { ok: false, error: ai.error }
-    const types = await requiredTypes(tx, app.payeeType)
-    const have = new Set((await tx.supplierDocument.findMany({ where: { applicationId: app.id, status: { in: ['PENDING', 'VERIFIED'] } }, select: { documentTypeCode: true } })).map((d) => d.documentTypeCode))
-    const missing = [...missingFields(app), ...types.filter((t) => !have.has(t)).map((t) => `document:${t}`)]
+    const missing = await missingItems(tx, app)
     if (!(await tx.supplierContact.count({ where: { applicationId: app.id, status: 'ACTIVE' } }))) missing.push('contact')
     if (missing.length) return fail('APPLICATION_INCOMPLETE', 'the application is not complete', { missing })
     const reasons = { ...Object.fromEntries((app.duplicateWarnings as unknown as StoredWarning[]).filter((w) => w.reason).map((w) => [w.code, w.reason!])), ...(input.duplicateReasons ?? {}) }

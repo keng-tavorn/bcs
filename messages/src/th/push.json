@@ -85,5 +85,10 @@
     "decided": {
       "title": "ตัดสินรอบจ่ายเงินแล้ว"
     }
+  },
+  "supplier": {
+    "application_escalated": {
+      "title": "ใบสมัครผู้ขายค้างเกินกำหนด"
+    }
   }
 }

@@ -7,7 +7,8 @@ import { newSecret, sha256Hex } from '@/server/crypto/portal'
 
 // One-time links of the portal (BR-PORTAL ข้อ 01): a random token whose sha256 is kept, never the token; used once by a
 // POST (the GET of the link only shows a page). LOGIN lives supplier.loginLinkMinutes; a link e-mailed for work later
-// (INVITATION, DOCUMENT_REQUEST and what S10 S11 append) lives supplier.inviteLinkDays.
+// (INVITATION, DOCUMENT_REQUEST and what S10 S11 append) lives supplier.inviteLinkDays — as does a LOGIN link sent by
+// the system for the supplier to open later (the reminder of an application waiting: `emailedForLater`).
 
 export type LinkPurpose = 'INVITATION' | 'LOGIN' | 'DOCUMENT_REQUEST'
 
@@ -33,11 +34,13 @@ export async function issuePortalLink(
     readonly applicationId?: string | null
     readonly supplierId?: string | null
     readonly createdById?: string | null
+    /** A LOGIN link the supplier did not ask for, e-mailed to be opened later: it lives as an invitation does */
+    readonly emailedForLater?: boolean
   },
 ): Promise<IssuedLink> {
   const org = await tx.organization.findUniqueOrThrow({ where: { id: input.organizationId }, select: { settings: true } })
   const settings = supplierSettingsOf(org.settings)
-  const lifeMs = input.purpose === 'LOGIN' ? settings.loginLinkMinutes * MS_PER_MINUTE : settings.inviteLinkDays * MS_PER_DAY
+  const lifeMs = input.purpose === 'LOGIN' && !input.emailedForLater ? settings.loginLinkMinutes * MS_PER_MINUTE : settings.inviteLinkDays * MS_PER_DAY
   const token = newSecret()
   const linkId = newId()
   const expiresAt = new Date(input.now.getTime() + lifeMs)

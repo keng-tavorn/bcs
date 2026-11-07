@@ -10,16 +10,20 @@ import { forTenant } from '@/server/db/tenant'
 export type IpBucket = keyof typeof PORTAL_IP_LIMITS
 export type ScopeBucket = 'LINK' | 'OTP' | 'UPLOAD' | 'INVOICE'
 
+/** Within the limit · the first hit over it in the window (recorded once) · a later one (refused, not recorded again) */
+export type LimitVerdict = 'OK' | 'FIRST_OVER' | 'OVER'
+const verdict = (count: number, limit: number): LimitVerdict => (count <= limit ? 'OK' : count === limit + 1 ? 'FIRST_OVER' : 'OVER')
+
 /** The start of the window `now` falls in */
 export const windowStart = (now: Date, windowMs: number = PORTAL_RATE_WINDOW_MS): Date => new Date(Math.floor(now.getTime() / windowMs) * windowMs)
 
-/** Counts one hit of the IP; true while it stays within PORTAL_IP_LIMITS */
-export async function hitIpLimit(ipHashValue: string, bucket: IpBucket, now: Date): Promise<boolean> {
-  return (await countPortalIpHit(ipHashValue, bucket, windowStart(now))) <= PORTAL_IP_LIMITS[bucket]
+/** Counts one hit of the IP against PORTAL_IP_LIMITS */
+export async function hitIpLimit(ipHashValue: string, bucket: IpBucket, now: Date): Promise<LimitVerdict> {
+  return verdict(await countPortalIpHit(ipHashValue, bucket, windowStart(now)), PORTAL_IP_LIMITS[bucket])
 }
 
 /**
- * Counts one hit of a contact, a supplier or an application; true while it stays within `limit` (a contact's links and
+ * Counts one hit of a contact, a supplier or an application against `limit` (a contact's links and
  * codes each have PORTAL_CONTACT_LIMIT a window; links are counted per e-mail, known or not).
  */
 export async function hitScopeLimit(
@@ -29,7 +33,7 @@ export async function hitScopeLimit(
   now: Date,
   limit: number = PORTAL_CONTACT_LIMIT,
   windowMs: number = PORTAL_RATE_WINDOW_MS,
-): Promise<boolean> {
+): Promise<LimitVerdict> {
   const start = windowStart(now, windowMs)
   const row = await forTenant(organizationId).portalRateLimit.upsert({
     where: { organizationId_scopeKind_scopeKey_bucket_windowStart: { organizationId, scopeKind: scope.kind, scopeKey: scope.key, bucket, windowStart: start } },
@@ -37,5 +41,5 @@ export async function hitScopeLimit(
     update: { count: { increment: 1 } },
     select: { count: true },
   })
-  return row.count <= limit
+  return verdict(row.count, limit)
 }

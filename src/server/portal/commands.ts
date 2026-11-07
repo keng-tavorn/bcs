@@ -17,7 +17,7 @@ import { ipHash, newOtpCode, newSecret, otpCodeHash, sha256Hex, userAgentHash } 
 import { issuePortalLink } from './links'
 import type { PortalOrg } from './org'
 import { PORTAL_PRIVACY_NOTICE_VERSION } from './privacy'
-import { hitIpLimit, hitScopeLimit } from './rate-limit'
+import { hitIpLimit, hitScopeLimit, type LimitVerdict } from './rate-limit'
 import { CONTACT_SELECT, contactMayEnter, portalCtx, type PortalSessionState } from './session'
 
 // The portal's sign-in (S7-04 · ADR-183 · BR-PORTAL ข้อ 01 ถึง ข้อ 04 · docs/sub-specs/S7.md "คำสั่งของขั้น"): an e-mail asks
@@ -45,8 +45,12 @@ export function onPortalSignedIn(hook: SignedInHook): void {
 const RATE_LIMITED: AppError = { code: 'RATE_LIMITED', message: 'too many requests; try again later' }
 const HEX64 = z.string().regex(/^[0-9a-f]{64}$/)
 
-/** Over a limit: the answer, and an event security.rate_limited (by the system: the requester may be nobody yet) */
-async function rateLimited(org: PortalOrg, now: Date, scopeKind: 'IP' | 'CONTACT', bucket: 'LINK' | 'OTP', contactId: string | null): Promise<Result<never>> {
+/**
+ * Over a limit: the answer, and — for the first refusal of the window only, so a flood never fills the append-only
+ * Event table — an event security.rate_limited (by the system: the requester may be nobody yet)
+ */
+async function rateLimited(org: PortalOrg, now: Date, verdict: LimitVerdict, scopeKind: 'IP' | 'CONTACT', bucket: 'LINK' | 'OTP', contactId: string | null): Promise<Result<never>> {
+  if (verdict === 'OVER') return { ok: false, error: RATE_LIMITED }
   try {
     await forTenant(org.organizationId).$transaction((tx) =>
       appendEvents(tx, systemCtx(org.organizationId, now, 'portal-rate-limit'), [
@@ -99,8 +103,10 @@ const requestLinkCommand = defineCommand({
 export async function requestLoginLink(org: PortalOrg, input: { readonly email: string }, meta: PortalRequestMeta): Promise<Result<{ sent: true }>> {
   const email = z.email().max(254).safeParse(input.email.trim().toLowerCase())
   if (!email.success) return err('VALIDATION_FAILED', 'invalid e-mail', { field: 'email' })
-  if (!(await hitIpLimit(ipHash(meta.ip), 'LINK', meta.now))) return rateLimited(org, meta.now, 'IP', 'LINK', null)
-  if (!(await hitScopeLimit(org.organizationId, { kind: 'CONTACT', key: sha256Hex(`email:${email.data}`) }, 'LINK', meta.now))) return rateLimited(org, meta.now, 'CONTACT', 'LINK', null)
+  const byIp = await hitIpLimit(ipHash(meta.ip), 'LINK', meta.now)
+  if (byIp !== 'OK') return rateLimited(org, meta.now, byIp, 'IP', 'LINK', null)
+  const byEmail = await hitScopeLimit(org.organizationId, { kind: 'CONTACT', key: sha256Hex(`email:${email.data}`) }, 'LINK', meta.now)
+  if (byEmail !== 'OK') return rateLimited(org, meta.now, byEmail, 'CONTACT', 'LINK', null)
   const contact = await forTenant(org.organizationId).supplierContact.findFirst({ where: { email: email.data, status: 'ACTIVE' }, select: CONTACT_SELECT })
   if (!contact || !contactMayEnter(contact)) return ok({ sent: true })
   const ctx = portalCtx(org.organizationId, contact, meta.now, meta.requestId)
@@ -122,6 +128,9 @@ const startOtpCommand = defineCommand({
     if (!link || link.contactId !== contactId || link.revokedAt) return { ok: false, error: { code: 'TOKEN_INVALID', message: 'unknown link' } }
     if (link.usedAt) return { ok: false, error: { code: 'TOKEN_USED', message: 'the link was used already' } }
     if (link.expiresAt.getTime() <= ctx.now.getTime()) return { ok: false, error: { code: 'TOKEN_EXPIRED', message: 'the link has expired' } }
+    // the contact may still enter, read under the transaction (deactivated meanwhile → no code is sent)
+    const holder = await tx.supplierContact.findUniqueOrThrow({ where: { id: contactId }, select: CONTACT_SELECT })
+    if (!contactMayEnter(holder)) return { ok: false, error: { code: 'TOKEN_INVALID', message: 'the contact may not use the portal' } }
     await tx.portalInviteLink.update({ where: { id: input.linkId }, data: { usedAt: ctx.now } })
 
     const settings = await supplierSettings(tx, ctx.organizationId)
@@ -171,7 +180,8 @@ const startOtpCommand = defineCommand({
  * the browser keeps it with the token (bcs_portal_otp), so the code is tried only where the link was used.
  */
 export async function consumePortalLink(org: PortalOrg, input: { readonly token: string }, meta: PortalRequestMeta): Promise<Result<{ challengeId: string }>> {
-  if (!(await hitIpLimit(ipHash(meta.ip), 'OTP', meta.now))) return rateLimited(org, meta.now, 'IP', 'OTP', null)
+  const byIp = await hitIpLimit(ipHash(meta.ip), 'OTP', meta.now)
+  if (byIp !== 'OK') return rateLimited(org, meta.now, byIp, 'IP', 'OTP', null)
   const link = await forTenant(org.organizationId).portalInviteLink.findUnique({
     where: { organizationId_tokenHash: { organizationId: org.organizationId, tokenHash: sha256Hex(input.token) } },
     select: { id: true, usedAt: true, revokedAt: true, expiresAt: true, contact: { select: CONTACT_SELECT } },
@@ -180,7 +190,8 @@ export async function consumePortalLink(org: PortalOrg, input: { readonly token:
   // a link used before is TOKEN_USED for every browser (the command checks again under its lock)
   if (link.usedAt) return err('TOKEN_USED', 'the link was used already')
   if (link.expiresAt.getTime() <= meta.now.getTime()) return err('TOKEN_EXPIRED', 'the link has expired')
-  if (!(await hitScopeLimit(org.organizationId, { kind: 'CONTACT', key: link.contact.id }, 'OTP', meta.now))) return rateLimited(org, meta.now, 'CONTACT', 'OTP', link.contact.id)
+  const byContact = await hitScopeLimit(org.organizationId, { kind: 'CONTACT', key: link.contact.id }, 'OTP', meta.now)
+  if (byContact !== 'OK') return rateLimited(org, meta.now, byContact, 'CONTACT', 'OTP', link.contact.id)
   const ctx = portalCtx(org.organizationId, link.contact, meta.now, meta.requestId)
   return runCommand(ctx, startOtpCommand, { linkId: link.id, ipHash: ipHash(meta.ip), userAgentHash: userAgentHash(meta.userAgent) }, { idempotencyKey: `portal:${sha256Hex(input.token)}` })
 }
@@ -214,7 +225,8 @@ const verifyOtpCommand = defineCommand({
     if (!challenge || challenge.contactId !== contactId || challenge.usedAt) return invalid
     // the compensating control of a code sent to the same inbox as the link (BR-PORTAL ข้อ 02 · OQ-181): only where the
     // link was used — the same link, IP and user agent; a mismatch is not counted as an attempt
-    const link = await tx.portalInviteLink.findFirst({ where: { tokenHash: input.tokenHash, contactId, usedAt: { not: null } }, select: { id: true } })
+    // the very link that asked for this code: used in the transaction that created the challenge, at the same instant
+    const link = await tx.portalInviteLink.findFirst({ where: { tokenHash: input.tokenHash, contactId, usedAt: challenge.createdAt }, select: { id: true } })
     if (!link || challenge.requestIpHash !== input.ipHash || challenge.userAgentHash !== input.userAgentHash) return invalid
 
     const settings = await supplierSettings(tx, ctx.organizationId)
@@ -253,7 +265,8 @@ const verifyOtpCommand = defineCommand({
       }
     }
     await lockRowsForUpdate(tx, 'SupplierContact', ctx.organizationId, [contactId])
-    const contact = await tx.supplierContact.findUniqueOrThrow({ where: { id: contactId }, select: { nameTh: true, firstSignedInAt: true, supplierId: true, applicationId: true } })
+    const contact = await tx.supplierContact.findUniqueOrThrow({ where: { id: contactId }, select: { ...CONTACT_SELECT, firstSignedInAt: true } })
+    if (!contactMayEnter(contact)) return invalid
     const seenBefore = await tx.portalSession.count({
       where: { contactId, userAgentHash: input.userAgentHash, createdAt: { gte: new Date(ctx.now.getTime() - PORTAL_NEW_DEVICE_DAYS * MS_PER_DAY) } },
     })
@@ -315,7 +328,8 @@ export async function verifyPortalOtp(
 ): Promise<Result<PortalSessionSecrets>> {
   if (!/^\d{6}$/.test(input.code)) return err('VALIDATION_FAILED', 'a code is six digits', { field: 'code' })
   if (!z.uuid().safeParse(input.challengeId).success) return err('OTP_INVALID', 'the code is not right')
-  if (!(await hitIpLimit(ipHash(meta.ip), 'OTP', meta.now))) return rateLimited(org, meta.now, 'IP', 'OTP', null)
+  const byIp = await hitIpLimit(ipHash(meta.ip), 'OTP', meta.now)
+  if (byIp !== 'OK') return rateLimited(org, meta.now, byIp, 'IP', 'OTP', null)
   const challenge = await forTenant(org.organizationId).portalOtpChallenge.findUnique({ where: { id: input.challengeId }, select: { attempts: true, contact: { select: CONTACT_SELECT } } })
   if (!challenge || !contactMayEnter(challenge.contact)) return err('OTP_INVALID', 'the code is not right')
   const secrets = { sessionId: newSecret(), csrfToken: newSecret() }

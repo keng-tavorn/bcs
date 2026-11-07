@@ -14,6 +14,11 @@ export const PORTAL_SUPPLIER_TEMPLATES = {
 
 const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '')
 const at = (v: unknown) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? formatThaiDateTime(v) : '')
+/** The English line's time: Bangkok's, as the Thai line shows it */
+const atEn = (v: unknown) =>
+  typeof v === 'string' && !Number.isNaN(Date.parse(v))
+    ? `${new Date(v).toLocaleString('en-GB', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} (Bangkok)`
+    : ''
 
 registerSupplierTemplate(
   PORTAL_SUPPLIER_TEMPLATES.loginLink,
@@ -21,7 +26,7 @@ registerSupplierTemplate(
     supplierMail(
       `ลิงก์เข้าพอร์ทัลผู้ขายของ ${c.organizationName} / Your sign-in link`,
       [`เรียน ${c.supplierName}`, `กดลิงก์นี้เพื่อเข้าพอร์ทัลผู้ขายของ ${c.organizationName} (ใช้ได้ครั้งเดียว ภายใน ${at(d.expiresAt)}):`, str(d.url), 'หากท่านไม่ได้ขอลิงก์นี้ ไม่ต้องทำอะไร'],
-      [`Open this link to sign in to the supplier portal of ${c.organizationName} (once, until ${str(d.expiresAt)}):`, str(d.url), 'If you did not ask for it, you need not do anything.'],
+      [`Open this link to sign in to the supplier portal of ${c.organizationName} (once, until ${atEn(d.expiresAt)}):`, str(d.url), 'If you did not ask for it, you need not do anything.'],
     ),
   { redactAfterSend: ['url'] },
 )
@@ -32,7 +37,7 @@ registerSupplierTemplate(
     supplierMail(
       `รหัสยืนยัน ${str(d.code)} สำหรับพอร์ทัลผู้ขายของ ${c.organizationName} / Your code`,
       [`รหัสยืนยันของท่านคือ ${str(d.code)}`, `ใช้ได้ถึง ${at(d.expiresAt)} ที่หน้าพอร์ทัลผู้ขายของ ${c.organizationName} บนอุปกรณ์ที่ขอรหัสนี้เท่านั้น`, 'อย่าบอกรหัสนี้กับผู้ใด เจ้าหน้าที่ไม่มีวันขอรหัสนี้จากท่าน'],
-      [`Your code is ${str(d.code)}, valid until ${str(d.expiresAt)} on the device that asked for it.`, 'Never share it: no one from the organization will ever ask you for it.'],
+      [`Your code is ${str(d.code)}, valid until ${atEn(d.expiresAt)} on the device that asked for it.`, 'Never share it: no one from the organization will ever ask you for it.'],
     ),
   { redactAfterSend: ['code'] },
 )
@@ -41,7 +46,7 @@ registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.newDevice, (d, c) =>
   supplierMail(
     `มีการเข้าพอร์ทัลผู้ขายของ ${c.organizationName} จากอุปกรณ์ใหม่ / A new device signed in`,
     [`เรียน ${c.supplierName}`, `มีการเข้าพอร์ทัลผู้ขายของ ${c.organizationName} ด้วยบัญชีของ ${str(d.contactName)} จากอุปกรณ์ที่ไม่เคยใช้ เมื่อ ${at(d.signedInAt)}`, `หากไม่ใช่ท่าน โปรดติดต่อฝ่ายจัดซื้อของ ${c.organizationName} ทันที`],
-    [`${str(d.contactName)} signed in to the supplier portal of ${c.organizationName} from a new device at ${str(d.signedInAt)}.`, 'If this was not you, call its procurement team at once.'],
+    [`${str(d.contactName)} signed in to the supplier portal of ${c.organizationName} from a new device at ${atEn(d.signedInAt)}.`, 'If this was not you, call its procurement team at once.'],
   ),
 )
 

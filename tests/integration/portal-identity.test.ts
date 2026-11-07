@@ -286,6 +286,10 @@ describe('[FR-SUP-101/AC7] the portal session is its own and its organization\'s
     for (let i = 0; i < 11; i++) ip.push(location(await post(postLoginLink, orgA, 'login-link', { email: `ip-${i}-${randomUUID().slice(0, 4)}@supplier.test` }, one)).searchParams.get('error') ?? 'sent')
     expect(ip.at(-1)).toBe('RATE_LIMITED')
     expect(ip.slice(0, 10).every((x) => x === 'sent')).toBe(true)
+    // a flood is recorded once a window, never once a request (the Event table is append-only)
+    const before = await prisma.event.count({ where: { organizationId: orgA.organizationId, type: 'security.rate_limited' } })
+    for (let i = 0; i < 3; i++) await post(postLoginLink, orgA, 'login-link', { email: `ip-more-${i}@supplier.test` }, one)
+    expect(await prisma.event.count({ where: { organizationId: orgA.organizationId, type: 'security.rate_limited' } })).toBe(before)
   })
 })
 

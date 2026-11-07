@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers'
-import { getTranslations } from 'next-intl/server'
+import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { resolvePortalOrg, type PortalOrg } from '@/server/portal/org'
 import { PORTAL_CSRF_COOKIE, PORTAL_SESSION_COOKIE, readPortalSession, type PortalSessionState } from '@/server/portal/session'
@@ -33,13 +33,13 @@ const ERRORS = ['RATE_LIMITED', 'TOKEN_INVALID', 'TOKEN_USED', 'TOKEN_EXPIRED', 
 /** The words of ?error= as the handlers send it back; an unknown code reads as a failure */
 export async function ErrorNotice({ code, remaining, until }: { readonly code?: string; readonly remaining?: string; readonly until?: string }) {
   if (!code) return null
-  const t = await getTranslations('portal')
+  const [t, locale] = await Promise.all([getTranslations('portal'), getLocale()])
   const known = (ERRORS as readonly string[]).includes(code) ? (code as (typeof ERRORS)[number]) : null
   const text =
     known === 'OTP_INVALID'
       ? t('errors.OTP_INVALID', { remaining: Number(remaining ?? 0) })
       : known === 'OTP_LOCKED'
-        ? t('errors.OTP_LOCKED', { time: until ? new Date(until).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' }) : '-' })
+        ? t('errors.OTP_LOCKED', { time: until ? new Date(until).toLocaleTimeString(locale === 'en' ? 'en-GB' : 'th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' }) : '-' })
         : known
           ? t(`errors.${known}`)
           : t('errors.FAILED')

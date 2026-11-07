@@ -12,10 +12,13 @@ export interface OrgOfCode {
 
 /** The organization whose code is `code` (case-insensitive), with whether SUPPLIER is on */
 export async function organizationOfCode(code: string): Promise<OrgOfCode | null> {
-  const org = await systemDb.organization.findFirst({
+  // codes are unique as written; two that differ only by case would make the path ambiguous, so neither answers
+  const found = await systemDb.organization.findMany({
     where: { code: { equals: code, mode: 'insensitive' } },
     select: { id: true, legalNameTh: true, displayName: true, modules: { where: { module: 'SUPPLIER', enabled: true }, select: { id: true } } },
+    take: 2,
   })
+  const org = found.length === 1 ? found[0]! : null
   return org ? { id: org.id, name: org.displayName ?? org.legalNameTh, supplierModule: org.modules.length > 0 } : null
 }
 

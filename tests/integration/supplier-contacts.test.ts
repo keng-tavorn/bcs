@@ -57,7 +57,8 @@ describe('[BR-SUP-17] a contact added or re-addressed is told to the register an
     expect((await prisma.supplierContact.findUniqueOrThrow({ where: { id: first.id } })).isPrimary).toBe(false)
   })
 
-  it('an e-mail an active contact holds is refused; a changed e-mail is told and ends the sessions of the old one', async () => {
+  it('an e-mail an active contact holds is refused; a changed e-mail is told, ends the sessions of the old one and starts the new-contact hold again', async () => {
+    await prisma.supplierContact.updateMany({ where: { email: 'second@supplier.test' }, data: { firstSignedInAt: new Date('2026-01-05T03:00:00Z'), privacyNoticeVersion: '2026-11-01' } })
     expect(await createSupplierContact(proc(), { supplierId, nameTh: 'ซ้ำ', email: 'second@supplier.test' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'EMAIL_TAKEN' } } })
     const second = await prisma.supplierContact.findFirstOrThrow({ where: { email: 'second@supplier.test' } })
     await prisma.portalSession.create({ data: { organizationId: org.organizationId, contactId: second.id, sessionHash: hex(), csrfTokenHash: hex(), lastSeenAt: NOW, expiresAt: new Date('2099-01-01'), userAgentHash: hex(), ipHash: hex() } })
@@ -65,6 +66,8 @@ describe('[BR-SUP-17] a contact added or re-addressed is told to the register an
     expect(r).toMatchObject({ ok: true })
     expect(await prisma.portalSession.count({ where: { contactId: second.id, revokedAt: null } })).toBe(0)
     expect((await notices(second.id)).filter((n) => (n.data as { changed: string }).changed === 'EMAIL').map((n) => n.toEmail)).toEqual(['register@supplier.test'])
+    // BR-SUP-17: a new address is a new person — the bank-account hold counts from their own first sign-in
+    expect(await prisma.supplierContact.findUniqueOrThrow({ where: { id: second.id } })).toMatchObject({ firstSignedInAt: null, privacyNoticeVersion: null })
     expect(await updateSupplierContact(proc(), { contactId: second.id, expectedVersion: second.version, nameTh: 'เก่า' }, key())).toMatchObject({ ok: false, error: { code: 'CONFLICT_VERSION' } })
   })
 })

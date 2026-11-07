@@ -175,7 +175,10 @@ export const updateSupplierContactCommand = defineCommand({
     if (changed.includes('isPrimary') && input.isPrimary && primaryBefore && primaryBefore !== contact.id) {
       await tx.supplierContact.update({ where: { id: primaryBefore }, data: { isPrimary: false, version: { increment: 1 } } })
     }
-    const data = Object.fromEntries(changed.map((f) => [f, input[f] ?? null]))
+    const data: Record<string, unknown> = Object.fromEntries(changed.map((f) => [f, input[f] ?? null]))
+    // a new address is a new person: the hold on a new contact's bank account counts again from their first sign-in, and
+    // they read the privacy notice themselves (BR-SUP ข้อ 17 · BR-PORTAL ข้อ 08)
+    if (changed.includes('email')) Object.assign(data, { firstSignedInAt: null, privacyNoticeVersion: null, privacyNoticeAcceptedAt: null })
     const row = await tx.supplierContact.update({ where: { id: contact.id }, data: { ...data, version: { increment: 1 } }, select: { version: true } })
     const events: EventDraft[] = [{ type: 'supplier_contact.updated', aggregateType: 'SupplierContact', aggregateId: contact.id, data: { supplierId: contact.supplierId, changed } }]
     // an address changed or the portal taken away: the sessions of the old address end with it (BR-PORTAL ข้อ 03)

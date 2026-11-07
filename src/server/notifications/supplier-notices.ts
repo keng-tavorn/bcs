@@ -50,8 +50,14 @@ export type SupplierNoticeFailed = (
 ) => Promise<NotificationDraft[]>
 
 const failureHandlers = new Map<string, SupplierNoticeFailed>()
-/** Keys of data a template's notice drops once sent (S7: the portal's one-time code never stays in the table · BR-PORTAL ข้อ 02) */
+/** Keys of data a template's notice drops once sent or failed (S7: the portal's one-time code never stays in the table · BR-PORTAL ข้อ 02) */
 const redactions = new Map<string, readonly string[]>()
+/** The notice's data without the template's secrets, or undefined when it keeps everything */
+function redacted(templateKey: string, data: unknown): object | undefined {
+  const drop = redactions.get(templateKey) ?? []
+  if (drop.length === 0) return undefined
+  return Object.fromEntries(Object.entries(data as Record<string, unknown>).filter(([k]) => !drop.includes(k)))
+}
 
 /** The template keys of S8 (BR-AP-08) */
 export const SUPPLIER_TEMPLATES = {
@@ -114,13 +120,12 @@ export async function enqueueSupplierNotice(tx: TenantTx, ctx: Ctx, input: Suppl
   const supplierId = input.supplierId ?? null
   const applicationId = input.applicationId ?? null
   const contactId = input.contactId ?? null
-  if (!supplierId && !applicationId && !contactId) throw new Error('a supplier notice names a supplier, an application or a contact')
+  if (!supplierId && !contactId) throw new Error('a supplier notice goes to a contact (contactId) or to a supplier (supplierId)')
   const to = contactId
     ? await tx.supplierContact.findUniqueOrThrow({ where: { id: contactId }, select: { email: true } })
     : supplierId
       ? await tx.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { email: true } })
       : { email: null }
-  const supplier = { email: to.email }
   const id = newId()
   const inserted = await tx.supplierNotice.createManyAndReturn({
     data: [
@@ -133,9 +138,9 @@ export async function enqueueSupplierNotice(tx: TenantTx, ctx: Ctx, input: Suppl
         templateKey: input.templateKey,
         subjectType: input.subjectType,
         subjectId: input.subjectId,
-        toEmail: supplier.email,
+        toEmail: to.email,
         data: input.data as object,
-        status: supplier.email ? 'PENDING' : 'NO_EMAIL',
+        status: to.email ? 'PENDING' : 'NO_EMAIL',
         dedupeKey: input.dedupeKey,
       },
     ],
@@ -143,7 +148,7 @@ export async function enqueueSupplierNotice(tx: TenantTx, ctx: Ctx, input: Suppl
     select: { id: true },
   })
   if (inserted.length === 0) return { outbox: [], events: [], notifications: [], noticeId: null }
-  if (!supplier.email) {
+  if (!to.email) {
     const finance = await tx.roleAssignment.findMany({ where: { role: 'FINANCE', revokedAt: null, member: { status: 'ACTIVE' } }, select: { memberId: true }, distinct: ['memberId'] })
     const own = (await failureHandlers.get(input.templateKey)?.(tx, { id, supplierId, subjectType: input.subjectType, subjectId: input.subjectId }, 'NO_EMAIL')) ?? []
     return {
@@ -183,7 +188,8 @@ export async function sendSupplierNotice(organizationId: string, noticeId: strin
   // a notice that can never be sent fails for good, once: its event, and the template's own word to who should know
   const failForGood = async (reason: 'TEMPLATE_UNKNOWN' | 'ATTACHMENT_UNAVAILABLE'): Promise<'FAILED'> => {
     await db.$transaction(async (tx) => {
-      await tx.supplierNotice.update({ where: { id: noticeId }, data: { status: 'FAILED', error: reason } })
+      const kept = redacted(notice.templateKey, notice.data)
+      await tx.supplierNotice.update({ where: { id: noticeId }, data: { status: 'FAILED', error: reason, ...(kept ? { data: kept } : {}) } })
       await appendEvents(tx, ctx, [{ type: 'supplier_notice.failed', aggregateType: 'SupplierNotice', aggregateId: noticeId, data: { ...eventData, reason } }])
       await failureNotices(tx, organizationId, notice.templateKey, failed, reason)
     })
@@ -207,17 +213,16 @@ export async function sendSupplierNotice(organizationId: string, noticeId: strin
     logger.warn({ noticeId, templateKey: notice.templateKey, permanent }, 'supplier notice not sent')
     if (!permanent) throw error
     await db.$transaction(async (tx) => {
-      await tx.supplierNotice.update({ where: { id: noticeId }, data: { status: 'FAILED', error: 'PROVIDER_REFUSED' } })
+      const kept = redacted(notice.templateKey, notice.data)
+      await tx.supplierNotice.update({ where: { id: noticeId }, data: { status: 'FAILED', error: 'PROVIDER_REFUSED', ...(kept ? { data: kept } : {}) } })
       await appendEvents(tx, ctx, [{ type: 'supplier_notice.failed', aggregateType: 'SupplierNotice', aggregateId: noticeId, data: { ...eventData, reason: 'PROVIDER_REFUSED' } }])
       await failureNotices(tx, organizationId, notice.templateKey, failed, 'PROVIDER_REFUSED')
     })
     return 'FAILED'
   }
   await db.$transaction(async (tx) => {
-    const redact = redactions.get(notice.templateKey) ?? []
-    const data = notice.data as Record<string, unknown>
-    const kept = redact.length ? Object.fromEntries(Object.entries(data).filter(([k]) => !redact.includes(k))) : null
-    await tx.supplierNotice.update({ where: { id: noticeId }, data: { status: 'SENT', sentAt: now, ...(kept ? { data: kept as object } : {}) } })
+    const kept = redacted(notice.templateKey, notice.data)
+    await tx.supplierNotice.update({ where: { id: noticeId }, data: { status: 'SENT', sentAt: now, ...(kept ? { data: kept } : {}) } })
     await appendEvents(tx, ctx, [{ type: 'supplier_notice.sent', aggregateType: 'SupplierNotice', aggregateId: noticeId, data: eventData }])
   })
   return 'SENT'

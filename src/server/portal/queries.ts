@@ -252,6 +252,8 @@ export interface PortalBankView {
   /** The primary contact may propose while no request is open (the service checks it again, and the hold of a new contact) */
   readonly mayPropose: boolean
   readonly isPrimary: boolean
+  /** The supplier's status, for portalAuthorize's facts */
+  readonly supplierStatus: string | null
   readonly banks: readonly { readonly code: string; readonly nameTh: string; readonly shortName: string }[]
 }
 
@@ -267,10 +269,11 @@ export async function getPortalBankAccount(ctx: Ctx): Promise<PortalBankView | n
   if (ctx.actor.type !== 'SUPPLIER') throw new Error('a portal query needs a portal context')
   if (!ctx.actor.supplierId) return null
   const db = forTenant(ctx.organizationId)
-  const [account, change, contact] = await Promise.all([
+  const [account, change, contact, supplier] = await Promise.all([
     db.bankAccount.findFirst({ where: { AND: [portalWhere(ctx, 'bankAccount'), { status: 'ACTIVE' }] }, select: { bankCode: true, accountNo: true, accountName: true } }),
     db.bankAccountChange.findFirst({ where: portalWhere(ctx, 'bankAccountChange'), orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { status: true, submittedById: true, bankCode: true, accountNo: true, createdAt: true } }),
     db.supplierContact.findFirst({ where: { AND: [portalWhere(ctx, 'supplierContact'), { id: ctx.actor.supplierContactId }] }, select: { isPrimary: true } }),
+    db.supplier.findFirst({ where: portalWhere(ctx, 'supplier'), select: { status: true } }),
   ])
   const open = change ? change.status === 'DRAFT' || change.status === 'PENDING_APPROVAL' : false
   return {
@@ -278,6 +281,7 @@ export async function getPortalBankAccount(ctx: Ctx): Promise<PortalBankView | n
     latest: change ? { stage: stageOf(change), bankName: change.bankCode ? (bankOf(change.bankCode)?.nameTh ?? change.bankCode) : null, last4: change.accountNo ? change.accountNo.slice(-4) : null, createdAt: change.createdAt.toISOString() } : null,
     mayPropose: Boolean(contact?.isPrimary) && !open,
     isPrimary: Boolean(contact?.isPrimary),
+    supplierStatus: supplier?.status ?? null,
     banks: BANKS.map((b) => ({ code: b.code, nameTh: b.nameTh, shortName: b.shortName })),
   }
 }

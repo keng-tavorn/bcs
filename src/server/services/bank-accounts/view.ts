@@ -219,11 +219,30 @@ async function portalWarningsOf(tx: TenantTx, supplierId: string, from: Date, un
   return warnings
 }
 
-/** The number FINANCE calls (FR-SUP-103 AC2): the register's; for a supplier from an application, where the register got it */
-function callPhoneOf(supplier: { phone: string | null; registryData: unknown }): { phone: string | null; source: 'REGISTER' | 'DBD' | 'INVITER' | 'APPLICANT' | 'UNKNOWN' } {
-  const source = (supplier.registryData as { phoneSource?: unknown } | null)?.phoneSource
-  const known = source === 'DBD' || source === 'INVITER' || source === 'APPLICANT' ? source : supplier.phone ? 'REGISTER' : 'UNKNOWN'
-  return { phone: supplier.phone, source: known }
+/**
+ * The number FINANCE calls (FR-SUP-103 AC2) and where it came from: a supplier created from an application kept, in its
+ * supplier.created event, whether Supplier.phone was DBD's, the inviter's or the one the supplier typed (ADR-190); a
+ * phone a member changed since is the register's; without a phone, UNKNOWN
+ */
+async function callPhoneOf(tx: TenantTx, supplier: { id: string; phone: string | null }): Promise<{ phone: string | null; source: 'REGISTER' | 'DBD' | 'INVITER' | 'APPLICANT' | 'UNKNOWN' }> {
+  if (!supplier.phone) return { phone: null, source: 'UNKNOWN' }
+  const events = await tx.event.findMany({ where: { aggregateType: 'Supplier', aggregateId: supplier.id, type: { in: ['supplier.created', 'supplier.updated'] } }, orderBy: { seq: 'desc' }, select: { type: true, data: true } })
+  const edited = events.some((e) => e.type === 'supplier.updated' && Array.isArray((e.data as { changed?: unknown }).changed) && ((e.data as { changed: unknown[] }).changed.includes('phone')))
+  if (edited) return { phone: supplier.phone, source: 'REGISTER' }
+  const created = events.find((e) => e.type === 'supplier.created')?.data as { phoneSource?: unknown } | undefined
+  const source = created?.phoneSource === 'REGISTRY' ? 'DBD' : created?.phoneSource === 'INVITER' ? 'INVITER' : created?.phoneSource === 'APPLICANT' ? 'APPLICANT' : 'REGISTER'
+  return { phone: supplier.phone, source }
+}
+
+/**
+ * S7-10 (BR-SUP ข้อ 16): PAY on — every change; PAY off with SUPPLIER on — the changes from the portal only ('PORTAL');
+ * neither — the refusal of PAY
+ */
+async function bankModules(tx: TenantTx, ctx: Ctx): Promise<{ ok: true; only: 'ALL' | 'PORTAL' } | { ok: false; error: { code: 'MODULE_DISABLED'; message: string; details?: Readonly<Record<string, unknown>> } }> {
+  const pay = await requireModule(ctx, 'PAY', tx)
+  if (pay.ok) return { ok: true, only: 'ALL' }
+  if ((await requireModule(ctx, 'SUPPLIER', tx)).ok) return { ok: true, only: 'PORTAL' }
+  return pay as { ok: false; error: { code: 'MODULE_DISABLED'; message: string } }
 }
 
 /** A request, masked: to bankAccount.view and to its approvers */
@@ -231,10 +250,10 @@ export async function getBankAccountChange(ctx: Ctx, input: { readonly changeId:
   if (!isUuid(input.changeId)) return err('NOT_FOUND', 'bank account change not found')
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
     const principal = await loadPrincipal(tx, ctx)
-    const pay = await requireModule(ctx, 'PAY', tx)
     // S7-10 (BR-SUP ข้อ 16): with SUPPLIER on and PAY off, the changes from the portal are read too
-    const supplierOnly = !pay.ok && (await requireModule(ctx, 'SUPPLIER', tx)).ok
-    if (!pay.ok && !supplierOnly) return pay
+    const modules = await bankModules(tx, ctx)
+    if (!modules.ok) return modules
+    const supplierOnly = modules.only === 'PORTAL'
     const change = await tx.bankAccountChange.findFirst({
       where: { id: input.changeId },
       include: { supplier: { select: { id: true, code: true, nameTh: true, taxId: true, phone: true, registryData: true } }, target: { select: ACCOUNT_SELECT }, applied: { select: ACCOUNT_SELECT }, proposedByContact: { select: { nameTh: true } } },
@@ -245,11 +264,12 @@ export async function getBankAccountChange(ctx: Ctx, input: { readonly changeId:
     const proofs = await tx.fileLink.findMany({ where: { subjectType: 'BankAccountChange', subjectId: change.id, kind: 'BANK_PROOF' }, orderBy: { createdAt: 'asc' }, select: { file: { select: { id: true, fileName: true, mimeType: true } } } })
     const shared = change.bankCode && change.accountNo ? await sharedAccount(tx, change.supplier, change.bankCode, change.accountNo) : false
     let contactChangedRecently = false
+    // N days back in Thai time, as BR-PAY-06 and BR-SOD-10 count them: from the start of the day N days before
+    const until = change.submittedAt ?? ctx.now
+    let from = until
     if (change.supplier) {
       const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
-      // N days back in Thai time, as BR-PAY-06 and BR-SOD-10 count them: from the start of the day N days before
-      const until = change.submittedAt ?? ctx.now
-      const from = new Date(`${addDays(thaiDay(until), -paymentSettingsOf(org.settings).recentBankChangeDays)}T00:00:00+07:00`)
+      from = new Date(`${addDays(thaiDay(until), -paymentSettingsOf(org.settings).recentBankChangeDays)}T00:00:00+07:00`)
       const updates = await tx.event.findMany({ where: { aggregateType: 'Supplier', aggregateId: change.supplier.id, type: 'supplier.updated', occurredAt: { gte: from, lte: until } }, select: { data: true } })
       contactChangedRecently = updates.some((e) => {
         const changed = (e.data as { changed?: unknown }).changed
@@ -286,8 +306,8 @@ export async function getBankAccountChange(ctx: Ctx, input: { readonly changeId:
               proposedBy: change.proposedByContact?.nameTh ?? null,
               awaitingClaim: change.status === 'DRAFT' && change.submittedById === null,
               canClaim: change.status === 'DRAFT' && change.submittedById === null && isAllowed(principal, 'bankAccountChange.propose'),
-              warnings: change.supplier ? await portalWarningsOf(tx, change.supplier.id, new Date(`${addDays(thaiDay(change.submittedAt ?? ctx.now), -paymentSettingsOf((await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })).settings).recentBankChangeDays)}T00:00:00+07:00`), change.submittedAt ?? ctx.now) : [],
-              callPhone: change.supplier ? callPhoneOf(change.supplier) : { phone: null, source: 'UNKNOWN' },
+              warnings: change.supplier ? await portalWarningsOf(tx, change.supplier.id, from, until) : [],
+              callPhone: change.supplier ? await callPhoneOf(tx, change.supplier) : { phone: null, source: 'UNKNOWN' as const },
             }
           : null,
     })
@@ -299,10 +319,10 @@ export async function revealBankAccountChange(ctx: Ctx, input: { readonly change
   if (!isUuid(input.changeId)) return err('NOT_FOUND', 'bank account change not found')
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
     const principal = await loadPrincipal(tx, ctx)
-    const pay = await requireModule(ctx, 'PAY', tx)
-    if (!pay.ok) return pay
-    const change = await tx.bankAccountChange.findFirst({ where: { id: input.changeId }, select: { id: true, accountNo: true, target: { select: { id: true, accountNo: true } } } })
-    if (!change) return err('NOT_FOUND', 'bank account change not found')
+    const modules = await bankModules(tx, ctx)
+    if (!modules.ok) return modules
+    const change = await tx.bankAccountChange.findFirst({ where: { id: input.changeId }, select: { id: true, source: true, accountNo: true, target: { select: { id: true, accountNo: true } } } })
+    if (!change || (modules.only === 'PORTAL' && change.source !== 'PORTAL')) return err('NOT_FOUND', 'bank account change not found')
     if (!mayReveal(principal, await approversOf(tx, [change.id]))) return err('FORBIDDEN', 'you may not open an account number', { capability: 'bankAccount.reveal' })
     if (change.accountNo) await recordSensitiveAccess(tx, ctx, { subjectType: 'BankAccountChange', subjectId: change.id, fields: ['accountNo'], purpose: 'bankAccount.reveal' })
     if (change.target) await recordSensitiveAccess(tx, ctx, { subjectType: 'BankAccount', subjectId: change.target.id, fields: ['accountNo'], purpose: 'bankAccount.reveal' })
@@ -312,9 +332,10 @@ export async function revealBankAccountChange(ctx: Ctx, input: { readonly change
 
 /** Who may download a request's proofs, which show the number whole: as bankAccount.reveal of that request (./file-policy.ts) */
 export async function mayReadBankProof(tx: TenantTx, ctx: Ctx, principal: Principal, changeId: string): Promise<boolean> {
-  if (!(await requireModule(ctx, 'PAY', tx)).ok) return false
-  const change = await tx.bankAccountChange.findFirst({ where: { id: changeId }, select: { id: true } })
-  if (!change) return false
+  const modules = await bankModules(tx, ctx)
+  if (!modules.ok) return false
+  const change = await tx.bankAccountChange.findFirst({ where: { id: changeId }, select: { id: true, source: true } })
+  if (!change || (modules.only === 'PORTAL' && change.source !== 'PORTAL')) return false
   return mayReveal(principal, await approversOf(tx, [change.id]))
 }
 
@@ -378,14 +399,16 @@ export async function listBankAccountChanges(ctx: Ctx, input: z.input<typeof Lis
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
     const principal = await loadPrincipal(tx, ctx)
     if (principal.kind !== 'member' || !isAllowed(principal, 'bankAccount.view')) return err('FORBIDDEN', 'you may not see bank accounts', { capability: 'bankAccount.view' })
-    const pay = await requireModule(ctx, 'PAY', tx)
-    if (!pay.ok) return pay
-    const openWhere = { status: { in: [...OPEN_CHANGE] } }
+    const modules = await bankModules(tx, ctx)
+    if (!modules.ok) return modules
+    // PAY off with SUPPLIER on: the changes from the portal only (S7-10 · BR-SUP ข้อ 16)
+    const scope = modules.only === 'PORTAL' ? { source: 'PORTAL' as const } : {}
+    const openWhere = { ...scope, status: { in: [...OPEN_CHANGE] } }
     // One query at a time: a transaction holds one connection
     const open = await tx.bankAccountChange.count({ where: openWhere })
-    const all = await tx.bankAccountChange.count()
+    const all = await tx.bankAccountChange.count({ where: scope })
     const rows = await tx.bankAccountChange.findMany({
-      where: tab === 'open' ? openWhere : {},
+      where: tab === 'open' ? openWhere : scope,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: BANK_CHANGE_LIST_LIMIT + 1,
       select: {
@@ -560,10 +583,10 @@ export async function getBankAccountChangeActivity(ctx: Ctx, input: { readonly c
   if (!isUuid(input.changeId)) return err('NOT_FOUND', 'bank account change not found')
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
     const principal = await loadPrincipal(tx, ctx)
-    const pay = await requireModule(ctx, 'PAY', tx)
-    if (!pay.ok) return pay
-    const change = await tx.bankAccountChange.findFirst({ where: { id: input.changeId }, select: { id: true, submittedById: true, supplier: { select: { phone: true } } } })
-    if (!change) return err('NOT_FOUND', 'bank account change not found')
+    const modules = await bankModules(tx, ctx)
+    if (!modules.ok) return modules
+    const change = await tx.bankAccountChange.findFirst({ where: { id: input.changeId }, select: { id: true, source: true, submittedById: true, supplier: { select: { phone: true } } } })
+    if (!change || (modules.only === 'PORTAL' && change.source !== 'PORTAL')) return err('NOT_FOUND', 'bank account change not found')
     const approvers = await approversOf(tx, [change.id])
     if (!mayViewChange(principal, approvers)) return err('FORBIDDEN', 'you may not see this request', { capability: 'bankAccount.view' })
     const me = principal.kind === 'member' ? principal.memberId : null

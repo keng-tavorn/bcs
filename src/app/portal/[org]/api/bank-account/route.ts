@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { portalAuthorize } from '@/server/portal/authz'
 import { portalRequest, postSession } from '@/server/portal/http'
+import { getPortalBankAccount } from '@/server/portal/queries'
 import { proposeBankAccountChange } from '@/server/services/suppliers/bank-proposal'
 import { field, forbiddenCsrf, formOf, notFound, seeOther } from '../../_lib/respond'
 
@@ -15,7 +16,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
   const state = await postSession(request, req, field(form, 'csrf'), 'bank-account')
   if (state === 'NONE') return notFound()
   if (state === 'CSRF') return forbiddenCsrf()
-  const primary = portalAuthorize(state.ctx, 'portal.bankAccount.propose', { supplierStatus: 'ACTIVE', isPrimary: true })
+  // the portal's rule on the contact as it stands (the service checks it again with the hold of a new contact)
+  const bank = await getPortalBankAccount(state.ctx)
+  const primary = portalAuthorize(state.ctx, 'portal.bankAccount.propose', { supplierStatus: bank?.supplierStatus ?? null, isPrimary: bank?.isPrimary === true })
   if (!primary.ok) return seeOther(req.org, '/bank-account', { error: 'FORBIDDEN' })
   const file = form.get('file')
   if (!(file instanceof File) || file.size === 0) return seeOther(req.org, '/bank-account', { error: 'PROOF_REQUIRED' })

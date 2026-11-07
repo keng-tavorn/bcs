@@ -136,14 +136,20 @@ export const supplierApplicationSubject: SubjectAdapter = {
     const code = (await tx.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { code: true } })).code
     // S7-10 (FR-SUP-103 AC5 · ADR-190): the account the application gave becomes a DRAFT change of source PORTAL for
     // FINANCE to claim, in this transaction — opened from its seal here only, never a BankAccount (INV-SUP ข้อ 04)
+    // The approval of the supplier never fails for its account: an account that cannot be opened or no longer checks
+    // out is left out, and the supplier proposes it again on the portal (event bankAccountChangeId null)
     let bank: { changeId: string; events: EventDraft[]; notifications: NotificationDraft[] } | null = null
-    const accountNo = app.bankCode ? openAccountNo(ctx.organizationId, app) : null
+    let accountNo: string | null = null
+    try {
+      accountNo = app.bankCode ? openAccountNo(ctx.organizationId, app) : null
+    } catch {
+      accountNo = null
+    }
     if (app.bankCode && accountNo) {
       const primary = await tx.supplierContact.findFirst({ where: { applicationId: app.id, isPrimary: true, status: 'ACTIVE' }, select: { id: true } })
       if (primary) {
         const drafted = await draftBankAccountChangeInTx(tx, ctx, { supplierId, contactId: primary.id, bankCode: app.bankCode, accountNo, accountName: app.accountName ?? app.nameTh, branchName: app.bankBranch, reason: `บัญชีจากใบสมัครผู้ขาย ${app.number ?? ''}`.trim() })
-        if (!drafted.ok) return { ok: false, error: drafted.error }
-        bank = drafted
+        if (drafted.ok) bank = drafted
       }
     }
     const told = await toContacts(tx, ctx, app.id, PORTAL_SUPPLIER_TEMPLATES.applicationApproved, `approved:${task.id}`, { number: app.number, code })

@@ -5,6 +5,7 @@ import { BANK_ACCOUNT_CHANGE_MACHINE, transition, type BankAccountChangeCommand,
 import { businessDayMinutes } from '@/core/supplier-onboarding'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import { supplierSettingsOf } from '@/lib/org-settings'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
@@ -79,8 +80,9 @@ async function contactProposer(tx: TenantTx, ctx: Ctx, supplierId: string | unde
   if (!supplierOn.ok && !(await requireModule(ctx, 'PAY', tx)).ok) return { ok: false, error: supplierOn.error }
   const refused = fail('FORBIDDEN', 'the primary contact proposes an account of its own supplier only', { action: 'portal.bankAccount.propose' })
   if (!ctx.actor.supplierId || ctx.actor.supplierId !== supplierId) return refused
-  const contact = await tx.supplierContact.findUnique({ where: { id: ctx.actor.supplierContactId }, select: { status: true, isPrimary: true, portalEnabled: true, supplierId: true, firstSignedInAt: true } })
+  const contact = await tx.supplierContact.findUnique({ where: { id: ctx.actor.supplierContactId }, select: { status: true, isPrimary: true, portalEnabled: true, supplierId: true, firstSignedInAt: true, privacyNoticeVersion: true } })
   if (!contact || contact.status !== 'ACTIVE' || !contact.portalEnabled || contact.supplierId !== supplierId || !contact.isPrimary) return refused
+  if (contact.privacyNoticeVersion !== PORTAL_PRIVACY_NOTICE_VERSION) return fail('PRIVACY_NOTICE_OUTDATED', 'the current privacy notice is not accepted yet', { version: PORTAL_PRIVACY_NOTICE_VERSION })
   const supplier = await tx.supplier.findUnique({ where: { id: supplierId }, select: { status: true } })
   if (supplier?.status !== 'ACTIVE') return refused
   const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
@@ -215,6 +217,7 @@ export const createBankAccountChangeCommand = defineCommand({
     if (contact && (input.ownerKind !== 'SUPPLIER' || input.kind === 'CLOSE')) return fail('VALIDATION_FAILED', 'a supplier proposes an account of its own to add or to replace', { field: 'kind', reason: 'PORTAL_KIND' })
     if (contact && !input.proofFile) return fail('VALIDATION_FAILED', 'attach the paper of the bank or the supplier', { field: 'proof', reason: 'PROOF_REQUIRED' })
     if (!contact && input.proofFile) return fail('VALIDATION_FAILED', 'a member attaches a proof with bankAccountChange.attachProof', { field: 'proofFile', reason: 'PORTAL_ONLY' })
+    if (input.proofFile && !input.proofFile.storageKey.startsWith(`${ctx.organizationId}/bank-proofs/`)) return fail('VALIDATION_FAILED', 'the proof is not one stored for this organization', { field: 'proofFile', reason: 'FILE' })
     if ((input.ownerKind === 'SUPPLIER') !== (input.supplierId !== undefined)) return fail('VALIDATION_FAILED', 'a supplier’s account names its supplier, the organization’s none', { field: 'supplierId', reason: 'OWNER' })
     if ((input.kind === 'ADD') !== (input.targetBankAccountId === undefined)) return fail('VALIDATION_FAILED', 'a replacement or a closure names the account, an addition none', { field: 'targetBankAccountId', reason: 'TARGET' })
     if (input.kind === 'CLOSE' && (input.bankCode ?? input.accountNo ?? input.accountName ?? input.accountType ?? input.branchName) !== undefined) return fail('VALIDATION_FAILED', 'a closure proposes no new account', { field: 'accountNo', reason: 'CLOSE_HAS_ACCOUNT' })
@@ -478,6 +481,10 @@ export const submitBankAccountChangeCommand = defineCommand({
     if (notOwner) return notOwner
     // BR-SUP-06: the paper for a new account, and the call to the supplier's number in the register to replace one
     const proofCount = await tx.fileLink.count({ where: { subjectType: 'BankAccountChange', subjectId: change.id, kind: 'BANK_PROOF' } })
+    // S7-10 (BR-PORTAL ข้อ 07): a paper from the portal goes on only once the central scan called it clean
+    const unscanned = await tx.fileLink.findMany({ where: { subjectType: 'BankAccountChange', subjectId: change.id, kind: 'BANK_PROOF', file: { scanStatus: { in: ['PENDING', 'INFECTED'] } } }, select: { file: { select: { scanStatus: true } } } })
+    if (unscanned.some((u) => u.file.scanStatus === 'INFECTED')) return fail('FILE_INFECTED', 'a proof failed the security check: ask for another', { field: 'proof' })
+    if (unscanned.length) return fail('FILE_NOT_SCANNED', 'a proof is still being checked', { field: 'proof' })
     if (change.kind !== 'CLOSE' && proofCount === 0) return fail('VALIDATION_FAILED', 'attach the bank’s or the supplier’s paper first', { field: 'proof', reason: 'PROOF_REQUIRED' })
     if (change.kind === 'REPLACE' && change.ownerKind === 'SUPPLIER' && !change.callVerifiedAt) return fail('VALIDATION_FAILED', 'record the call to the supplier’s number in the register first', { field: 'callVerificationNote', reason: 'CALL_VERIFICATION_REQUIRED' })
     if (change.targetBankAccountId) {

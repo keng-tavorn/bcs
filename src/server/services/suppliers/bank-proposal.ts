@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
 import type { Result } from '@/core/result'
 import { deleteObject, putObject } from '@/integrations/storage'
-import { SUPPLIER_DOC_MAX_BYTES } from '@/lib/constants'
+import { MS_PER_HOUR, SUPPLIER_DOC_MAX_BYTES } from '@/lib/constants'
+import { PORTAL_UPLOADS_PER_HOUR } from '@/lib/portal-limits'
+import { countPortalScopeHit } from '@/server/db/portal'
 import { newId } from '@/lib/ids'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
@@ -35,8 +37,11 @@ export async function proposeBankAccountChange(ctx: Ctx, input: PortalBankPropos
   const sniffed = sniffSupplierFile(input.bytes)
   const mime = (PROOF_MIMES as readonly string[]).includes(sniffed ?? '') ? (sniffed as ProofMime) : null
   if (!mime) return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'only PDF, JPEG or PNG', details: { field: 'file', reason: 'TYPE_NOT_ALLOWED' } } }
-  // the account in force, if any, is the one replaced
   const supplierId = ctx.actor.supplierId
+  // BR-PORTAL ข้อ 04: the uploads of a supplier in its hour, the same count as its documents'
+  const windowStart = new Date(Math.floor(ctx.now.getTime() / MS_PER_HOUR) * MS_PER_HOUR)
+  if ((await countPortalScopeHit(ctx.organizationId, { kind: 'SUPPLIER', key: supplierId }, 'UPLOAD', windowStart)) > PORTAL_UPLOADS_PER_HOUR) return { ok: false, error: { code: 'RATE_LIMITED', message: 'too many files this hour' } }
+  // the account in force, if any, is the one replaced
   const active = await forTenant(ctx.organizationId).bankAccount.findFirst({ where: { supplierId, status: 'ACTIVE' }, select: { id: true } })
   const storageKey = `${ctx.organizationId}/bank-proofs/${newId()}.${EXTENSION[mime]}`
   await putObject(storageKey, input.bytes, mime)

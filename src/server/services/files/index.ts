@@ -194,6 +194,9 @@ export async function getDownloadUrl(ctx: Ctx, input: { fileId: string }): Promi
   if (decision.kind === 'missing') return err('NOT_FOUND', 'file not found')
   if (decision.kind === 'denied') return err('FORBIDDEN', 'no access to this file')
   const { file } = decision
+  // S7-10 (BR-PORTAL ข้อ 07): a file from the supplier portal opens only once the central scan called it clean
+  if (file.scanStatus === 'INFECTED') return err('FILE_INFECTED', 'the file failed the security check')
+  if (file.scanStatus === 'PENDING') return err('FILE_NOT_SCANNED', 'the file is still being checked')
   const mime = file.mimeType
   const url = await presignDownload(file.storageKey, { fileName: file.fileName, contentType: mime, inline: opensInline(mime) })
   return ok({ url, expiresInSeconds: PRESIGN_TTL_SECONDS })

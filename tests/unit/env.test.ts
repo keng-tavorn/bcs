@@ -801,6 +801,7 @@ describe('[NFR-SEC-07] values published in .env.example never reach a shared env
     EMAIL_PROVIDER: 'smtp is the only provider built so far (B4)',
     EMAIL_FROM: 'the email sandbox option keeps this sender (B4)',
     REGISTRY_MODE: 'stub is the OQ-37 default (B1)',
+    FILE_SCAN_MODE: 'stub until S7-22 builds the live scanner (OQ-191 · live refuses every file until then)',
     RD_VAT_SERVICE_URL: 'the real Revenue Department service',
     DBD_JURISTIC_API_URL: 'the real DBD service',
     MICROSOFT_TENANT_ID: 'the Microsoft multi-tenant endpoint',

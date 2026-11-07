@@ -1908,6 +1908,7 @@ cases:
   - { id: GC-SOD-14, title: ผู้เสนอเปลี่ยนบัญชีเตรียมรอบที่จ่ายเข้าบัญชีนั้นภายใน 30 วัน, input: { action: PREPARE_PAYMENT, actor: fin_ap1, payDate: "2026-10-16", recentBankChangeDays: 30, bankChanges: [{ proposer: fin_ap1, effectiveOn: "2026-09-16" }] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-10 } }
   - { id: GC-SOD-15, title: การเปลี่ยนบัญชีเกิน 30 วันแล้ว, input: { action: PREPARE_PAYMENT, actor: fin_ap1, payDate: "2026-10-16", recentBankChangeDays: 30, bankChanges: [{ proposer: fin_ap1, effectiveOn: "2026-09-15" }] }, expect: { ok: true } }
   - { id: GC-SOD-16, title: ผู้เสนอเปลี่ยนบัญชีภายใน 30 วันอนุมัติรอบที่จ่ายเข้าบัญชีนั้น, input: { action: DECIDE_APPROVAL, subject: PAYMENT_RUN, actor: dm_fin, requester: fin_tre1, invoiceRecorders: [fin_ap1], payDate: "2026-10-16", recentBankChangeDays: 30, bankChanges: [{ proposer: dm_fin, effectiveOn: "2026-09-20" }] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-10 } }
+  - { id: GC-SOD-17, title: ผู้เชิญอนุมัติใบสมัครผู้ขายเอง, input: { action: DECIDE_APPROVAL, subject: SUPPLIER_APPLICATION, actor: dm_proc, requester: dm_proc }, expect: { error: SOD_VIOLATION, rule: BR-SOD-11 } }
 ```
 
 ### 7.6 รักษาการ (Delegation)
@@ -5674,7 +5675,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       55 ไฟล์ · 694 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       55 ไฟล์ · 695 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

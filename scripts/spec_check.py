@@ -528,6 +528,7 @@ def run_sod(d):
             subj = i.get("subject", "REQUEST")
             if subj == "ORG_AUTHORITY_CHANGE" and i["actor"] == i.get("requester"): rule = "BR-SOD-08"
             elif subj == "DOA_VERSION" and i["actor"] == i.get("requester"): rule = "BR-SOD-06"
+            elif subj == "SUPPLIER_APPLICATION" and i["actor"] in [i.get("requester"), *i.get("alsoConflicting", [])]: rule = "BR-SOD-11"
             elif subj == "PAYMENT_RUN" and i["actor"] == i.get("requester"): rule = "BR-SOD-09"
             elif subj == "PAYMENT_RUN" and i["actor"] in i.get("invoiceRecorders", []): rule = "BR-SOD-04"
             elif subj == "PAYMENT_RUN" and sod_recent_change(i): rule = "BR-SOD-10"

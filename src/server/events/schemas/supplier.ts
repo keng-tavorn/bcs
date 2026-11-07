@@ -14,9 +14,14 @@ defineEvents('Supplier', {
       branchCode: z.string(),
       isForeign: z.boolean(),
       registrySource: registrySource.nullable(),
-      /** SEED: the demo seed (Appendix A); PROCUREMENT: the register screen or service */
-      via: z.enum(['SEED', 'PROCUREMENT']),
+      /** SEED: the demo seed (Appendix A); PROCUREMENT: the register screen or service; APPLICATION: an approved application (S7-05) */
+      via: z.enum(['SEED', 'PROCUREMENT', 'APPLICATION']),
+      // S7-05 (schemaVersion 2 · BR-SUP ข้อ 11 · ADR-190): of a supplier from an application
+      applicationId: z.uuid().optional(),
+      registryFlag: z.enum(['NONE', 'CEASED', 'VAT_CANCELLED', 'NOT_FOUND']).optional(),
+      phoneSource: z.enum(['REGISTRY', 'INVITER', 'APPLICANT']).nullable().optional(),
     }),
+    schemaVersion: 2,
   },
   'supplier.updated': { schema: z.object({ code: z.string(), changed: z.array(z.string()).min(1) }) },
   'supplier.registry_checked': {

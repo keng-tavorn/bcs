@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BusinessCalendar } from '@/core/sla'
 import { addDays, canVerify, dateIn, documentExpiry, documentStatus, normalizeScope } from '@/core/supplier-docs'
+import { checkSod } from '@/core/sod'
 import { applicationSla, businessDayMinutes, findSupplierDuplicates, g7Median, normalizeSupplierName, sameHash, verifyOtp } from '@/core/supplier-onboarding'
 
 // S7-03: the branches of src/core/supplier-onboarding and src/core/supplier-docs the golden files do not reach (§7.0
@@ -82,5 +83,13 @@ describe('[BR-SDOC-02] [BR-SDOC-03] [BR-SDOC-04] documents beyond the golden cas
     expect(dateIn(new Date('2027-05-01T17:00:00Z'), 'Asia/Bangkok')).toBe('2027-05-02')
     expect(normalizeScope(null)).toBe('')
     expect(normalizeScope('\tISO  9001 ')).toBe('iso 9001')
+  })
+})
+
+describe('[BR-SOD-11] the conflicted people of a supplier application never approve it', () => {
+  it('one of them → SOD_VIOLATION BR-SOD-11 (before BR-SOD-01); anyone else may', () => {
+    const policy = { approverMayReceive: false, requesterMayReceive: true }
+    expect(checkSod({ kind: 'DECIDE_APPROVAL', subject: 'SUPPLIER_APPLICATION', actorMemberId: 'inviter', requesterMemberIds: ['inviter', 'verifier'] }, policy)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-11' })
+    expect(checkSod({ kind: 'DECIDE_APPROVAL', subject: 'SUPPLIER_APPLICATION', actorMemberId: 'manager', requesterMemberIds: ['inviter', 'verifier'] }, policy)).toEqual({ ok: true })
   })
 })

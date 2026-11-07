@@ -202,49 +202,107 @@ export const createSupplierCommand = defineCommand({
     if (!ok.ok) return { ok: false, error: ok.error }
     const taxId = checkTaxId(input.taxId, input.isForeign)
     if (!taxId.ok) return taxId
-    if (await tx.supplier.findFirst({ where: { code: input.code }, select: { id: true } })) return fail('VALIDATION_FAILED', 'the code is in use', { field: 'code', reason: 'CODE_EXISTS' })
-    const same = await duplicateOf(tx, taxId.taxId, input.branchCode)
-    if (same) return fail('VALIDATION_FAILED', 'a supplier with this tax id and branch exists', { field: 'taxId', reason: 'SUPPLIER_EXISTS', supplierId: same.id, code: same.code })
     // §7.15: a Thai supplier is checked against the registries, or confirmed by a person with proof
     let registry: ConfirmedIdentity | null = null
     if (!input.isForeign && taxId.taxId) {
+      if (await tx.supplier.findFirst({ where: { code: input.code }, select: { id: true } })) return fail('VALIDATION_FAILED', 'the code is in use', { field: 'code', reason: 'CODE_EXISTS' })
+      const same = await duplicateOf(tx, taxId.taxId, input.branchCode)
+      if (same) return fail('VALIDATION_FAILED', 'a supplier with this tax id and branch exists', { field: 'taxId', reason: 'SUPPLIER_EXISTS', supplierId: same.id, code: same.code })
       const confirmed = await confirmIdentity(tx, ctx, { taxId: taxId.taxId, branchCode: input.branchCode }, input.registry)
       if (!confirmed.ok) return confirmed
       registry = confirmed.identity
     }
-    const row = await tx.supplier.create({
-      data: {
-        organizationId: ctx.organizationId,
-        code: input.code,
-        nameTh: input.nameTh,
-        nameEn: input.nameEn ?? null,
-        taxId: taxId.taxId,
-        branchCode: input.branchCode,
-        isVatRegistered: input.isVatRegistered,
-        isForeign: input.isForeign,
-        email: input.email ?? null,
-        phone: input.phone ?? null,
-        address: input.address ?? null,
-        category: input.category ?? null,
-        expressVendorCode: input.expressVendorCode ?? null,
-        createdById: ctx.actor.type === 'USER' ? ctx.actor.memberId : null,
-        ...(registry ? identityColumns(registry, ctx.now) : {}),
-      },
-      select: { id: true },
+    const created = await createSupplierInTx(tx, ctx, {
+      ...input,
+      taxId: taxId.taxId,
+      registry: registry ? { source: registry.source, status: registry.status, data: registry.data } : null,
+      via: 'PROCUREMENT',
     })
-    if (registry) await linkProof(tx, ctx, row.id, registry)
-    const events: EventDraft[] = [
-      {
-        type: 'supplier.created',
-        aggregateType: 'Supplier',
-        aggregateId: row.id,
-        data: { code: input.code, taxId: taxId.taxId, branchCode: input.branchCode, isForeign: input.isForeign, registrySource: registry?.source ?? null, via: 'PROCUREMENT' },
-      },
-    ]
-    if (registry && taxId.taxId) events.push(registryChecked(row.id, taxId.taxId, input.branchCode, registry))
-    return { ok: true, result: { supplierId: row.id }, events }
+    if (!created.ok) return created
+    if (registry) await linkProof(tx, ctx, created.supplierId, registry)
+    const events: EventDraft[] = [...created.events]
+    if (registry && taxId.taxId) events.push(registryChecked(created.supplierId, taxId.taxId, input.branchCode, registry))
+    return { ok: true, result: { supplierId: created.supplierId }, events }
   },
 })
+
+/** What createSupplierInTx writes: the register's columns, the identity already confirmed, and where it came from */
+export interface SupplierInTxInput {
+  readonly code: string
+  readonly nameTh: string
+  readonly nameEn?: string | null
+  /** Normalized and checked (BR-TAXID-01) by the caller; null for a foreign supplier */
+  readonly taxId: string | null
+  readonly branchCode: string
+  readonly isVatRegistered: boolean
+  readonly isForeign: boolean
+  readonly email?: string | null
+  readonly phone?: string | null
+  readonly address?: string | null
+  readonly category?: string | null
+  readonly expressVendorCode?: string | null
+  readonly registry: { readonly source: 'RD' | 'DBD' | 'MANUAL' | 'STUB'; readonly status: string | null; readonly data: Record<string, unknown> } | null
+  /** S7 (BR-SUP ข้อ 11): the flag a supplier starts with, from the application's registry check */
+  readonly registryFlag?: 'NONE' | 'CEASED' | 'VAT_CANCELLED' | 'NOT_FOUND'
+  readonly payeeType?: 'JURISTIC' | 'INDIVIDUAL' | 'FOREIGN'
+  readonly defaultWhtIncomeTypeCode?: string | null
+  readonly paymentTermDays?: number | null
+  readonly portalEnabled?: boolean
+  readonly applicationId?: string | null
+  /** Where the supplier came from (event supplier.created): the register screen or an approved application (S7-05) */
+  readonly via: 'PROCUREMENT' | 'APPLICATION'
+  /** S7-05 (BR-SUP ข้อ 11 · ADR-190): where Supplier.phone came from, kept in the event */
+  readonly phoneSource?: 'REGISTRY' | 'INVITER' | 'APPLICANT' | null
+}
+
+/**
+ * The supplier itself, inside the caller's transaction (S7-05 · ADR-181): the code free, no supplier of the same tax id
+ * and branch, the row and its event supplier.created. supplier.create calls it after the registries confirmed the
+ * identity; an approved application calls it from the decision of its approval (decide runs one transaction, so it can
+ * never call createSupplier(), which is a runCommand of its own).
+ */
+export async function createSupplierInTx(tx: TenantTx, ctx: Ctx, input: SupplierInTxInput): Promise<{ readonly ok: true; readonly supplierId: string; readonly events: EventDraft[] } | ReturnType<typeof fail>> {
+  if (await tx.supplier.findFirst({ where: { code: input.code }, select: { id: true } })) return fail('VALIDATION_FAILED', 'the code is in use', { field: 'code', reason: 'CODE_EXISTS' })
+  const same = await duplicateOf(tx, input.taxId, input.branchCode)
+  if (same) return fail('VALIDATION_FAILED', 'a supplier with this tax id and branch exists', { field: 'taxId', reason: 'SUPPLIER_EXISTS', supplierId: same.id, code: same.code })
+  const flag = input.registryFlag ?? 'NONE'
+  const row = await tx.supplier.create({
+    data: {
+      organizationId: ctx.organizationId,
+      code: input.code,
+      nameTh: input.nameTh,
+      nameEn: input.nameEn ?? null,
+      taxId: input.taxId,
+      branchCode: input.branchCode,
+      isVatRegistered: input.isVatRegistered,
+      isForeign: input.isForeign,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+      address: input.address ?? null,
+      category: input.category ?? null,
+      expressVendorCode: input.expressVendorCode ?? null,
+      createdById: ctx.actor.type === 'USER' ? ctx.actor.memberId : null,
+      ...(input.registry ? { registrySource: input.registry.source, registryStatus: input.registry.status, registryCheckedAt: ctx.now, registryData: input.registry.data as object } : {}),
+      ...(flag !== 'NONE' ? { registryFlag: flag, registryFlaggedAt: ctx.now } : {}),
+      ...(input.payeeType ? { payeeType: input.payeeType } : {}),
+      ...(input.defaultWhtIncomeTypeCode !== undefined ? { defaultWhtIncomeTypeCode: input.defaultWhtIncomeTypeCode } : {}),
+      ...(input.paymentTermDays !== undefined ? { paymentTermDays: input.paymentTermDays } : {}),
+      ...(input.portalEnabled !== undefined ? { portalEnabled: input.portalEnabled } : {}),
+      ...(input.applicationId ? { applicationId: input.applicationId, onboardedAt: ctx.now } : {}),
+    },
+    select: { id: true },
+  })
+  const data = {
+    code: input.code,
+    taxId: input.taxId,
+    branchCode: input.branchCode,
+    isForeign: input.isForeign,
+    registrySource: input.registry?.source ?? null,
+    via: input.via,
+    ...(input.applicationId ? { applicationId: input.applicationId, registryFlag: flag, phoneSource: input.phoneSource ?? null } : {}),
+  }
+  return { ok: true, supplierId: row.id, events: [{ type: 'supplier.created', aggregateType: 'Supplier', aggregateId: row.id, data }] }
+}
 
 export function createSupplier(ctx: Ctx, input: z.input<typeof CreateSupplierInput>, options: RunOptions) {
   return runCommand(ctx, createSupplierCommand, input, options)

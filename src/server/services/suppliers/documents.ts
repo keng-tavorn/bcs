@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { AppError, Result } from '@/core/result'
 import { canVerify, dateIn, documentExpiry, documentStatus, normalizeScope, supersedeTargets, type IsoDate } from '@/core/supplier-docs'
 import { getScanner } from '@/integrations/scanner'
-import { presignDownload, putObject, readObject } from '@/integrations/storage'
+import { deleteObject, presignDownload, putObject, readObject } from '@/integrations/storage'
 import { MS_PER_HOUR, SUPPLIER_DOC_MAX_BYTES, SUPPLIER_DOC_MAX_VALIDITY_DAYS } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { PORTAL_PRIVACY_NOTICE_VERSION, PORTAL_UPLOADS_PER_HOUR } from '@/lib/portal-limits'
@@ -185,7 +185,7 @@ export async function uploadSupplierDocument(ctx: Ctx, input: UploadDocumentInpu
   const storageKey = `${ctx.organizationId}/supplier-documents/${newId()}.${EXTENSION[mime]}`
   await putObject(storageKey, input.bytes, mime)
   const sha256 = createHash('sha256').update(input.bytes).digest('hex')
-  return runCommand(
+  const recorded = await runCommand(
     ctx,
     uploadCommand,
     {
@@ -201,6 +201,9 @@ export async function uploadSupplierDocument(ctx: Ctx, input: UploadDocumentInpu
     },
     options,
   )
+  // a refused upload keeps nothing: the object goes with it (an ID card never waits in the bucket unlisted)
+  if (!recorded.ok) await deleteObject(storageKey).catch(() => undefined)
+  return recorded
 }
 
 // ---------- supplierDocument.verify · .reject ----------
@@ -311,8 +314,9 @@ const downloadCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ storageKey: string; fileName: string; mimeType: string }>> {
     const doc = await tx.supplierDocument.findUnique({ where: { id: input.documentId }, include: { documentType: { select: { sensitive: true } }, file: true } })
     if (!doc) return fail('NOT_FOUND', 'document not found')
-    // S11's risk reviewer reads through its own right (grantedBy RISK_REVIEW), checked by S11's query before this call
-    const who = input.grantedBy && ctx.actor.type === 'USER' ? ({ side: 'MEMBER' } as const) : await actingOn(tx, ctx, doc, 'supplier.document.view')
+    // supplier.document.view always: S11 brings its reviewer's own right (grantedBy RISK_REVIEW) with the check of the
+    // reviewer's slot in its own step; until then the field only names the grant in the event
+    const who = await actingOn(tx, ctx, doc, 'supplier.document.view')
     if ('ok' in who) return who
     if (doc.file.scanStatus !== 'CLEAN') return fail(doc.file.scanStatus === 'INFECTED' ? 'FILE_INFECTED' : 'FILE_NOT_SCANNED', 'the file is not clean', { scanStatus: doc.file.scanStatus })
     if (doc.documentType.sensitive && who.side === 'MEMBER') {
@@ -618,6 +622,8 @@ export interface DocumentTypeView {
 /** /admin/supplier-document-types: every type of the organization, closed ones last (admin.supplierDocumentTypes) */
 export async function listSupplierDocumentTypes(ctx: Ctx): Promise<Result<DocumentTypeView[]>> {
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
+    const on = await requireModule(ctx, 'SUPPLIER', tx)
+    if (!on.ok) return { ok: false as const, error: on.error }
     const may = await authorize(tx, ctx, 'admin.supplierDocumentTypes')
     if (!may.ok) return { ok: false as const, error: may.error }
     const rows = await tx.supplierDocumentType.findMany({ orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { code: 'asc' }] })

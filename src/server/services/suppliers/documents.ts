@@ -572,9 +572,10 @@ const upsertTypeCommand = defineCommand({
     const fields = { nameTh: input.nameTh, nameEn: input.nameEn, appliesTo: input.appliesTo, required: input.required, validityDays: input.validityDays, reminderDaysBefore: input.reminderDaysBefore, sensitive: input.sensitive, singleInstance: input.singleInstance, aiReadable: input.aiReadable, sortOrder: input.sortOrder }
     const changed = existing ? Object.keys(fields).filter((k) => JSON.stringify(fields[k as keyof typeof fields]) !== JSON.stringify(existing[k as keyof typeof existing])) : Object.keys(fields)
     if (existing && changed.length === 0 && existing.active) return fail('VALIDATION_FAILED', 'nothing changed', { reason: 'NO_CHANGE' })
-    if (existing) await tx.supplierDocumentType.update({ where: { id: existing.id }, data: { ...fields, active: true, version: { increment: 1 } } })
-    else await tx.supplierDocumentType.create({ data: { organizationId: ctx.organizationId, code: input.code, ...fields } })
-    return { ok: true, result: { code: input.code }, events: [{ type: 'supplier_document_type.updated', aggregateType: 'SupplierDocumentType', aggregateId: existing?.id ?? input.code, data: { code: input.code, created: !existing, active: true, changed } }] }
+    const id = existing
+      ? (await tx.supplierDocumentType.update({ where: { id: existing.id }, data: { ...fields, active: true, version: { increment: 1 } }, select: { id: true } })).id
+      : (await tx.supplierDocumentType.create({ data: { organizationId: ctx.organizationId, code: input.code, ...fields }, select: { id: true } })).id
+    return { ok: true, result: { code: input.code }, events: [{ type: 'supplier_document_type.updated', aggregateType: 'SupplierDocumentType', aggregateId: id, data: { code: input.code, created: !existing, active: true, changed } }] }
   },
 })
 

@@ -5,7 +5,7 @@ import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import type { BankFailure, BankOutcome, RevealOutcome } from '@/ui/bank-accounts/outcome'
 import { getSession } from '../../../_lib/session'
-import { attachProofFor, cancelChangeFor, createChangeFor, detachProofFor, recordCallFor, revealAccountFor, revealChangeFor, submitChangeFor, updateChangeFor } from './commands'
+import { attachProofFor, cancelChangeFor, claimChangeFor, createChangeFor, detachProofFor, recordCallFor, revealAccountFor, revealChangeFor, submitChangeFor, updateChangeFor } from './commands'
 
 // Browser-facing adapters of the bank-account screens (S9-09: /finance/bank-accounts, a request's page and the
 // supplier's card). Each checks the session and hands the raw input to ./commands.ts, which parses it and runs the S9-04
@@ -47,6 +47,9 @@ export async function detachProofAction(input: unknown, idempotencyKey: string):
 }
 export async function submitChangeAction(input: unknown, idempotencyKey: string): Promise<BankOutcome> {
   return run(submitChangeFor, input, idempotencyKey)
+}
+export async function claimChangeAction(input: unknown, idempotencyKey: string): Promise<BankOutcome> {
+  return run(claimChangeFor, input, idempotencyKey)
 }
 export async function cancelChangeAction(input: unknown, idempotencyKey: string): Promise<BankOutcome> {
   return run(cancelChangeFor, input, idempotencyKey)

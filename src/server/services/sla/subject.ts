@@ -30,6 +30,8 @@ export interface SubjectFacts {
   readonly ownerMemberId: string | null
   readonly conflictMemberIds: readonly string[]
   readonly chargedDepartmentId: string | null
+  /** S7-10: conflicts the adapter names by their own rule (BR-SOD-12), for its sodContext's `extra` */
+  readonly sodExtra?: readonly { readonly rule: string; readonly memberIds: readonly string[] }[]
 }
 
 const uniq = (ids: ReadonlyArray<string | null | undefined>) => [...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0))]

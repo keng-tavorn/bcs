@@ -76,7 +76,8 @@
     "apply": "Application",
     "documents": "Documents",
     "profile": "My account",
-    "help": "Help"
+    "help": "Help",
+    "bank": "Bank account"
   },
   "apply": {
     "title": "Supplier application",

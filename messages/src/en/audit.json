@@ -256,7 +256,8 @@
       "rejected": "Bank account change rejected",
       "returned": "Bank account change returned",
       "submitted": "Bank account change submitted",
-      "updated": "Bank account change edited"
+      "updated": "Bank account change edited",
+      "claimed": "Finance claimed a bank account request from the portal"
     },
     "backtest": {
       "completed": "90-day backtest done",

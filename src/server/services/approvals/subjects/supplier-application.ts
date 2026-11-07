@@ -2,9 +2,11 @@ import { documentTypeOfSubject } from '@/core/doa'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
+import type { NotificationDraft } from '@/server/notifications/create'
 import { PORTAL_SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-templates-portal'
 import type { SubjectFacts } from '../../sla/subject'
-import { applicationLabel, conflictedOf, toContacts } from '../../suppliers/applications'
+import { draftBankAccountChangeInTx } from '../../bank-accounts'
+import { applicationLabel, conflictedOf, openAccountNo, toContacts } from '../../suppliers/applications'
 import { suggestSupplierCode } from '../../suppliers/codes'
 import { createSupplierInTx } from '../../suppliers/index'
 import { revokeContactSessions } from '../../suppliers/contacts'
@@ -132,17 +134,29 @@ export const supplierApplicationSubject: SubjectAdapter = {
     await tx.supplierContact.updateMany({ where: { applicationId: app.id }, data: { supplierId } })
     await tx.supplierDocument.updateMany({ where: { applicationId: app.id }, data: { supplierId } })
     const code = (await tx.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { code: true } })).code
-    // S7-10 drafts the bank account change of an application that gave an account (draftBankAccountChangeInTx · ADR-190)
+    // S7-10 (FR-SUP-103 AC5 · ADR-190): the account the application gave becomes a DRAFT change of source PORTAL for
+    // FINANCE to claim, in this transaction — opened from its seal here only, never a BankAccount (INV-SUP ข้อ 04)
+    let bank: { changeId: string; events: EventDraft[]; notifications: NotificationDraft[] } | null = null
+    const accountNo = app.bankCode ? openAccountNo(ctx.organizationId, app) : null
+    if (app.bankCode && accountNo) {
+      const primary = await tx.supplierContact.findFirst({ where: { applicationId: app.id, isPrimary: true, status: 'ACTIVE' }, select: { id: true } })
+      if (primary) {
+        const drafted = await draftBankAccountChangeInTx(tx, ctx, { supplierId, contactId: primary.id, bankCode: app.bankCode, accountNo, accountName: app.accountName ?? app.nameTh, branchName: app.bankBranch, reason: `บัญชีจากใบสมัครผู้ขาย ${app.number ?? ''}`.trim() })
+        if (!drafted.ok) return { ok: false, error: drafted.error }
+        bank = drafted
+      }
+    }
     const told = await toContacts(tx, ctx, app.id, PORTAL_SUPPLIER_TEMPLATES.applicationApproved, `approved:${task.id}`, { number: app.number, code })
     return {
       ok: true,
       documentStatus: 'APPROVED',
       events: [
-        { type: 'supplier_application.approved', aggregateType: 'SupplierApplication', aggregateId: app.id, data: { number: app.number, supplierId, kind: app.kind, bankAccountChangeId: null } },
+        { type: 'supplier_application.approved', aggregateType: 'SupplierApplication', aggregateId: app.id, data: { number: app.number, supplierId, kind: app.kind, bankAccountChangeId: bank?.changeId ?? null } },
         ...created.events,
+        ...(bank?.events ?? []),
         ...told.events,
       ],
-      notifications: told.notifications,
+      notifications: [...told.notifications, ...(bank?.notifications ?? [])],
     }
   },
   allowsRequestInfo: false,

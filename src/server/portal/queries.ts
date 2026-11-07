@@ -1,4 +1,4 @@
-import { BANKS } from '@/core/bankfile/banks'
+import { bankOf, BANKS } from '@/core/bankfile/banks'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { supplierDocumentStatusInTx } from '@/server/services/suppliers/documents'
@@ -238,4 +238,46 @@ export async function getPortalHelp(ctx: Ctx): Promise<PortalHelpView> {
   const app = await forTenant(ctx.organizationId).supplierApplication.findFirst({ where: portalWhere(ctx, 'supplierApplication'), orderBy: [{ invitedAt: 'desc' }, { id: 'desc' }], select: { invitedBy: { select: { displayNameTh: true, email: true, status: true } } } })
   const by = app?.invitedBy
   return { inviter: by && by.status === 'ACTIVE' ? { name: by.displayNameTh, email: by.email } : null }
+}
+
+// ---------- S7-10: the supplier's bank account (FR-SUP-103 AC1 AC4) ----------
+
+/** Where the supplier's latest request stands, in its words: waiting for FINANCE to claim or check it, for approval, in force */
+export type PortalBankStage = 'AWAITING_CLAIM' | 'CHECKING' | 'APPROVING' | 'IN_FORCE' | 'REJECTED' | 'CANCELLED'
+
+export interface PortalBankView {
+  /** The account in force, masked: the bank, the last four digits and the name only */
+  readonly current: { readonly bankName: string; readonly last4: string; readonly accountName: string } | null
+  readonly latest: { readonly stage: PortalBankStage; readonly bankName: string | null; readonly last4: string | null; readonly createdAt: string } | null
+  /** The primary contact may propose while no request is open (the service checks it again, and the hold of a new contact) */
+  readonly mayPropose: boolean
+  readonly isPrimary: boolean
+  readonly banks: readonly { readonly code: string; readonly nameTh: string; readonly shortName: string }[]
+}
+
+function stageOf(change: { status: string; submittedById: string | null }): PortalBankStage {
+  if (change.status === 'DRAFT') return change.submittedById ? 'CHECKING' : 'AWAITING_CLAIM'
+  if (change.status === 'PENDING_APPROVAL') return 'APPROVING'
+  if (change.status === 'APPROVED') return 'IN_FORCE'
+  return change.status === 'REJECTED' ? 'REJECTED' : 'CANCELLED'
+}
+
+/** The bank account of the contact's supplier, never a whole number; null for a contact of an application */
+export async function getPortalBankAccount(ctx: Ctx): Promise<PortalBankView | null> {
+  if (ctx.actor.type !== 'SUPPLIER') throw new Error('a portal query needs a portal context')
+  if (!ctx.actor.supplierId) return null
+  const db = forTenant(ctx.organizationId)
+  const [account, change, contact] = await Promise.all([
+    db.bankAccount.findFirst({ where: { AND: [portalWhere(ctx, 'bankAccount'), { status: 'ACTIVE' }] }, select: { bankCode: true, accountNo: true, accountName: true } }),
+    db.bankAccountChange.findFirst({ where: portalWhere(ctx, 'bankAccountChange'), orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { status: true, submittedById: true, bankCode: true, accountNo: true, createdAt: true } }),
+    db.supplierContact.findFirst({ where: { AND: [portalWhere(ctx, 'supplierContact'), { id: ctx.actor.supplierContactId }] }, select: { isPrimary: true } }),
+  ])
+  const open = change ? change.status === 'DRAFT' || change.status === 'PENDING_APPROVAL' : false
+  return {
+    current: account ? { bankName: bankOf(account.bankCode)?.nameTh ?? account.bankCode, last4: account.accountNo.slice(-4), accountName: account.accountName } : null,
+    latest: change ? { stage: stageOf(change), bankName: change.bankCode ? (bankOf(change.bankCode)?.nameTh ?? change.bankCode) : null, last4: change.accountNo ? change.accountNo.slice(-4) : null, createdAt: change.createdAt.toISOString() } : null,
+    mayPropose: Boolean(contact?.isPrimary) && !open,
+    isPrimary: Boolean(contact?.isPrimary),
+    banks: BANKS.map((b) => ({ code: b.code, nameTh: b.nameTh, shortName: b.shortName })),
+  }
 }

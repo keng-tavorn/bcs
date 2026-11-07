@@ -11,6 +11,10 @@ interface SodCase {
     action: 'DECIDE_APPROVAL' | 'POST_GR' | 'PROPOSE_ORG_AUTHORITY_CHANGE' | 'PREPARE_PAYMENT'
     actor: string
     requester?: string
+    source?: 'INTERNAL' | 'PORTAL'
+    proposedByContact?: string
+    submittedBy?: string
+    callVerifiedBy?: string
     approvers?: string[]
     subject?: ApprovalSubject
     poCreator?: string
@@ -39,6 +43,7 @@ function action(i: SodCase['input']): SodAction {
     poCreatorMemberId: i.poCreator ?? null,
     ...(i.invoiceRecorders ? { invoiceRecorderMemberIds: i.invoiceRecorders } : {}),
     ...(recentBankChanges ? { recentBankChanges } : {}),
+    ...(i.source ? { bankChange: { source: i.source, submittedById: i.submittedBy ?? null, callVerifiedById: i.callVerifiedBy ?? null } } : {}),
   }
 }
 

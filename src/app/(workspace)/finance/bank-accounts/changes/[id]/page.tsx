@@ -8,6 +8,7 @@ import { getTaskAccess } from '@/server/queries/tasks'
 import { getBankAccountChange, getBankAccountChangeActivity, type BankAccountChangeDto, type BankChangeHistoryDto } from '@/server/services/bank-accounts/view'
 import { ChangeStatusBadge } from '@/ui/bank-accounts/badges'
 import { CancelChange } from '@/ui/bank-accounts/cancel-change'
+import { PortalChange } from '@/ui/bank-accounts/portal-change'
 import { ChangeDecision } from '@/ui/bank-accounts/change-decision'
 import { DraftEditor } from '@/ui/bank-accounts/draft-editor'
 import { BANK_CODES, BANK_REASONS } from '@/ui/bank-accounts/outcome'
@@ -25,7 +26,7 @@ import { getSession } from '../../../../../_lib/session'
 import { taskRight } from '../../../../_tracking/access'
 import { localeOf, when, type Locale } from '../../../../_tracking/present'
 import { decideTaskAction } from '../../../../tasks/actions'
-import { attachProofAction, cancelChangeAction, detachProofAction, recordCallAction, revealChangeAction, submitChangeAction, updateChangeAction } from '../../actions'
+import { attachProofAction, cancelChangeAction, claimChangeAction, detachProofAction, recordCallAction, revealChangeAction, submitChangeAction, updateChangeAction } from '../../actions'
 import { accountText, bankChoiceText, changeOwnerText, personName, templateText, type BankT } from '../../present'
 
 // A request to change a bank account (S9-09, docs/sub-specs/S9.md "หน้าจอ", FR-PAY-102 AC7 AC8, BR-SUP-06, BR-DOA-25):
@@ -196,6 +197,8 @@ export default async function BankAccountChangePage({ params, searchParams }: { 
             {draft && c.number ? <Notice tone="warning">{t('detail.returnedHint')}</Notice> : null}
             {c.sharedAccount ? <Notice tone="warning">{t('detail.sharedAccount')}</Notice> : null}
             {c.contactChangedRecently ? <Notice tone="warning">{t('detail.contactChanged')}</Notice> : null}
+            {/* S7-10 (ADR-190): a change from the portal — claim it, the warnings of BR-SUP ข้อ 17, the number to call */}
+            {c.portal ? <PortalChange changeId={c.id} version={c.version} portal={c.portal} claim={claimChangeAction} /> : null}
             {c.status === 'APPROVED' && c.applied?.activatedAt ? <Notice tone="success">{t('detail.applied', { time: when(locale, c.applied.activatedAt) })}</Notice> : null}
           </>
         }

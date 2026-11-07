@@ -3193,6 +3193,7 @@
       "bank_account_change": {
         "approved": "Bank account change approved",
         "cancelled": "Bank account change cancelled",
+        "claimed": "Finance claimed a bank account request from the portal",
         "drafted": "Bank account change drafted",
         "rejected": "Bank account change rejected",
         "returned": "Bank account change returned",
@@ -8945,6 +8946,7 @@
     },
     "nav": {
       "apply": "Application",
+      "bank": "Bank account",
       "documents": "Documents",
       "help": "Help",
       "home": "Home",
@@ -11498,6 +11500,76 @@
       "applications": "Applications",
       "label": "Supplier sections",
       "suppliers": "Suppliers"
+    }
+  },
+  "supplierBank": {
+    "finance": {
+      "awaitingClaim": "No one in finance has claimed it yet. Whoever claims it makes the call and sends it, and may not approve it.",
+      "box": "From the portal, waiting to be claimed",
+      "boxRow": "{kind} · {owner}",
+      "callPhone": "Number to call: {phone}",
+      "claim": "Claim it to handle it",
+      "claimedAlready": "Someone else in finance claimed it already",
+      "failed": "It could not be claimed. Please try again.",
+      "findPhone": "Do not use a number the supplier typed. Find one elsewhere and note where it came from in the call note.",
+      "forbidden": "You may not claim this",
+      "fromPortal": "Proposed by the supplier on the portal, by {name}",
+      "phoneSource": {
+        "APPLICANT": "typed by the supplier",
+        "DBD": "from the Department of Business Development",
+        "INVITER": "as the inviting buyer gave it",
+        "REGISTER": "from the supplier register",
+        "UNKNOWN": "no number in the register"
+      },
+      "someone": "someone unknown",
+      "warning": {
+        "CONTACT_ADDED": "A contact of this supplier was added on {at} by {by}",
+        "CONTACT_EMAIL_CHANGED": "A contact's e-mail of this supplier changed on {at} by {by}",
+        "PHONE_CHANGED": "The phone in this supplier's register changed on {at} by {by}"
+      }
+    },
+    "portal": {
+      "account": "{bank} ending {last4} · {name}",
+      "accountName": "Account name",
+      "accountNo": "Account number",
+      "bank": "Bank",
+      "branch": "Bank branch",
+      "choose": "Choose a bank",
+      "current": "Account in force",
+      "currentNone": "No account in force yet. The organization cannot pay you until one is approved.",
+      "errors": {
+        "ACCOUNT": "The account number or bank is not valid",
+        "CHANGE_OPEN": "A request is open already",
+        "FAILED": "The request could not be sent. Please check and try again.",
+        "FORBIDDEN": "You may not propose an account for this company",
+        "NAMES_ACCOUNT": "Do not put the account number in the reason",
+        "NEW_CONTACT_HOLD": "A new contact may propose an account two business days after first signing in",
+        "PROOF_REQUIRED": "Please attach a bank book page or a letter from the bank",
+        "TOO_LARGE": "The file is larger than 20 MB",
+        "TYPE_NOT_ALLOWED": "The file must be a PDF, JPEG or PNG"
+      },
+      "intro": "The account this organization pays you into. A change is checked by finance and approved before it takes effect.",
+      "latest": "Latest request",
+      "latestAccount": "{bank} ending {last4}",
+      "notPrimary": "Only the company's primary contact may propose an account",
+      "open": "A request is still open: propose again once it ends",
+      "proof": "Bank book page or a letter from the bank",
+      "proofHint": "PDF, JPEG or PNG, 20 MB at most",
+      "proposeTitle": "Propose a new account",
+      "reason": "Reason",
+      "reasonHint": "For example, a new account for payments. Do not put the account number here.",
+      "sent": "Request sent. Finance will call the number in your company's register before sending it for approval.",
+      "stage": {
+        "APPROVING": "Waiting for approval",
+        "AWAITING_CLAIM": "Waiting for finance to take it",
+        "CANCELLED": "Cancelled",
+        "CHECKING": "Finance is checking it",
+        "IN_FORCE": "In force",
+        "REJECTED": "Not approved"
+      },
+      "stagesLabel": "Stages of the request",
+      "submit": "Send the request to finance",
+      "title": "Bank account"
     }
   },
   "supplierContacts": {

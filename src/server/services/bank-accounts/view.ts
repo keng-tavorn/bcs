@@ -187,6 +187,43 @@ export interface BankAccountChangeDto {
   readonly contactChangedRecently: boolean
   /** Whether the reader may open the numbers whole (bankAccount.reveal) */
   readonly canReveal: boolean
+  /**
+   * S7-10 (ADR-190 · BR-SUP ข้อ 17): a change the supplier proposed on the portal — who proposed it, whether it waits to be
+   * claimed and the reader may claim it, the warnings of BR-SUP ข้อ 17 (a contact added or its e-mail changed, the phone
+   * in the register changed, within payment.recentBankChangeDays, with the member who did it), and the number to call
+   * with where it came from (never one the supplier typed in its application)
+   */
+  readonly portal: {
+    readonly proposedBy: string | null
+    readonly awaitingClaim: boolean
+    readonly canClaim: boolean
+    readonly warnings: ReadonlyArray<{ readonly kind: 'CONTACT_ADDED' | 'CONTACT_EMAIL_CHANGED' | 'PHONE_CHANGED'; readonly by: string | null; readonly at: string }>
+    readonly callPhone: { readonly phone: string | null; readonly source: 'REGISTER' | 'DBD' | 'INVITER' | 'APPLICANT' | 'UNKNOWN' }
+  } | null
+}
+
+/** The warnings of BR-SUP ข้อ 17 for a change from the portal: contacts added or re-addressed, the phone in the register changed */
+async function portalWarningsOf(tx: TenantTx, supplierId: string, from: Date, until: Date) {
+  const events = await tx.event.findMany({
+    where: { occurredAt: { gte: from, lte: until }, OR: [{ aggregateType: 'Supplier', aggregateId: supplierId, type: 'supplier.updated' }, { aggregateType: 'SupplierContact', type: { in: ['supplier_contact.created', 'supplier_contact.updated'] }, data: { path: ['supplierId'], equals: supplierId } }] },
+    orderBy: [{ occurredAt: 'asc' }],
+    select: { type: true, data: true, occurredAt: true, actorMemberId: true },
+  })
+  const names = await peopleOf(tx, events.map((e) => e.actorMemberId))
+  const warnings: Array<{ kind: 'CONTACT_ADDED' | 'CONTACT_EMAIL_CHANGED' | 'PHONE_CHANGED'; by: string | null; at: string }> = []
+  for (const e of events) {
+    const changed = (e.data as { changed?: unknown }).changed
+    const kind = e.type === 'supplier_contact.created' ? 'CONTACT_ADDED' : e.type === 'supplier_contact.updated' && Array.isArray(changed) && changed.includes('email') ? 'CONTACT_EMAIL_CHANGED' : e.type === 'supplier.updated' && Array.isArray(changed) && changed.includes('phone') ? 'PHONE_CHANGED' : null
+    if (kind) warnings.push({ kind, by: e.actorMemberId ? (names.get(e.actorMemberId)?.nameTh ?? null) : null, at: e.occurredAt.toISOString() })
+  }
+  return warnings
+}
+
+/** The number FINANCE calls (FR-SUP-103 AC2): the register's; for a supplier from an application, where the register got it */
+function callPhoneOf(supplier: { phone: string | null; registryData: unknown }): { phone: string | null; source: 'REGISTER' | 'DBD' | 'INVITER' | 'APPLICANT' | 'UNKNOWN' } {
+  const source = (supplier.registryData as { phoneSource?: unknown } | null)?.phoneSource
+  const known = source === 'DBD' || source === 'INVITER' || source === 'APPLICANT' ? source : supplier.phone ? 'REGISTER' : 'UNKNOWN'
+  return { phone: supplier.phone, source: known }
 }
 
 /** A request, masked: to bankAccount.view and to its approvers */
@@ -195,12 +232,14 @@ export async function getBankAccountChange(ctx: Ctx, input: { readonly changeId:
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
     const principal = await loadPrincipal(tx, ctx)
     const pay = await requireModule(ctx, 'PAY', tx)
-    if (!pay.ok) return pay
+    // S7-10 (BR-SUP ข้อ 16): with SUPPLIER on and PAY off, the changes from the portal are read too
+    const supplierOnly = !pay.ok && (await requireModule(ctx, 'SUPPLIER', tx)).ok
+    if (!pay.ok && !supplierOnly) return pay
     const change = await tx.bankAccountChange.findFirst({
       where: { id: input.changeId },
-      include: { supplier: { select: { id: true, code: true, nameTh: true, taxId: true } }, target: { select: ACCOUNT_SELECT }, applied: { select: ACCOUNT_SELECT } },
+      include: { supplier: { select: { id: true, code: true, nameTh: true, taxId: true, phone: true, registryData: true } }, target: { select: ACCOUNT_SELECT }, applied: { select: ACCOUNT_SELECT }, proposedByContact: { select: { nameTh: true } } },
     })
-    if (!change) return err('NOT_FOUND', 'bank account change not found')
+    if (!change || (supplierOnly && change.source !== 'PORTAL')) return err('NOT_FOUND', 'bank account change not found')
     const approvers = await approversOf(tx, [change.id])
     if (!mayViewChange(principal, approvers)) return err('FORBIDDEN', 'you may not see this request', { capability: 'bankAccount.view' })
     const proofs = await tx.fileLink.findMany({ where: { subjectType: 'BankAccountChange', subjectId: change.id, kind: 'BANK_PROOF' }, orderBy: { createdAt: 'asc' }, select: { file: { select: { id: true, fileName: true, mimeType: true } } } })
@@ -241,6 +280,16 @@ export async function getBankAccountChange(ctx: Ctx, input: { readonly changeId:
       sharedAccount: shared,
       contactChangedRecently,
       canReveal: mayReveal(principal, approvers),
+      portal:
+        change.source === 'PORTAL'
+          ? {
+              proposedBy: change.proposedByContact?.nameTh ?? null,
+              awaitingClaim: change.status === 'DRAFT' && change.submittedById === null,
+              canClaim: change.status === 'DRAFT' && change.submittedById === null && isAllowed(principal, 'bankAccountChange.propose'),
+              warnings: change.supplier ? await portalWarningsOf(tx, change.supplier.id, new Date(`${addDays(thaiDay(change.submittedAt ?? ctx.now), -paymentSettingsOf((await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })).settings).recentBankChangeDays)}T00:00:00+07:00`), change.submittedAt ?? ctx.now) : [],
+              callPhone: change.supplier ? callPhoneOf(change.supplier) : { phone: null, source: 'UNKNOWN' },
+            }
+          : null,
     })
   })
 }
@@ -305,6 +354,8 @@ export interface BankAccountChangeRowDto {
   readonly proposer: BankPersonDto | null
   readonly submittedAt: string | null
   readonly createdAt: string
+  /** S7-10: a change from the portal no member claimed yet */
+  readonly awaitingClaim: boolean
 }
 
 export interface BankAccountChangeListDto {
@@ -346,6 +397,7 @@ export async function listBankAccountChanges(ctx: Ctx, input: z.input<typeof Lis
         submittedAt: true,
         createdAt: true,
         submittedById: true,
+        source: true,
         supplier: { select: { id: true, code: true, nameTh: true, nameEn: true } },
       },
     })
@@ -366,6 +418,7 @@ export async function listBankAccountChanges(ctx: Ctx, input: z.input<typeof Lis
         proposer: r.submittedById ? (people.get(r.submittedById) ?? null) : null,
         submittedAt: r.submittedAt?.toISOString() ?? null,
         createdAt: r.createdAt.toISOString(),
+        awaitingClaim: r.source === 'PORTAL' && r.status === 'DRAFT' && r.submittedById === null,
       })),
       counts: { open, all },
       limited: rows.length > BANK_CHANGE_LIST_LIMIT,

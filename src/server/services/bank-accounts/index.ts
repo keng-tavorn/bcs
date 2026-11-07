@@ -1,11 +1,16 @@
 import { z } from 'zod'
 import { NEUTRAL_TEMPLATE_CODE, normalizeAccount } from '@/core/bankfile'
+import { addBusinessMinutes } from '@/core/sla'
 import { BANK_ACCOUNT_CHANGE_MACHINE, transition, type BankAccountChangeCommand, type BankAccountChangeState } from '@/core/state-machines'
+import { businessDayMinutes } from '@/core/supplier-onboarding'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
+import { newId } from '@/lib/ids'
+import { supplierSettingsOf } from '@/lib/org-settings'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
+import { loadBusinessCalendar } from '@/server/doa/policy'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { enqueueSupplierNotice } from '@/server/notifications/supplier-notices'
@@ -27,6 +32,10 @@ import { issueDocumentNumber } from '../numbering'
 // the supplier's e-mail (SupplierNotice bank_account.notice) in the same transaction. A supplier has one ACTIVE account
 // (INV-PAY-04). Numbers are kept as digits and leave this module masked or as their last four digits only: never in an
 // event, a log, a notification or a LINE card (NFR-SEC-09, BR-BANK-08). Every command needs module PAY (BR-PAY-01).
+// S7-10 (FR-SUP-103 · ADR-190 · BR-SOD-12): the primary contact of an ACTIVE supplier proposes its own account on the
+// portal — a DRAFT with source PORTAL, the proposing contact, no member who sent it yet and its proof — with PAY or
+// SUPPLIER on; FINANCE claims it (bankAccountChange.claim), after which it is the claimer's like any request: the call,
+// the proof, the send. The claimer and whoever recorded the call never approve it (BR-SOD-12, through the adapter).
 
 const MIN_REASON_LENGTH = 3
 const NOTE_MAX_LENGTH = 500
@@ -39,14 +48,47 @@ type ChangeRow = NonNullable<Awaited<ReturnType<typeof readChange>>>
 
 const last4 = (accountNo: string | null) => (accountNo ? accountNo.slice(-4) : null)
 
-/** FINANCE of an organization with PAY switched on (BR-PAY-01, OQ-133) */
-async function proposer(tx: TenantTx, ctx: Ctx): Promise<{ ok: true; memberId: string } | Fail> {
+/**
+ * FINANCE of an organization with PAY switched on (BR-PAY-01, OQ-133) — or, for a change from the supplier portal, with
+ * SUPPLIER on (S7-10 · BR-SUP ข้อ 16: the account is register data there): `portalOnly` says PAY was off and SUPPLIER on,
+ * and the command then accepts a change of source PORTAL only (onlyPortal below)
+ */
+async function proposer(tx: TenantTx, ctx: Ctx): Promise<{ ok: true; memberId: string; portalOnly: boolean } | Fail> {
   const allowed = await authorize(tx, ctx, 'bankAccountChange.propose')
   if (!allowed.ok) return { ok: false, error: allowed.error }
   if (allowed.data.kind !== 'member') return fail('FORBIDDEN', 'only a member proposes a bank account')
   const pay = await requireModule(ctx, 'PAY', tx)
-  if (!pay.ok) return { ok: false, error: pay.error }
-  return { ok: true, memberId: allowed.data.memberId }
+  if (pay.ok) return { ok: true, memberId: allowed.data.memberId, portalOnly: false }
+  if (!(await requireModule(ctx, 'SUPPLIER', tx)).ok) return { ok: false, error: pay.error }
+  return { ok: true, memberId: allowed.data.memberId, portalOnly: true }
+}
+
+/** Without PAY, a member acts on the changes from the portal only (BR-SUP ข้อ 16) */
+const onlyPortal = (who: { portalOnly: boolean }, change: { source: string }): Fail | null =>
+  who.portalOnly && change.source !== 'PORTAL' ? fail('MODULE_DISABLED', 'module PAY is not enabled for this organization', { module: 'PAY' }) : null
+
+/**
+ * The contact who proposes on the portal (S7-10 · FR-SUP-103 AC1 · BR-SUP ข้อ 17): the primary contact of an ACTIVE
+ * supplier, on its own supplier, with PAY or SUPPLIER on, and no longer a new contact — first signed in at least
+ * supplier.newContactBankHoldBusinessDays business days ago (NEW_CONTACT_HOLD). The same rule as the portal's
+ * portalAuthorize('portal.bankAccount.propose'), checked here again because a service never trusts its caller.
+ */
+async function contactProposer(tx: TenantTx, ctx: Ctx, supplierId: string | undefined): Promise<{ ok: true; contactId: string } | Fail> {
+  if (ctx.actor.type !== 'SUPPLIER' || ctx.channel !== 'PORTAL') return fail('FORBIDDEN', 'not a portal request')
+  const supplierOn = await requireModule(ctx, 'SUPPLIER', tx)
+  if (!supplierOn.ok && !(await requireModule(ctx, 'PAY', tx)).ok) return { ok: false, error: supplierOn.error }
+  const refused = fail('FORBIDDEN', 'the primary contact proposes an account of its own supplier only', { action: 'portal.bankAccount.propose' })
+  if (!ctx.actor.supplierId || ctx.actor.supplierId !== supplierId) return refused
+  const contact = await tx.supplierContact.findUnique({ where: { id: ctx.actor.supplierContactId }, select: { status: true, isPrimary: true, portalEnabled: true, supplierId: true, firstSignedInAt: true } })
+  if (!contact || contact.status !== 'ACTIVE' || !contact.portalEnabled || contact.supplierId !== supplierId || !contact.isPrimary) return refused
+  const supplier = await tx.supplier.findUnique({ where: { id: supplierId }, select: { status: true } })
+  if (supplier?.status !== 'ACTIVE') return refused
+  const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
+  const calendar = await loadBusinessCalendar(tx, ctx.organizationId)
+  const days = supplierSettingsOf(org.settings).newContactBankHoldBusinessDays
+  const until = contact.firstSignedInAt ? addBusinessMinutes(contact.firstSignedInAt, days * businessDayMinutes(calendar), calendar) : null
+  if (!until || ctx.now < until) return fail('VALIDATION_FAILED', 'a new contact proposes a bank account after the hold', { field: 'supplierId', reason: 'NEW_CONTACT_HOLD', ...(until ? { until: until.toISOString() } : {}) })
+  return { ok: true, contactId: ctx.actor.supplierContactId }
 }
 
 function readChange(tx: TenantTx, id: string) {
@@ -153,6 +195,10 @@ const CreateInput = z.strictObject({
   branchName: AccountFields.branchName.optional(),
   accountType: AccountFields.accountType.optional(),
   reason: z.string().trim().min(MIN_REASON_LENGTH).max(REASON_MAX_LENGTH),
+  /** S7-10: the paper a contact sends with its proposal on the portal, stored by the adapter before the command */
+  proofFile: z
+    .strictObject({ storageKey: z.string().min(1).max(300), fileName: z.string().min(1).max(200), mimeType: z.enum(PROOF_TYPES), sizeBytes: z.int().positive(), sha256: z.string().regex(/^[0-9a-f]{64}$/) })
+    .optional(),
 })
 
 export const createBankAccountChangeCommand = defineCommand({
@@ -160,8 +206,15 @@ export const createBankAccountChangeCommand = defineCommand({
   capability: 'bankAccountChange.propose',
   input: CreateInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ changeId: string; warnings: string[] }>> {
-    const who = await proposer(tx, ctx)
-    if (!who.ok) return who
+    // a member of FINANCE, or the primary contact of the supplier on the portal (S7-10 · ADR-190)
+    const contact = ctx.actor.type === 'SUPPLIER' ? await contactProposer(tx, ctx, input.supplierId) : null
+    if (contact && !contact.ok) return contact
+    const who = contact ? null : await proposer(tx, ctx)
+    if (who && !who.ok) return who
+    if (who?.ok && who.portalOnly) return fail('MODULE_DISABLED', 'module PAY is not enabled for this organization', { module: 'PAY' })
+    if (contact && (input.ownerKind !== 'SUPPLIER' || input.kind === 'CLOSE')) return fail('VALIDATION_FAILED', 'a supplier proposes an account of its own to add or to replace', { field: 'kind', reason: 'PORTAL_KIND' })
+    if (contact && !input.proofFile) return fail('VALIDATION_FAILED', 'attach the paper of the bank or the supplier', { field: 'proof', reason: 'PROOF_REQUIRED' })
+    if (!contact && input.proofFile) return fail('VALIDATION_FAILED', 'a member attaches a proof with bankAccountChange.attachProof', { field: 'proofFile', reason: 'PORTAL_ONLY' })
     if ((input.ownerKind === 'SUPPLIER') !== (input.supplierId !== undefined)) return fail('VALIDATION_FAILED', 'a supplier’s account names its supplier, the organization’s none', { field: 'supplierId', reason: 'OWNER' })
     if ((input.kind === 'ADD') !== (input.targetBankAccountId === undefined)) return fail('VALIDATION_FAILED', 'a replacement or a closure names the account, an addition none', { field: 'targetBankAccountId', reason: 'TARGET' })
     if (input.kind === 'CLOSE' && (input.bankCode ?? input.accountNo ?? input.accountName ?? input.accountType ?? input.branchName) !== undefined) return fail('VALIDATION_FAILED', 'a closure proposes no new account', { field: 'accountNo', reason: 'CLOSE_HAS_ACCOUNT' })
@@ -209,10 +262,20 @@ export const createBankAccountChangeCommand = defineCommand({
         // ADR-129: an account of the organization pays with the neutral template until a bank's own arrives (P0-03)
         fileTemplateCode: input.ownerKind === 'ORGANIZATION' && proposed ? NEUTRAL_TEMPLATE_CODE : null,
         reason: input.reason,
-        submittedById: who.memberId,
+        // from the portal: no member sent it yet — FINANCE claims it (ADR-190)
+        submittedById: who?.ok ? who.memberId : null,
+        ...(contact?.ok ? { source: 'PORTAL' as const, proposedByContactId: contact.contactId } : {}),
       },
       select: { id: true },
     })
+    const proofEvents: EventDraft[] = []
+    if (contact?.ok && input.proofFile) {
+      const fileId = newId()
+      const f = input.proofFile
+      await tx.fileObject.create({ data: { id: fileId, organizationId: ctx.organizationId, storageKey: f.storageKey, fileName: f.fileName, mimeType: f.mimeType, sizeBytes: f.sizeBytes, sha256: f.sha256, status: 'AVAILABLE', uploadedById: null, scanStatus: 'PENDING' } })
+      await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId, subjectType: 'BankAccountChange', subjectId: change.id, kind: 'BANK_PROOF' } })
+      proofEvents.push({ type: 'file.uploaded', aggregateType: 'File', aggregateId: fileId, data: { fileId, mimeType: f.mimeType, sizeBytes: f.sizeBytes } })
+    }
     return {
       ok: true,
       result: { changeId: change.id, warnings: shared ? ['SHARED_BANK_ACCOUNT'] : [] },
@@ -223,10 +286,28 @@ export const createBankAccountChangeCommand = defineCommand({
           aggregateId: change.id,
           data: { kind: input.kind, ownerKind: input.ownerKind, supplierId, targetBankAccountId: input.targetBankAccountId ?? null, bankCode: proposed?.bankCode ?? null, last4: last4(proposed?.accountNo ?? null), sharedAccount: shared },
         },
+        ...proofEvents,
       ],
+      // FINANCE hears of a proposal from the portal, waiting to be claimed (docs/sub-specs/S7.md §10.1)
+      notifications: contact?.ok && supplierId ? await financeToClaim(tx, change.id, supplierId) : [],
     }
   },
 })
+
+/** The DIGEST notice to FINANCE of a change from the portal waiting to be claimed (supplier.bank_change_from_portal) */
+export async function financeToClaim(tx: TenantTx, changeId: string, supplierId: string): Promise<NotificationDraft[]> {
+  const supplier = await tx.supplier.findUnique({ where: { id: supplierId }, select: { code: true } })
+  const finance = await tx.roleAssignment.findMany({ where: { role: 'FINANCE', revokedAt: null, member: { status: 'ACTIVE' } }, select: { memberId: true }, distinct: ['memberId'], orderBy: { memberId: 'asc' } })
+  return finance.map((f) => ({
+    recipientMemberId: f.memberId,
+    templateKey: 'supplier.bank_change_from_portal',
+    data: { changeId, code: supplier?.code ?? '' },
+    urgency: 'DIGEST' as const,
+    dedupeKey: `supplier.bank_change_from_portal:${changeId}:${f.memberId}`,
+    subjectType: 'BankAccountChange',
+    subjectId: changeId,
+  }))
+}
 
 export function createBankAccountChange(ctx: Ctx, input: z.input<typeof CreateInput>, options: RunOptions) {
   return runCommand(ctx, createBankAccountChangeCommand, input, options)
@@ -257,7 +338,7 @@ export const updateBankAccountChangeCommand = defineCommand({
     const found = await lockedChange(tx, ctx, input.changeId, 'bankAccountChange.update', input.version)
     if (!found.ok) return found
     const { change } = found
-    const notOwner = ownedBy(change, who.memberId)
+    const notOwner = ownedBy(change, who.memberId) ?? onlyPortal(who, change)
     if (notOwner) return notOwner
     const accountTouched = (['bankCode', 'accountNo', 'accountName', 'branchName', 'accountType'] as const).filter((f) => input[f] !== undefined)
     if (change.kind === 'CLOSE' && accountTouched.length > 0) return fail('VALIDATION_FAILED', 'a closure proposes no new account', { field: accountTouched[0], reason: 'CLOSE_HAS_ACCOUNT' })
@@ -287,9 +368,9 @@ export const updateBankAccountChangeCommand = defineCommand({
     if (fields.length === 0) return fail('VALIDATION_FAILED', 'nothing to change', { reason: 'NOTHING' })
     const call =
       input.callVerificationNote !== undefined
-        ? { callVerifiedAt: ctx.now, callVerificationNote: input.callVerificationNote }
+        ? { callVerifiedAt: ctx.now, callVerificationNote: input.callVerificationNote, callVerifiedById: who.memberId }
         : accountChanged
-          ? { callVerifiedAt: null, callVerificationNote: null }
+          ? { callVerifiedAt: null, callVerificationNote: null, callVerifiedById: null }
           : {}
     const updated = await tx.bankAccountChange.update({
       where: { id: change.id },
@@ -327,7 +408,7 @@ export const attachBankProofCommand = defineCommand({
     if (!who.ok) return who
     const found = await lockedChange(tx, ctx, input.changeId, 'bankAccountChange.update', input.version)
     if (!found.ok) return found
-    const notOwner = ownedBy(found.change, who.memberId)
+    const notOwner = ownedBy(found.change, who.memberId) ?? onlyPortal(who, found.change)
     if (notOwner) return notOwner
     // A paper the proposer uploaded and the files service checked (type by its bytes, sha256), attached nowhere else
     const file = await tx.fileObject.findFirst({ where: { id: input.fileId, uploadedById: who.memberId, status: 'AVAILABLE' }, select: { id: true, mimeType: true } })
@@ -350,7 +431,7 @@ export const detachBankProofCommand = defineCommand({
     if (!who.ok) return who
     const found = await lockedChange(tx, ctx, input.changeId, 'bankAccountChange.update', input.version)
     if (!found.ok) return found
-    const notOwner = ownedBy(found.change, who.memberId)
+    const notOwner = ownedBy(found.change, who.memberId) ?? onlyPortal(who, found.change)
     if (notOwner) return notOwner
     const removed = await tx.fileLink.deleteMany({ where: { subjectType: 'BankAccountChange', subjectId: found.change.id, fileId: input.fileId, kind: 'BANK_PROOF' } })
     if (removed.count === 0) return fail('NOT_FOUND', 'the file is not attached to this request', { field: 'fileId' })
@@ -391,7 +472,9 @@ export const submitBankAccountChangeCommand = defineCommand({
     const found = await lockedChange(tx, ctx, input.changeId, 'bankAccountChange.submit', input.version)
     if (!found.ok) return found
     const { change, to } = found
-    const notOwner = ownedBy(change, who.memberId)
+    // a change from the portal is sent by the member who claimed it (ADR-190)
+    if (!change.submittedById) return fail('VALIDATION_FAILED', 'claim the request from the portal first', { field: 'changeId', reason: 'NOT_CLAIMED' })
+    const notOwner = ownedBy(change, who.memberId) ?? onlyPortal(who, change)
     if (notOwner) return notOwner
     // BR-SUP-06: the paper for a new account, and the call to the supplier's number in the register to replace one
     const proofCount = await tx.fileLink.count({ where: { subjectType: 'BankAccountChange', subjectId: change.id, kind: 'BANK_PROOF' } })
@@ -414,7 +497,7 @@ export const submitBankAccountChangeCommand = defineCommand({
       { type: 'BANK_ACCOUNT_CHANGE', id: change.id, label: `${number} ${changeTitle(change)}` },
       // BR-PAY-08: no amount; the proposer never approves (BR-SOD-05, BR-DOA-06)
       // the proposer is the sender (ownedBy above): a change from the portal is sent by the member who claimed it (ADR-190)
-      { documentType: 'BANK_ACCOUNT_CHANGE', requesterMemberId: who.memberId, chargedDepartmentId: department, conflictMemberIds: [who.memberId], at: ctx.now },
+      { documentType: 'BANK_ACCOUNT_CHANGE', requesterMemberId: who.memberId, chargedDepartmentId: department, conflictMemberIds: [...new Set([who.memberId, ...(change.callVerifiedById ? [change.callVerifiedById] : [])])], at: ctx.now },
     )
     if (!route.ok) return { ok: false, error: route.error }
     await tx.bankAccountChange.update({ where: { id: change.id }, data: { number, status: to, submittedAt: ctx.now, currentRouteId: route.data.routeId, version: { increment: 1 } } })
@@ -448,7 +531,7 @@ export const cancelBankAccountChangeCommand = defineCommand({
     const found = await lockedChange(tx, ctx, input.changeId, 'bankAccountChange.cancel', input.version)
     if (!found.ok) return found
     const { change, to } = found
-    const notOwner = ownedBy(change, who.memberId)
+    const notOwner = ownedBy(change, who.memberId) ?? onlyPortal(who, change)
     if (notOwner) return notOwner
     const target = change.targetBankAccountId ? await tx.bankAccount.findFirst({ where: { id: change.targetBankAccountId }, select: { accountNo: true } }) : null
     if (namesAccount(input.reason, [change.accountNo, target?.accountNo ?? null])) return namesAccountFail('reason')
@@ -467,6 +550,68 @@ export const cancelBankAccountChangeCommand = defineCommand({
 
 export function cancelBankAccountChange(ctx: Ctx, input: z.input<typeof CancelInput>, options: RunOptions) {
   return runCommand(ctx, cancelBankAccountChangeCommand, input, options)
+}
+
+// ---------- bankAccountChange.claim (S7-10 · ADR-190 · FR-SUP-103 AC2) ----------
+
+const ClaimInput = z.strictObject({ changeId: z.uuid(), version: z.number().int().min(0) })
+
+/**
+ * FINANCE takes a change the supplier proposed on the portal: a DRAFT of source PORTAL that no member sent yet becomes
+ * the claimer's (submittedById, claimedAt) — then the call, the proof and the send are theirs as for any request. The
+ * row is locked: the first claim wins, a second is INVALID_STATE_TRANSITION.
+ */
+export const claimBankAccountChangeCommand = defineCommand({
+  name: 'bankAccountChange.claim',
+  capability: 'bankAccountChange.propose',
+  input: ClaimInput,
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ changeId: string; version: number }>> {
+    const who = await proposer(tx, ctx)
+    if (!who.ok) return who
+    const found = await lockedChange(tx, ctx, input.changeId, 'bankAccountChange.update', input.version)
+    if (!found.ok) return found
+    const { change } = found
+    if (change.source !== 'PORTAL') return fail('INVALID_STATE_TRANSITION', 'only a change from the portal is claimed', { source: change.source })
+    if (change.submittedById) return fail('INVALID_STATE_TRANSITION', 'the change was claimed already', { reason: 'CLAIMED' })
+    const updated = await tx.bankAccountChange.update({ where: { id: change.id }, data: { submittedById: who.memberId, claimedAt: ctx.now, version: { increment: 1 } }, select: { version: true } })
+    return { ok: true, result: { changeId: change.id, version: updated.version }, events: [{ type: 'bank_account_change.claimed', aggregateType: 'BankAccountChange', aggregateId: change.id, data: { claimedById: who.memberId } }] }
+  },
+})
+
+export function claimBankAccountChange(ctx: Ctx, input: z.input<typeof ClaimInput>, options: RunOptions) {
+  return runCommand(ctx, claimBankAccountChangeCommand, input, options)
+}
+
+// ---------- the draft of an approved application (S7-10 · FR-SUP-103 AC5) ----------
+
+/**
+ * Inside the transaction of the approval of a supplier application (approvals/subjects/supplier-application.ts, which
+ * runs inside decide.ts's command — a nested runCommand is not possible): the account the supplier gave in its
+ * application becomes a DRAFT change ADD of source PORTAL with no member who sent it, its primary contact as the
+ * proposer, for FINANCE to claim — never a BankAccount (INV-SUP ข้อ 04). No NEW_CONTACT_HOLD: the account went through
+ * DOA SUPPLIER_APPROVAL. An organization without PAY gets it too (BR-SUP ข้อ 16).
+ */
+export async function draftBankAccountChangeInTx(
+  tx: TenantTx,
+  ctx: Ctx,
+  input: { readonly supplierId: string; readonly contactId: string; readonly bankCode: string; readonly accountNo: string; readonly accountName: string; readonly branchName: string | null; readonly reason: string },
+): Promise<{ ok: true; changeId: string; events: EventDraft[]; notifications: NotificationDraft[] } | Fail> {
+  const checked = checkProposed({ bankCode: input.bankCode, accountNo: input.accountNo, accountName: input.accountName, branchName: input.branchName }, 'SUPPLIER')
+  if (!checked.ok) return checked
+  const supplier = await tx.supplier.findFirst({ where: { id: input.supplierId }, select: { id: true, taxId: true } })
+  if (!supplier) return fail('NOT_FOUND', 'supplier not found')
+  const p = checked.proposed
+  const shared = await sharedAccount(tx, supplier, p.bankCode, p.accountNo)
+  const change = await tx.bankAccountChange.create({
+    data: { organizationId: ctx.organizationId, kind: 'ADD', ownerKind: 'SUPPLIER', supplierId: supplier.id, bankCode: p.bankCode, accountNo: p.accountNo, accountName: p.accountName, branchName: p.branchName, reason: input.reason, submittedById: null, source: 'PORTAL', proposedByContactId: input.contactId },
+    select: { id: true },
+  })
+  return {
+    ok: true,
+    changeId: change.id,
+    events: [{ type: 'bank_account_change.drafted', aggregateType: 'BankAccountChange', aggregateId: change.id, data: { kind: 'ADD', ownerKind: 'SUPPLIER', supplierId: supplier.id, targetBankAccountId: null, bankCode: p.bankCode, last4: last4(p.accountNo), sharedAccount: shared } }],
+    notifications: await financeToClaim(tx, change.id, supplier.id),
+  }
 }
 
 // ---------- the decision of DOA BANK_ACCOUNT_CHANGE (the subject adapter calls it) ----------
@@ -495,11 +640,12 @@ function decidedNotice(change: ChangeRow, outcome: SubjectDecision['outcome'], n
 export async function decideBankAccountChange(tx: TenantTx, ctx: Ctx, changeId: string, decision: SubjectDecision): Promise<SubjectDecided> {
   const command: BankAccountChangeCommand = decision.outcome === 'APPROVED' ? 'bankAccountChange.final_approval' : decision.outcome === 'RETURNED' ? 'approval.return' : 'approval.reject'
   const pay = await requireModule(ctx, 'PAY', tx)
-  if (!pay.ok) return { ok: false, error: pay.error }
   const found = await lockedChange(tx, ctx, changeId, command)
   // The tests of the shared base route this subject without a request of its own: refused as the empty adapter was
   if (!found.ok) return found.error.code === 'NOT_FOUND' ? { ok: false, error: { code: 'VALIDATION_FAILED', message: 'no bank account change for this task', details: { reason: 'SUBJECT' } } } : found
   const { change, to } = found
+  // a change from the portal is decided with SUPPLIER on and PAY off too (S7-10 · BR-SUP ข้อ 16)
+  if (!pay.ok && !(change.source === 'PORTAL' && (await requireModule(ctx, 'SUPPLIER', tx)).ok)) return { ok: false, error: pay.error }
   const number = change.number ?? ''
   if (decision.outcome !== 'APPROVED') {
     // A return is no decision of the request: back to the draft without a decision time

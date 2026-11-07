@@ -48,6 +48,8 @@ export type SodAction =
       readonly requesterMemberIds: readonly string[]
       /** BR-SOD-03 */
       readonly poCreatorMemberId?: string | null
+      /** BR-SOD-12 (S7): a bank account change from the supplier portal — who claimed it and who recorded the call */
+      readonly bankChange?: BankChangeSod
       /** BR-SOD-04 (S9): who recorded the invoices of a payment run (a retention counts its invoice's) */
       readonly invoiceRecorderMemberIds?: readonly string[]
       /** BR-SOD-10 (S9): the bank account changes in force of the run's accounts, and the window before its pay date */
@@ -74,6 +76,13 @@ export type SodAction =
       readonly beneficiaryMemberId: string | null
     }
 
+/** A bank account change as BR-SOD-12 reads it: its source, and the members who claimed it and recorded the call */
+export interface BankChangeSod {
+  readonly source: 'INTERNAL' | 'PORTAL'
+  readonly submittedById: string | null
+  readonly callVerifiedById: string | null
+}
+
 /** The changes of the accounts a run pays into (BR-SOD-10): who proposed each and the Thai day it came into force */
 export interface RecentBankChanges {
   readonly payDate: string
@@ -81,7 +90,7 @@ export interface RecentBankChanges {
   readonly changes: ReadonlyArray<{ readonly proposerMemberId: string; readonly effectiveOn: string }>
 }
 
-export type SodRule = 'BR-SOD-01' | 'BR-SOD-02' | 'BR-SOD-03' | 'BR-SOD-04' | 'BR-SOD-05' | 'BR-SOD-06' | 'BR-SOD-07' | 'BR-SOD-08' | 'BR-SOD-09' | 'BR-SOD-10' | 'BR-SOD-11'
+export type SodRule = 'BR-SOD-01' | 'BR-SOD-02' | 'BR-SOD-03' | 'BR-SOD-04' | 'BR-SOD-05' | 'BR-SOD-06' | 'BR-SOD-07' | 'BR-SOD-08' | 'BR-SOD-09' | 'BR-SOD-10' | 'BR-SOD-11' | 'BR-SOD-12'
 export type SodResult = { readonly ok: true } | { readonly ok: false; readonly error: 'SOD_VIOLATION'; readonly rule: SodRule }
 
 const allowed: SodResult = { ok: true }
@@ -111,6 +120,16 @@ export function paymentRunSodExtra(input: { readonly invoiceRecorderMemberIds: r
   ]
 }
 
+/**
+ * BR-SOD-12: the members who may not approve a bank account change from the portal — who claimed it and who recorded
+ * the call; none for an internal change (BR-SOD-05 covers its proposer). The adapter of BANK_ACCOUNT_CHANGE hands these
+ * to approvals/decide.ts as `extra`, so a decision is refused exactly as checkSod refuses it here.
+ */
+export function bankChangePortalConflicts(change: BankChangeSod): string[] {
+  if (change.source !== 'PORTAL') return []
+  return [...new Set([change.submittedById, change.callVerifiedById].filter((m): m is string => typeof m === 'string' && m.length > 0))]
+}
+
 export function checkSod(action: SodAction, policy: SodPolicy): SodResult {
   switch (action.kind) {
     case 'DECIDE_APPROVAL': {
@@ -128,7 +147,12 @@ export function checkSod(action: SodAction, policy: SodPolicy): SodResult {
         if ((action.invoiceRecorderMemberIds ?? []).includes(action.actorMemberId)) return violation('BR-SOD-04')
         return changedRecently(action.actorMemberId, action.recentBankChanges) ? violation('BR-SOD-10') : allowed
       }
-      if (action.subject === 'BANK_ACCOUNT_CHANGE') return own ? violation('BR-SOD-05') : allowed
+      if (action.subject === 'BANK_ACCOUNT_CHANGE') {
+        // S7 (BR-SOD-12 · ADR-190): a change the supplier proposed on the portal has no member proposer; whoever claimed
+        // it and whoever recorded the call never approves it — before BR-SOD-05, so the refusal names the right rule
+        if (action.bankChange?.source === 'PORTAL' && bankChangePortalConflicts(action.bankChange).includes(action.actorMemberId)) return violation('BR-SOD-12')
+        return own ? violation('BR-SOD-05') : allowed
+      }
       if (own) return violation('BR-SOD-01')
       if (action.subject === 'PURCHASE_ORDER' && action.poCreatorMemberId === action.actorMemberId) return violation('BR-SOD-03')
       return allowed

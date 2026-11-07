@@ -2294,6 +2294,125 @@ def run_chat_intake(d):
         out.append((c["id"], got == want, got))
     return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
+def run_supplier_onboarding(d):
+    # BR-SUP-09 BR-SUP-12 BR-SUP-13 BR-PORTAL-02 (S7): normalize = NFC trim lower, legal-form words (longest first; English
+    # as whole words, Thai at the head or tail next to a space dot or bracket, a trailing bracket kept), then no spaces
+    # dots commas dashes · duplicates (ก) block (ข)(ค)(ง) warn · OTP lock → expiry → code · SLA on the business calendar
+    # (minutes of a business day) · G-7 tenths half up and the lower median · the whole result object is compared
+    import unicodedata
+    words = ["ห้างหุ้นส่วนจำกัด", "ห้างหุ้นส่วนสามัญ", "จำกัด (มหาชน)", "company limited", "บริษัท", "(มหาชน)", "co., ltd.", "co.,ltd.",
+             "limited", "บมจ.", "บจก.", "หจก.", "หสน.", "จำกัด", "บจ.", "ltd.", "inc.", "ltd", "plc", "inc"]
+    lat = [w for w in words if re.search("[a-z]", w)]; tha = [w for w in words if w not in lat]
+    edge = lambda ch: ch == "" or ch.isspace() or ch in ".()"
+    def tail(t):
+        for w in tha:
+            if t.endswith(w) and edge(t[len(t) - len(w) - 1] if len(t) > len(w) else ""): return t[:len(t) - len(w)].rstrip()
+        m = re.search(r"\s*\([^()]*\)\s*$", t)
+        if m and m.start() > 0:
+            h = t[:m.start()]; x = tail(h)
+            if x != h: return x + m.group(0)
+        return t
+    def norm(s):
+        t = unicodedata.normalize("NFC", s).strip().lower()
+        while True:
+            b = t
+            for w in lat: t = re.sub(r"(?<![a-z0-9])" + re.escape(w) + r"(?![a-z0-9])", " ", t)
+            t = t.strip()
+            for w in tha:
+                if t.startswith(w) and (w.endswith(".") or edge(t[len(w):len(w) + 1])): t = t[len(w):].lstrip(); break
+            t = re.sub(r"[\s.,-]+", "", tail(t))
+            if t == b: return t
+    cal = d["calendar"]; wd = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
+    work = {wd[x] for x in cal["workdays"]}; hol = set(cal["holidays"])
+    s0, e0 = dtime.fromisoformat(cal["start"]), dtime.fromisoformat(cal["end"])
+    isw = lambda day: day.weekday() in work and day.isoformat() not in hol
+    bnd = lambda day: (datetime.combine(day, s0, BKK), datetime.combine(day, e0, BKK))
+    daymin = int((datetime.combine(date(2000, 1, 3), e0) - datetime.combine(date(2000, 1, 3), s0)).total_seconds() // 60)
+    def add(t, m):
+        t = t.astimezone(BKK)
+        while True:
+            a, b = bnd(t.date())
+            if not isw(t.date()) or t >= b: t = bnd(t.date() + timedelta(days=1))[0]; continue
+            t = max(t, a); av = (b - t).total_seconds() / 60
+            if m <= av: return t + timedelta(minutes=m)
+            m -= av; t = bnd(t.date() + timedelta(days=1))[0]
+    def between(x, y):
+        x, y, tot, day = x.astimezone(BKK), y.astimezone(BKK), 0.0, x.astimezone(BKK).date()
+        while day <= y.date():
+            if isw(day):
+                a, b = bnd(day); lo, hi = max(a, x), min(b, y)
+                if hi > lo: tot += (hi - lo).total_seconds() / 60
+            day += timedelta(days=1)
+        return int(tot)
+    st = d["settings"]; ex = d["existing"]
+    def taxok(t): return bool(re.fullmatch(r"\d{13}", t)) and (11 - sum(int(t[i]) * (13 - i) for i in range(12)) % 11) % 10 == int(t[12])
+    def dup(i):
+        tid = None if not i.get("taxId") else re.sub(r"[\s-]", "", i["taxId"])
+        if tid is not None and not taxok(tid): return {"error": "VALIDATION_FAILED", "reason": "TAXID_CHECKSUM"}
+        w = []
+        if tid is not None:
+            same = [e for e in ex if e["taxId"] and re.sub(r"[\s-]", "", e["taxId"]) == tid]
+            br = [e["ref"] for e in same if e["branchCode"] == i["branchCode"]]
+            if br: return {"error": "DUPLICATE_SUPPLIER", "reason": "DUPLICATE_TAXID", "matches": br}
+            if same: w.append({"code": "SAME_TAXID_OTHER_BRANCH", "matches": [e["ref"] for e in same]})
+        n = norm(i["nameTh"]); nm = [e["ref"] for e in ex if norm(e["nameTh"]) == n]
+        if nm: w.append({"code": "DUPLICATE_NAME", "matches": nm})
+        em = (i.get("email") or "").strip().lower()
+        mm = [e["ref"] for e in ex if em and e["email"].strip().lower() == em]
+        if mm: w.append({"code": "DUPLICATE_EMAIL", "matches": mm})
+        return {"warnings": w}
+    def otp(i):
+        now, cr = dt(i["now"]), dt(i["createdAt"]); lk = dt(i["lockedUntil"]) if i.get("lockedUntil") else None
+        if lk and now < lk: return {"error": "OTP_LOCKED"}
+        if now >= cr + timedelta(minutes=st["otpMinutes"]): return {"error": "OTP_EXPIRED"}
+        if i["attempt"] == i["code"]: return {"ok": True}
+        n = i["attempts"] + 1
+        if n >= st["otpMaxAttempts"]: return {"error": "OTP_LOCKED", "attempts": n, "lockedUntil": z(now + timedelta(minutes=st["otpLockMinutes"]))}
+        return {"error": "OTP_INVALID", "attempts": n, "remaining": st["otpMaxAttempts"] - n}
+    def sla(i):
+        inv, last = dt(i["invitedAt"]), dt(i["lastActivityAt"])
+        return {"remindAt": z(add(last, st["applicationReminderBusinessDays"] * daymin)), "escalateAt": z(add(inv, st["applicationEscalateBusinessDays"] * daymin)),
+                "expiresAt": z(inv.astimezone(BKK) + timedelta(days=st["applicationExpireDays"]))}
+    def g7(xs): return [str((Decimal(between(dt(x["invitedAt"]), dt(x["decidedAt"]))) / daymin).quantize(Decimal("0.1"), ROUND_HALF_UP)) for x in xs]
+    def med(xs): return None if not xs else str(sorted(Decimal(x) for x in xs)[(len(xs) - 1) // 2])
+    fns = {"normalizeSupplierName": norm, "findSupplierDuplicates": dup, "verifyOtp": otp, "applicationSla": sla, "g7BusinessDays": g7, "g7Median": med}
+    out = []
+    for c in d["cases"]:
+        got = fns[c["fn"]](c["input"]); out.append((c["id"], got == c["expect"], got))
+    return out
+def run_supplier_documents(d):
+    # BR-SDOC-02 to 04 (S7): expiresOn = issuedOn + validityDays − 1 (stated expiry kept beside it) or the stated expiry ·
+    # remindOn = max(expiresOn − reminderDaysBefore, issuedOn) · status on the date of now in the suite's time zone ·
+    # verify needs a PENDING document with a CLEAN file · supersede every copy of a single-instance type, else the same
+    # scope (NFC trim lower, runs of white space one space) · the whole result object is compared
+    import unicodedata
+    ty = d["types"]; tz = ZoneInfo(d["timezone"]); D = date.fromisoformat
+    def expiry(i):
+        t = ty[i["type"]]; vd = i.get("validityDaysOverride", t["validityDays"]); rb = i.get("reminderDaysBefore", t["reminderDaysBefore"])
+        iss = D(i["issuedOn"]); st = i.get("expiresOn")
+        if vd is not None and vd <= 0: return {"error": "VALIDATION_FAILED", "reason": "VALIDITY_DAYS"}
+        if vd is None and st is None: return {"error": "VALIDATION_FAILED", "reason": "EXPIRY_REQUIRED"}
+        exp = iss + timedelta(days=vd - 1) if vd is not None else D(st)
+        if exp < iss: return {"error": "VALIDATION_FAILED", "reason": "EXPIRY_BEFORE_ISSUE"}
+        out = {"expiresOn": exp.isoformat(), "remindOn": max(exp - timedelta(days=rb), iss).isoformat()}
+        if vd is not None and st is not None: out["statedExpiresOn"] = st
+        return out
+    def status(i):
+        today = dt(i["now"]).astimezone(tz).date()
+        return {"status": "EXPIRED" if today > D(i["expiresOn"]) else "VERIFIED", "reminderDue": today >= D(i["remindOn"])}
+    def verify(i):
+        if i["status"] != "PENDING": return {"error": "INVALID_STATE_TRANSITION"}
+        if i["scanStatus"] != "CLEAN": return {"error": "VALIDATION_FAILED", "reason": "FILE_NOT_SCANNED" if i["scanStatus"] == "PENDING" else "FILE_INFECTED"}
+        return {"ok": True}
+    key = lambda s: "" if s is None else " ".join(unicodedata.normalize("NFC", s).split()).lower()
+    def sup(i):
+        k = key(i["newDoc"]["scope"]); r = lambda v: i["singleInstance"] or key(v["scope"]) == k
+        return {"supersedes": [v["id"] for v in i["verified"] if r(v)], "keeps": [v["id"] for v in i["verified"] if not r(v)]}
+    fns = {"documentExpiry": expiry, "documentStatus": status, "canVerify": verify, "supersedeTargets": sup}
+    out = []
+    for c in d["cases"]:
+        got = fns[c["fn"]](c["input"]); out.append((c["id"], got == c["expect"], got))
+    return out
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
     "ai-credits": run_ai_credits,
@@ -2326,6 +2445,8 @@ RUNNERS = {
     "money": run_money,
     "notification-route": run_notification_route,
     "step-up-methods": run_step_up_methods,
+    "supplier-documents": run_supplier_documents,
+    "supplier-onboarding": run_supplier_onboarding,
     "numbering": run_numbering,
     "offline-queue": run_offline_queue,
     "offline-receiving": run_offline_receiving,

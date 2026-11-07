@@ -3615,6 +3615,89 @@ engine ของขั้นเป็น pure function ใน `src/core/supplier
 | INV-SUP-04 | ไม่มีคำสั่งของ S7 เขียน `BankAccount` โดยตรง · บัญชีของผู้ขายทุกแถวมี `sourceChangeId` ยกเว้นแถวจาก seed | ESLint boundary (`src/server/portal` และ `src/server/services/suppliers` ห้าม import `bankAccounts` นอก `proposeBankAccountChange`) + integration test หลังชุดของขั้น |
 | INV-SUP-05 | Event ที่ `channel = PORTAL` มี `actorType = SUPPLIER` `actorSupplierContactId` ไม่ว่าง `actorMemberId` ว่าง และ `data` ไม่มีคีย์ที่ขึ้นต้น `email` `phone` `accountNo` `taxId` | integration test สแกน Event หลังรันชุดของขั้น + schema ของ `appendEvents` |
 
+**Golden ของขั้น (S7-03):** suite `supplier-onboarding` (GC-SUP-09 ถึง GC-SUP-33 และ GC-SUP-48 ถึง GC-SUP-51 · 29 เคส) และ `supplier-documents` (GC-SUP-34 ถึง GC-SUP-47 และ GC-SUP-52 ถึง GC-SUP-54 · 17 เคส) · ตัวรันเทียบผลทั้ง object · ปฏิทินของ `supplier-onboarding` เป็นชุดเดียวกับ `workflow-reports` (จันทร์–ศุกร์ 08:30–17:30 Asia/Bangkok วันหยุด 2026-10-13 2026-10-23 · หนึ่งวันทำการ = นาทีระหว่างเวลาเปิดถึงปิดของปฏิทิน = 540) · เคส OTP ส่งรหัสและรหัสที่กรอกในฐานะ hash ที่เซิร์ฟเวอร์เก็บและคำนวณ (`verifyOtp` เทียบ hash) · `normalizeSupplierName` ทำซ้ำจนผลไม่เปลี่ยน จึง normalize สองครั้งได้ผลเท่าครั้งเดียว (property test) · วิธีคำนวณ: `docs/sub-specs/S7.md` หัวข้อ "ร่าง golden case" · ตัวคำนวณอ้างอิงอิสระ `run_supplier_onboarding` `run_supplier_documents` ใน `scripts/spec_check.py`
+
+```yaml
+# tests/golden/supplier-onboarding.yaml
+suite: supplier-onboarding
+calendar: { timezone: Asia/Bangkok, workdays: [MON, TUE, WED, THU, FRI], start: "08:30", end: "17:30", holidays: ["2026-10-13", "2026-10-23"] }
+settings: { applicationReminderBusinessDays: 3, applicationEscalateBusinessDays: 10, applicationExpireDays: 30, otpMinutes: 10, otpMaxAttempts: 5, otpLockMinutes: 15 }
+existing:
+  # ผู้ขายและใบสมัครที่เปิดอยู่ขององค์กร (จากชีต Suppliers ของ SIMEC)
+  - { ref: SP0001, taxId: "0999998010014", branchCode: "00000", nameTh: "บริษัท เกียรติไพศาลค้าวัสดุ จำกัด", email: "sp0001@supplier.simec.local" }
+  - { ref: SP0196, taxId: "0999998010014", branchCode: "00003", nameTh: "บริษัท เกียรติไพศาลค้าวัสดุ จำกัด (สาขาชลบุรี)", email: "sp0196@supplier.simec.local" }
+  - { ref: SP0105, taxId: "0999998011053", branchCode: "00000", nameTh: "ห้างหุ้นส่วนจำกัด รังสิตเทรดดิ้งวิศวกรรมโยธา", email: "sp0105@supplier.simec.local" }
+cases:
+  # normalizeSupplierName (BR-SUP-09)
+  - { id: GC-SUP-09, title: ตัดคำว่าบริษัทและจำกัด, fn: normalizeSupplierName, input: "บริษัท เกียรติไพศาลค้าวัสดุ จำกัด", expect: "เกียรติไพศาลค้าวัสดุ" }
+  - { id: GC-SUP-10, title: บจก. ย่อให้ผลเดียวกัน, fn: normalizeSupplierName, input: "บจก. เกียรติไพศาลค้าวัสดุ", expect: "เกียรติไพศาลค้าวัสดุ" }
+  - { id: GC-SUP-11, title: หจก. กับห้างหุ้นส่วนจำกัด, fn: normalizeSupplierName, input: "หจก.รังสิตเทรดดิ้งวิศวกรรมโยธา", expect: "รังสิตเทรดดิ้งวิศวกรรมโยธา" }
+  - { id: GC-SUP-12, title: ข้อความสาขาในวงเล็บคงไว้, fn: normalizeSupplierName, input: "บริษัท เกียรติไพศาลค้าวัสดุ จำกัด (สาขาชลบุรี)", expect: "เกียรติไพศาลค้าวัสดุ(สาขาชลบุรี)" }
+  - { id: GC-SUP-13, title: ชื่ออังกฤษตัดรูปแบบบริษัทและตัวพิมพ์, fn: normalizeSupplierName, input: "SIAM STEEL COMPANY LIMITED", expect: "siamsteel" }
+  # findSupplierDuplicates (BR-SUP-09) · candidate = ค่าที่กรอกในคำเชิญหรือใบสมัคร
+  - { id: GC-SUP-14, title: เลขและสาขาตรง บล็อก, fn: findSupplierDuplicates, input: { taxId: "0999998010014", branchCode: "00003", nameTh: "บจก. เกียรติไพศาลค้าวัสดุ", email: "x@example.com" }, expect: { error: DUPLICATE_SUPPLIER, reason: DUPLICATE_TAXID, matches: [SP0196] } }
+  - { id: GC-SUP-15, title: เลขตรงสาขาต่าง เตือน, fn: findSupplierDuplicates, input: { taxId: "0999998010014", branchCode: "00004", nameTh: "บริษัท ใหม่ จำกัด", email: "x@example.com" }, expect: { warnings: [{ code: SAME_TAXID_OTHER_BRANCH, matches: [SP0001, SP0196] }] } }
+  - { id: GC-SUP-16, title: ชื่อตรงหลัง normalize, fn: findSupplierDuplicates, input: { taxId: "0999998020010", branchCode: "00000", nameTh: "บจก. เกียรติไพศาลค้าวัสดุ", email: "x@example.com" }, expect: { warnings: [{ code: DUPLICATE_NAME, matches: [SP0001] }] } }
+  - { id: GC-SUP-17, title: อีเมลตรงไม่สนตัวพิมพ์และช่องว่าง, fn: findSupplierDuplicates, input: { taxId: "0999998020010", branchCode: "00000", nameTh: "บริษัท ราชบุรีคอนสตรัคชั่น จำกัด", email: " SP0105@Supplier.SIMEC.local " }, expect: { warnings: [{ code: DUPLICATE_EMAIL, matches: [SP0105] }] } }
+  - { id: GC-SUP-18, title: ไม่ซ้ำ, fn: findSupplierDuplicates, input: { taxId: "0999998020010", branchCode: "00000", nameTh: "บริษัท ราชบุรีคอนสตรัคชั่น จำกัด", email: "rcb@supplier.simec.local" }, expect: { warnings: [] } }
+  - { id: GC-SUP-19, title: เลขผู้เสียภาษี check digit ผิด, fn: findSupplierDuplicates, input: { taxId: "0999998010015", branchCode: "00000", nameTh: "บริษัท ก จำกัด", email: "a@example.com" }, expect: { error: VALIDATION_FAILED, reason: TAXID_CHECKSUM } }
+  # verifyOtp (BR-PORTAL-02) · challenge สร้าง 2026-11-02T02:00:00Z รหัส 482913
+  - { id: GC-SUP-20, title: รหัสถูกภายในเวลา, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 0, attempt: "482913", now: "2026-11-02T02:04:00Z" }, expect: { ok: true } }
+  - { id: GC-SUP-21, title: ผิดครั้งที่ 4 ยังเหลือ 1 ครั้ง, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 3, attempt: "000000", now: "2026-11-02T02:03:00Z" }, expect: { error: OTP_INVALID, attempts: 4, remaining: 1 } }
+  - { id: GC-SUP-22, title: ผิดครั้งที่ 5 ล็อก 15 นาที, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 4, attempt: "000000", now: "2026-11-02T02:03:00Z" }, expect: { error: OTP_LOCKED, attempts: 5, lockedUntil: "2026-11-02T02:18:00Z" } }
+  - { id: GC-SUP-23, title: รหัสถูกแต่ถูกล็อกแล้ว, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 5, lockedUntil: "2026-11-02T02:18:00Z", attempt: "482913", now: "2026-11-02T02:05:00Z" }, expect: { error: OTP_LOCKED } }
+  - { id: GC-SUP-24, title: นาทีที่ 10 พอดีถือว่าหมดอายุ, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 0, attempt: "482913", now: "2026-11-02T02:10:00Z" }, expect: { error: OTP_EXPIRED } }
+  - { id: GC-SUP-25, title: ก่อนหมดอายุ 1 วินาที, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 0, attempt: "482913", now: "2026-11-02T02:09:59Z" }, expect: { ok: true } }
+  # applicationSla (BR-SUP-12) · วันทำการ = 540 นาที
+  - { id: GC-SUP-26, title: เชิญศุกร์ 10:00, fn: applicationSla, input: { invitedAt: "2026-10-09T03:00:00Z", lastActivityAt: "2026-10-09T03:00:00Z" }, expect: { remindAt: "2026-10-15T03:00:00Z", escalateAt: "2026-10-27T03:00:00Z", expiresAt: "2026-11-08T03:00:00Z" } }
+  - { id: GC-SUP-27, title: เชิญจันทร์ 17:00 ข้ามวันหยุด 13 ต.ค., fn: applicationSla, input: { invitedAt: "2026-10-12T10:00:00Z", lastActivityAt: "2026-10-12T10:00:00Z" }, expect: { remindAt: "2026-10-16T10:00:00Z", escalateAt: "2026-10-28T10:00:00Z", expiresAt: "2026-11-11T10:00:00Z" } }
+  - { id: GC-SUP-28, title: เชิญวันเสาร์ เริ่มนับจันทร์, fn: applicationSla, input: { invitedAt: "2026-10-10T07:00:00Z", lastActivityAt: "2026-10-10T07:00:00Z" }, expect: { remindAt: "2026-10-15T10:30:00Z", escalateAt: "2026-10-27T10:30:00Z", expiresAt: "2026-11-09T07:00:00Z" } }
+  - { id: GC-SUP-29, title: มีความเคลื่อนไหวแล้ว เตือนนับใหม่จาก lastActivityAt, fn: applicationSla, input: { invitedAt: "2026-10-09T03:00:00Z", lastActivityAt: "2026-10-14T02:00:00Z" }, expect: { remindAt: "2026-10-19T02:00:00Z", escalateAt: "2026-10-27T03:00:00Z", expiresAt: "2026-11-08T03:00:00Z" } }
+  # g7 (BR-SUP-13) · วันทำการทศนิยม 1 ตำแหน่ง ปัด half-up · ตัวกลางล่าง
+  - { id: GC-SUP-30, title: วันทำการจากคำเชิญถึงอนุมัติ, fn: g7BusinessDays, input: [{ invitedAt: "2026-10-05T02:00:00Z", decidedAt: "2026-10-07T03:00:00Z" }, { invitedAt: "2026-10-05T02:00:00Z", decidedAt: "2026-10-16T09:00:00Z" }, { invitedAt: "2026-10-09T03:00:00Z", decidedAt: "2026-10-15T08:30:00Z" }, { invitedAt: "2026-10-06T01:30:00Z", decidedAt: "2026-10-06T10:30:00Z" }], expect: ["2.1", "8.8", "3.6", "1.0"] }
+  - { id: GC-SUP-31, title: มัธยฐานตัวกลางล่างของ 4 ใบ, fn: g7Median, input: ["2.1", "8.8", "3.6", "1.0"], expect: "2.1" }
+  - { id: GC-SUP-32, title: มัธยฐานของ 3 ใบ (seed demo), fn: g7Median, input: ["2.1", "8.8", "3.6"], expect: "3.6" }
+  - { id: GC-SUP-33, title: ไม่มีใบที่อนุมัติ, fn: g7Median, input: [], expect: null }
+  # เคสขอบที่เพิ่มในรอบตรวจ ADR-075 (ต่อท้ายช่วงเดิม)
+  - { id: GC-SUP-48, title: คำบอกรูปแบบตัดเฉพาะคำเต็ม ไม่กินตัวอักษรในชื่อ, fn: normalizeSupplierName, input: "Prince Co., Ltd.", expect: "prince" }
+  - { id: GC-SUP-49, title: ผู้ขายต่างประเทศไม่มีเลขผู้เสียภาษี ตรวจเฉพาะชื่อและอีเมล, fn: findSupplierDuplicates, input: { taxId: null, isForeign: true, branchCode: "00000", nameTh: "ACME Trading Pte. Ltd.", email: "sp0105@supplier.simec.local" }, expect: { warnings: [{ code: DUPLICATE_EMAIL, matches: [SP0105] }] } }
+  - { id: GC-SUP-50, title: ถึงเวลาปลดล็อกพอดี แต่ challenge หมดอายุแล้ว, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 5, lockedUntil: "2026-11-02T02:18:00Z", attempt: "482913", now: "2026-11-02T02:18:00Z" }, expect: { error: OTP_EXPIRED } }
+  - { id: GC-SUP-51, title: ความเคลื่อนไหวหลังส่งต่อ เตือนนับใหม่แต่ไม่ส่งต่อซ้ำ, fn: applicationSla, input: { invitedAt: "2026-10-09T03:00:00Z", lastActivityAt: "2026-10-28T02:00:00Z" }, expect: { remindAt: "2026-11-02T02:00:00Z", escalateAt: "2026-10-27T03:00:00Z", expiresAt: "2026-11-08T03:00:00Z" } }
+```
+
+```yaml
+# tests/golden/supplier-documents.yaml
+suite: supplier-documents
+timezone: Asia/Bangkok
+types:
+  COMPANY_CERT: { validityDays: 180, reminderDaysBefore: 30 }
+  VAT_CERT: { validityDays: 365, reminderDaysBefore: 30 }
+  ISO_CERT: { validityDays: null, reminderDaysBefore: 30 }
+  SHORT: { validityDays: 30, reminderDaysBefore: 45 }
+cases:
+  # documentExpiry (BR-SDOC-02)
+  - { id: GC-SUP-34, title: หนังสือรับรอง 180 วัน รวมวันหมดอายุ, fn: documentExpiry, input: { type: COMPANY_CERT, issuedOn: "2026-11-03" }, expect: { expiresOn: "2027-05-01", remindOn: "2027-04-01" } }
+  - { id: GC-SUP-35, title: 365 วัน, fn: documentExpiry, input: { type: VAT_CERT, issuedOn: "2026-11-03" }, expect: { expiresOn: "2027-11-02", remindOn: "2027-10-03" } }
+  - { id: GC-SUP-36, title: ใช้วันหมดอายุบนเอกสาร, fn: documentExpiry, input: { type: ISO_CERT, issuedOn: "2025-07-01", expiresOn: "2027-06-30" }, expect: { expiresOn: "2027-06-30", remindOn: "2027-05-31" } }
+  - { id: GC-SUP-37, title: วันหมดอายุตกวันที่ 29 ก.พ. ปีอธิกสุรทิน 2028, fn: documentExpiry, input: { type: SHORT, issuedOn: "2028-02-28", validityDaysOverride: 2, reminderDaysBefore: 30 }, expect: { expiresOn: "2028-02-29", remindOn: "2028-02-28" } }
+  - { id: GC-SUP-38, title: วันเตือนก่อนวันออก เตือนตั้งแต่วันออก, fn: documentExpiry, input: { type: SHORT, issuedOn: "2026-11-03" }, expect: { expiresOn: "2026-12-02", remindOn: "2026-11-03" } }
+  - { id: GC-SUP-39, title: อายุศูนย์วัน, fn: documentExpiry, input: { type: SHORT, issuedOn: "2026-11-03", validityDaysOverride: 0 }, expect: { error: VALIDATION_FAILED, reason: VALIDITY_DAYS } }
+  - { id: GC-SUP-40, title: ประเภทไม่มีอายุและไม่กรอกวันหมดอายุ, fn: documentExpiry, input: { type: ISO_CERT, issuedOn: "2026-11-03" }, expect: { error: VALIDATION_FAILED, reason: EXPIRY_REQUIRED } }
+  - { id: GC-SUP-41, title: กรอกวันหมดอายุมาแต่ประเภทมีอายุ ใช้ที่คำนวณ, fn: documentExpiry, input: { type: COMPANY_CERT, issuedOn: "2026-11-03", expiresOn: "2027-11-03" }, expect: { expiresOn: "2027-05-01", statedExpiresOn: "2027-11-03", remindOn: "2027-04-01" } }
+  - { id: GC-SUP-42, title: วันหมดอายุก่อนวันออก, fn: documentExpiry, input: { type: ISO_CERT, issuedOn: "2027-07-01", expiresOn: "2027-06-30" }, expect: { error: VALIDATION_FAILED, reason: EXPIRY_BEFORE_ISSUE } }
+  # documentStatus (BR-SDOC-02 BR-SDOC-04) · เอกสาร VERIFIED expiresOn 2027-05-01 remindOn 2027-04-01
+  - { id: GC-SUP-43, title: 23:59:59 ของวันหมดอายุตามเวลาไทยยังใช้ได้, fn: documentStatus, input: { expiresOn: "2027-05-01", remindOn: "2027-04-01", now: "2027-05-01T16:59:59Z" }, expect: { status: VERIFIED, reminderDue: true } }
+  - { id: GC-SUP-44, title: 00:00 วันถัดไปตามเวลาไทยหมดอายุ, fn: documentStatus, input: { expiresOn: "2027-05-01", remindOn: "2027-04-01", now: "2027-05-01T17:00:00Z" }, expect: { status: EXPIRED, reminderDue: true } }
+  - { id: GC-SUP-45, title: ก่อนวันเตือน, fn: documentStatus, input: { expiresOn: "2027-05-01", remindOn: "2027-04-01", now: "2027-03-31T16:59:00Z" }, expect: { status: VERIFIED, reminderDue: false } }
+  - { id: GC-SUP-46, title: เช้าวันเตือนตามเวลาไทย, fn: documentStatus, input: { expiresOn: "2027-05-01", remindOn: "2027-04-01", now: "2027-04-01T00:30:00Z" }, expect: { status: VERIFIED, reminderDue: true } }
+  # canVerify (BR-SDOC-03 BR-PORTAL-07)
+  - { id: GC-SUP-47, title: ไฟล์ยังไม่สแกนยืนยันไม่ได้, fn: canVerify, input: { status: PENDING, scanStatus: PENDING }, expect: { error: VALIDATION_FAILED, reason: FILE_NOT_SCANNED } }
+  # supersedeTargets (BR-SDOC-03) · ฉบับ VERIFIED เดิมที่ฉบับใหม่จะแทน (เพิ่มในรอบตรวจ ADR-075)
+  - { id: GC-SUP-52, title: ประเภทหลายฉบับ แทนเฉพาะขอบเขตเดียวกัน, fn: supersedeTargets, input: { type: ISO_CERT, singleInstance: false, newDoc: { scope: "ISO 9001" }, verified: [{ id: d1, scope: "iso 9001 " }, { id: d2, scope: "ISO 14001" }] }, expect: { supersedes: [d1], keeps: [d2] } }
+  - { id: GC-SUP-53, title: ประเภทฉบับเดียว แทนโดยไม่สนขอบเขต, fn: supersedeTargets, input: { type: COMPANY_CERT, singleInstance: true, newDoc: { scope: null }, verified: [{ id: d3, scope: "สำนักงานใหญ่" }] }, expect: { supersedes: [d3], keeps: [] } }
+  - { id: GC-SUP-54, title: ขอบเขตที่มีช่องว่างซ้ำนับเป็นขอบเขตเดียวกันหลัง normalizeScope, fn: supersedeTargets, input: { type: ISO_CERT, singleInstance: false, newDoc: { scope: "ISO  27001" }, verified: [{ id: d4, scope: "iso 27001" }, { id: d5, scope: "ISO 27001 " }] }, expect: { supersedes: [d4, d5], keeps: [] } }
+```
+
 ### 7.23 S10 · จัดหา (จองโดย ADR-085)
 
 หัวข้อนี้จองให้ขั้น S10 (สาย l2 · ADR-085): กฎ BR-RFX invariant และ golden ของขั้นที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ครั้งเดียวในข้อ S10-01 (ร่างอยู่ใน `docs/sub-specs/S10.md` และ `docs/drafts/p2/S10-spec-additions.md`) · กฎของตระกูลเดิมต่อท้ายตารางเดิม
@@ -5574,7 +5657,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       53 ไฟล์ · 648 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       55 ไฟล์ · 694 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

@@ -1,4 +1,5 @@
-import { MS_PER_HOUR } from '@/lib/constants'
+import { localeCookieName } from '@/i18n/locales'
+import { LOCALE_COOKIE_MAX_AGE_SECONDS, MS_PER_HOUR } from '@/lib/constants'
 import { supplierSettingsOf } from '@/lib/org-settings'
 import { verifyPortalOtp } from '@/server/portal/commands'
 import { portalRequest, sameOrigin } from '@/server/portal/http'
@@ -7,7 +8,8 @@ import { PORTAL_CSRF_COOKIE, PORTAL_PENDING_COOKIE, PORTAL_SESSION_COOKIE, porta
 import { field, forbiddenCsrf, formOf, notFound, seeOther } from '../../_lib/respond'
 
 // POST /portal/<org>/api/otp (BR-PORTAL ข้อ 02 ข้อ 03): the code typed. Right → a new session: bcs_portal (HttpOnly) and
-// the CSRF token the pages send back (bcs_portal_csrf), both under /portal/<org> only, and the pending cookie dropped.
+// the CSRF token the pages send back (bcs_portal_csrf), both under /portal/<org> only, and the pending cookie dropped;
+// the locale cookie set to the contact's language.
 
 export async function POST(request: Request, { params }: { params: Promise<{ org: string }> }) {
   const req = await portalRequest(request, (await params).org)
@@ -35,5 +37,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
   res.cookies.set(PORTAL_SESSION_COOKIE, r.data.sessionId, portalCookieOptions(req.org, { maxAgeMs }))
   res.cookies.set(PORTAL_CSRF_COOKIE, r.data.csrfToken, portalCookieOptions(req.org, { maxAgeMs, httpOnly: false }))
   res.cookies.set(PORTAL_PENDING_COOKIE, '', portalCookieOptions(req.org, { maxAgeMs: 0 }))
+  // the pages speak the contact's language (S7-08 · SupplierContact.locale, changed on /portal/<org>/profile)
+  res.cookies.set(localeCookieName, r.data.locale, { path: '/', sameSite: 'lax', maxAge: LOCALE_COOKIE_MAX_AGE_SECONDS })
   return res
 }

@@ -8768,6 +8768,127 @@
       "RETURNED": "Returned for changes",
       "SUBMITTED": "Sent, being checked"
     },
+    "apply": {
+      "back": "Back to the previous step",
+      "bank": {
+        "accountName": "Account name",
+        "accountNo": "Account number",
+        "accountNoKept": "Saved, ending {last4}. Type a new one only to change it.",
+        "bankBranch": "Bank branch",
+        "bankCode": "Bank",
+        "choose": "Choose a bank",
+        "intro": "The account to be paid into. Finance will call you to confirm it before any payment."
+      },
+      "closed": {
+        "APPROVED": "The application was approved.",
+        "CANCELLED": "The application was cancelled.",
+        "EXPIRED": "The application expired. Please ask procurement for a new link.",
+        "PENDING_APPROVAL": "Application {number} is waiting for approval. We will e-mail you the result.",
+        "REJECTED": "The application was not approved.",
+        "SUBMITTED": "Application {number} was sent and procurement is checking it. We will e-mail you the result."
+      },
+      "company": {
+        "address": "Registered address",
+        "category": "Goods or services you sell",
+        "email": "Company e-mail",
+        "intro": "As on your company certificate or ID card",
+        "nameEn": "Name (English)",
+        "nameTh": "Name (Thai)",
+        "payee": {
+          "FOREIGN": "Foreign supplier",
+          "INDIVIDUAL": "Individual",
+          "JURISTIC": "Company"
+        },
+        "payeeType": "Supplier type",
+        "phone": "Phone"
+      },
+      "contact": {
+        "en": "English",
+        "intro": "These contacts may use the portal and get e-mails from {organization}. To add or change one, please ask its procurement team.",
+        "language": "Language of e-mails and the portal",
+        "primary": "Primary contact",
+        "th": "ไทย",
+        "you": "you"
+      },
+      "documents": {
+        "expiresOn": "Expiry date (if any)",
+        "expiresOnRequired": "Expiry date on the document",
+        "file": "File",
+        "intro": "Send PDF files or pictures, 20 MB at most each. Every file is checked for viruses before procurement opens it.",
+        "issuedOn": "Date issued",
+        "optional": "optional",
+        "required": "required",
+        "send": "Send {type}",
+        "sendNew": "Send a new {type}",
+        "state": {
+          "INFECTED": "The file failed the security check: send another",
+          "NONE": "Not sent yet",
+          "PENDING": "Sent, waiting for procurement",
+          "REJECTED": "Not accepted: {reason}",
+          "SCANNING": "Checking the file",
+          "VERIFIED": "Confirmed by procurement"
+        }
+      },
+      "errors": {
+        "ACCOUNT": "The account number is not valid for this bank.",
+        "APPLICATION_INCOMPLETE": "It cannot be sent yet: see what is missing below.",
+        "CONFLICT_VERSION": "The application was just changed elsewhere. Please check the latest and save again.",
+        "DUPLICATE_REASON_REQUIRED": "Please give a reason for each likeness to a registered supplier.",
+        "DUPLICATE_SUPPLIER": "This taxpayer id and branch are registered or applied for already. Please call procurement.",
+        "FORBIDDEN": "You may not do this.",
+        "INVALID_STATE_TRANSITION": "This application can no longer be changed.",
+        "TAXID_CHECKSUM": "The taxpayer id is not valid. Please check it.",
+        "VALIDATION_FAILED": "Please check what you typed."
+      },
+      "required": "required",
+      "returned": "Procurement returned the application for changes: {reason}",
+      "review": {
+        "document": "Document: {type}",
+        "edit": "Change {step}",
+        "field": {
+          "address": "Address",
+          "branchCode": "Branch code",
+          "contact": "Contact",
+          "nameTh": "Name",
+          "taxId": "Taxpayer id"
+        },
+        "intro": "Check before you send. Once sent, it can be changed only if procurement returns it.",
+        "missingNone": "Everything needed is here",
+        "missingTitle": "Still missing before you can send",
+        "notAccount": "Not given",
+        "reason": "Reason",
+        "submit": "Send the application to {organization}",
+        "warning": {
+          "DUPLICATE_EMAIL": "Another supplier uses this e-mail",
+          "DUPLICATE_NAME": "The name looks like a supplier already registered",
+          "SAME_TAXID_OTHER_BRANCH": "This taxpayer id is registered for another branch"
+        },
+        "warningsIntro": "Please say briefly why it is not the same supplier. Procurement will check it.",
+        "warningsTitle": "Looks like a supplier already registered"
+      },
+      "saveNext": "Save and go to the next step",
+      "saved": "Saved",
+      "stepOf": "Step {n} of {total}",
+      "steps": {
+        "bank": "Bank account",
+        "company": "Company",
+        "contact": "Contacts",
+        "documents": "Documents",
+        "review": "Check and send",
+        "tax": "Tax"
+      },
+      "stepsLabel": "Steps of the application",
+      "tax": {
+        "branchCode": "Branch code",
+        "branchHint": "Head office is 00000",
+        "foreign": "A foreign supplier has no Thai taxpayer id to give",
+        "intro": "Your 13-digit taxpayer id and branch",
+        "taxId": "Taxpayer id",
+        "taxIdHint": "13 digits, no dashes",
+        "vat": "Registered for VAT"
+      },
+      "title": "Supplier application"
+    },
     "errors": {
       "FAILED": "That did not work. Please try again.",
       "OTP_EXPIRED": "The code has expired. Please ask for a new sign-in link.",
@@ -8780,13 +8901,34 @@
       "TOKEN_USED": "This link was used already. Please ask for a new sign-in link.",
       "VALIDATION_FAILED": "Please check what you typed."
     },
+    "help": {
+      "contactGeneral": "Please contact the procurement team of {organization} the way you usually do.",
+      "contactTitle": "Contact procurement",
+      "how": {
+        "code": "No one from the organization will ever ask you for your code.",
+        "documents": "Send documents as PDF files or pictures. We e-mail you before a document expires.",
+        "fill": "Fill in the application step by step and save. You may come back later to go on.",
+        "signIn": "Sign in with the e-mail {organization} has on record. A one-time link and a six-digit code are sent each time."
+      },
+      "howTitle": "How to use the portal",
+      "inviter": "Invited by {name}, e-mail {email}",
+      "title": "Help"
+    },
     "home": {
       "applicationStatus": "Application status: {status}",
       "documents": "Your documents",
       "forApplication": "Supplier application of {name}",
       "forSupplier": "You are signed in for {supplier}",
       "greeting": "Hello {name}",
-      "signOut": "Sign out"
+      "sections": "Other parts of the portal",
+      "signOut": "Sign out",
+      "todo": {
+        "DOCUMENT_EXPIRED": "{type} has expired: send a new copy",
+        "DOCUMENT_EXPIRING": "{type} expires on {date}: send a new copy",
+        "DOCUMENT_MISSING": "No {type} yet: send it"
+      },
+      "todoEmpty": "Nothing to do now. When a document is about to expire or new work comes, it shows here and we e-mail you.",
+      "todoTitle": "To do"
     },
     "link": {
       "intro": "Press the button to get a six-digit code by e-mail. This link works once.",
@@ -8794,11 +8936,20 @@
       "title": "Confirm your sign-in"
     },
     "login": {
+      "closed": "Your account is closed. To use the portal again, please contact procurement.",
       "email": "E-mail",
       "intro": "Type the e-mail this organization has on record. We will send a sign-in link, usable once, to that address.",
       "sent": "If this e-mail is on record, a sign-in link will arrive within a few minutes. Please check your inbox.",
       "submit": "Send me a sign-in link",
       "title": "Sign in to the supplier portal"
+    },
+    "nav": {
+      "apply": "Application",
+      "documents": "Documents",
+      "help": "Help",
+      "home": "Home",
+      "label": "Portal sections",
+      "profile": "My account"
     },
     "of": "of {organization}",
     "otp": {
@@ -8810,7 +8961,22 @@
     "privacy": {
       "2026-11-01": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them. You may ask its procurement team for a copy, a correction or deletion of your data.",
       "accept": "I have read it",
+      "read": "Read the privacy notice",
+      "short": "{organization} uses what you send through this portal to register suppliers, to contact you about purchases and payments, and for checks the law requires.",
       "title": "Privacy notice"
+    },
+    "profile": {
+      "close": "Close my account and sign out",
+      "closeBody": "Once closed, you cannot sign in with this e-mail again. To come back, procurement has to add you again.",
+      "closeConfirm": "I understand and want to close this account",
+      "closeConfirmNeeded": "Please tick to confirm before closing the account.",
+      "closeLast": "You are the primary contact, so you cannot close the account yourself. Please ask procurement to name a new primary contact first.",
+      "closeTitle": "Close my account",
+      "contactsTitle": "Contacts of {name}",
+      "language": "Language",
+      "languageSaved": "Language changed",
+      "saveLanguage": "Use this language",
+      "title": "My account"
     },
     "title": "Supplier portal",
     "unavailable": {

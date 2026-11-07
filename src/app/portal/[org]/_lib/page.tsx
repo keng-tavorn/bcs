@@ -48,3 +48,12 @@ export async function ErrorNotice({ code, remaining, until }: { readonly code?: 
 
 export type SearchParams = Promise<Record<string, string | string[] | undefined>>
 export const one = (v: string | string[] | undefined): string | undefined => (Array.isArray(v) ? v[0] : v)
+
+type PortalT = Awaited<ReturnType<typeof getTranslations<'portal'>>>
+type Section = 'home' | 'apply' | 'documents' | 'profile' | 'help'
+
+/** The portal's sections for who is signed in: an application's contact has the form; a supplier's, its home and documents */
+export function portalNav(orgCode: string, t: PortalT, current: Section, who: 'SUPPLIER' | 'APPLICATION') {
+  const sections: Section[] = who === 'SUPPLIER' ? ['home', 'documents', 'profile', 'help'] : ['apply', 'profile', 'help']
+  return sections.map((s) => ({ href: `/portal/${orgCode}/${s}`, label: t(`nav.${s}`), current: s === current }))
+}

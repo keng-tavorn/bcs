@@ -1,5 +1,7 @@
+import { BANKS } from '@/core/bankfile/banks'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
+import { supplierDocumentStatusInTx } from '@/server/services/suppliers/documents'
 import { portalWhere } from './db'
 import { PORTAL_PRIVACY_NOTICE_VERSION } from './privacy'
 
@@ -72,4 +74,168 @@ export async function listPortalDocumentTypes(ctx: Ctx): Promise<PortalDocumentT
     orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
     select: { code: true, nameTh: true, nameEn: true, required: true },
   })
+}
+
+// ---------- S7-08: the application form, the home's to-do list, the profile and help ----------
+
+export const PORTAL_APPLY_STEPS = ['company', 'tax', 'contact', 'bank', 'documents', 'review'] as const
+export type PortalApplyStep = (typeof PORTAL_APPLY_STEPS)[number]
+
+/** What a document type shows on the form: its latest copy's state, as the contact may know it */
+export type PortalDocumentState = 'NONE' | 'SCANNING' | 'PENDING' | 'VERIFIED' | 'REJECTED' | 'INFECTED'
+
+export interface PortalApplicationView {
+  readonly id: string
+  readonly number: string | null
+  readonly status: string
+  readonly kind: string
+  readonly version: number
+  readonly returnReason: string | null
+  readonly editable: boolean
+  readonly fields: {
+    readonly nameTh: string
+    readonly nameEn: string | null
+    readonly payeeType: string
+    readonly address: string | null
+    readonly phone: string | null
+    readonly email: string | null
+    readonly category: string | null
+    readonly taxId: string | null
+    readonly branchCode: string
+    readonly isVatRegistered: boolean
+    readonly bankCode: string | null
+    /** The last four digits only: the whole number never comes back to a page (BR-SUP ข้อ 07) */
+    readonly accountNoLast4: string | null
+    readonly accountName: string | null
+    readonly bankBranch: string | null
+  }
+  /** expiresRequired: the type has no validity of its own, so a copy needs the expiry date it states (BR-SDOC ข้อ 02) */
+  readonly documents: readonly { readonly code: string; readonly nameTh: string; readonly nameEn: string; readonly required: boolean; readonly expiresRequired: boolean; readonly state: PortalDocumentState; readonly reason: string | null }[]
+  /** What a submit still needs: field names, `document:<code>` and `contact` (as supplierApplication.submit answers) */
+  readonly missing: readonly string[]
+  /** The duplicate warnings by code and the reason given — never the suppliers they resemble (INV-SUP-01) */
+  readonly warnings: readonly { readonly code: string; readonly reason: string | null }[]
+  readonly banks: readonly { readonly code: string; readonly nameTh: string; readonly shortName: string }[]
+}
+
+const EDITABLE_STATUSES = new Set(['INVITED', 'DRAFT', 'RETURNED'])
+
+function documentStateOf(doc: { status: string; rejectReason: string | null; file: { scanStatus: string } | null } | undefined): { state: PortalDocumentState; reason: string | null } {
+  if (!doc) return { state: 'NONE', reason: null }
+  if (doc.status === 'REJECTED') return doc.rejectReason === 'FILE_INFECTED' ? { state: 'INFECTED', reason: null } : { state: 'REJECTED', reason: doc.rejectReason }
+  if (doc.status === 'VERIFIED') return { state: 'VERIFIED', reason: null }
+  if (doc.status === 'PENDING') return { state: doc.file?.scanStatus === 'PENDING' ? 'SCANNING' : 'PENDING', reason: null }
+  return { state: 'NONE', reason: null }
+}
+
+/** The contact's application as the form shows it, or null for a contact of a registered supplier */
+export async function getPortalApplication(ctx: Ctx): Promise<PortalApplicationView | null> {
+  if (ctx.actor.type !== 'SUPPLIER') throw new Error('a portal query needs a portal context')
+  if (!ctx.actor.applicationId || ctx.actor.supplierId) return null
+  const db = forTenant(ctx.organizationId)
+  const app = await db.supplierApplication.findFirst({ where: portalWhere(ctx, 'supplierApplication') })
+  if (!app) return null
+  const [types, docs, contacts] = await Promise.all([
+    db.supplierDocumentType.findMany({ where: { AND: [portalWhere(ctx, 'supplierDocumentType'), { appliesTo: { has: app.payeeType } }] }, orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }], select: { code: true, nameTh: true, nameEn: true, required: true, validityDays: true } }),
+    db.supplierDocument.findMany({ where: portalWhere(ctx, 'supplierDocument'), orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { documentTypeCode: true, status: true, rejectReason: true, file: { select: { scanStatus: true } } } }),
+    db.supplierContact.count({ where: { AND: [portalWhere(ctx, 'supplierContact'), { status: 'ACTIVE' }] } }),
+  ])
+  const latest = new Map<string, (typeof docs)[number]>()
+  for (const d of docs) if (!latest.has(d.documentTypeCode)) latest.set(d.documentTypeCode, d)
+  const documents = types.map((t) => ({ code: t.code, nameTh: t.nameTh, nameEn: t.nameEn, required: t.required, expiresRequired: t.validityDays === null, ...documentStateOf(latest.get(t.code)) }))
+  const missing: string[] = []
+  if (!app.nameTh) missing.push('nameTh')
+  if (app.payeeType !== 'FOREIGN' && !app.taxId) missing.push('taxId')
+  if (!/^\d{5}$/.test(app.branchCode)) missing.push('branchCode')
+  if (!app.address) missing.push('address')
+  const sent = new Set(docs.filter((d) => d.status === 'PENDING' || d.status === 'VERIFIED').map((d) => d.documentTypeCode))
+  for (const t of types) if (t.required && !sent.has(t.code)) missing.push(`document:${t.code}`)
+  if (contacts === 0) missing.push('contact')
+  const warnings = (app.duplicateWarnings as unknown as { code: string; reason: string | null }[]).map((w) => ({ code: w.code, reason: w.reason ?? null }))
+  return {
+    id: app.id,
+    number: app.number,
+    status: app.status,
+    kind: app.kind,
+    version: app.version,
+    returnReason: app.status === 'RETURNED' ? app.returnReason : null,
+    editable: EDITABLE_STATUSES.has(app.status) && app.kind === 'NEW',
+    fields: {
+      nameTh: app.nameTh,
+      nameEn: app.nameEn,
+      payeeType: app.payeeType,
+      address: app.address,
+      phone: app.phone,
+      email: app.email,
+      category: app.category,
+      taxId: app.taxId,
+      branchCode: app.branchCode,
+      isVatRegistered: app.isVatRegistered,
+      bankCode: app.bankCode,
+      accountNoLast4: app.accountNoLast4,
+      accountName: app.accountName,
+      bankBranch: app.bankBranch,
+    },
+    documents,
+    missing,
+    warnings,
+    banks: BANKS.map((b) => ({ code: b.code, nameTh: b.nameTh, shortName: b.shortName })),
+  }
+}
+
+export interface PortalTodo {
+  readonly kind: string
+  /** The page of the portal to go to (under /portal/<org>) */
+  readonly page: string
+  readonly values: Readonly<Record<string, string>>
+}
+
+/**
+ * What waits for the contact of a registered supplier, by provider (docs/sub-specs/S7.md "/portal/home"): a registry —
+ * S7-11 adds POs to acknowledge, S7-12 rejected invoices, S10 S11 their own lines, one entry each in their own file,
+ * never by changing the page. Each provider reads through portalWhere.
+ */
+export const PORTAL_HOME_PROVIDERS: Array<{ readonly key: string; readonly load: (ctx: Ctx) => Promise<PortalTodo[]> }> = [
+  {
+    // S7: the documents of the supplier by their state on today's date (BR-SDOC ข้อ 06)
+    key: 'documents',
+    load: async (ctx) => {
+      if (ctx.actor.type !== 'SUPPLIER' || !ctx.actor.supplierId) return []
+      const supplierId = ctx.actor.supplierId
+      const db = forTenant(ctx.organizationId)
+      const owned = await db.supplier.findFirst({ where: portalWhere(ctx, 'supplier'), select: { id: true } })
+      if (!owned) return []
+      const [status, types] = await Promise.all([
+        db.$transaction((tx) => supplierDocumentStatusInTx(tx, ctx.organizationId, supplierId, ctx.now)),
+        db.supplierDocumentType.findMany({ where: portalWhere(ctx, 'supplierDocumentType'), select: { code: true, nameTh: true, nameEn: true } }),
+      ])
+      const names = new Map(types.map((t) => [t.code, t]))
+      return status.rows.flatMap((row): PortalTodo[] => {
+        const type = names.get(row.documentTypeCode)
+        const values = { typeTh: type?.nameTh ?? row.documentTypeCode, typeEn: type?.nameEn ?? row.documentTypeCode }
+        if (row.state === 'EXPIRING') return [{ kind: 'DOCUMENT_EXPIRING', page: '/documents', values: { ...values, date: row.expiresOn ?? '' } }]
+        if (row.state === 'EXPIRED') return [{ kind: 'DOCUMENT_EXPIRED', page: '/documents', values }]
+        if (row.state === 'MISSING') return [{ kind: 'DOCUMENT_MISSING', page: '/documents', values }]
+        return []
+      })
+    },
+  },
+]
+
+/** The home's to-do list of a registered supplier's contact, every provider in order */
+export async function listPortalTodos(ctx: Ctx): Promise<PortalTodo[]> {
+  const lists = await Promise.all(PORTAL_HOME_PROVIDERS.map((p) => p.load(ctx)))
+  return lists.flat()
+}
+
+export interface PortalHelpView {
+  readonly inviter: { readonly name: string; readonly email: string } | null
+}
+
+/** Who to ask: the member who invited the application's contact (a registered supplier's contact asks procurement) */
+export async function getPortalHelp(ctx: Ctx): Promise<PortalHelpView> {
+  if (ctx.actor.type !== 'SUPPLIER') throw new Error('a portal query needs a portal context')
+  const app = await forTenant(ctx.organizationId).supplierApplication.findFirst({ where: portalWhere(ctx, 'supplierApplication'), orderBy: [{ invitedAt: 'desc' }, { id: 'desc' }], select: { invitedBy: { select: { displayNameTh: true, email: true, status: true } } } })
+  const by = app?.invitedBy
+  return { inviter: by && by.status === 'ACTIVE' ? { name: by.displayNameTh, email: by.email } : null }
 }

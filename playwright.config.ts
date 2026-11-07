@@ -12,6 +12,8 @@ const OUTPUT_DIR = process.env.E2E_OUTPUT_DIR ?? 'test-results'
 const LIFF_SPECS = '**/liff-*.spec.ts'
 /** The scenes of S17 (BCS Go and LIFF, tests/e2e/s17.spec.ts) are phone screens too */
 const PHONE_SCENES = '**/s17.spec.ts'
+/** The supplier portal (S7-08 · ADR-184): a phone first; checkScreen draws each page at 1440 px too */
+const PORTAL_SPECS = '**/portal-*.spec.ts'
 /** The demo scenes (D-04) run only in demo mode, against the database with the demo history (tests/support/e2e-env.ts) */
 const DEMO_SPECS = '**/demo/**'
 /** Only the scene files run; tests/e2e/demo/support.ts and scripts/ are helpers the scenes import */
@@ -45,7 +47,7 @@ export default defineConfig({
     : E2E_P1DEMO
       ? [{ name: 'p1demo', testMatch: P1DEMO_SCENES, use: desktop }]
       : [
-          { name: 'desktop', testIgnore: [LIFF_SPECS, PHONE_SCENES, DEMO_SPECS, P1DEMO_SPECS], use: desktop },
+          { name: 'desktop', testIgnore: [LIFF_SPECS, PHONE_SCENES, PORTAL_SPECS, DEMO_SPECS, P1DEMO_SPECS], use: desktop },
           { name: 'mobile', testIgnore: [DEMO_SPECS, P1DEMO_SPECS], use: mobile },
         ],
   webServer: [

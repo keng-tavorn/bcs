@@ -5041,6 +5041,9 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | บัญชีรับเงินของผู้ขายมีผล (S9-04 · BR-SUP-06) | ผู้ขาย (อีเมลในทะเบียน · ไม่มี → `NO_EMAIL` และแจ้ง FINANCE ในระบบ) | อีเมลผ่าน `SupplierNotice` (ธนาคารและเลข 4 ตัวท้าย) | IMMEDIATE | `bank_account.notice` |
 | `portal_session.link_requested` · `portal_session.otp_requested` (S7-04 · BR-PORTAL-01 BR-PORTAL-02) | ผู้ติดต่อ (อีเมลของผู้ติดต่อ · รหัสไม่มีลิงก์ · ลิงก์และรหัสถูกลบจากแถวหลังส่ง) | อีเมลผ่าน `SupplierNotice` (ใหม่ทุกครั้ง ไม่ dedupe ข้ามรหัส) | — | `supplier.login_link` · `supplier.otp` |
 | `portal_session.signed_in` จากอุปกรณ์ใหม่หลังครั้งแรก (S7-04 · BR-PORTAL-02) | อีเมลในทะเบียนของผู้ขาย (ผู้ติดต่อเองเมื่อใบสมัครยังไม่เป็นผู้ขาย) | อีเมลผ่าน `SupplierNotice` | — | `supplier.new_device` |
+| `supplier_application.invited` (S7-05 · BR-SUP-08) | ผู้ติดต่อของใบ (อีเมลของผู้ติดต่อ · ลิงก์ถูกลบจากแถวหลังส่ง) | อีเมลผ่าน `SupplierNotice` | — | `supplier.invitation` |
+| `supplier_application.submitted` (S7-05) | ผู้เชิญ · ผู้ติดต่อเมื่อจัดซื้อกรอกแทน (สำเนาค่าที่กรอก ไม่มีเลขบัญชีเต็ม · BR-SUP-10) | ในระบบ · อีเมลผ่าน `SupplierNotice` | DIGEST · — | `supplier.application_submitted` · `supplier.application_copy` |
+| `supplier_application.returned` · `.rejected` · `.approved` (S7-05) | ผู้ติดต่อหลักของใบ | อีเมลผ่าน `SupplierNotice` | — | `supplier.application_returned` `supplier.application_rejected` `supplier.application_approved` |
 | `supplier_contact.created` · `.updated` (อีเมล) ของผู้ขาย ACTIVE (S7-04 · BR-SUP-17) | `Supplier.email` ในทะเบียน · ผู้ติดต่อหลักก่อนการเปลี่ยน (ไม่ส่งไปอีเมลใหม่ · บอกชื่อ member) | อีเมลผ่าน `SupplierNotice` | — | `supplier.contact_added` |
 | สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
 | `security.pin_locked` · `auth.2fa_reset` · `push_device.registered` (S17-10) · `auth.passkey_added` `auth.passkey_removed` และ passkey ที่ตัวนับถอยหลัง (S17-15) | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |

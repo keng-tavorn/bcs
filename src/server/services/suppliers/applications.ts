@@ -69,7 +69,7 @@ export const ApplicationFields = z
 export type ApplicationFieldsInput = z.infer<typeof ApplicationFields>
 
 /** The reason given for each duplicate warning (BR-SUP ข้อ 09: every warning needs one before it is sent) */
-const DuplicateReasons = z.record(z.enum(['SAME_TAXID_OTHER_BRANCH', 'DUPLICATE_NAME', 'DUPLICATE_EMAIL']), REASON)
+const DuplicateReasons = z.partialRecord(z.enum(['SAME_TAXID_OTHER_BRANCH', 'DUPLICATE_NAME', 'DUPLICATE_EMAIL']), REASON)
 
 interface StoredWarning {
   readonly code: DuplicateWarningCode

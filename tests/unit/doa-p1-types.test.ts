@@ -126,3 +126,29 @@ describe('[FR-DOA-001/AC5] YAML with a document type nobody knows', () => {
     expect(problems.map((p) => p.path)).toContain('versions.0.rules.19.documentType')
   })
 })
+
+describe('[BR-DOA-26] the phase-2 type SUPPLIER_APPROVAL (S7-02 · ADR-182)', () => {
+  it('has no amount, no VAT, is no policy change, routes SUPPLIER_APPLICATION, and SUPPLIER requires it with BANK_ACCOUNT_CHANGE', () => {
+    expect(DOA_DOCUMENT_TYPES.at(-1)).toBe('SUPPLIER_APPROVAL')
+    expect(DOC_TYPE_TRAITS.SUPPLIER_APPROVAL).toEqual({ amount: 'NONE', vat: false, governance: false, requiredWithModules: ['SUPPLIER'], subjects: ['SUPPLIER_APPLICATION'] })
+    expect(DOC_TYPE_TRAITS.BANK_ACCOUNT_CHANGE.requiredWithModules).toEqual(['PAY', 'SUPPLIER'])
+    expect(requiredDocumentTypes(['SUPPLIER'])).toEqual(['DOA_CHANGE', 'ORG_AUTHORITY_CHANGE', 'BANK_ACCOUNT_CHANGE', 'SUPPLIER_APPROVAL'])
+    expect(requiredDocumentTypes(['PAY'])).not.toContain('SUPPLIER_APPROVAL')
+    expect(NO_AMOUNT_DOCUMENT_TYPES).toContain('SUPPLIER_APPROVAL')
+    // the editor hides its limit (NO_AMOUNT_TYPES is NO_AMOUNT_DOCUMENT_TYPES in the screen's own list)
+    expect([...NO_AMOUNT_TYPES].sort()).toEqual([...NO_AMOUNT_DOCUMENT_TYPES].sort())
+    expect([...DOC_TYPES]).toEqual([...DOA_DOCUMENT_TYPES])
+  })
+
+  it('YAML with SA-01 round-trips; an amount on it is refused by the engine', () => {
+    const text = readFileSync(path.resolve(import.meta.dirname, '../golden/fixtures/doa-versions-p2.yaml'), 'utf8')
+    const first = parseDoaYaml(text, new Map())
+    if (!first.ok) throw new Error(JSON.stringify(first.error))
+    expect(first.data[0]!.rules.map((r) => r.documentType)).toContain('SUPPLIER_APPROVAL')
+    expect(parseDoaYaml(doaYaml(first.data, new Map()), new Map())).toEqual(first)
+    const version = versionSnapshots('fixtures/doa-versions-p2.yaml')
+    const input: RouteInput = { documentType: 'SUPPLIER_APPROVAL', amount: { netSatang: 100n, vatSatang: 0n }, requesterMemberId: 'proc_officer', chargedDepartmentId: 'PROC', conflictMemberIds: ['proc_officer'], at: new Date('2026-11-02T03:00:00Z') }
+    expect(resolveRoute(input, { versions: version, org: orgSnapshot([], 'fixtures/org-p1.yaml'), delegations: [] })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } })
+    expect(boundaryTable(version[0]!, 'SUPPLIER_APPROVAL')).toEqual([])
+  })
+})

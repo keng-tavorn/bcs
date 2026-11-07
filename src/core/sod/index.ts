@@ -33,6 +33,8 @@ export const APPROVAL_SUBJECTS = [
   'PO_CHANGE',
   'PAYMENT_RUN',
   'BANK_ACCOUNT_CHANGE',
+  // S7 (BR-DOA-26 · ADR-182): a supplier application, approved through SUPPLIER_APPROVAL
+  'SUPPLIER_APPLICATION',
 ] as const
 export type ApprovalSubject = (typeof APPROVAL_SUBJECTS)[number]
 export type OrgAuthorityChangeKind = 'POSITION_ASSIGN' | 'POSITION_END' | 'DEPARTMENT_REPARENT' | 'DELEGATION_ON_BEHALF' | 'IDENTITY_RESET'

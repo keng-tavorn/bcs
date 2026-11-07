@@ -20,11 +20,12 @@ export const DOC_TYPES = [
   'PO_CHANGE',
   'PAYMENT_RUN',
   'BANK_ACCOUNT_CHANGE',
+  'SUPPLIER_APPROVAL',
 ] as const
 export type DocType = (typeof DOC_TYPES)[number]
 /** Policy changes (BR-DOA-08 (จ)) and types without an amount (BR-DOA-22) have no band: their rules hold for any document.
  * NO_AMOUNT_DOCUMENT_TYPES of src/core/doa */
-export const NO_AMOUNT_TYPES: readonly DocType[] = ['DOA_CHANGE', 'ORG_AUTHORITY_CHANGE', 'BANK_ACCOUNT_CHANGE']
+export const NO_AMOUNT_TYPES: readonly DocType[] = ['DOA_CHANGE', 'ORG_AUTHORITY_CHANGE', 'BANK_ACCOUNT_CHANGE', 'SUPPLIER_APPROVAL']
 
 export type ApproverValue = { readonly kind: 'POSITION_OF_DEPARTMENT' | 'POSITION_OF_ORG'; readonly position: string } | { readonly kind: 'MEMBER'; readonly memberId: string }
 

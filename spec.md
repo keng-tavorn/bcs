@@ -1803,6 +1803,72 @@ cases:
     expect: { errors: [], warnings: [{ code: DOA_LINT_VACANT_POSITION, rule: BT-03 }, { code: DOA_LINT_VACANT_POSITION, rule: OB-02 }, { code: DOA_LINT_VACANT_POSITION, rule: IE-03 }, { code: DOA_LINT_VACANT_POSITION, rule: PAY-01 }, { code: DOA_LINT_VACANT_POSITION, rule: BA-01 }] }
 ```
 
+**ชนิดเอกสารของระยะ 2 (S7-02 · BR-DOA-26 · ADR-182):** fixture `doa-versions-p2.yaml` = `doa-versions-p1.yaml` ทั้ง 22 ข้อโดยไม่เปลี่ยน (ชื่อฉบับเป็น DOA-P2) บวกข้อของระยะ 2 · S10 S11 เพิ่มข้อ `RFX_AWARD` `RISK_OVERRIDE` ในไฟล์เดียวกัน · ผลของ GC-DOA-01 ถึง GC-DOA-68 ไม่เปลี่ยนเพราะใช้ fixture เดิม (ADR-069) · วิธีคำนวณ: `org-p1` มี `PROC_MGR@HQ = dm_proc` · ชนิด NONE ไม่มีช่วงยอด จึงเมื่อผู้อนุมัติคนเดียวขัดกันได้ `NO_HIGHER_AUTHORITY` (แบบ GC-DOA-54) · ส่งยอดให้ชนิด NONE → `VALIDATION_FAILED` (แบบ GC-DOA-55) · error ของ lint เรียงตาม `DOA_DOCUMENT_TYPES` (`BANK_ACCOUNT_CHANGE` อยู่ก่อน `SUPPLIER_APPROVAL` ที่ต่อท้าย) · กรณีตำแหน่งว่าง ไม่เปิด `SUPPLIER` และชุดระยะ 1 กับ fixture ใหม่เป็น integration test (`tests/integration/doa-supplier-approval.test.ts`)
+
+```yaml
+# tests/golden/fixtures/doa-versions-p2.yaml
+# = doa-versions-p1.yaml (22 rules of DOA-P1 version 1, copied unchanged) + the rules of phase 2 (ADR-069: p1 stays as it is)
+# S10 S11 add RFX_AWARD and RISK_OVERRIDE to this file · limits and approvers are SIMEC demo data the customer confirms at finish line B (OQ-182)
+versions:
+  - code: DOA-P2
+    version: 1
+    effectiveFrom: "2026-10-01T00:00:00+07:00"
+    amountBasis: GROSS
+    selfApprovalPolicy: ESCALATE_NEXT_BAND
+    collapseDuplicateApprovers: true
+    stepUpThreshold: "100000.00"
+    sodPolicy: { approverMayReceive: false, requesterMayReceive: true }
+    rules:
+      - { code: PR-01, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "0.00", lte: "20000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "20000.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: PR-03, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "100000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: PO-01, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "0.00", lte: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: PO-02, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: DOA-CHG-01, documentType: DOA_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: ORG-CHG-01, documentType: ORG_AUTHORITY_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: BT-01, documentType: BUDGET_TRANSFER, priority: 100, when: { amount: { gt: "0.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: BT-02, documentType: BUDGET_TRANSFER, priority: 100, when: { amount: { gt: "100000.00", lte: "500000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: BT-03, documentType: BUDGET_TRANSFER, priority: 100, when: { amount: { gt: "500000.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 16 }
+      - { code: OB-01, documentType: OVER_BUDGET, priority: 100, when: { amount: { gt: "0.00", lte: "50000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: OB-02, documentType: OVER_BUDGET, priority: 100, when: { amount: { gt: "50000.00", lte: "500000.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 16 }
+      - { code: OB-03, documentType: OVER_BUDGET, priority: 100, when: { amount: { gt: "500000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: IE-01, documentType: INVOICE_EXCEPTION, priority: 100, when: { amount: { gt: "0.00", lte: "20000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: IE-02, documentType: INVOICE_EXCEPTION, priority: 100, when: { amount: { gt: "20000.00", lte: "200000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: IE-03, documentType: INVOICE_EXCEPTION, priority: 100, when: { amount: { gt: "200000.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 16 }
+      - { code: PC-01, documentType: PO_CHANGE, priority: 100, when: { amount: { gt: "0.00", lte: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: PC-02, documentType: PO_CHANGE, priority: 100, when: { amount: { gt: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: PAY-01, documentType: PAYMENT_RUN, priority: 100, when: { amount: { gt: "0.00", lte: "5000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 8 }
+      - { code: PAY-02, documentType: PAYMENT_RUN, priority: 100, when: { amount: { gt: "5000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: BA-01, documentType: BANK_ACCOUNT_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 8 }
+      # S7 (BR-DOA-26 · ADR-182): no amount band
+      - { code: SA-01, documentType: SUPPLIER_APPROVAL, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: PROC_MGR }, slaBusinessHours: 16 }
+```
+
+```yaml
+# tests/golden/doa-p2.yaml
+suite: doa
+fixtures: [fixtures/org-p1.yaml, fixtures/doa-versions-p2.yaml]
+defaults: { documentType: SUPPLIER_APPROVAL, requester: proc_officer, department: PROC, at: "2026-11-02T03:00:00Z" }
+# requester = the inviter (in conflict with the application · BR-SOD ข้อ 11) · alsoConflicting = whoever filled it in on the
+# supplier's behalf, sent it on its route or verified its documents (the same shape · GC-DOA-71 takes the one who filled it in)
+cases:
+  - { id: GC-DOA-69, title: อนุมัติผู้ขายใหม่ไปผู้จัดการจัดซื้อ, input: {}, expect: { version: 1, rule: SA-01, approvers: [dm_proc] } }
+  - { id: GC-DOA-70, title: ผู้จัดการจัดซื้อเชิญเอง ไม่มีช่วงถัดไป, input: { requester: dm_proc }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-DOA-71, title: ผู้กรอกแทนเป็นผู้จัดการจัดซื้อ, input: { alsoConflicting: [dm_proc] }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-DOA-72, title: ชนิดที่ไม่มียอดแต่ส่งยอดมา, input: { amount: "1.00" }, expect: { error: VALIDATION_FAILED } }
+```
+
+```yaml
+# tests/golden/doa-p2-lint.yaml
+suite: doa-lint
+fixtures: [fixtures/org-p1.yaml, fixtures/doa-versions-p2.yaml]
+# input.base = the version in the fixture · removeRules as doa-lint.yaml · modules = the modules on (required types by BR-DOA-23)
+cases:
+  - { id: GC-DOA-73, title: เปิด SUPPLIER แต่ไม่มีข้อ SA และ BA, fn: lintDoaVersion, input: { base: 1, modules: [SUPPLIER], removeRules: [SA-01, BA-01] }, expect: { errors: [{ code: DOA_LINT_MISSING_DOCTYPE, documentType: BANK_ACCOUNT_CHANGE }, { code: DOA_LINT_MISSING_DOCTYPE, documentType: SUPPLIER_APPROVAL }], warnings: [] } }
+  - { id: GC-DOA-74, title: ชนิดที่ไม่มียอดไม่มีตารางผลที่ขอบ, fn: boundaryTable, input: { base: 1, documentType: SUPPLIER_APPROVAL }, expect: { rows: [] } }
+```
+
 ### 7.5 แบ่งแยกหน้าที่ (SoD)
 
 | ID | กฎ |
@@ -5508,7 +5574,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       51 ไฟล์ · 642 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       53 ไฟล์ · 648 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

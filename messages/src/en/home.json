@@ -87,6 +87,7 @@
       "PO_CHANGE": "PO change",
       "PAYMENT_RUN": "Payment run",
       "BANK_ACCOUNT_CHANGE": "Bank account change",
+      "SUPPLIER_APPLICATION": "Supplier application",
       "OTHER": "Approval task"
     }
   },

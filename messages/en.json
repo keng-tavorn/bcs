@@ -39,6 +39,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "purchase order",
       "REQUEST": "purchase request",
+      "SUPPLIER_APPLICATION": "supplier application",
       "VARIANCE": "the receiving variance of purchase order",
       "WORKFLOW_VERSION": "workflow change"
     },
@@ -665,7 +666,8 @@
       "PAYMENT_RUN": "Payment run",
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order (PO)",
-      "PURCHASE_REQUEST": "Purchase request (PR)"
+      "PURCHASE_REQUEST": "Purchase request (PR)",
+      "SUPPLIER_APPROVAL": "New supplier approval"
     },
     "download": "Download {name} as YAML",
     "editor": {
@@ -963,7 +965,8 @@
         "PAYMENT_RUN": "Payment run",
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order (PO)",
-        "PURCHASE_REQUEST": "Purchase request (PR)"
+        "PURCHASE_REQUEST": "Purchase request (PR)",
+        "SUPPLIER_APPROVAL": "New supplier approval"
       },
       "effectiveApplied": "Took effect {time}",
       "effectiveLabel": "Effective",
@@ -3108,6 +3111,7 @@
       "PURCHASE_ORDER": "Purchase order {label}",
       "REQUEST": "Request {label}",
       "SUPPLIER": "Supplier {label}",
+      "SUPPLIER_APPLICATION": "Supplier application",
       "VARIANCE": "Receiving variance of {label}",
       "WORKFLOW_VERSION": "Workflow change"
     },
@@ -3806,6 +3810,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order",
       "REQUEST": "Purchase request",
+      "SUPPLIER_APPLICATION": "Supplier application",
       "VARIANCE": "Receiving variance"
     },
     "summary": "{total, plural, =0 {No documents were sent in this period} one {# document} other {# documents}}",
@@ -4268,6 +4273,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order",
       "REQUEST": "Request",
+      "SUPPLIER_APPLICATION": "Supplier application",
       "VARIANCE": "Receiving variance",
       "WORKFLOW_VERSION": "Workflow change"
     },
@@ -5224,7 +5230,8 @@
       "PAYMENT_RUN": "Payment run",
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order (PO)",
-      "PURCHASE_REQUEST": "Purchase request (PR)"
+      "PURCHASE_REQUEST": "Purchase request (PR)",
+      "SUPPLIER_APPROVAL": "New supplier approval"
     },
     "errors": {
       "AMOUNT": "Enter the cap in baht with at most 2 decimals, e.g. 10000 or 10,000.50",
@@ -6551,6 +6558,7 @@
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order",
         "REQUEST": "Request",
+        "SUPPLIER_APPLICATION": "Supplier application",
         "VARIANCE": "Receiving variance",
         "WORKFLOW_VERSION": "Workflow change"
       },
@@ -6786,6 +6794,7 @@
         "PURCHASE_ORDER": "Purchase order {label}",
         "REQUEST": "Request {label}",
         "SUPPLIER": "Supplier {label}",
+        "SUPPLIER_APPLICATION": "Supplier application",
         "VARIANCE": "Receiving variance of {label}",
         "WORKFLOW_VERSION": "Workflow change",
         "unknown": "Document not found"
@@ -10596,6 +10605,7 @@
           "PO_CHANGE": "PO change",
           "PURCHASE_ORDER": "purchase order",
           "REQUEST": "purchase request",
+          "SUPPLIER_APPLICATION": "supplier application",
           "VARIANCE": "receiving variance",
           "WORKFLOW_VERSION": "workflow change"
         },
@@ -11530,7 +11540,8 @@
         "PAYMENT_RUN": "Payment run",
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order (PO)",
-        "PURCHASE_REQUEST": "Purchase request (PR)"
+        "PURCHASE_REQUEST": "Purchase request (PR)",
+        "SUPPLIER_APPROVAL": "New supplier approval"
       },
       "doaEffective": "In effect from",
       "doaField": {

@@ -70,7 +70,8 @@ describe('[FR-WF-102/AC4] [INV-WF-01] the engine with committees routes a DOA wi
         // in the rule, added by the ADR-073 pre-review for doaStepNo) is the only field the old engine never had: it is
         // taken out for the comparison and checked on its own — rising with the route, never before the step's place on it
         const now = resolveRoute(input, policy)
-        const before = resolveRouteBeforeS6(input, policy as Parameters<typeof resolveRouteBeforeS6>[1])
+        // TYPES holds the types the old engine knew, so the input is one of its inputs too
+        const before = resolveRouteBeforeS6(input as Parameters<typeof resolveRouteBeforeS6>[0], policy as Parameters<typeof resolveRouteBeforeS6>[1])
         if (now.ok) {
           const places = now.data.steps.map((s) => s.ruleStepNo)
           expect(places.every((p, i) => p >= i + 1 && (i === 0 || p > places[i - 1]!))).toBe(true)

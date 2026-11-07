@@ -38,7 +38,7 @@ export const SIDE_ERRORS = ['APPROVER_NOT_FOUND', 'REVIEWER_NOT_FOUND', 'NO_HIGH
 export type SideErrorKey = (typeof SIDE_ERRORS)[number] | 'OTHER'
 
 /** The kinds of document the panel names; any other is named as a document */
-export const SUBJECT_TYPES = ['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'BUDGET_TRANSFER', 'BUDGET_OVERRUN', 'INVOICE', 'PO_CHANGE', 'PAYMENT_RUN', 'BANK_ACCOUNT_CHANGE'] as const
+export const SUBJECT_TYPES = ['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'BUDGET_TRANSFER', 'BUDGET_OVERRUN', 'INVOICE', 'PO_CHANGE', 'PAYMENT_RUN', 'BANK_ACCOUNT_CHANGE', 'SUPPLIER_APPLICATION'] as const
 export type SubjectTypeKey = (typeof SUBJECT_TYPES)[number] | 'OTHER'
 
 export interface SideModel {

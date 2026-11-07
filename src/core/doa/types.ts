@@ -3,7 +3,7 @@
 
 import type { ApprovalSubject } from '../sod'
 
-/** The order lint reports in (BR-DOA-23); the first five are the tier-1 types, the rest came with phase 1 (P1-07). */
+/** The order lint reports in (BR-DOA-23); the first five are the tier-1 types, then phase 1 (P1-07), then phase 2 (S7). */
 export const DOA_DOCUMENT_TYPES = [
   'PURCHASE_REQUEST',
   'PURCHASE_ORDER',
@@ -16,6 +16,8 @@ export const DOA_DOCUMENT_TYPES = [
   'PO_CHANGE',
   'PAYMENT_RUN',
   'BANK_ACCOUNT_CHANGE',
+  // phase 2: S7 (BR-DOA-26 · ADR-182)
+  'SUPPLIER_APPROVAL',
 ] as const
 export type DoaDocumentType = (typeof DOA_DOCUMENT_TYPES)[number]
 
@@ -49,7 +51,8 @@ export const DOC_TYPE_TRAITS: Readonly<Record<DoaDocumentType, DocTypeTraits>> =
   INVOICE_EXCEPTION: { amount: 'REQUIRED', vat: true, governance: false, requiredWithModules: ['PAY'], subjects: ['INVOICE'] },
   PO_CHANGE: { amount: 'REQUIRED', vat: true, governance: false, requiredWithModules: [], subjects: ['PO_CHANGE'] },
   PAYMENT_RUN: { amount: 'REQUIRED', vat: false, governance: false, requiredWithModules: ['PAY'], subjects: ['PAYMENT_RUN'] },
-  BANK_ACCOUNT_CHANGE: { amount: 'NONE', vat: false, governance: false, requiredWithModules: ['PAY'], subjects: ['BANK_ACCOUNT_CHANGE'] },
+  BANK_ACCOUNT_CHANGE: { amount: 'NONE', vat: false, governance: false, requiredWithModules: ['PAY', 'SUPPLIER'], subjects: ['BANK_ACCOUNT_CHANGE'] },
+  SUPPLIER_APPROVAL: { amount: 'NONE', vat: false, governance: false, requiredWithModules: ['SUPPLIER'], subjects: ['SUPPLIER_APPLICATION'] },
 }
 
 /** Policy changes every version must be able to approve (BR-DOA-08 (จ)). */

@@ -19,6 +19,8 @@ export const PORTAL_SUPPLIER_TEMPLATES = {
   // S7-07 (BR-SUP ข้อ 12)
   applicationReminder: 'supplier.application_reminder',
   applicationExpired: 'supplier.application_expired',
+  // S7-11 (FR-SUP-105): the supplier's own confirmation of its acknowledgement
+  poDeliveryAck: 'supplier.po_delivery_ack',
   // S7-06 (BR-SDOC ข้อ 03 ข้อ 04)
   documentRejected: 'supplier.document_rejected',
   documentExpiring: 'supplier.document_expiring',
@@ -171,5 +173,15 @@ registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.documentExpiring, (d, c) =>
     `เอกสาร ${str(d.typeName)} จะหมดอายุวันที่ ${str(d.expiresOn)} / A document expires soon`,
     [`เรียน ${c.supplierName}`, `เอกสาร ${str(d.typeName)} ของท่านที่ ${c.organizationName} ใช้ได้ถึงวันที่ ${str(d.expiresOn)}`, 'โปรดเข้าพอร์ทัลเพื่อส่งฉบับใหม่ก่อนวันหมดอายุ'],
     [`Your ${str(d.typeName)} with ${c.organizationName} is valid until ${str(d.expiresOn)}.`, 'Please sign in to the portal and send a new copy before then.'],
+  ),
+)
+
+// ---------- S7-11: a PO acknowledged ----------
+
+registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.poDeliveryAck, (d, c) =>
+  supplierMail(
+    `รับทราบใบสั่งซื้อ ${str(d.number)} แล้ว / Purchase order acknowledged`,
+    [`เรียน ${c.supplierName}`, `${c.organizationName} ได้รับการรับทราบใบสั่งซื้อเลขที่ ${str(d.number)} ของท่านแล้ว${d.promisedDeliveryOn ? ` วันส่งที่แจ้ง ${str(d.promisedDeliveryOn)}` : ''}`, 'หากต้องเปลี่ยนวันส่ง โปรดแจ้งในพอร์ทัลพร้อมเหตุผล'],
+    [`${c.organizationName} has your acknowledgement of PO ${str(d.number)}${d.promisedDeliveryOn ? `, delivering on ${str(d.promisedDeliveryOn)}` : ''}.`, 'To change the delivery date, tell us on the portal with the reason.'],
   ),
 )

@@ -4,6 +4,7 @@ import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { listDepartments } from '@/server/queries/org'
 import { BOARD_SUBJECTS, boardView } from '@/server/services/board'
+import { listPosAwaitingAck } from '@/server/services/suppliers/po-ack'
 import { formatDateTime } from '@/ui/format'
 import { BoardTable } from '@/ui/insight/board-table'
 import { Refused } from '@/ui/insight/refused'
@@ -36,7 +37,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
   if (!result.ok) return <Refused title={t('title')} message={t('forbidden')} href="/" linkLabel={t('home')} />
 
   const { rows, scope, asOf } = result.data
-  const departments = await listDepartments(ctx)
+  const [departments, awaitingAck, ta] = await Promise.all([listDepartments(ctx), listPosAwaitingAck(ctx), getTranslations('supplierPoAck')])
   const query = filterQuery(filter)
   const filtered = Boolean(filter.departmentId || filter.subjectType)
   const departmentName = (d: { nameTh: string; nameEn: string | null }) => (locale === 'en' && d.nameEn ? d.nameEn : d.nameTh)
@@ -132,6 +133,20 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
             </>
           )}
         </Panel>
+        {/* S7-11 (FR-SUP-105 AC4): POs sent to suppliers on the portal that they have not acknowledged yet, oldest first */}
+        {awaitingAck.length ? (
+          <Panel title={ta('boardTitle')} id="po-awaiting-ack">
+            <ul className="flex flex-col gap-1">
+              {awaitingAck.map((p) => (
+                <li key={p.id}>
+                  <Link href={`/procurement/pos/${p.id}`} className={linkClass}>
+                    {ta('boardRow', { number: p.number ?? '-', supplier: p.supplierName, date: p.sentAt ? formatDateTime(locale, p.sentAt) : '-' })}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        ) : null}
       </PageBody>
     </Page>
   )

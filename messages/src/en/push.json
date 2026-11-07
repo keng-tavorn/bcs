@@ -32,6 +32,9 @@
     },
     "sent_receiver": {
       "title": "A purchase order to receive"
+    },
+    "delivery_changed": {
+      "title": "The supplier changed the delivery date"
     }
   },
   "request": {

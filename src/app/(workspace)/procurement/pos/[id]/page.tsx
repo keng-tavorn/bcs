@@ -5,6 +5,7 @@ import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
 import { businessDaysTaken, getMyOpenTask, getRouteStepDetails, listPoInvoices, listPoReceipts } from '@/server/queries/document-page'
+import { getPoAckStrip } from '@/server/queries/po-ack'
 import { getPoAccess, getPurchaseOrderView, type PoViewDto } from '@/server/queries/purchase-orders'
 import { getTaskAccess, getTaskView } from '@/server/queries/tasks'
 import { isAgentAvailable } from '@/server/services/ai'
@@ -182,7 +183,7 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
       </div>
     )
   }
-  const [po, myTask, receipts, invoices, s8View] = await Promise.all([getPurchaseOrderView(ctx, id), getMyOpenTask(ctx, 'PURCHASE_ORDER', id), listPoReceipts(ctx, id), listPoInvoices(ctx, id), getPoS8View(ctx, id)])
+  const [po, myTask, receipts, invoices, s8View, ack, ta] = await Promise.all([getPurchaseOrderView(ctx, id), getMyOpenTask(ctx, 'PURCHASE_ORDER', id), listPoReceipts(ctx, id), listPoInvoices(ctx, id), getPoS8View(ctx, id), getPoAckStrip(ctx, id), getTranslations('supplierPoAck')])
   if (!po) notFound()
   const rights = poRights(principal)
   // S8-13: tier-2 invoices, milestones and retention (module PAY), and changes (DOA PO_CHANGE, BR-POC-05)
@@ -370,7 +371,19 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
           { label: td('header.taken'), value: daysTaken !== null ? td('header.takenDays', { days: digits.format(daysTaken) }) : td('header.takenUnknown') },
         ]}
         compactBadge={statusBadge}
-        notices={<StateNotices po={po} t={t} locale={locale} />}
+        notices={
+          <>
+            <StateNotices po={po} t={t} locale={locale} />
+            {/* S7-11 (FR-SUP-105 AC4): what the supplier said on the portal, for those who see this PO */}
+            {ack ? (
+              <Notice tone={ack.status === 'NOT_ACKNOWLEDGED' ? 'info' : ack.status === 'DELIVERY_UPDATED' ? 'warning' : 'success'}>
+                {ack.status === 'NOT_ACKNOWLEDGED'
+                  ? ta('notYet')
+                  : ta('strip', { at: ack.acknowledgedAt ? when(locale, ack.acknowledgedAt) : '-', date: ack.promisedDeliveryOn ?? ta('noDate') }) + (ack.movedFrom ? ` ${ta('movedFrom', { date: ack.movedFrom })}` : '')}
+              </Notice>
+            ) : null}
+          </>
+        }
       />
 
       <DecisionLink>

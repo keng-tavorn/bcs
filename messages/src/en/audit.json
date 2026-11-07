@@ -420,7 +420,10 @@
       "milestones_set": "Purchase order split into milestones",
       "retention_set": "Purchase order retention set",
       "revised": "Purchase order revised",
-      "revision_sent": "Revised purchase order sent to the supplier"
+      "revision_sent": "Revised purchase order sent to the supplier",
+      "acknowledged": "Supplier acknowledged the PO",
+      "delivery_date_changed": "Supplier changed the delivery date",
+      "ack_reset": "Revised PO waits for the supplier again"
     },
     "position": {
       "assigned": "Position holder appointed",

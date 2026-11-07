@@ -24,6 +24,21 @@ export const SUPPLIER_TEMPLATES: Readonly<Record<string, Template>> = {
     },
     href: `/suppliers/applications/${str(d.applicationId)}`,
   }),
+  // S7-11 (FR-SUP-105): the supplier acknowledged a PO (digest) or moved its delivery date (at once) — dates, no price
+  'po.acknowledged': (d) => ({
+    title: {
+      th: d.promisedDeliveryOn ? `ผู้ขายรับทราบใบสั่งซื้อ ${str(d.number)} แล้ว ส่งวันที่ ${str(d.promisedDeliveryOn)}` : `ผู้ขายรับทราบใบสั่งซื้อ ${str(d.number)} แล้ว`,
+      en: d.promisedDeliveryOn ? `The supplier acknowledged PO ${str(d.number)}, delivering on ${str(d.promisedDeliveryOn)}` : `The supplier acknowledged PO ${str(d.number)}`,
+    },
+    href: `/procurement/pos/${str(d.poId)}`,
+  }),
+  'po.delivery_changed': (d) => ({
+    title: {
+      th: d.from ? `ผู้ขายเลื่อนวันส่งใบสั่งซื้อ ${str(d.number)} จาก ${str(d.from)} เป็น ${str(d.to)}` : `ผู้ขายแจ้งวันส่งใบสั่งซื้อ ${str(d.number)} เป็น ${str(d.to)}`,
+      en: d.from ? `The supplier moved delivery of PO ${str(d.number)} from ${str(d.from)} to ${str(d.to)}` : `The supplier will deliver PO ${str(d.number)} on ${str(d.to)}`,
+    },
+    href: `/procurement/pos/${str(d.poId)}`,
+  }),
   // S7-06 (BR-SDOC ข้อ 04): one line of PROCUREMENT's digest per document reminded of
   'supplier.documents_expiring_digest': (d) => ({
     title: { th: `เอกสาร ${str(d.typeName)} ของผู้ขายจะหมดอายุวันที่ ${str(d.expiresOn)}`, en: `A supplier's ${str(d.typeName)} expires on ${str(d.expiresOn)}` },
@@ -36,4 +51,4 @@ export const SUPPLIER_TEMPLATES: Readonly<Record<string, Template>> = {
 }
 
 /** §10.1 rows of S7 whose channel is "LINE → อีเมล": deliver.ts sends these by LINE (LINE_TEMPLATES) */
-export const SUPPLIER_LINE_TEMPLATES: readonly string[] = ['supplier.application_escalated']
+export const SUPPLIER_LINE_TEMPLATES: readonly string[] = ['supplier.application_escalated', 'po.delivery_changed']

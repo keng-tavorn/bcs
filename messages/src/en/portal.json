@@ -77,7 +77,8 @@
     "documents": "Documents",
     "profile": "My account",
     "help": "Help",
-    "bank": "Bank account"
+    "bank": "Bank account",
+    "pos": "Purchase orders"
   },
   "apply": {
     "title": "Supplier application",
@@ -225,5 +226,54 @@
     "contactTitle": "Contact procurement",
     "inviter": "Invited by {name}, e-mail {email}",
     "contactGeneral": "Please contact the procurement team of {organization} the way you usually do."
+  },
+  "pos": {
+    "title": "Purchase orders",
+    "intro": "The POs sent to you: acknowledge each and say when you deliver",
+    "empty": "No purchase order sent to you yet. When one comes, it shows here and we e-mail you.",
+    "row": "Sent on {date} · total {amount} baht",
+    "noNumber": "Purchase order",
+    "ack": {
+      "NOT_ACKNOWLEDGED": "Not acknowledged",
+      "ACKNOWLEDGED": "Acknowledged",
+      "DELIVERY_UPDATED": "New delivery date given"
+    },
+    "status": {
+      "SENT": "Sent",
+      "PARTIALLY_RECEIVED": "Partly received",
+      "RECEIVED": "Received",
+      "CLOSED": "Closed"
+    },
+    "promised": "Delivering on {date}",
+    "back": "Back to purchase orders",
+    "notFound": "Purchase order not found",
+    "revision": "Revision {n}",
+    "lines": "Lines",
+    "line": "{qty} {uom} × {price} baht = {net} baht",
+    "net": "Before VAT {amount} baht",
+    "vat": "VAT {amount} baht",
+    "gross": "Total {amount} baht",
+    "pdf": "Open the purchase order (PDF)",
+    "ackTitle": "Acknowledge the purchase order",
+    "ackIntro": "Say when you will deliver (optional): the organization sees it on the PO",
+    "date": "Delivery date",
+    "note": "Note (optional)",
+    "ackSubmit": "Acknowledge this purchase order",
+    "changeTitle": "Change the delivery date",
+    "reason": "Why it changes",
+    "changeSubmit": "Send the new delivery date",
+    "history": "Acknowledgements",
+    "historyAck": "Acknowledged on {at}",
+    "historyChange": "Delivery moved on {at} from {from} to {to}",
+    "acked": "Acknowledged",
+    "changed": "New delivery date sent",
+    "closed": "This purchase order needs no acknowledgement now",
+    "errors": {
+      "PAST_DATE": "The delivery date must be today or later",
+      "NO_CHANGE": "The delivery date is the same",
+      "INVALID_STATE_TRANSITION": "This purchase order can no longer do this",
+      "VALIDATION_FAILED": "Please check what you typed",
+      "FAILED": "That did not work. Please try again."
+    }
   }
 }

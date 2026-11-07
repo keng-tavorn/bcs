@@ -32,6 +32,8 @@ export const PORTAL_MODELS: PortalModel[] = [
   { model: 'portalInviteLink', where: (a) => ({ contactId: a.supplierContactId }) },
   { model: 'purchaseOrder', where: (a) => (a.supplierId ? { supplierId: a.supplierId, status: { in: [...PORTAL_PO_STATUSES] } } : NONE) },
   { model: 'supplierNotice', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : { contactId: a.supplierContactId }) },
+  // S7-11: the acknowledgements of the supplier's own POs
+  { model: 'poAcknowledgement', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : NONE) },
   // S7-10: the supplier's own account in force and its requests, masked by the query (BR-SUP ข้อ 07)
   { model: 'bankAccount', where: (a) => (a.supplierId ? { supplierId: a.supplierId, ownerKind: 'SUPPLIER' } : NONE) },
   { model: 'bankAccountChange', where: (a) => (a.supplierId ? { supplierId: a.supplierId, ownerKind: 'SUPPLIER' } : NONE) },

@@ -285,3 +285,67 @@ export async function getPortalBankAccount(ctx: Ctx): Promise<PortalBankView | n
     banks: BANKS.map((b) => ({ code: b.code, nameTh: b.nameTh, shortName: b.shortName })),
   }
 }
+
+// ---------- S7-11: the supplier's purchase orders (FR-SUP-105 AC1) ----------
+
+export interface PortalPoRow {
+  readonly id: string
+  readonly number: string | null
+  readonly sentAt: string | null
+  /** Satang as text: the page formats it */
+  readonly grossSatang: string
+  readonly status: string
+  readonly ackStatus: string
+  readonly promisedDeliveryOn: string | null
+}
+
+/** The POs sent to the contact's supplier — never a draft or one waiting for approval, never another supplier's */
+export async function listPortalPos(ctx: Ctx): Promise<PortalPoRow[]> {
+  if (ctx.actor.type !== 'SUPPLIER') throw new Error('a portal query needs a portal context')
+  if (!ctx.actor.supplierId) return []
+  const rows = await forTenant(ctx.organizationId).purchaseOrder.findMany({
+    where: portalWhere(ctx, 'purchaseOrder'),
+    orderBy: [{ sentAt: 'desc' }, { id: 'desc' }],
+    take: 200,
+    select: { id: true, number: true, sentAt: true, grossSatang: true, status: true, supplierAckStatus: true, supplierPromisedDeliveryOn: true },
+  })
+  return rows.map((r) => ({ id: r.id, number: r.number, sentAt: r.sentAt?.toISOString() ?? null, grossSatang: r.grossSatang.toString(), status: r.status, ackStatus: r.supplierAckStatus, promisedDeliveryOn: r.supplierPromisedDeliveryOn?.toISOString().slice(0, 10) ?? null }))
+}
+
+export interface PortalPoView extends PortalPoRow {
+  readonly revisionNo: number
+  readonly netSatang: string
+  readonly vatSatang: string
+  readonly lines: readonly { readonly lineNo: number; readonly description: string; readonly quantity: string; readonly uom: string; readonly unitPriceSatang: string; readonly netSatang: string }[]
+  readonly hasPdf: boolean
+  readonly acks: readonly { readonly kind: string; readonly at: string; readonly promisedDeliveryOn: string | null; readonly previousPromisedOn: string | null; readonly note: string | null }[]
+}
+
+/** One PO of the contact's supplier with its lines and its acknowledgements; null for one it may not see */
+export async function getPortalPo(ctx: Ctx, poId?: string): Promise<PortalPoView | null> {
+  if (ctx.actor.type !== 'SUPPLIER') throw new Error('a portal query needs a portal context')
+  if (!ctx.actor.supplierId || !poId || !/^[0-9a-f-]{36}$/.test(poId)) return null
+  const db = forTenant(ctx.organizationId)
+  const po = await db.purchaseOrder.findFirst({
+    where: { AND: [portalWhere(ctx, 'purchaseOrder'), { id: poId }] },
+    select: { id: true, number: true, sentAt: true, netSatang: true, vatSatang: true, grossSatang: true, status: true, revisionNo: true, supplierAckStatus: true, supplierPromisedDeliveryOn: true, pdfFileId: true, lines: { orderBy: { lineNo: 'asc' }, select: { lineNo: true, description: true, quantity: true, uom: true, unitPriceSatang: true, netSatang: true } } },
+  })
+  if (!po) return null
+  const acks = await db.poAcknowledgement.findMany({ where: { poId: po.id, supplierId: ctx.actor.supplierId }, orderBy: [{ createdAt: 'desc' }], select: { kind: true, acknowledgedAt: true, promisedDeliveryOn: true, previousPromisedOn: true, note: true } })
+  const day = (d: Date | null) => d?.toISOString().slice(0, 10) ?? null
+  return {
+    id: po.id,
+    number: po.number,
+    sentAt: po.sentAt?.toISOString() ?? null,
+    grossSatang: po.grossSatang.toString(),
+    netSatang: po.netSatang.toString(),
+    vatSatang: po.vatSatang.toString(),
+    status: po.status,
+    revisionNo: po.revisionNo,
+    ackStatus: po.supplierAckStatus,
+    promisedDeliveryOn: day(po.supplierPromisedDeliveryOn),
+    hasPdf: po.pdfFileId !== null,
+    lines: po.lines.map((l) => ({ lineNo: l.lineNo, description: l.description, quantity: l.quantity.toString(), uom: l.uom, unitPriceSatang: l.unitPriceSatang.toString(), netSatang: l.netSatang.toString() })),
+    acks: acks.map((a) => ({ kind: a.kind, at: a.acknowledgedAt.toISOString(), promisedDeliveryOn: day(a.promisedDeliveryOn), previousPromisedOn: day(a.previousPromisedOn), note: a.note })),
+  }
+}

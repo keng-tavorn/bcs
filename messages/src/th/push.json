@@ -32,6 +32,9 @@
     },
     "sent_receiver": {
       "title": "มีใบสั่งซื้อรอตรวจรับ"
+    },
+    "delivery_changed": {
+      "title": "ผู้ขายเปลี่ยนวันส่ง"
     }
   },
   "request": {

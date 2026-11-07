@@ -29,7 +29,7 @@ import { backtestRun } from './backtest-run'
 import { renewalReminders } from './renewal-reminders'
 import { budgetOverrunLapse } from './budget-overrun-lapse'
 import { budgetBurnAlerts } from './budget-burn-alerts'
-import { fileScan, supplierDocumentExpiry, supplierDocumentScannedJob } from './supplier-documents'
+import { fileScan, poAckReset, supplierDocumentExpiry, supplierDocumentScannedJob } from './supplier-documents'
 import { supplierApplicationSla } from './supplier-application-sla'
 import { supplierNoticeSend, supplierNoticeSweep } from './supplier-notice-send'
 
@@ -72,6 +72,7 @@ export const functions = [
   supplierDocumentScannedJob,
   supplierDocumentExpiry,
   supplierApplicationSla,
+  poAckReset,
   // S8-07: the invoice inbox (ADR-123)
   invoiceInboxPoll,
   // S8-09: retentions whose day has come (ADR-124)

@@ -3394,9 +3394,12 @@
         "paid": "Payment item recorded as paid"
       },
       "po": {
+        "ack_reset": "Revised PO waits for the supplier again",
+        "acknowledged": "Supplier acknowledged the PO",
         "approved": "Purchase order approved",
         "cancelled": "Purchase order cancelled",
         "closed": "Purchase order closed",
+        "delivery_date_changed": "Supplier changed the delivery date",
         "drafted": "Purchase order drafted",
         "milestones_set": "Purchase order split into milestones",
         "rejected": "Purchase order rejected",
@@ -8951,6 +8954,7 @@
       "help": "Help",
       "home": "Home",
       "label": "Portal sections",
+      "pos": "Purchase orders",
       "profile": "My account"
     },
     "of": "of {organization}",
@@ -8959,6 +8963,55 @@
       "intro": "We sent a six-digit code to your e-mail. It works for 10 minutes, on this device only.",
       "submit": "Sign in",
       "title": "Enter your code"
+    },
+    "pos": {
+      "ack": {
+        "ACKNOWLEDGED": "Acknowledged",
+        "DELIVERY_UPDATED": "New delivery date given",
+        "NOT_ACKNOWLEDGED": "Not acknowledged"
+      },
+      "ackIntro": "Say when you will deliver (optional): the organization sees it on the PO",
+      "ackSubmit": "Acknowledge this purchase order",
+      "ackTitle": "Acknowledge the purchase order",
+      "acked": "Acknowledged",
+      "back": "Back to purchase orders",
+      "changeSubmit": "Send the new delivery date",
+      "changeTitle": "Change the delivery date",
+      "changed": "New delivery date sent",
+      "closed": "This purchase order needs no acknowledgement now",
+      "date": "Delivery date",
+      "empty": "No purchase order sent to you yet. When one comes, it shows here and we e-mail you.",
+      "errors": {
+        "FAILED": "That did not work. Please try again.",
+        "INVALID_STATE_TRANSITION": "This purchase order can no longer do this",
+        "NO_CHANGE": "The delivery date is the same",
+        "PAST_DATE": "The delivery date must be today or later",
+        "VALIDATION_FAILED": "Please check what you typed"
+      },
+      "gross": "Total {amount} baht",
+      "history": "Acknowledgements",
+      "historyAck": "Acknowledged on {at}",
+      "historyChange": "Delivery moved on {at} from {from} to {to}",
+      "intro": "The POs sent to you: acknowledge each and say when you deliver",
+      "line": "{qty} {uom} × {price} baht = {net} baht",
+      "lines": "Lines",
+      "net": "Before VAT {amount} baht",
+      "noNumber": "Purchase order",
+      "notFound": "Purchase order not found",
+      "note": "Note (optional)",
+      "pdf": "Open the purchase order (PDF)",
+      "promised": "Delivering on {date}",
+      "reason": "Why it changes",
+      "revision": "Revision {n}",
+      "row": "Sent on {date} · total {amount} baht",
+      "status": {
+        "CLOSED": "Closed",
+        "PARTIALLY_RECEIVED": "Partly received",
+        "RECEIVED": "Received",
+        "SENT": "Sent"
+      },
+      "title": "Purchase orders",
+      "vat": "VAT {amount} baht"
     },
     "privacy": {
       "2026-11-01": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them. You may ask its procurement team for a copy, a correction or deletion of your data.",
@@ -9599,6 +9652,9 @@
     "po": {
       "approved": {
         "title": "Purchase order approved"
+      },
+      "delivery_changed": {
+        "title": "The supplier changed the delivery date"
       },
       "send_bounced": {
         "title": "Purchase order did not reach the supplier"
@@ -11805,6 +11861,15 @@
       "validityDays": "Valid for (days)",
       "validityHint": "Leave empty to use the expiry printed on the document"
     }
+  },
+  "supplierPoAck": {
+    "boardEmpty": "Every PO sent was acknowledged by its supplier",
+    "boardRow": "{number} · {supplier} · sent on {date}",
+    "boardTitle": "POs the supplier has not acknowledged",
+    "movedFrom": "(moved from {date})",
+    "noDate": "not given",
+    "notYet": "The supplier has not acknowledged this PO on the portal yet",
+    "strip": "The supplier acknowledged on {at} · delivering on {date}"
   },
   "suppliers": {
     "branch": {

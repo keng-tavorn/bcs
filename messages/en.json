@@ -8369,6 +8369,7 @@
         "NOT_FOUND": "This organization was not found. Go back to customer organizations and choose again.",
         "NO_CHANGE": "The module is already in this state. Reload the page to see the latest state.",
         "OPEN_DOCUMENTS": "Documents are still open in this module: {documents}. The customer must close them first.",
+        "PORTAL_SESSIONS": "{count} open supplier portal sessions",
         "REASON": "Enter a reason of at least 3 characters.",
         "REQUIRED_BY": "These modules still use this one: {modules}. Switch them off first.",
         "REQUIRES": "Switch on {modules} first, then this module.",

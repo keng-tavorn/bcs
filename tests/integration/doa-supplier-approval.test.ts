@@ -191,7 +191,10 @@ describe('[FR-PLT-011/AC2] [BR-SUP-16] SUPPLIER is switched off only when nothin
     const session = await prisma.portalSession.create({
       data: { organizationId: orgId, contactId: contact.id, sessionHash: hex(), csrfTokenHash: hex(), lastSeenAt: NOW, expiresAt: new Date(NOW.getTime() + 24 * 3_600_000), userAgentHash: hex(), ipHash: hex() },
     })
-    // an expired session holds nothing; the open one is counted, never named
+    // an expired session and one idle past supplier.sessionIdleMinutes (30) hold nothing; the open one is counted, never named
+    await prisma.portalSession.create({
+      data: { organizationId: orgId, contactId: contact.id, sessionHash: hex(), csrfTokenHash: hex(), lastSeenAt: new Date(NOW.getTime() - 30 * 60_000), expiresAt: new Date(NOW.getTime() + 3_600_000), userAgentHash: hex(), ipHash: hex() },
+    })
     await prisma.portalSession.create({
       data: { organizationId: orgId, contactId: contact.id, sessionHash: hex(), csrfTokenHash: hex(), lastSeenAt: NOW, expiresAt: new Date(NOW.getTime() - 1), userAgentHash: hex(), ipHash: hex() },
     })

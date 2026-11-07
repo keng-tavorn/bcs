@@ -171,12 +171,11 @@ export type InboxDue = 'OVERDUE' | 'INFO' | null
 
 /** The member's open tasks in a filter: assigned to them, or held for them by their delegate (BR-DLG-04) */
 /**
- * A route's subject as the screens know it. The database knows SUPPLIER_APPLICATION since S7-01 (one migration of the
- * step) and the screens from S7-05, its adapter (ADR-182); a task of a subject with no screen yet is an error, never
- * a task hidden from its approver.
+ * A route's subject as the screens know it: every value of APPROVAL_SUBJECTS (SUPPLIER_APPLICATION since S7-02 · ADR-182).
+ * A subject type outside that list is an error, never a task hidden from its approver.
  */
 function screenSubjectOf(type: string): ApprovalSubject {
-  if (!(APPROVAL_SUBJECTS as readonly string[]).includes(type)) throw new Error(`approval subject ${type} has no screen yet`)
+  if (!(APPROVAL_SUBJECTS as readonly string[]).includes(type)) throw new Error(`unknown approval subject ${type}`)
   return type as ApprovalSubject
 }
 

@@ -47,6 +47,8 @@ import { getPaymentRunTaskView } from '@/server/queries/payment-runs'
 import { getBankAccountChange } from '@/server/services/bank-accounts/view'
 import { LiffBankAccountChangeSummary } from '@/ui/liff/tasks/subjects/bank-account-change'
 import { LiffPaymentRunSummary } from '@/ui/liff/tasks/subjects/payment-run'
+import { getSupplierApplicationTaskView } from '@/server/services/suppliers/application-view'
+import { LiffSupplierApplicationSummary } from '@/ui/liff/tasks/subjects/supplier-application'
 import { briefView } from '../../../_lib/brief-present'
 import { liffHref, liffTaskHref } from '../../_lib/links'
 import { liffPage } from '../../_lib/session'
@@ -208,6 +210,7 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
   // S9: a payment run with its flags now (BR-PAY-07), and a bank account change masked (BR-SUP-07)
   const paymentRun = task.subjectType === 'PAYMENT_RUN' ? await getPaymentRunTaskView(ctx, task.subjectId) : null
   const bankChange = task.subjectType === 'BANK_ACCOUNT_CHANGE' ? await getBankAccountChange(ctx, { changeId: task.subjectId }).then((r) => (r.ok ? r.data : null)) : null
+  const supplierApp = task.subjectType === 'SUPPLIER_APPLICATION' ? await getSupplierApplicationTaskView(ctx, task.subjectId).then((r) => (r.ok ? r.data : null)) : null
   const tPay = paymentRun ? await getTranslations('payRun.task') : null
   // What the reader of a PO sees beside it, with the member's roles: the approver decides on the prices paid before too
   // (FR-P2P-003 AC1), as on the web decision page; the supplier's address and the source requests' files per §2.4
@@ -271,6 +274,8 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
               ? (paymentRun.number ?? '-')
               : bankChange
                 ? (bankChange.number ?? '-')
+                : supplierApp
+                ? supplierApp.label
                 : task.policy
               ? policyHeadline(t, locale, task.policy)
               : t('item.untitled')
@@ -354,6 +359,8 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
         <LiffPaymentRunSummary run={paymentRun} />
       ) : task.subjectType === 'BANK_ACCOUNT_CHANGE' ? (
         <LiffBankAccountChangeSummary change={bankChange} openFile={openFile} />
+      ) : task.subjectType === 'SUPPLIER_APPLICATION' ? (
+        <LiffSupplierApplicationSummary application={supplierApp} />
       ) : (
         <PolicySubject task={task} locale={locale} doaLinks={false} doaSimulate={false} orgAuthorityLink={false} />
       )}

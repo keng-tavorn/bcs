@@ -47,7 +47,10 @@
       "REPLACE": "เปลี่ยนบัญชี",
       "CLOSE": "ปิดบัญชี"
     },
-    "transferLabel": "ยอดโอนรวม"
+    "transferLabel": "ยอดโอนรวม",
+    "supplierApplication": "{number} · ใบสมัครผู้ขาย {name}",
+    "supplierApplicationIndividual": "{number} · ใบสมัครผู้ขายบุคคลธรรมดา",
+    "supplierApplicationMeta": "หมวด {category}"
   },
   "changeKind": {
     "POSITION_ASSIGN": "แต่งตั้งผู้ดำรงตำแหน่ง",

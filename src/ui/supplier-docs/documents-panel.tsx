@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useLocale, useTranslations } from 'next-intl'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { useSubmissionKey } from '../form/submission-key'
@@ -12,7 +12,7 @@ import { Textarea } from '../shadcn/textarea'
 
 // The documents of a supplier on /suppliers/[id] (S7-06 · BR-SDOC ข้อ 03 ข้อ 05): each document with its dates and state;
 // PROCUREMENT verifies or rejects a PENDING one whose file was scanned clean; opening a file is a POST that answers a
-// URL of five minutes (a sensitive type is logged). The server checks every right again.
+// URL of five minutes (a sensitive type is logged). The server checks every right again. S7-09: a list under 768 px.
 
 export interface DocumentRow {
   readonly id: string
@@ -63,10 +63,69 @@ export function DocumentsPanel({ rows, canVerify, actions }: { readonly rows: re
 
   if (rows.length === 0) return <p className="text-ink-muted">{t('documents.empty')}</p>
   const known = error && (KNOWN as readonly string[]).includes(error) ? (error as (typeof KNOWN)[number]) : null
+
+  const type = (d: DocumentRow): ReactNode => (
+    <div className="flex flex-col">
+      <span className="font-medium">{locale === 'en' ? d.typeNameEn : d.typeNameTh}</span>
+      {d.scope ? <span className="text-base text-ink-muted md:text-sm">{d.scope}</span> : null}
+      {d.sensitive ? <span className="text-base text-ink-muted md:text-sm">{t('documents.sensitiveNote')}</span> : null}
+    </div>
+  )
+  const dates = (d: DocumentRow): ReactNode => (
+    <span className="tabular">
+      {d.issuedOn} – {d.expiresOn}
+    </span>
+  )
+  const state = (d: DocumentRow): ReactNode => (
+    <div className="flex flex-col gap-1">
+      <Badge variant={TONE[d.status]} className="self-start">
+        {t(`documents.status.${d.status}`)}
+      </Badge>
+      {d.scanStatus === 'PENDING' || d.scanStatus === 'INFECTED' ? <span className="text-base text-ink-muted md:text-sm">{t(`documents.scan.${d.scanStatus}`)}</span> : null}
+    </div>
+  )
+  const act = (d: DocumentRow, where: 'table' | 'list'): ReactNode => {
+    const clean = d.scanStatus === 'CLEAN'
+    return (
+      <>
+        <div className="flex flex-wrap gap-2">
+          {clean ? (
+            <Button variant="secondary" disabled={busy} onClick={() => run(() => actions.open(d.id, key))}>
+              {t('documents.download')}
+            </Button>
+          ) : null}
+          {canVerify && d.status === 'PENDING' && clean ? (
+            <>
+              <Button disabled={busy} onClick={() => run(() => actions.verify(d.id, d.version, key))}>
+                {t('documents.verify')}
+              </Button>
+              <Button variant="secondary" disabled={busy} onClick={() => setRejecting(rejecting === d.id ? null : d.id)}>
+                {t('documents.reject')}
+              </Button>
+            </>
+          ) : null}
+        </div>
+        {rejecting === d.id ? (
+          <div className="mt-2 flex flex-col gap-2">
+            <label htmlFor={`reason-${where}-${d.id}`} className="font-medium">
+              {t('documents.rejectReason')}
+            </label>
+            <Textarea id={`reason-${where}-${d.id}`} value={reason} onChange={(e) => setReason(e.target.value)} />
+            <Button disabled={busy || reason.trim().length < 3} onClick={() => run(() => actions.reject(d.id, d.version, reason, key))} className="self-start">
+              {t('documents.confirmReject')}
+            </Button>
+          </div>
+        ) : null}
+      </>
+    )
+  }
+
+  // A table from 768 px; under it the same as a list, so the page never scrolls sideways on a phone (§9.9). Only one of
+  // the two is drawn (the other is display: none, out of the accessibility tree); the reason's id names its layout.
   return (
     <div className="flex flex-col gap-3">
       {error ? <Notice tone="danger">{known ? t(`errors.${known}`) : t('errors.FAILED')}</Notice> : null}
-      <div className="-mx-4 overflow-x-auto sm:mx-0">
+      <div className="hidden md:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -77,58 +136,29 @@ export function DocumentsPanel({ rows, canVerify, actions }: { readonly rows: re
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((d) => {
-              const clean = d.scanStatus === 'CLEAN'
-              return (
-                <TableRow key={d.id}>
-                  <TableCell>
-                    <div className="font-medium">{locale === 'en' ? d.typeNameEn : d.typeNameTh}</div>
-                    {d.scope ? <div className="text-sm text-ink-muted">{d.scope}</div> : null}
-                    {d.sensitive ? <div className="text-sm text-ink-muted">{t('documents.sensitiveNote')}</div> : null}
-                  </TableCell>
-                  <TableCell className="tabular">
-                    {d.issuedOn} – {d.expiresOn}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={TONE[d.status]}>{t(`documents.status.${d.status}`)}</Badge>
-                    {d.scanStatus === 'PENDING' || d.scanStatus === 'INFECTED' ? <div className="mt-1 text-sm text-ink-muted">{t(`documents.scan.${d.scanStatus}`)}</div> : null}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      {clean ? (
-                        <Button variant="secondary" disabled={busy} onClick={() => run(() => actions.open(d.id, key))}>
-                          {t('documents.download')}
-                        </Button>
-                      ) : null}
-                      {canVerify && d.status === 'PENDING' && clean ? (
-                        <>
-                          <Button disabled={busy} onClick={() => run(() => actions.verify(d.id, d.version, key))}>
-                            {t('documents.verify')}
-                          </Button>
-                          <Button variant="secondary" disabled={busy} onClick={() => setRejecting(rejecting === d.id ? null : d.id)}>
-                            {t('documents.reject')}
-                          </Button>
-                        </>
-                      ) : null}
-                    </div>
-                    {rejecting === d.id ? (
-                      <div className="mt-2 flex flex-col gap-2">
-                        <label htmlFor={`reason-${d.id}`} className="font-medium">
-                          {t('documents.rejectReason')}
-                        </label>
-                        <Textarea id={`reason-${d.id}`} value={reason} onChange={(e) => setReason(e.target.value)} />
-                        <Button disabled={busy || reason.trim().length < 3} onClick={() => run(() => actions.reject(d.id, d.version, reason, key))} className="self-start">
-                          {t('documents.confirmReject')}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+            {rows.map((d) => (
+              <TableRow key={d.id}>
+                <TableCell className="align-top whitespace-normal">{type(d)}</TableCell>
+                <TableCell className="align-top">{dates(d)}</TableCell>
+                <TableCell className="align-top">{state(d)}</TableCell>
+                <TableCell className="align-top whitespace-normal">{act(d, 'table')}</TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>
+      <ul className="flex flex-col divide-y divide-line md:hidden">
+        {rows.map((d) => (
+          <li key={d.id} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0">
+            {type(d)}
+            <span className="text-base text-ink md:text-sm">
+              {t('documents.columns.dates')}: {dates(d)}
+            </span>
+            {state(d)}
+            {act(d, 'list')}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

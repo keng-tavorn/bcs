@@ -1,4 +1,5 @@
 import { cardLabel, doaReference, priceBadgeText, subjectKind } from './labels'
+import { documentCountText, duplicateCountText, supplierCardLabel, supplierCardName, type SupplierApplicationCard } from './labels-supplier'
 import { DANGER, heading, INK, PRIMARY, row, SURFACE, vertical, WARN } from './style'
 import { ACTION_LABEL_MAX_LENGTH, bahtOf, CARD_LABEL_MAX_LENGTH, CARD_NAME_MAX_LENGTH, clip, dateTimeOf } from './text'
 import type { CardLocale, FlexAction, FlexButton, FlexComponent, FlexMessage } from './types'
@@ -14,6 +15,8 @@ import type { CardLocale, FlexAction, FlexButton, FlexComponent, FlexMessage } f
 //  - "ตีกลับ / ไม่อนุมัติ" and "ดูรายละเอียด": always, on the LIFF page (a reason is typed there).
 // A reviewer's task (S6 · BR-WF-09) says so in its header with the workflow rules it answers for, and its buttons are
 // "ผ่าน" (the same postback; a reviewer needs no PIN) and "ตีกลับ" on the LIFF page: a reviewer never rejects.
+// A supplier application (S7-09 · BR-NOTI ข้อ 10) adds its supplier — a sole proprietor never by name — its category,
+// how many documents and duplicate warnings, and names its requester as the inviter.
 // Pure: the caller passes what to show; the card never reads the database or the clock.
 
 const TOKEN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -48,6 +51,8 @@ export interface ApprovalCardData {
   /** S6-11 (BR-PRC-05): the request's one price badge — counts and percents only; null or left out when no line is HIGH or LOW */
   /** S6-13 (BR-DUP-05): the request's flags; left out or empty when none */
   readonly flags?: ReadonlyArray<'DUPLICATE' | 'SPLIT'>
+  /** S7-09 (BR-NOTI ข้อ 10): a supplier application's summary; null or left out for every other subject */
+  readonly supplierApplication?: SupplierApplicationCard | null
   readonly priceBadge?: { readonly high: { readonly lines: number; readonly maxPct: number } | null; readonly low: { readonly lines: number; readonly minPct: number } | null } | null
   readonly links: {
     /** /liff/tasks/<taskId>?action=approve */
@@ -90,10 +95,19 @@ export function approvalCard(data: ApprovalCardData): FlexMessage {
   ]
 
   const rows: FlexComponent[] = [row(cardLabel('number', t), documentLabel), row(cardLabel('type', t), kind)]
+  const app = data.supplierApplication ?? null
+  if (app) {
+    rows.push(row(supplierCardLabel('supplier', t), clip(supplierCardName(app, t), CARD_NAME_MAX_LENGTH)))
+    rows.push(row(supplierCardLabel('category', t), app.category ? clip(app.category, CARD_NAME_MAX_LENGTH) : supplierCardLabel('noCategory', t)))
+  }
   if (data.requester) {
     const name = clip(data.requester.name, CARD_NAME_MAX_LENGTH)
     const department = data.requester.department ? clip(data.requester.department, CARD_NAME_MAX_LENGTH) : null
-    rows.push(row(cardLabel('requester', t), department ? `${name} · ${department}` : name))
+    rows.push(row(app ? supplierCardLabel('invitedBy', t) : cardLabel('requester', t), department ? `${name} · ${department}` : name))
+  }
+  if (app) {
+    rows.push(row(supplierCardLabel('documents', t), documentCountText(app.documents, t)))
+    rows.push(app.duplicates > 0 ? row(supplierCardLabel('duplicates', t), duplicateCountText(app.duplicates, t), WARN) : row(supplierCardLabel('duplicates', t), duplicateCountText(0, t)))
   }
   if (data.amountSatang !== null) {
     const basis = data.amountBasis === 'NET' ? cardLabel('basisNet', t) : data.amountBasis === 'GROSS' ? cardLabel('basisGross', t) : null

@@ -47,7 +47,10 @@
       "REPLACE": "Account change",
       "CLOSE": "Account closing"
     },
-    "transferLabel": "Total transfer"
+    "transferLabel": "Total transfer",
+    "supplierApplication": "{number} · supplier application of {name}",
+    "supplierApplicationIndividual": "{number} · individual supplier's application",
+    "supplierApplicationMeta": "Category {category}"
   },
   "changeKind": {
     "POSITION_ASSIGN": "an appointment",

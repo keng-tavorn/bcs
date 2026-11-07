@@ -1,0 +1,65 @@
+{
+  "heading": "Supplier application",
+  "number": "Application number",
+  "supplier": "Supplier",
+  "payeeType": "Supplier type",
+  "payeeTypeValue": {
+    "JURISTIC": "Juristic person",
+    "INDIVIDUAL": "Individual",
+    "FOREIGN": "Foreign supplier"
+  },
+  "kind": "Application kind",
+  "kindValue": {
+    "NEW": "New supplier",
+    "EXISTING": "Registered supplier joining the portal"
+  },
+  "category": "Category",
+  "noCategory": "Not given",
+  "taxId": "Tax ID",
+  "taxIdMasked": "{taxId} (last 4 digits only)",
+  "noTaxId": "None (foreign supplier)",
+  "branch": "Branch",
+  "branchHead": "Head office ({code})",
+  "branchValue": "Branch {code}",
+  "vat": "VAT",
+  "vatYes": "VAT registered",
+  "vatNo": "Not VAT registered",
+  "registry": "Registry check",
+  "registrySource": {
+    "RD": "Found at the Revenue Department",
+    "DBD": "Found at the Department of Business Development",
+    "STUB": "Found in the test registry",
+    "MANUAL": "Not found in the registries; procurement confirmed it with the attached proof",
+    "NONE": "Registries not checked yet"
+  },
+  "juristicStatus": "Registry status: {status}",
+  "vatCancelled": "The registry says its VAT registration was cancelled",
+  "people": "People involved",
+  "invitedBy": "Invited by",
+  "filledBy": "Filled in for the supplier by",
+  "routedBy": "Sent for approval by",
+  "nobody": "-",
+  "documents": "Documents",
+  "documentCount": "{count, plural, one {# document} other {# documents}}",
+  "noDocuments": "No documents",
+  "documentStatus": {
+    "PENDING": "Waiting to be verified",
+    "VERIFIED": "Verified",
+    "REJECTED": "Not accepted",
+    "EXPIRED": "Expired",
+    "SUPERSEDED": "Replaced by a newer one"
+  },
+  "documentLine": "{status} · expires {date}",
+  "verifiedBy": "Verified by {name}",
+  "duplicates": "Duplicate warnings",
+  "noDuplicates": "No duplicates found",
+  "duplicateCode": {
+    "SAME_TAXID_OTHER_BRANCH": "Same tax ID, another branch",
+    "DUPLICATE_NAME": "Same name as another supplier or application",
+    "DUPLICATE_EMAIL": "Same e-mail as another supplier or application"
+  },
+  "duplicateMatches": "Matches {refs}",
+  "duplicateReason": "Procurement's reason: {reason}",
+  "noReason": "No reason given yet",
+  "returnHint": "To ask for more information, return it with your reason: procurement corrects it or asks the supplier, then sends it again"
+}

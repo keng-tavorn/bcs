@@ -9,6 +9,7 @@ import { lockRowsForUpdate, type LockableTable } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { loadBusinessCalendar } from '@/server/doa/policy'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { applicationLabel } from '../suppliers/applications'
 
 // The board "เอกสารค้างที่ใคร" (spec §11.1, FR-VIS-001 AC1 AC2): one row per assignee with their open tasks, the age of
 // the oldest in business hours, how many are past their SLA and the average age; tasks waiting for the requester
@@ -19,7 +20,8 @@ import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from 
 // reader who sees it other than as AUDITOR, who reads only (BR-AUTH-04).
 
 const OPEN = ['OPEN', 'INFO_REQUESTED'] as const
-export const BOARD_SUBJECTS = ['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE'] as const
+// S7-09: a supplier application too, its filter and its label (a sole proprietor never by name · BR-NOTI ข้อ 10)
+export const BOARD_SUBJECTS = ['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE', 'SUPPLIER_APPLICATION'] as const
 export type BoardSubject = (typeof BOARD_SUBJECTS)[number]
 
 export interface BoardFilter {
@@ -118,7 +120,7 @@ async function remindableTasks(tx: TenantTx, principal: Principal, taskIds: read
 }
 
 /** The row a document's reminders queue on: its own, or its purchase order's for a variance */
-const LOCKED: Readonly<Record<string, LockableTable>> = { REQUEST: 'Request', PURCHASE_ORDER: 'PurchaseOrder', DOA_VERSION: 'DoaVersion', ORG_AUTHORITY_CHANGE: 'OrgAuthorityChange' }
+const LOCKED: Readonly<Record<string, LockableTable>> = { REQUEST: 'Request', PURCHASE_ORDER: 'PurchaseOrder', DOA_VERSION: 'DoaVersion', ORG_AUTHORITY_CHANGE: 'OrgAuthorityChange', SUPPLIER_APPLICATION: 'SupplierApplication' }
 
 /**
  * Two people pressing "remind" on one document at once send one reminder (FR-VIS-001 AC2): the document's row is
@@ -141,12 +143,13 @@ async function labels(tx: TenantTx, tasks: ReadonlyArray<{ subjectType: string; 
 /** The label of each document on the board, and the purchase order of a variance */
 async function documents(tx: TenantTx, tasks: ReadonlyArray<{ subjectType: string; subjectId: string }>): Promise<Map<string, { label: string; poId: string | null }>> {
   const ids = (type: string) => tasks.filter((t) => t.subjectType === type).map((t) => t.subjectId)
-  const [requests, pos, variances, versions, changes] = await Promise.all([
+  const [requests, pos, variances, versions, changes, applications] = await Promise.all([
     tx.request.findMany({ where: { id: { in: ids('REQUEST') } }, select: { id: true, number: true, title: true } }),
     tx.purchaseOrder.findMany({ where: { id: { in: ids('PURCHASE_ORDER') } }, select: { id: true, number: true } }),
     tx.variance.findMany({ where: { id: { in: ids('VARIANCE') } }, select: { id: true, poId: true, po: { select: { number: true } } } }),
     tx.doaVersion.findMany({ where: { id: { in: ids('DOA_VERSION') } }, select: { id: true, code: true, versionNo: true } }),
     tx.orgAuthorityChange.findMany({ where: { id: { in: ids('ORG_AUTHORITY_CHANGE') } }, select: { id: true, kind: true } }),
+    tx.supplierApplication.findMany({ where: { id: { in: ids('SUPPLIER_APPLICATION') } }, select: { id: true, number: true, nameTh: true, payeeType: true } }),
   ])
   const plain = (label: string): { label: string; poId: string | null } => ({ label, poId: null })
   return new Map<string, { label: string; poId: string | null }>([
@@ -155,6 +158,7 @@ async function documents(tx: TenantTx, tasks: ReadonlyArray<{ subjectType: strin
     ...variances.map((v) => [v.id, { label: v.po.number ?? '', poId: v.poId }] as const),
     ...versions.map((v) => [v.id, plain(`${v.code} #${v.versionNo}`)] as const),
     ...changes.map((c) => [c.id, plain(c.kind)] as const),
+    ...applications.map((a) => [a.id, plain(a.payeeType === 'INDIVIDUAL' ? applicationLabel(a) : `${a.number ?? ''} ${a.nameTh}`.trim())] as const),
   ])
 }
 

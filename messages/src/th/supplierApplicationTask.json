@@ -1,0 +1,65 @@
+{
+  "heading": "ใบสมัครผู้ขาย",
+  "number": "เลขใบสมัคร",
+  "supplier": "ผู้ขาย",
+  "payeeType": "ประเภทผู้ขาย",
+  "payeeTypeValue": {
+    "JURISTIC": "นิติบุคคล",
+    "INDIVIDUAL": "บุคคลธรรมดา",
+    "FOREIGN": "ผู้ขายต่างประเทศ"
+  },
+  "kind": "ชนิดใบสมัคร",
+  "kindValue": {
+    "NEW": "ผู้ขายรายใหม่",
+    "EXISTING": "ผู้ขายที่มีในทะเบียนแล้ว เข้าพอร์ทัล"
+  },
+  "category": "หมวด",
+  "noCategory": "ไม่ระบุ",
+  "taxId": "เลขผู้เสียภาษี",
+  "taxIdMasked": "{taxId} (แสดงเฉพาะ 4 หลักท้าย)",
+  "noTaxId": "ไม่มี (ผู้ขายต่างประเทศ)",
+  "branch": "สาขา",
+  "branchHead": "สำนักงานใหญ่ ({code})",
+  "branchValue": "สาขา {code}",
+  "vat": "ภาษีมูลค่าเพิ่ม",
+  "vatYes": "จดทะเบียน VAT",
+  "vatNo": "ไม่ได้จดทะเบียน VAT",
+  "registry": "ผลตรวจทะเบียน",
+  "registrySource": {
+    "RD": "พบในทะเบียนกรมสรรพากร",
+    "DBD": "พบในทะเบียนกรมพัฒนาธุรกิจการค้า",
+    "STUB": "พบในทะเบียนจำลอง (ทดสอบ)",
+    "MANUAL": "ไม่พบในทะเบียน จัดซื้อยืนยันด้วยหลักฐานที่แนบ",
+    "NONE": "ยังไม่ได้ตรวจทะเบียน"
+  },
+  "juristicStatus": "สถานะในทะเบียน: {status}",
+  "vatCancelled": "ทะเบียนแจ้งว่ายกเลิกภาษีมูลค่าเพิ่มแล้ว",
+  "people": "ผู้เกี่ยวข้อง",
+  "invitedBy": "ผู้เชิญ",
+  "filledBy": "จัดซื้อกรอกแทนผู้ขาย",
+  "routedBy": "ส่งอนุมัติโดย",
+  "nobody": "-",
+  "documents": "เอกสาร",
+  "documentCount": "{count} ฉบับ",
+  "noDocuments": "ไม่มีเอกสาร",
+  "documentStatus": {
+    "PENDING": "รอยืนยัน",
+    "VERIFIED": "ยืนยันแล้ว",
+    "REJECTED": "ไม่ผ่าน",
+    "EXPIRED": "หมดอายุ",
+    "SUPERSEDED": "มีฉบับใหม่แทนแล้ว"
+  },
+  "documentLine": "{status} · หมดอายุ {date}",
+  "verifiedBy": "ยืนยันโดย {name}",
+  "duplicates": "เตือนข้อมูลซ้ำ",
+  "noDuplicates": "ไม่พบข้อมูลซ้ำ",
+  "duplicateCode": {
+    "SAME_TAXID_OTHER_BRANCH": "เลขผู้เสียภาษีเดียวกันแต่คนละสาขา",
+    "DUPLICATE_NAME": "ชื่อซ้ำกับผู้ขายหรือใบสมัครอื่น",
+    "DUPLICATE_EMAIL": "อีเมลซ้ำกับผู้ขายหรือใบสมัครอื่น"
+  },
+  "duplicateMatches": "ตรงกับ {refs}",
+  "duplicateReason": "เหตุผลของจัดซื้อ: {reason}",
+  "noReason": "ยังไม่มีเหตุผล",
+  "returnHint": "ต้องการข้อมูลเพิ่ม ให้ตีกลับพร้อมเหตุผล จัดซื้อจะแก้หรือขอจากผู้ขายแล้วส่งอนุมัติใหม่"
+}

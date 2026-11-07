@@ -48,6 +48,8 @@ import { getInvoiceTaskView } from '@/server/queries/ap-invoices'
 import { InvoiceVarianceBody } from '@/ui/tasks/subjects/invoice'
 import { getPoChangeTaskView } from '@/server/queries/po-changes'
 import { PoChangeBody } from '@/ui/tasks/subjects/po-change'
+import { getSupplierApplicationTaskView } from '@/server/services/suppliers/application-view'
+import { SupplierApplicationBody } from '@/ui/tasks/subjects/supplier-application'
 import { askForInformationAction, decidePolicyTaskAction, decideTaskAction, passkeyOptionsAction } from '../actions'
 
 export async function generateMetadata() {
@@ -172,6 +174,11 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const invoice = task.subjectType === 'INVOICE' ? await getInvoiceTaskView(ctx, task.subjectId) : null
   // S8-13: a change of a sent PO (subject PO_CHANGE)
   const poChange = task.subjectType === 'PO_CHANGE' ? await getPoChangeTaskView(ctx, task.subjectId) : null
+  // S7-09: a supplier application (subject SUPPLIER_APPLICATION · FR-SUP-104 AC5): its approvers read it
+  // (supplier.application.view ASSIGNED); questions go back as a return, so no "ask the requester" (allowsRequestInfo false)
+  const isSupplierApp = task.subjectType === 'SUPPLIER_APPLICATION'
+  const supplierAppRead = isSupplierApp ? await getSupplierApplicationTaskView(ctx, task.subjectId) : null
+  const supplierApp = supplierAppRead?.ok ? supplierAppRead.data : null
   const [tp, poAccess] = await Promise.all([getTranslations('purchaseOrder'), po ? getPoAccess(ctx, po.id) : variance ? getPoAccess(ctx, variance.po.id) : Promise.resolve(null)])
   // The PO opens for whoever may see it (po.view); otherwise its number is plain text, never a link that ends in a refusal
   const poHref = poAccess && canViewPo(principal, poAccess) ? `/procurement/pos/${poAccess.poId}` : null
@@ -242,7 +249,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               ? (invoice.number ?? '-')
               : poChange
                 ? t('poChangeTask.label', { number: poChange.po.number ?? '-', changeNo: poChange.changeNo })
-                : task.policy
+                : supplierApp
+                  ? supplierApp.label
+                  : task.policy
                   ? policyHeadline(t, locale, task.policy)
                   : task.workflow
                     ? t(task.workflow.withdrawal ? 'item.workflowWithdrawal' : 'item.workflow', { code: task.workflow.code, version: task.workflow.versionNo })
@@ -362,6 +371,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 <InvoiceVarianceBody invoice={invoice} />
               ) : poChange ? (
                 <PoChangeBody change={poChange} />
+              ) : isSupplierApp ? (
+                supplierApp ? <SupplierApplicationBody application={supplierApp} /> : null
               ) : (
                 <PolicySubject task={task} locale={locale} doaLinks={doaLinks} doaSimulate={doaSimulate} orgAuthorityLink={canOpenOrgAuthorityChanges(principal)} />
               )}
@@ -397,7 +408,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   stepUp={task.stepUp}
                   hasPasskey={hasPasskey}
                   {...(variance ? { disposition: variance.disposition } : {})}
-                  actions={po || variance || isTransfer || isOverrun ? { decide: decideTaskAction, passkeyOptions: passkeyOptionsAction } : { decide: decideTaskAction, ask: askForInformationAction, passkeyOptions: passkeyOptionsAction }}
+                  actions={po || variance || isTransfer || isOverrun || isSupplierApp ? { decide: decideTaskAction, passkeyOptions: passkeyOptionsAction } : { decide: decideTaskAction, ask: askForInformationAction, passkeyOptions: passkeyOptionsAction }}
                 />
               )}
             </Panel>

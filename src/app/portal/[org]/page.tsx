@@ -46,6 +46,9 @@ export default async function PortalHomePage({ params, searchParams }: { params:
       {home.supplier ? <p>{t('home.forSupplier', { supplier: home.supplier.nameTh })}</p> : null}
       {home.application && !home.supplier ? <p>{t('home.forApplication', { name: home.application.nameTh })}</p> : null}
       {status ? <PortalNotice tone="info">{t('home.applicationStatus', { status: t(`applicationStatus.${status}`) })}</PortalNotice> : null}
+      <a href={`/portal/${org.code}/documents`} className="text-primary underline underline-offset-4">
+        {t('home.documents')}
+      </a>
       {signOut}
     </PortalFrame>
   )

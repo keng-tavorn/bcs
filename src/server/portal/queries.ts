@@ -51,3 +51,25 @@ export async function listPortalContacts(ctx: Ctx): Promise<PortalContactRow[]> 
     select: { id: true, nameTh: true, roleLabel: true, isPrimary: true },
   })
 }
+
+export interface PortalDocumentTypeRow {
+  readonly code: string
+  readonly nameTh: string
+  readonly nameEn: string
+  readonly required: boolean
+}
+
+/** The document types the contact's supplier or application may send: active, for its payee type (BR-SDOC ข้อ 01) */
+export async function listPortalDocumentTypes(ctx: Ctx): Promise<PortalDocumentTypeRow[]> {
+  if (ctx.actor.type !== 'SUPPLIER') throw new Error('a portal query needs a portal context')
+  const db = forTenant(ctx.organizationId)
+  const payee = ctx.actor.supplierId
+    ? (await db.supplier.findFirst({ where: portalWhere(ctx, 'supplier'), select: { payeeType: true } }))?.payeeType
+    : (await db.supplierApplication.findFirst({ where: portalWhere(ctx, 'supplierApplication'), select: { payeeType: true } }))?.payeeType
+  if (!payee) return []
+  return db.supplierDocumentType.findMany({
+    where: { AND: [portalWhere(ctx, 'supplierDocumentType'), { appliesTo: { has: payee } }] },
+    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+    select: { code: true, nameTh: true, nameEn: true, required: true },
+  })
+}

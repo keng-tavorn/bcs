@@ -599,3 +599,84 @@ const deactivateTypeCommand = defineCommand({
 export const upsertSupplierDocumentType = (ctx: Ctx, input: z.input<typeof TypeInput>, options: RunOptions) => runCommand(ctx, upsertTypeCommand, input, options)
 export const deactivateSupplierDocumentType = (ctx: Ctx, input: { code: string }, options: RunOptions) => runCommand(ctx, deactivateTypeCommand, input, options)
 
+
+// ---------- what the screens read ----------
+
+export interface DocumentTypeView {
+  readonly code: string
+  readonly nameTh: string
+  readonly nameEn: string
+  readonly appliesTo: readonly ('JURISTIC' | 'INDIVIDUAL' | 'FOREIGN')[]
+  readonly required: boolean
+  readonly validityDays: number | null
+  readonly reminderDaysBefore: number
+  readonly sensitive: boolean
+  readonly singleInstance: boolean
+  readonly active: boolean
+}
+
+/** /admin/supplier-document-types: every type of the organization, closed ones last (admin.supplierDocumentTypes) */
+export async function listSupplierDocumentTypes(ctx: Ctx): Promise<Result<DocumentTypeView[]>> {
+  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+    const may = await authorize(tx, ctx, 'admin.supplierDocumentTypes')
+    if (!may.ok) return { ok: false as const, error: may.error }
+    const rows = await tx.supplierDocumentType.findMany({ orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { code: 'asc' }] })
+    return { ok: true as const, data: rows.map((t) => ({ code: t.code, nameTh: t.nameTh, nameEn: t.nameEn, appliesTo: t.appliesTo, required: t.required, validityDays: t.validityDays, reminderDaysBefore: t.reminderDaysBefore, sensitive: t.sensitive, singleInstance: t.singleInstance, active: t.active })) }
+  })
+}
+
+export interface SupplierDocumentView {
+  readonly id: string
+  readonly version: number
+  readonly typeCode: string
+  readonly typeNameTh: string
+  readonly typeNameEn: string
+  readonly sensitive: boolean
+  readonly scope: string | null
+  readonly issuedOn: string
+  readonly expiresOn: string
+  readonly status: 'PENDING' | 'VERIFIED' | 'REJECTED' | 'EXPIRED' | 'SUPERSEDED'
+  readonly scanStatus: string
+  readonly rejectReason: string | null
+}
+
+/**
+ * The documents of a supplier or an application, newest first: for a member with supplier.document.view, or the
+ * supplier's own contact on the portal. A sensitive type's document number never leaves here (BR-SDOC ข้อ 07).
+ */
+export async function listSupplierDocuments(
+  ctx: Ctx,
+  owner: { readonly supplierId?: string | null; readonly applicationId?: string | null },
+): Promise<Result<{ readonly rows: SupplierDocumentView[]; readonly canVerify: boolean }>> {
+  const o = { supplierId: owner.supplierId ?? null, applicationId: owner.applicationId ?? null }
+  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+    const who = await actingOn(tx, ctx, o, 'supplier.document.view')
+    if ('ok' in who) return who
+    const rows = await tx.supplierDocument.findMany({
+      where: o.supplierId ? { supplierId: o.supplierId } : { applicationId: o.applicationId },
+      include: { documentType: { select: { nameTh: true, nameEn: true, sensitive: true } }, file: { select: { scanStatus: true } } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    })
+    const canVerify = who.side === 'MEMBER' && (await authorize(tx, ctx, 'supplier.document.verify')).ok
+    return {
+      ok: true as const,
+      data: {
+        canVerify,
+        rows: rows.map((d) => ({
+        id: d.id,
+        version: d.version,
+        typeCode: d.documentTypeCode,
+        typeNameTh: d.documentType.nameTh,
+        typeNameEn: d.documentType.nameEn,
+        sensitive: d.documentType.sensitive,
+        scope: d.scope,
+        issuedOn: isoOf(d.issuedOn),
+        expiresOn: isoOf(d.expiresOn),
+        status: d.status,
+        scanStatus: d.file.scanStatus,
+        rejectReason: d.rejectReason,
+        })),
+      },
+    }
+  })
+}

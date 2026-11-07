@@ -8780,6 +8780,7 @@
     },
     "home": {
       "applicationStatus": "Application status: {status}",
+      "documents": "Your documents",
       "forApplication": "Supplier application of {name}",
       "forSupplier": "You are signed in for {supplier}",
       "greeting": "Hello {name}",
@@ -11015,6 +11016,7 @@
       "savings": "Savings",
       "security": "Account security",
       "settings": "My settings",
+      "supplierDocumentTypes": "Supplier document types",
       "suppliers": "Suppliers",
       "tasks": "Approvals",
       "tenants": "Customer organizations",
@@ -11062,6 +11064,94 @@
     },
     "signedInAs": "Signed in as {name}",
     "skipToContent": "Skip to content"
+  },
+  "supplierDocs": {
+    "documents": {
+      "back": "Back to the portal home",
+      "columns": {
+        "action": "Manage",
+        "dates": "Issued – expires",
+        "status": "Status",
+        "type": "Type"
+      },
+      "confirmReject": "Confirm not accepted",
+      "documentType": "Document type",
+      "download": "Open file",
+      "empty": "This supplier has no document yet",
+      "expiresOn": "Expiry printed on the document (if any)",
+      "file": "File (PDF, JPG, PNG or WebP, at most 20 MB)",
+      "idCardHint": "ID card: please cover the religion field before you photograph or scan it",
+      "issuedOn": "Issued on",
+      "reject": "Not accepted",
+      "rejectReason": "Why it is not accepted",
+      "scan": {
+        "INFECTED": "Unsafe file",
+        "PENDING": "Scanning the file"
+      },
+      "scope": "Scope (e.g. ISO 9001)",
+      "sensitiveNote": "Sensitive document: opening the file is logged",
+      "status": {
+        "EXPIRED": "Expired",
+        "PENDING": "Waiting for checks",
+        "REJECTED": "Not accepted",
+        "SUPERSEDED": "Replaced",
+        "VERIFIED": "Verified"
+      },
+      "title": "Supplier documents",
+      "upload": "Upload a document",
+      "uploadTitle": "Send a new document",
+      "uploaded": "Sent. The file is being scanned, then procurement will check it",
+      "verify": "Verify"
+    },
+    "errors": {
+      "CONFLICT_VERSION": "The document changed. Please reload the page",
+      "FAILED": "That did not work. Please try again",
+      "FILE_INFECTED": "This file failed the security check",
+      "FILE_NOT_SCANNED": "The file is still being checked. Please wait a moment",
+      "FORBIDDEN": "You may not do this",
+      "PRIVACY_NOTICE_OUTDATED": "Please acknowledge the privacy notice first",
+      "RATE_LIMITED": "Too many files. Please try again later",
+      "VALIDATION_FAILED": "Please check what you typed"
+    },
+    "types": {
+      "appliesTo": "For suppliers that are",
+      "close": "Close",
+      "closed": "Closed",
+      "code": "Code",
+      "codeHint": "Capitals, digits and underscores, e.g. COMPANY_CERT. An existing code changes that type",
+      "columns": {
+        "action": "Manage",
+        "appliesTo": "For",
+        "flags": "Rules",
+        "rule": "Valid / reminder",
+        "type": "Type"
+      },
+      "days": "{count} days",
+      "empty": "No document type yet",
+      "flagMany": "One per scope",
+      "flagRequired": "Required",
+      "flagSensitive": "Sensitive",
+      "formTitle": "Add or change a type",
+      "intro": "The documents suppliers send through the portal. Required types must be there before an application is sent and before it goes for approval. Close a type you no longer use instead of deleting it.",
+      "listTitle": "Types",
+      "nameEn": "Name in English",
+      "nameTh": "Name in Thai",
+      "noExpiry": "Date on the document",
+      "payee": {
+        "FOREIGN": "Foreign",
+        "INDIVIDUAL": "Individuals",
+        "JURISTIC": "Companies"
+      },
+      "reminderDaysBefore": "Remind before expiry (days)",
+      "required": "Required",
+      "save": "Save type",
+      "saved": "Saved",
+      "sensitive": "Sensitive (every opening of the file is logged)",
+      "singleInstance": "One copy per supplier",
+      "title": "Supplier document types",
+      "validityDays": "Valid for (days)",
+      "validityHint": "Leave empty to use the expiry printed on the document"
+    }
   },
   "suppliers": {
     "branch": {

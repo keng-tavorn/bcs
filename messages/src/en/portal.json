@@ -28,7 +28,8 @@
     "forSupplier": "You are signed in for {supplier}",
     "forApplication": "Supplier application of {name}",
     "applicationStatus": "Application status: {status}",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "documents": "Your documents"
   },
   "applicationStatus": {
     "INVITED": "Invited",

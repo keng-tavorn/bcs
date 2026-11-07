@@ -23,6 +23,7 @@ const bySupplierOrApplication = (a: SupplierActor) => (a.supplierId ? { supplier
 
 export const PORTAL_MODELS: PortalModel[] = [
   // S7
+  { model: 'supplier', where: (a) => (a.supplierId ? { id: a.supplierId } : NONE) },
   { model: 'supplierContact', where: bySupplierOrApplication },
   { model: 'supplierApplication', where: (a) => (a.applicationId ? { id: a.applicationId } : a.supplierId ? { supplierId: a.supplierId } : NONE) },
   { model: 'supplierDocument', where: bySupplierOrApplication },

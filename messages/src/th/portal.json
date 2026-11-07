@@ -28,7 +28,8 @@
     "forSupplier": "ท่านเข้าระบบในนามของ {supplier}",
     "forApplication": "ใบสมัครผู้ขายของ {name}",
     "applicationStatus": "สถานะใบสมัคร: {status}",
-    "signOut": "ออกจากระบบ"
+    "signOut": "ออกจากระบบ",
+    "documents": "เอกสารของท่าน"
   },
   "applicationStatus": {
     "INVITED": "ได้รับคำเชิญ",

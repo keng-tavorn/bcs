@@ -10,6 +10,12 @@ export const PORTAL_SUPPLIER_TEMPLATES = {
   otp: 'supplier.otp',
   newDevice: 'supplier.new_device',
   contactAdded: 'supplier.contact_added',
+  // S7-05 (BR-SUP ข้อ 08 ข้อ 10 ข้อ 11): the application's e-mails to its contact
+  invitation: 'supplier.invitation',
+  applicationCopy: 'supplier.application_copy',
+  applicationReturned: 'supplier.application_returned',
+  applicationRejected: 'supplier.application_rejected',
+  applicationApproved: 'supplier.application_approved',
 } as const
 
 const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '')
@@ -61,5 +67,52 @@ registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.contactAdded, (d, c) =>
       `หากท่านไม่ได้ขอ โปรดติดต่อฝ่ายจัดซื้อของ ${c.organizationName} ทันทีทางเบอร์โทรศัพท์ที่ท่านรู้จัก`,
     ],
     [`${str(d.addedByEn) || str(d.addedByTh)} of ${c.organizationName} ${d.changed === 'EMAIL' ? 'changed the e-mail of' : 'added'} the contact ${str(d.contactName)}, who may now use the supplier portal for you.`, 'If you did not ask for this, call its procurement team at once on a number you know.'],
+  ),
+)
+
+// ---------- S7-05: the application ----------
+
+registerSupplierTemplate(
+  PORTAL_SUPPLIER_TEMPLATES.invitation,
+  (d, c) =>
+    supplierMail(
+      `${c.organizationName} เชิญท่านขึ้นทะเบียนผู้ขาย / Invitation to register as a supplier`,
+      [`เรียน ${c.supplierName}`, `${c.organizationName} เชิญท่านกรอกใบสมัครผู้ขายผ่านพอร์ทัล กดลิงก์นี้ (ใช้ได้ครั้งเดียว ภายใน ${at(d.expiresAt)}):`, str(d.url), 'เมื่อกดลิงก์ ระบบจะส่งรหัสยืนยัน 6 หลักไปที่อีเมลนี้'],
+      [`${c.organizationName} invites you to fill in its supplier application on the portal. Open this link (once, until ${atEn(d.expiresAt)}):`, str(d.url), 'A six-digit code will then be sent to this e-mail.'],
+    ),
+  { redactAfterSend: ['url'] },
+)
+
+// BR-SUP ข้อ 10: what procurement filled in for the supplier, sent with every submit — never the whole account number
+registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.applicationCopy, (d, c) => {
+  const lines = Array.isArray(d.lines) ? d.lines.map(str).filter(Boolean) : []
+  return supplierMail(
+    `สำเนาใบสมัครผู้ขาย ${str(d.number)} ที่ ${c.organizationName} กรอกแทนท่าน / A copy of your application`,
+    [`เรียน ${c.supplierName}`, `ฝ่ายจัดซื้อของ ${c.organizationName} กรอกและส่งใบสมัครเลขที่ ${str(d.number)} แทนท่านด้วยค่าต่อไปนี้ หากไม่ถูกต้องโปรดแจ้งฝ่ายจัดซื้อ`, ...lines],
+    [`The procurement team of ${c.organizationName} filled in and sent application ${str(d.number)} for you with the values above. Please tell them if anything is wrong.`],
+  )
+})
+
+registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.applicationReturned, (d, c) =>
+  supplierMail(
+    `ใบสมัครผู้ขาย ${str(d.number)} ถูกส่งกลับให้แก้ไข / Your application was returned`,
+    [`เรียน ${c.supplierName}`, `${c.organizationName} ส่งใบสมัครเลขที่ ${str(d.number)} กลับให้แก้ไข ด้วยเหตุผล: ${str(d.reason)}`, 'โปรดเข้าพอร์ทัลเพื่อแก้ไขแล้วส่งอีกครั้ง'],
+    [`${c.organizationName} returned application ${str(d.number)} for changes. Reason: ${str(d.reason)}`, 'Please sign in to the portal, change it and send it again.'],
+  ),
+)
+
+registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.applicationRejected, (d, c) =>
+  supplierMail(
+    `ใบสมัครผู้ขาย ${str(d.number)} ไม่ได้รับอนุมัติ / Your application was not approved`,
+    [`เรียน ${c.supplierName}`, `${c.organizationName} ไม่อนุมัติใบสมัครเลขที่ ${str(d.number)} ด้วยเหตุผล: ${str(d.reason)}`],
+    [`${c.organizationName} did not approve application ${str(d.number)}. Reason: ${str(d.reason)}`],
+  ),
+)
+
+registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.applicationApproved, (d, c) =>
+  supplierMail(
+    `${c.organizationName} อนุมัติท่านเป็นผู้ขายแล้ว / You are now a supplier`,
+    [`เรียน ${c.supplierName}`, `${c.organizationName} อนุมัติใบสมัครเลขที่ ${str(d.number)} แล้ว รหัสผู้ขายของท่านคือ ${str(d.code)}`, 'ท่านเข้าพอร์ทัลเพื่อดูใบสั่งซื้อและสถานะการจ่ายเงินได้ด้วยอีเมลนี้'],
+    [`${c.organizationName} approved application ${str(d.number)}. Your supplier code is ${str(d.code)}.`, 'You may sign in to the portal with this e-mail to see purchase orders and payments.'],
   ),
 )

@@ -5,7 +5,7 @@ import { supplierSettingsOf } from '@/lib/org-settings'
 import { PORTAL_SESSION_TOUCH_MS } from '@/lib/portal-limits'
 import { makeCtx, type Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
-import { sha256Hex } from './crypto'
+import { sha256Hex } from '@/server/crypto/portal'
 import { portalPath, type PortalOrg } from './org'
 
 // The portal's own session (BR-PORTAL ข้อ 03 · ADR-007 · ADR-183): cookie bcs_portal under /portal/<org>, a random id

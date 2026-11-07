@@ -3083,6 +3083,7 @@
       "Retention": "Performance retention",
       "Security": "Security",
       "Supplier": "Supplier",
+      "SupplierApplication": "Supplier application",
       "SupplierContact": "Supplier contact",
       "SupplierNotice": "E-mail to a supplier",
       "Variance": "Receiving variance",
@@ -3480,6 +3481,18 @@
         "tax_profile_updated": "Supplier's tax profile changed",
         "updated": "Supplier details changed"
       },
+      "supplier_application": {
+        "approved": "Supplier application approved",
+        "cancelled": "Supplier application cancelled",
+        "drafted": "Supplier started its application",
+        "expired": "Supplier application expired",
+        "invited": "Supplier invited to apply",
+        "rejected": "Supplier application not approved",
+        "returned": "Supplier application returned",
+        "routed": "Supplier application sent for approval",
+        "submitted": "Supplier application sent",
+        "updated": "Supplier application changed"
+      },
       "supplier_contact": {
         "created": "Supplier contact added",
         "deactivated": "Supplier contact deactivated",
@@ -3586,6 +3599,7 @@
       "retention": "Performance retention",
       "security": "Security",
       "supplier": "Suppliers",
+      "supplier_application": "Supplier application",
       "supplier_contact": "Supplier contacts",
       "supplier_notice": "E-mails to suppliers",
       "variance": "Receiving variances",

@@ -72,7 +72,7 @@ export interface RegistryProposal {
  * BR-SUP-03 does not block, a person confirms the supplier with proof. The failure is logged without the number (an
  * individual's tax id is their national id number, NFR-SEC-09) and without the error's text (FR-PLT-008 AC3).
  */
-async function checkRegistry(taxId: string, branchCode: string): Promise<{ proposal: RegistryProposal; data: Record<string, unknown> }> {
+export async function checkRegistry(taxId: string, branchCode: string): Promise<{ proposal: RegistryProposal; data: Record<string, unknown> }> {
   let mode: RegistryProvider['mode'] = getEnv().REGISTRY_MODE
   let answers: { readonly rd: RegistryAnswer; readonly dbd: RegistryAnswer }
   try {

@@ -150,7 +150,8 @@
     "assistant": "ผู้ช่วย BCS",
     "assistant_learning": "สมุดของผู้ช่วย",
     "portal_session": "พอร์ทัลผู้ขาย",
-    "supplier_contact": "ผู้ติดต่อของผู้ขาย"
+    "supplier_contact": "ผู้ติดต่อของผู้ขาย",
+    "supplier_application": "ใบสมัครผู้ขาย"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -209,7 +210,8 @@
     "ChatIntake": "ร่างคำขอจากแชท",
     "Assistant": "รายการเรื่องของผู้ช่วย",
     "AssistantLearning": "สิ่งที่ผู้ช่วยเรียนรู้",
-    "SupplierContact": "ผู้ติดต่อของผู้ขาย"
+    "SupplierContact": "ผู้ติดต่อของผู้ขาย",
+    "SupplierApplication": "ใบสมัครผู้ขาย"
   },
   "events": {
     "approval_step": {
@@ -612,6 +614,18 @@
       "updated": "แก้ผู้ติดต่อของผู้ขาย",
       "deactivated": "ปิดผู้ติดต่อของผู้ขาย",
       "privacy_notice_accepted": "ผู้ติดต่อรับทราบประกาศความเป็นส่วนตัว"
+    },
+    "supplier_application": {
+      "invited": "เชิญผู้ขายสมัคร",
+      "drafted": "ผู้ขายเริ่มกรอกใบสมัคร",
+      "updated": "แก้ใบสมัครผู้ขาย",
+      "submitted": "ส่งใบสมัครผู้ขาย",
+      "routed": "ส่งใบสมัครผู้ขายเข้าเส้นทางอนุมัติ",
+      "returned": "ตีกลับใบสมัครผู้ขาย",
+      "approved": "อนุมัติใบสมัครผู้ขาย",
+      "rejected": "ไม่อนุมัติใบสมัครผู้ขาย",
+      "expired": "ใบสมัครผู้ขายหมดอายุ",
+      "cancelled": "ยกเลิกใบสมัครผู้ขาย"
     }
   }
 }

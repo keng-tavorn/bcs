@@ -13,8 +13,9 @@ import { appendEvents, type EventDraft } from '@/server/events/append'
 import { enqueueSupplierNotice } from '@/server/notifications/supplier-notices'
 import { PORTAL_SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-templates-portal'
 import { defineCommand, runCommand, type CommandOutcome } from '@/server/services/_pipeline'
-import { ipHash, newOtpCode, newSecret, otpCodeHash, sha256Hex, userAgentHash } from './crypto'
-import { issuePortalLink } from './links'
+import { applicationSignedIn } from '@/server/services/suppliers/applications'
+import { ipHash, newOtpCode, newSecret, otpCodeHash, sha256Hex, userAgentHash } from '@/server/crypto/portal'
+import { issuePortalLink } from '@/server/services/suppliers/links'
 import type { PortalOrg } from './org'
 import { PORTAL_PRIVACY_NOTICE_VERSION } from './privacy'
 import { hitIpLimit, hitScopeLimit, type LimitVerdict } from './rate-limit'
@@ -41,6 +42,8 @@ const signedInHooks: SignedInHook[] = []
 export function onPortalSignedIn(hook: SignedInHook): void {
   signedInHooks.push(hook)
 }
+// S7-05 (BR-SUP ข้อ 08): the first sign-in of an INVITED application's contact moves the application
+onPortalSignedIn(applicationSignedIn)
 
 const RATE_LIMITED: AppError = { code: 'RATE_LIMITED', message: 'too many requests; try again later' }
 const HEX64 = z.string().regex(/^[0-9a-f]{64}$/)

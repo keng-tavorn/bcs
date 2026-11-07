@@ -150,7 +150,8 @@
     "assistant": "BCS assistants",
     "assistant_learning": "Assistants' notebook",
     "portal_session": "Supplier portal",
-    "supplier_contact": "Supplier contacts"
+    "supplier_contact": "Supplier contacts",
+    "supplier_application": "Supplier application"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -209,7 +210,8 @@
     "ChatIntake": "Chat request draft",
     "Assistant": "Assistant suggestions",
     "AssistantLearning": "What an assistant learned",
-    "SupplierContact": "Supplier contact"
+    "SupplierContact": "Supplier contact",
+    "SupplierApplication": "Supplier application"
   },
   "events": {
     "approval_step": {
@@ -612,6 +614,18 @@
       "updated": "Supplier contact changed",
       "deactivated": "Supplier contact deactivated",
       "privacy_notice_accepted": "Contact acknowledged the privacy notice"
+    },
+    "supplier_application": {
+      "invited": "Supplier invited to apply",
+      "drafted": "Supplier started its application",
+      "updated": "Supplier application changed",
+      "submitted": "Supplier application sent",
+      "routed": "Supplier application sent for approval",
+      "returned": "Supplier application returned",
+      "approved": "Supplier application approved",
+      "rejected": "Supplier application not approved",
+      "expired": "Supplier application expired",
+      "cancelled": "Supplier application cancelled"
     }
   }
 }

@@ -425,6 +425,10 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `budget.overrun.submit` | ผู้ขอ (OWN) — ขออนุมัติเกินงบให้คำขอ DRAFT หรือ RETURNED ของตนที่บรรทัดงบไม่พอ และยกเลิกที่ตนขอ ผู้ติดตามและหัวหน้าฝ่ายทำไม่ได้ ผู้ขออนุมัติเองไม่ได้ (S6-16 · FR-BUD-101 · OQ-104) |
 | `supplier.view` | ทุก member เห็นชื่อและข้อมูลพื้นฐาน · PROCUREMENT, FINANCE, AUDITOR เห็นทั้งหมด |
 | `supplier.manage` | PROCUREMENT (ORG) |
+| `supplier.invite` | PROCUREMENT (ORG) — เชิญผู้ขายใหม่หรือผู้ขายเดิมเข้าพอร์ทัล เชิญซ้ำ และยกเลิกใบสมัคร (S7-05 · BR-SUP-08) |
+| `supplier.application.view` | ผู้ได้รับงาน (ASSIGNED) · PROCUREMENT, FINANCE, AUDITOR (ORG) — ใบสมัครผู้ขายและเอกสารของใบ ผู้ได้รับงานอนุมัติของใบนั้น (S7-05) |
+| `supplier.application.fillOnBehalf` | PROCUREMENT (ORG) — กรอกใบสมัครที่ INVITED DRAFT RETURNED แทนผู้ขาย ผู้กรอกแทนอนุมัติใบนั้นไม่ได้ (S7-05 · BR-SUP-10 · BR-SOD-11) |
+| `supplier.application.route` | PROCUREMENT (ORG) — ตรวจทะเบียนแล้วส่งใบ SUBMITTED เข้าเส้นทาง SUPPLIER_APPROVAL หรือตีกลับ ผู้ส่งอนุมัติใบนั้นไม่ได้ (S7-05 · BR-SUP-11 · BR-SOD-11) |
 | `supplier.contact.manage` | PROCUREMENT (ORG) — เพิ่ม แก้ ปิดผู้ติดต่อของผู้ขาย และเพิกถอนการเข้าพอร์ทัล ทุกการเพิ่มหรือเปลี่ยนอีเมลแจ้งอีเมลในทะเบียนของผู้ขาย (S7-04 · BR-SUP-17 · BR-PORTAL-03) |
 | `catalog.view` | ทุก member (ORG) — ค้นหาแคตตาล็อก ราคาอ้างอิง และราคาตกลงที่มีผล (S6-10 · FR-INT-102) |
 | `catalog.manage` | PROCUREMENT (ORG) — เพิ่มและแก้สินค้า ตั้งและสิ้นสุดราคาตกลง มี event ทุกครั้ง (BR-PRC-06 · OQ-114) |
@@ -5076,6 +5080,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `request.follower_added` `request.follower_removed` `comment.added` `comment.retracted` · S6-12: `request.renewal_reminded` · `request.drafted` source `REORDER` `RENEWAL` · S6-13: `request.flagged` (kind `DUPLICATE` `SPLIT` · routeNo · matchedRequestIds) |
 | request_type | `request_type.updated` |
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
+| supplier_application (S7-05) | `supplier_application.invited` (kind · reinvite) `supplier_application.drafted` `supplier_application.updated` (fields · by) `supplier_application.submitted` `supplier_application.routed` (registryOutcome) `supplier_application.returned` (by) `supplier_application.approved` (supplierId · bankAccountChangeId) `supplier_application.rejected` `supplier_application.expired` `supplier_application.cancelled` · ไม่มีเลขผู้เสียภาษี เลขบัญชี หรืออีเมล · `supplier.created` schemaVersion 2 (`via: APPLICATION` · applicationId · registryFlag · phoneSource) |
 | supplier_contact (S7-04) | `supplier_contact.created` `supplier_contact.updated` (changed) `supplier_contact.deactivated` (sessionsRevoked) `supplier_contact.privacy_notice_accepted` (privacyNoticeVersion) |
 | portal_session (S7-04 · aggregate `SupplierContact`) | `portal_session.link_requested` `portal_session.otp_requested` `portal_session.otp_failed` `portal_session.otp_locked` `portal_session.signed_in` (newDevice · firstSignIn) `portal_session.signed_out` `portal_session.revoked` (reason) `portal_session.csrf_rejected` · ไม่มีรหัส OTP token อีเมล หรือ IP ดิบ (NFR-SEC-09) |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` `approval_task.followed_up` (NEW-124 · actor คือผู้กดส่ง · data มีผู้รับ ทาง ความสัมพันธ์กับเอกสาร ไม่มีข้อความ) |

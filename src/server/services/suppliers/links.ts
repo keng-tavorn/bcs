@@ -3,7 +3,7 @@ import { getEnv } from '@/lib/env'
 import { newId } from '@/lib/ids'
 import { supplierSettingsOf } from '@/lib/org-settings'
 import type { TenantTx } from '@/server/db/tenant'
-import { newSecret, sha256Hex } from './crypto'
+import { newSecret, sha256Hex } from '@/server/crypto/portal'
 
 // One-time links of the portal (BR-PORTAL ข้อ 01): a random token whose sha256 is kept, never the token; used once by a
 // POST (the GET of the link only shows a page). LOGIN lives supplier.loginLinkMinutes; a link e-mailed for work later

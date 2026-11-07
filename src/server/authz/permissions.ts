@@ -155,6 +155,11 @@ export const PERMISSIONS = {
   'supplier.manage': PROCUREMENT_ONLY,
   // S7-04 (BR-SUP ข้อ 17 · BR-PORTAL ข้อ 03): the contacts of a supplier, and who of them may use the portal
   'supplier.contact.manage': PROCUREMENT_ONLY,
+  // S7-05 (BR-SUP ข้อ 08 ข้อ 10 ข้อ 11 · ADR-181): inviting, reading, filling in for the supplier and sending to the route
+  'supplier.invite': PROCUREMENT_ONLY,
+  'supplier.application.view': [anyMember('ASSIGNED'), ...roles(['PROCUREMENT', 'FINANCE', 'AUDITOR'], 'ORG')],
+  'supplier.application.fillOnBehalf': PROCUREMENT_ONLY,
+  'supplier.application.route': PROCUREMENT_ONLY,
   // S6-10 (FR-INT-102, BR-PRC-06 · OQ-114): every member searches the catalogue; PROCUREMENT keeps it and its agreed prices
   'catalog.view': [anyMember('ORG')],
   'catalog.manage': PROCUREMENT_ONLY,

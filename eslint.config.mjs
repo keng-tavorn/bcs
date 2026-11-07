@@ -67,9 +67,9 @@ const POLICIES = [
   { from: { element: { type: 'queries' } }, allow: to('core', 'db', 'queries', 'lib', 'context') },
   { from: { element: { type: 'db' } }, allow: to('db', 'core', 'lib') },
   { from: { element: { type: 'jobs' } }, allow: to('jobs', 'services', 'queries', ...SERVER, 'portal', 'core', 'integrations', 'channels', 'lib', 'context') },
-  // S7 (§4.10): the portal layer reaches the database, services and core; the portal's pages reach it, services, the
+  // S7 (§4.10): the portal layer reaches the database, services, events and supplier notices (server · never auth) and core; the portal's pages reach it, services, the
   // portal's light components (src/ui/portal) and core/{thai,money}, never the database
-  { from: { element: { type: 'portal' } }, allow: to('portal', 'db', 'services', 'queries', 'core', 'lib', 'context') },
+  { from: { element: { type: 'portal' } }, allow: to('portal', 'db', 'services', 'queries', 'server', 'core', 'lib', 'context') },
   { from: { element: { type: 'portal-app' } }, allow: to('portal-app', 'portal', 'services', 'queries', 'ui', 'lib', 'i18n', 'context') },
   { from: { element: { type: 'portal-app' } }, allow: coreFormatting },
   { from: { element: { types: { anyOf: SERVER } } }, allow: to(...SERVER, 'db', 'core', 'queries', 'integrations', 'channels', 'lib', 'i18n', 'context') },

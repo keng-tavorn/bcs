@@ -263,3 +263,6 @@ export const EXCEPTION_HELP_MESSAGE_MAX_CHARS = 2_000
 export const FOLLOW_UPS_PER_TASK_PER_DAY = 1
 export const FOLLOW_UP_QUIET_MS = 2 * MS_PER_HOUR
 export const FOLLOW_UP_MESSAGE_MAX_CHARS = 1_000
+
+/** How many six-digit one-time codes there are (the portal's OTP · BR-PORTAL ข้อ 02) */
+export const OTP_CODE_SPACE = 1_000_000

@@ -148,7 +148,9 @@
     "push_device": "โทรศัพท์ในแอป BCS Go",
     "chat_intake": "ขอผ่านแชท LINE",
     "assistant": "ผู้ช่วย BCS",
-    "assistant_learning": "สมุดของผู้ช่วย"
+    "assistant_learning": "สมุดของผู้ช่วย",
+    "portal_session": "พอร์ทัลผู้ขาย",
+    "supplier_contact": "ผู้ติดต่อของผู้ขาย"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -206,7 +208,8 @@
     "PushDevice": "โทรศัพท์ในแอป BCS Go",
     "ChatIntake": "ร่างคำขอจากแชท",
     "Assistant": "รายการเรื่องของผู้ช่วย",
-    "AssistantLearning": "สิ่งที่ผู้ช่วยเรียนรู้"
+    "AssistantLearning": "สิ่งที่ผู้ช่วยเรียนรู้",
+    "SupplierContact": "ผู้ติดต่อของผู้ขาย"
   },
   "events": {
     "approval_step": {
@@ -443,7 +446,8 @@
     "security": {
       "pin_locked": "ล็อก PIN ยืนยันธุรกรรมชั่วคราว",
       "sod_blocked": "ระบบกันการทำหน้าที่ซ้อนกัน",
-      "token_misuse": "พบการใช้ลิงก์ตัดสินผิดวิธี"
+      "token_misuse": "พบการใช้ลิงก์ตัดสินผิดวิธี",
+      "rate_limited": "จำกัดคำขอที่ถี่เกินไป"
     },
     "supplier": {
       "created": "เพิ่มผู้ขาย",
@@ -592,6 +596,22 @@
       "disabled": "ปิดสิ่งที่ผู้ช่วยเรียนรู้",
       "enabled": "เปิดใช้สิ่งที่ผู้ช่วยเรียนรู้อีกครั้ง",
       "forgotten": "ลบสิ่งที่ผู้ช่วยเรียนรู้"
+    },
+    "portal_session": {
+      "link_requested": "ผู้ติดต่อขอลิงก์เข้าพอร์ทัล",
+      "otp_requested": "ส่งรหัสยืนยันพอร์ทัล",
+      "otp_failed": "กรอกรหัสยืนยันพอร์ทัลผิด",
+      "otp_locked": "ล็อกรหัสยืนยันพอร์ทัล",
+      "signed_in": "ผู้ติดต่อเข้าพอร์ทัล",
+      "signed_out": "ผู้ติดต่อออกจากพอร์ทัล",
+      "revoked": "เพิกถอนการเข้าพอร์ทัล",
+      "csrf_rejected": "ปฏิเสธคำขอพอร์ทัลที่ไม่มีโทเค็นป้องกัน"
+    },
+    "supplier_contact": {
+      "created": "เพิ่มผู้ติดต่อของผู้ขาย",
+      "updated": "แก้ผู้ติดต่อของผู้ขาย",
+      "deactivated": "ปิดผู้ติดต่อของผู้ขาย",
+      "privacy_notice_accepted": "ผู้ติดต่อรับทราบประกาศความเป็นส่วนตัว"
     }
   }
 }

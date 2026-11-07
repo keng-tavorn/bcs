@@ -29,7 +29,15 @@ export interface SupplierEmail {
   readonly attachFileIds?: readonly string[]
 }
 
-export type SupplierTemplate = (data: Readonly<Record<string, unknown>>, context: { readonly organizationName: string; readonly supplierName: string }) => SupplierEmail
+/**
+ * The words of one notice. context.supplierName is the supplier's name, or the name on the application of a contact who
+ * is not a supplier yet (S7 · BR-NOTI ข้อ 09); locale is the recipient contact's language (th when the notice goes to
+ * the supplier's own address).
+ */
+export type SupplierTemplate = (
+  data: Readonly<Record<string, unknown>>,
+  context: { readonly organizationName: string; readonly supplierName: string; readonly locale: 'th' | 'en' },
+) => SupplierEmail
 
 const templates = new Map<string, SupplierTemplate>()
 
@@ -42,6 +50,8 @@ export type SupplierNoticeFailed = (
 ) => Promise<NotificationDraft[]>
 
 const failureHandlers = new Map<string, SupplierNoticeFailed>()
+/** Keys of data a template's notice drops once sent (S7: the portal's one-time code never stays in the table · BR-PORTAL ข้อ 02) */
+const redactions = new Map<string, readonly string[]>()
 
 /** The template keys of S8 (BR-AP-08) */
 export const SUPPLIER_TEMPLATES = {
@@ -53,9 +63,14 @@ export const SUPPLIER_TEMPLATES = {
 } as const
 
 /** Each lane adds its own templates (S8 invoices here, S9 payments in its files), and who hears when one fails */
-export function registerSupplierTemplate(key: string, template: SupplierTemplate, options: { readonly onFailed?: SupplierNoticeFailed } = {}): void {
+export function registerSupplierTemplate(
+  key: string,
+  template: SupplierTemplate,
+  options: { readonly onFailed?: SupplierNoticeFailed; readonly redactAfterSend?: readonly string[] } = {},
+): void {
   templates.set(key, template)
   if (options.onFailed) failureHandlers.set(key, options.onFailed)
+  if (options.redactAfterSend?.length) redactions.set(key, options.redactAfterSend)
 }
 
 /** The template's own notifications of a failure, written with their outbox in the failure's transaction */
@@ -65,9 +80,15 @@ async function failureNotices(tx: TenantTx, organizationId: string, templateKey:
   await enqueueOutbox(tx, organizationId, await createNotifications(tx, organizationId, await handler(tx, notice, reason)))
 }
 
+/**
+ * Who a notice goes to (S7 · BR-NOTI ข้อ 09): a contact by contactId (their own address and language) — the contact of an
+ * application that is not a supplier yet names the application too — or the supplier's own address by supplierId.
+ */
 export interface SupplierNoticeInput {
   readonly templateKey: string
-  readonly supplierId: string
+  readonly supplierId?: string | null
+  readonly applicationId?: string | null
+  readonly contactId?: string | null
   readonly subjectType: string
   readonly subjectId: string
   /** Unique per organization: the same key never makes a second notice (e.g. `invoice_ready:<invoiceId>`) */
@@ -90,14 +111,25 @@ export interface SupplierNoticeEffects {
 
 export async function enqueueSupplierNotice(tx: TenantTx, ctx: Ctx, input: SupplierNoticeInput): Promise<SupplierNoticeEffects & { noticeId: string | null }> {
   if (!templates.has(input.templateKey)) throw new Error(`no supplier template ${input.templateKey}`)
-  const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: input.supplierId }, select: { email: true } })
+  const supplierId = input.supplierId ?? null
+  const applicationId = input.applicationId ?? null
+  const contactId = input.contactId ?? null
+  if (!supplierId && !applicationId && !contactId) throw new Error('a supplier notice names a supplier, an application or a contact')
+  const to = contactId
+    ? await tx.supplierContact.findUniqueOrThrow({ where: { id: contactId }, select: { email: true } })
+    : supplierId
+      ? await tx.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { email: true } })
+      : { email: null }
+  const supplier = { email: to.email }
   const id = newId()
   const inserted = await tx.supplierNotice.createManyAndReturn({
     data: [
       {
         id,
         organizationId: ctx.organizationId,
-        supplierId: input.supplierId,
+        supplierId,
+        applicationId,
+        contactId,
         templateKey: input.templateKey,
         subjectType: input.subjectType,
         subjectId: input.subjectId,
@@ -113,14 +145,14 @@ export async function enqueueSupplierNotice(tx: TenantTx, ctx: Ctx, input: Suppl
   if (inserted.length === 0) return { outbox: [], events: [], notifications: [], noticeId: null }
   if (!supplier.email) {
     const finance = await tx.roleAssignment.findMany({ where: { role: 'FINANCE', revokedAt: null, member: { status: 'ACTIVE' } }, select: { memberId: true }, distinct: ['memberId'] })
-    const own = (await failureHandlers.get(input.templateKey)?.(tx, { id, supplierId: input.supplierId, subjectType: input.subjectType, subjectId: input.subjectId }, 'NO_EMAIL')) ?? []
+    const own = (await failureHandlers.get(input.templateKey)?.(tx, { id, supplierId, subjectType: input.subjectType, subjectId: input.subjectId }, 'NO_EMAIL')) ?? []
     return {
       outbox: [],
       events: [{ type: 'supplier_notice.failed', aggregateType: 'SupplierNotice', aggregateId: id, data: { noticeId: id, templateKey: input.templateKey, subjectType: input.subjectType, subjectId: input.subjectId, reason: 'NO_EMAIL' } }],
       notifications: finance.map((f): NotificationDraft => ({
         recipientMemberId: f.memberId,
         templateKey: 'supplier.no_email',
-        data: { supplierId: input.supplierId, subjectType: input.subjectType, subjectId: input.subjectId, number: input.data.number ?? null },
+        data: { supplierId, subjectType: input.subjectType, subjectId: input.subjectId, number: input.data.number ?? null },
         urgency: 'IMMEDIATE' as const,
         dedupeKey: `supplier.no_email:${id}:${f.memberId}`,
       })).concat(own),
@@ -135,7 +167,10 @@ export type SupplierNoticeOutcome = 'SENT' | 'FAILED' | 'SKIPPED'
 /** Sends one notice once (the job, and tests directly): a notice that is not PENDING any more is left alone */
 export async function sendSupplierNotice(organizationId: string, noticeId: string, now: Date): Promise<SupplierNoticeOutcome> {
   const db = forTenant(organizationId)
-  const notice = await db.supplierNotice.findUnique({ where: { id: noticeId }, include: { supplier: { select: { nameTh: true } } } })
+  const notice = await db.supplierNotice.findUnique({
+    where: { id: noticeId },
+    include: { supplier: { select: { nameTh: true } }, application: { select: { nameTh: true } }, contact: { select: { locale: true } } },
+  })
   if (!notice || notice.status !== 'PENDING' || !notice.toEmail) return 'SKIPPED'
   // Claim it first, so two runs never send it twice
   const claimed = await db.supplierNotice.updateMany({ where: { id: noticeId, status: 'PENDING', attempts: notice.attempts }, data: { attempts: { increment: 1 } } })
@@ -155,7 +190,11 @@ export async function sendSupplierNotice(organizationId: string, noticeId: strin
     return 'FAILED'
   }
   if (!template) return failForGood('TEMPLATE_UNKNOWN')
-  const email = template(notice.data as Record<string, unknown>, { organizationName: org.displayName ?? org.legalNameTh, supplierName: notice.supplier?.nameTh ?? '' })
+  const email = template(notice.data as Record<string, unknown>, {
+    organizationName: org.displayName ?? org.legalNameTh,
+    supplierName: notice.supplier?.nameTh ?? notice.application?.nameTh ?? '',
+    locale: notice.contact?.locale === 'en' ? 'en' : 'th',
+  })
   // the files the template attaches: one no longer available fails the notice (never an e-mail without it); a read from
   // storage that throws is a retry
   const files = email.attachFileIds?.length ? await db.fileObject.findMany({ where: { id: { in: [...email.attachFileIds] }, status: 'AVAILABLE' }, select: { storageKey: true, fileName: true, mimeType: true } }) : []
@@ -175,7 +214,10 @@ export async function sendSupplierNotice(organizationId: string, noticeId: strin
     return 'FAILED'
   }
   await db.$transaction(async (tx) => {
-    await tx.supplierNotice.update({ where: { id: noticeId }, data: { status: 'SENT', sentAt: now } })
+    const redact = redactions.get(notice.templateKey) ?? []
+    const data = notice.data as Record<string, unknown>
+    const kept = redact.length ? Object.fromEntries(Object.entries(data).filter(([k]) => !redact.includes(k))) : null
+    await tx.supplierNotice.update({ where: { id: noticeId }, data: { status: 'SENT', sentAt: now, ...(kept ? { data: kept as object } : {}) } })
     await appendEvents(tx, ctx, [{ type: 'supplier_notice.sent', aggregateType: 'SupplierNotice', aggregateId: noticeId, data: eventData }])
   })
   return 'SENT'

@@ -153,6 +153,8 @@ export const PERMISSIONS = {
   // Suppliers, exports, reports
   'supplier.view': [anyMember('ORG', 'BASIC_FIELDS_ONLY'), ...roles(['PROCUREMENT', 'FINANCE', 'AUDITOR'], 'ORG')],
   'supplier.manage': PROCUREMENT_ONLY,
+  // S7-04 (BR-SUP ข้อ 17 · BR-PORTAL ข้อ 03): the contacts of a supplier, and who of them may use the portal
+  'supplier.contact.manage': PROCUREMENT_ONLY,
   // S6-10 (FR-INT-102, BR-PRC-06 · OQ-114): every member searches the catalogue; PROCUREMENT keeps it and its agreed prices
   'catalog.view': [anyMember('ORG')],
   'catalog.manage': PROCUREMENT_ONLY,

@@ -1,0 +1,61 @@
+{
+  "title": "Supplier portal",
+  "of": "of {organization}",
+  "unavailable": {
+    "title": "Not available",
+    "body": "The supplier portal of this link is not open. Please check the link or ask the person who sent it to you."
+  },
+  "login": {
+    "title": "Sign in to the supplier portal",
+    "intro": "Type the e-mail this organization has on record. We will send a sign-in link, usable once, to that address.",
+    "email": "E-mail",
+    "submit": "Send me a sign-in link",
+    "sent": "If this e-mail is on record, a sign-in link will arrive within a few minutes. Please check your inbox."
+  },
+  "link": {
+    "title": "Confirm your sign-in",
+    "intro": "Press the button to get a six-digit code by e-mail. This link works once.",
+    "submit": "Send me a code"
+  },
+  "otp": {
+    "title": "Enter your code",
+    "intro": "We sent a six-digit code to your e-mail. It works for 10 minutes, on this device only.",
+    "code": "Six-digit code",
+    "submit": "Sign in"
+  },
+  "home": {
+    "greeting": "Hello {name}",
+    "forSupplier": "You are signed in for {supplier}",
+    "forApplication": "Supplier application of {name}",
+    "applicationStatus": "Application status: {status}",
+    "signOut": "Sign out"
+  },
+  "applicationStatus": {
+    "INVITED": "Invited",
+    "DRAFT": "Being filled in",
+    "SUBMITTED": "Sent, being checked",
+    "PENDING_APPROVAL": "Waiting for approval",
+    "RETURNED": "Returned for changes",
+    "APPROVED": "Approved",
+    "REJECTED": "Not approved",
+    "EXPIRED": "Expired",
+    "CANCELLED": "Cancelled"
+  },
+  "privacy": {
+    "title": "Privacy notice",
+    "accept": "I have read it",
+    "2026-11-01": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them. You may ask its procurement team for a copy, a correction or deletion of your data."
+  },
+  "errors": {
+    "RATE_LIMITED": "Too many requests. Please try again in a moment.",
+    "TOKEN_INVALID": "This link does not work. Please ask for a new sign-in link.",
+    "TOKEN_USED": "This link was used already. Please ask for a new sign-in link.",
+    "TOKEN_EXPIRED": "This link has expired. Please ask for a new sign-in link.",
+    "OTP_INVALID": "The code is not right. {remaining} tries left.",
+    "OTP_LOCKED": "Too many wrong codes. Try again after {time}.",
+    "OTP_EXPIRED": "The code has expired. Please ask for a new sign-in link.",
+    "VALIDATION_FAILED": "Please check what you typed.",
+    "PRIVACY_NOTICE_OUTDATED": "Please read and acknowledge the current privacy notice first.",
+    "FAILED": "That did not work. Please try again."
+  }
+}

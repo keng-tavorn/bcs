@@ -148,7 +148,9 @@
     "push_device": "BCS Go phones",
     "chat_intake": "Requests through the LINE chat",
     "assistant": "BCS assistants",
-    "assistant_learning": "Assistants' notebook"
+    "assistant_learning": "Assistants' notebook",
+    "portal_session": "Supplier portal",
+    "supplier_contact": "Supplier contacts"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -206,7 +208,8 @@
     "PushDevice": "BCS Go phone",
     "ChatIntake": "Chat request draft",
     "Assistant": "Assistant suggestions",
-    "AssistantLearning": "What an assistant learned"
+    "AssistantLearning": "What an assistant learned",
+    "SupplierContact": "Supplier contact"
   },
   "events": {
     "approval_step": {
@@ -443,7 +446,8 @@
     "security": {
       "pin_locked": "Transaction PIN locked for a while",
       "sod_blocked": "Separation of duties blocked an action",
-      "token_misuse": "Decision link misused"
+      "token_misuse": "Decision link misused",
+      "rate_limited": "Too many requests limited"
     },
     "supplier": {
       "created": "Supplier added",
@@ -592,6 +596,22 @@
       "disabled": "Learning switched off",
       "enabled": "Learning used again",
       "forgotten": "Learning deleted"
+    },
+    "portal_session": {
+      "link_requested": "Contact asked for a portal link",
+      "otp_requested": "Portal code sent",
+      "otp_failed": "Wrong portal code",
+      "otp_locked": "Portal code locked",
+      "signed_in": "Contact signed in to the portal",
+      "signed_out": "Contact signed out of the portal",
+      "revoked": "Portal access revoked",
+      "csrf_rejected": "Portal request without its protection token refused"
+    },
+    "supplier_contact": {
+      "created": "Supplier contact added",
+      "updated": "Supplier contact changed",
+      "deactivated": "Supplier contact deactivated",
+      "privacy_notice_accepted": "Contact acknowledged the privacy notice"
     }
   }
 }

@@ -425,6 +425,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `budget.overrun.submit` | ผู้ขอ (OWN) — ขออนุมัติเกินงบให้คำขอ DRAFT หรือ RETURNED ของตนที่บรรทัดงบไม่พอ และยกเลิกที่ตนขอ ผู้ติดตามและหัวหน้าฝ่ายทำไม่ได้ ผู้ขออนุมัติเองไม่ได้ (S6-16 · FR-BUD-101 · OQ-104) |
 | `supplier.view` | ทุก member เห็นชื่อและข้อมูลพื้นฐาน · PROCUREMENT, FINANCE, AUDITOR เห็นทั้งหมด |
 | `supplier.manage` | PROCUREMENT (ORG) |
+| `supplier.contact.manage` | PROCUREMENT (ORG) — เพิ่ม แก้ ปิดผู้ติดต่อของผู้ขาย และเพิกถอนการเข้าพอร์ทัล ทุกการเพิ่มหรือเปลี่ยนอีเมลแจ้งอีเมลในทะเบียนของผู้ขาย (S7-04 · BR-SUP-17 · BR-PORTAL-03) |
 | `catalog.view` | ทุก member (ORG) — ค้นหาแคตตาล็อก ราคาอ้างอิง และราคาตกลงที่มีผล (S6-10 · FR-INT-102) |
 | `catalog.manage` | PROCUREMENT (ORG) — เพิ่มและแก้สินค้า ตั้งและสิ้นสุดราคาตกลง มี event ทุกครั้ง (BR-PRC-06 · OQ-114) |
 | `priceReference.view` | ผู้ได้รับงาน (ASSIGNED) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR (ORG) — แผงราคาอ้างอิงของคำขอ (`getPriceReference`): ผู้รับงานอนุมัติหรือตรวจของคำขอนั้นหรือของ PO ที่ซื้อจากคำขอนั้น ที่เปิดอยู่หรือเคยได้ รวมผู้รักษาการ — ผู้ขอ ผู้ติดตาม และหัวหน้าฝ่ายที่ไม่ได้รับงานไม่เห็น เพราะราคามาจาก PO ทั้งองค์กร (S6-11 · BR-PRC-07 · OQ-116) |
@@ -4472,6 +4473,7 @@ AC ของ FR ชั้น 2 ที่ขั้นของสายเขี�
 | `/budgets` · `/budgets/[lineId]` | ตามสิทธิ์ | dashboard งบ | S3 |
 | `/suppliers` | ตามสิทธิ์ | ทะเบียนผู้ขายขั้นต้น · ค้นหาผู้ขายและราคาล่าสุด (chip ที่ 3 ของหน้าแรก) | S4 · S16 |
 | `/catalog` · `/catalog/manage` | ทุก member · PROCUREMENT | ค้นหาแคตตาล็อก ราคาอ้างอิงและราคาตกลง · จัดการสินค้าและราคาตกลง (FR-INT-102) | S6 |
+| `/portal/[org]/login` · `/portal/[org]/link/[token]` · `/portal/[org]/otp` · `/portal/[org]` (route handler POST ที่ `/portal/[org]/api/*`) | ผู้ติดต่อของผู้ขาย (session `bcs_portal` · ไม่ใช่ member) | ขอลิงก์เข้าระบบ ใช้ลิงก์ (GET แสดงหน้า POST ใช้ลิงก์) กรอกรหัส 6 หลัก หน้าแรกพร้อมประกาศความเป็นส่วนตัว (BR-PORTAL-01 ถึง BR-PORTAL-04 · BR-PORTAL-08) · องค์กรไม่มีหรือไม่เปิด `SUPPLIER` → หน้า "ยังไม่เปิดบริการ" | S7-04 (หน้าเต็มใน S7-08) |
 | `/board/pending` | ตามสิทธิ์ | กระดานเอกสารค้าง | S4 |
 | `/follow-ups` | ทุก member (เอกสารที่ตนติดตาม) | ผู้ช่วยตามงาน: งานอนุมัติที่เกินหรือใกล้ครบกำหนดพร้อมเหตุผล และร่างข้อความทวงที่คนกดส่งเอง (FR-VIS-001 AC4 ถึง AC6 · NEW-124 · ADR-082) · ไม่อยู่ในแถบเมนู เปิดจากการ์ด "ผู้ช่วยเจอให้คุณ" และแผง "จากผู้ช่วย" | NEW-124 |
 | `/reports` · `/kpi` | ตามสิทธิ์ | รายงานและ KPI · `/kpi` พาไป `/insights` | S4 · S5 · S16 |
@@ -5032,6 +5034,9 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `bank_account_change.approved` · `.rejected` · `.returned` (S9-04) | ผู้เสนอ | LINE → อีเมล | IMMEDIATE | `bank_account_change.decided` |
 | `bank_account.activated` ของผู้ขายที่อยู่ในร่างรอบจ่าย (S9-04) | ผู้เตรียมของร่างนั้น | ในระบบ | DIGEST | `payment_run.account_changed` |
 | บัญชีรับเงินของผู้ขายมีผล (S9-04 · BR-SUP-06) | ผู้ขาย (อีเมลในทะเบียน · ไม่มี → `NO_EMAIL` และแจ้ง FINANCE ในระบบ) | อีเมลผ่าน `SupplierNotice` (ธนาคารและเลข 4 ตัวท้าย) | IMMEDIATE | `bank_account.notice` |
+| `portal_session.link_requested` · `portal_session.otp_requested` (S7-04 · BR-PORTAL-01 BR-PORTAL-02) | ผู้ติดต่อ (อีเมลของผู้ติดต่อ · รหัสไม่มีลิงก์ · ลิงก์และรหัสถูกลบจากแถวหลังส่ง) | อีเมลผ่าน `SupplierNotice` (ใหม่ทุกครั้ง ไม่ dedupe ข้ามรหัส) | — | `supplier.login_link` · `supplier.otp` |
+| `portal_session.signed_in` จากอุปกรณ์ใหม่หลังครั้งแรก (S7-04 · BR-PORTAL-02) | อีเมลในทะเบียนของผู้ขาย (ผู้ติดต่อเองเมื่อใบสมัครยังไม่เป็นผู้ขาย) | อีเมลผ่าน `SupplierNotice` | — | `supplier.new_device` |
+| `supplier_contact.created` · `.updated` (อีเมล) ของผู้ขาย ACTIVE (S7-04 · BR-SUP-17) | `Supplier.email` ในทะเบียน · ผู้ติดต่อหลักก่อนการเปลี่ยน (ไม่ส่งไปอีเมลใหม่ · บอกชื่อ member) | อีเมลผ่าน `SupplierNotice` | — | `supplier.contact_added` |
 | สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
 | `security.pin_locked` · `auth.2fa_reset` · `push_device.registered` (S17-10) · `auth.passkey_added` `auth.passkey_removed` และ passkey ที่ตัวนับถอยหลัง (S17-15) | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |
 | ทุกแถว IMMEDIATE ข้างบนที่ช่องทางมี LINE ยกเว้นสรุปรายวัน (S17-10 · `LINE_TEMPLATES`) | ตามแถวนั้น | push ในแอป BCS Go → LINE → อีเมล เมื่อองค์กรเปิด `BCS_GO` และผู้รับเปิด "รับแจ้งเตือนในแอป" (BR-NOTI-05 · OQ-165) · ไม่เปิด = ทางเดิมของแถวนั้น | ตามแถวนั้น | ตามแถวนั้น · หัวเรื่อง push จาก `push.<templateKey>.title` เนื้อความเป็นเลขเอกสารเท่านั้น (BR-NOTI-06) |
@@ -5070,6 +5075,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `request.follower_added` `request.follower_removed` `comment.added` `comment.retracted` · S6-12: `request.renewal_reminded` · `request.drafted` source `REORDER` `RENEWAL` · S6-13: `request.flagged` (kind `DUPLICATE` `SPLIT` · routeNo · matchedRequestIds) |
 | request_type | `request_type.updated` |
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
+| supplier_contact (S7-04) | `supplier_contact.created` `supplier_contact.updated` (changed) `supplier_contact.deactivated` (sessionsRevoked) `supplier_contact.privacy_notice_accepted` (privacyNoticeVersion) |
+| portal_session (S7-04 · aggregate `SupplierContact`) | `portal_session.link_requested` `portal_session.otp_requested` `portal_session.otp_failed` `portal_session.otp_locked` `portal_session.signed_in` (newDevice · firstSignIn) `portal_session.signed_out` `portal_session.revoked` (reason) `portal_session.csrf_rejected` · ไม่มีรหัส OTP token อีเมล หรือ IP ดิบ (NFR-SEC-09) |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` `approval_task.followed_up` (NEW-124 · actor คือผู้กดส่ง · data มีผู้รับ ทาง ความสัมพันธ์กับเอกสาร ไม่มีข้อความ) |
 | approval_step | `approval_step.completed` (S6 · ขั้นหลาย slot ของคณะกรรมการและผู้ตรวจได้ผลแล้ว: outcome quorum ผลต่อ slot · BR-WF-01) |
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` · S6-15: `budget.transferred_out` `budget.transferred_in` · S6-16: `budget.overrun_funded` `budget.overrun_returned` · S6-18: `budget.alert_raised` (ครั้งเดียวต่อบรรทัด เกณฑ์ และปีงบ) |
@@ -5095,7 +5102,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | การแจ้งเตือน | `notification.read` `notification.digest_sent` |
 | ผู้ช่วย BCS (NEW-121 · ADR-078) | `assistant.suggestion_dismissed` (บนรายการของสมาชิกเอง · data มีชนิดและ key ของเรื่อง ไม่มีข้อความ) |
 | สมุดของผู้ช่วย (NEW-125 · ADR-083) | `assistant_learning.disabled` `assistant_learning.enabled` `assistant_learning.forgotten` (บน `AssistantLearning` · data มีชนิด id ผู้ขาย หมวด รหัสที่ผู้ช่วยเสนอตอนนั้น และจำนวนครั้ง ไม่มีเลขผู้เสียภาษี · `forgotten` มีเวลาที่ลืมถึง) |
-| ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `auth.passkey_added` `auth.passkey_removed` (S17-15 · `{ passkeyId, proof }` · `{ passkeyId, by: SELF IDENTITY_RESET DEACTIVATED }` · ไม่มี credential หรือ key) `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
+| ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `auth.passkey_added` `auth.passkey_removed` (S17-15 · `{ passkeyId, proof }` · `{ passkeyId, by: SELF IDENTITY_RESET DEACTIVATED }` · ไม่มี credential หรือ key) `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` · `security.rate_limited` (S7-04 · scopeKind bucket · ไม่มี IP ดิบ) |
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
 | agent_action (S13) | `agent_action.requested` `agent_action.drafted` `agent_action.failed` `agent_action.applied` `agent_action.accepted` `agent_action.edited` `agent_action.rejected` `agent_action.expired` `agent_action.feedback_given` `agent_action.content_purged` · actor AI_AGENT เฉพาะ `drafted` `failed` (INV-AI-01) · data ไม่มีข้อความที่พิมพ์หรือผลของ AI |
 | ai_agent · ai_credit (S13) | `ai_agent.enabled` `ai_agent.disabled` `ai_agent.updated` `ai_credit.granted` `ai_credit.monthly_set` `ai_credit.threshold_reached` `ai_credit.exhausted` |
@@ -5586,6 +5593,16 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `STEP_UP_LOCKED` | 423 | ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time} |
 | `STEP_UP_REQUIRED` | 428 | รายการนี้ต้องยืนยันด้วย PIN |
 | `CONFIG_PACKAGE_INVALID` | 422 | ไฟล์ชุดค่าตั้งไม่ถูกต้องหรือถูกแก้ไข ({reason}) |
+| `OTP_INVALID` | 400 | รหัสยืนยันไม่ถูกต้อง เหลืออีก {remaining} ครั้ง |
+| `OTP_EXPIRED` | 410 | รหัสยืนยันหมดอายุ กรุณาขอลิงก์เข้าระบบใหม่ |
+| `OTP_LOCKED` | 423 | ใส่รหัสผิดหลายครั้ง ลองใหม่หลัง {time} |
+| `PRIVACY_NOTICE_OUTDATED` | 409 | กรุณาอ่านและรับทราบประกาศความเป็นส่วนตัวฉบับปัจจุบันก่อน |
+| `PORTAL_NOT_ENABLED` | 403 | บัญชีนี้ยังไม่เปิดใช้พอร์ทัล กรุณาติดต่อฝ่ายจัดซื้อ |
+| `DUPLICATE_SUPPLIER` | 409 | ผู้ขายรายนี้มีในระบบแล้ว ({reason}) |
+| `APPLICATION_INCOMPLETE` | 422 | ใบสมัครยังขาด: {missing} |
+| `SUPPLIER_DOCUMENT_UNVERIFIED` | 422 | เอกสาร {types} ยังไม่ได้ยืนยัน จึงส่งอนุมัติไม่ได้ |
+| `FILE_NOT_SCANNED` | 409 | ไฟล์ยังอยู่ระหว่างตรวจความปลอดภัย กรุณารอสักครู่ |
+| `FILE_INFECTED` | 422 | ไฟล์นี้ไม่ผ่านการตรวจความปลอดภัย กรุณาอัปโหลดไฟล์ใหม่ |
 | `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |
 | `EXTERNAL_SERVICE_ERROR` | 502 | ระบบภายนอกไม่ตอบสนอง ({service}) |
 | `INTERNAL` | 500 | เกิดข้อผิดพลาด (รหัสอ้างอิง {requestId}) |

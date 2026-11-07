@@ -54,6 +54,8 @@ const LOCKABLE = [
   'PortalSession',
   // S7-05: an application decided, routed or changed one at a time (INV-SUP-02)
   'SupplierApplication',
+  // S7-06: a document verified, rejected or superseded one change at a time
+  'SupplierDocument',
 ] as const
 export type LockableTable = (typeof LOCKABLE)[number]
 /** Tables whose key is not "id": a budget line's balance is keyed by the line (§6.2) */

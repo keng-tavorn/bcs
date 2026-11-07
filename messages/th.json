@@ -3085,6 +3085,8 @@
       "Supplier": "ผู้ขาย",
       "SupplierApplication": "ใบสมัครผู้ขาย",
       "SupplierContact": "ผู้ติดต่อของผู้ขาย",
+      "SupplierDocument": "เอกสารผู้ขาย",
+      "SupplierDocumentType": "ประเภทเอกสารผู้ขาย",
       "SupplierNotice": "อีเมลถึงผู้ขาย",
       "Variance": "ผลต่างจากการตรวจรับ",
       "WhtCertificate": "หนังสือรับรองการหักภาษี (50 ทวิ)",
@@ -3288,6 +3290,7 @@
       },
       "file": {
         "downloaded": "ดาวน์โหลดไฟล์",
+        "scanned": "สแกนไฟล์",
         "uploaded": "อัปโหลดไฟล์"
       },
       "form_version": {
@@ -3499,6 +3502,18 @@
         "privacy_notice_accepted": "ผู้ติดต่อรับทราบประกาศความเป็นส่วนตัว",
         "updated": "แก้ผู้ติดต่อของผู้ขาย"
       },
+      "supplier_document": {
+        "expired": "เอกสารผู้ขายหมดอายุ",
+        "rejected": "ปฏิเสธเอกสารผู้ขาย",
+        "reminder_sent": "เตือนเอกสารผู้ขายใกล้หมดอายุ",
+        "scanned": "เอกสารผู้ขายผ่านการสแกน",
+        "superseded": "เอกสารผู้ขายถูกแทนด้วยฉบับใหม่",
+        "uploaded": "อัปโหลดเอกสารผู้ขาย",
+        "verified": "ยืนยันเอกสารผู้ขาย"
+      },
+      "supplier_document_type": {
+        "updated": "แก้ประเภทเอกสารผู้ขาย"
+      },
       "supplier_notice": {
         "failed": "ส่งอีเมลถึงผู้ขายไม่สำเร็จ",
         "sent": "ส่งอีเมลถึงผู้ขาย"
@@ -3601,6 +3616,8 @@
       "supplier": "ผู้ขาย",
       "supplier_application": "ใบสมัครผู้ขาย",
       "supplier_contact": "ผู้ติดต่อของผู้ขาย",
+      "supplier_document": "เอกสารผู้ขาย",
+      "supplier_document_type": "ประเภทเอกสารผู้ขาย",
       "supplier_notice": "อีเมลถึงผู้ขาย",
       "variance": "ผลต่างจากการตรวจรับ",
       "wht_certificate": "50 ทวิ",

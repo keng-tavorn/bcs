@@ -160,6 +160,12 @@ export const PERMISSIONS = {
   'supplier.application.view': [anyMember('ASSIGNED'), ...roles(['PROCUREMENT', 'FINANCE', 'AUDITOR'], 'ORG')],
   'supplier.application.fillOnBehalf': PROCUREMENT_ONLY,
   'supplier.application.route': PROCUREMENT_ONLY,
+  // S7-06 (BR-SDOC ข้อ 01 ข้อ 03 ข้อ 05): a supplier's documents and their types
+  'supplier.document.view': roles(['PROCUREMENT', 'FINANCE', 'AUDITOR'], 'ORG'),
+  'supplier.document.viewSensitive': roles(['PROCUREMENT', 'FINANCE'], 'ORG'),
+  'supplier.document.verify': PROCUREMENT_ONLY,
+  'supplier.document.manage': PROCUREMENT_ONLY,
+  'admin.supplierDocumentTypes': ORG_ADMIN_ONLY,
   // S6-10 (FR-INT-102, BR-PRC-06 · OQ-114): every member searches the catalogue; PROCUREMENT keeps it and its agreed prices
   'catalog.view': [anyMember('ORG')],
   'catalog.manage': PROCUREMENT_ONLY,

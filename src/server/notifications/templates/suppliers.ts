@@ -16,6 +16,11 @@ export const SUPPLIER_TEMPLATES: Readonly<Record<string, Template>> = {
     },
     href: `/suppliers/applications/${str(d.applicationId)}`,
   }),
+  // S7-06 (BR-SDOC ข้อ 04): one line of PROCUREMENT's digest per document reminded of
+  'supplier.documents_expiring_digest': (d) => ({
+    title: { th: `เอกสาร ${str(d.typeName)} ของผู้ขายจะหมดอายุวันที่ ${str(d.expiresOn)}`, en: `A supplier's ${str(d.typeName)} expires on ${str(d.expiresOn)}` },
+    href: d.supplierId ? `/suppliers/${str(d.supplierId)}?tab=documents` : '/suppliers',
+  }),
   'supplier.bank_change_from_portal': (d) => ({
     title: { th: `มีคำขอบัญชีธนาคารจากผู้ขาย ${str(d.code)} รอการเงินรับเรื่อง`, en: `A bank account request from supplier ${str(d.code)} waits for finance to claim it` },
     href: `/finance/bank-accounts/changes/${str(d.changeId)}`,

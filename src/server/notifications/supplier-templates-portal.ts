@@ -16,6 +16,9 @@ export const PORTAL_SUPPLIER_TEMPLATES = {
   applicationReturned: 'supplier.application_returned',
   applicationRejected: 'supplier.application_rejected',
   applicationApproved: 'supplier.application_approved',
+  // S7-06 (BR-SDOC ข้อ 03 ข้อ 04)
+  documentRejected: 'supplier.document_rejected',
+  documentExpiring: 'supplier.document_expiring',
 } as const
 
 const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '')
@@ -114,5 +117,23 @@ registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.applicationApproved, (d, c) =
     `${c.organizationName} อนุมัติท่านเป็นผู้ขายแล้ว / You are now a supplier`,
     [`เรียน ${c.supplierName}`, `${c.organizationName} อนุมัติใบสมัครเลขที่ ${str(d.number)} แล้ว รหัสผู้ขายของท่านคือ ${str(d.code)}`, 'ท่านเข้าพอร์ทัลเพื่อดูใบสั่งซื้อและสถานะการจ่ายเงินได้ด้วยอีเมลนี้'],
     [`${c.organizationName} approved application ${str(d.number)}. Your supplier code is ${str(d.code)}.`, 'You may sign in to the portal with this e-mail to see purchase orders and payments.'],
+  ),
+)
+
+// ---------- S7-06: documents ----------
+
+registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.documentRejected, (d, c) =>
+  supplierMail(
+    `เอกสาร ${str(d.typeName)} ไม่ผ่านการตรวจ / A document was not accepted`,
+    [`เรียน ${c.supplierName}`, `${c.organizationName} ไม่รับเอกสาร ${str(d.typeName)} ที่ท่านส่ง ด้วยเหตุผล: ${str(d.reason)}`, 'โปรดเข้าพอร์ทัลเพื่อส่งฉบับใหม่'],
+    [`${c.organizationName} did not accept your ${str(d.typeName)}. Reason: ${str(d.reason)}`, 'Please sign in to the portal and send a new copy.'],
+  ),
+)
+
+registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.documentExpiring, (d, c) =>
+  supplierMail(
+    `เอกสาร ${str(d.typeName)} จะหมดอายุวันที่ ${str(d.expiresOn)} / A document expires soon`,
+    [`เรียน ${c.supplierName}`, `เอกสาร ${str(d.typeName)} ของท่านที่ ${c.organizationName} ใช้ได้ถึงวันที่ ${str(d.expiresOn)}`, 'โปรดเข้าพอร์ทัลเพื่อส่งฉบับใหม่ก่อนวันหมดอายุ'],
+    [`Your ${str(d.typeName)} with ${c.organizationName} is valid until ${str(d.expiresOn)}.`, 'Please sign in to the portal and send a new copy before then.'],
   ),
 )

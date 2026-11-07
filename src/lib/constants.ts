@@ -266,3 +266,8 @@ export const FOLLOW_UP_MESSAGE_MAX_CHARS = 1_000
 
 /** How many six-digit one-time codes there are (the portal's OTP · BR-PORTAL ข้อ 02) */
 export const OTP_CODE_SPACE = 1_000_000
+
+/** The largest file a supplier uploads (BR-PORTAL ข้อ 07: 20 MB) */
+export const SUPPLIER_DOC_MAX_BYTES = 20 * 1024 * 1024
+/** The longest a supplier document type may last (BR-SDOC ข้อ 01): a hundred years */
+export const SUPPLIER_DOC_MAX_VALIDITY_DAYS = 36_500

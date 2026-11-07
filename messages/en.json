@@ -3085,6 +3085,8 @@
       "Supplier": "Supplier",
       "SupplierApplication": "Supplier application",
       "SupplierContact": "Supplier contact",
+      "SupplierDocument": "Supplier documents",
+      "SupplierDocumentType": "Supplier document types",
       "SupplierNotice": "E-mail to a supplier",
       "Variance": "Receiving variance",
       "WhtCertificate": "Withholding tax certificate",
@@ -3288,6 +3290,7 @@
       },
       "file": {
         "downloaded": "File downloaded",
+        "scanned": "File scanned",
         "uploaded": "File uploaded"
       },
       "form_version": {
@@ -3499,6 +3502,18 @@
         "privacy_notice_accepted": "Contact acknowledged the privacy notice",
         "updated": "Supplier contact changed"
       },
+      "supplier_document": {
+        "expired": "Supplier document expired",
+        "rejected": "Supplier document rejected",
+        "reminder_sent": "Supplier document expiry reminder sent",
+        "scanned": "Supplier document scanned",
+        "superseded": "Supplier document superseded",
+        "uploaded": "Supplier document uploaded",
+        "verified": "Supplier document verified"
+      },
+      "supplier_document_type": {
+        "updated": "Supplier document type changed"
+      },
       "supplier_notice": {
         "failed": "E-mail to the supplier failed",
         "sent": "E-mail sent to the supplier"
@@ -3601,6 +3616,8 @@
       "supplier": "Suppliers",
       "supplier_application": "Supplier application",
       "supplier_contact": "Supplier contacts",
+      "supplier_document": "Supplier documents",
+      "supplier_document_type": "Supplier document types",
       "supplier_notice": "E-mails to suppliers",
       "variance": "Receiving variances",
       "wht_certificate": "Withholding tax certificates",

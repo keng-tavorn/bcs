@@ -429,6 +429,11 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `supplier.application.view` | ผู้ได้รับงาน (ASSIGNED) · PROCUREMENT, FINANCE, AUDITOR (ORG) — ใบสมัครผู้ขายและเอกสารของใบ ผู้ได้รับงานอนุมัติของใบนั้น (S7-05) |
 | `supplier.application.fillOnBehalf` | PROCUREMENT (ORG) — กรอกใบสมัครที่ INVITED DRAFT RETURNED แทนผู้ขาย ผู้กรอกแทนอนุมัติใบนั้นไม่ได้ (S7-05 · BR-SUP-10 · BR-SOD-11) |
 | `supplier.application.route` | PROCUREMENT (ORG) — ตรวจทะเบียนแล้วส่งใบ SUBMITTED เข้าเส้นทาง SUPPLIER_APPROVAL หรือตีกลับ ผู้ส่งอนุมัติใบนั้นไม่ได้ (S7-05 · BR-SUP-11 · BR-SOD-11) |
+| `supplier.document.view` | PROCUREMENT, FINANCE, AUDITOR (ORG) — รายการเอกสารผู้ขายและดาวน์โหลดไฟล์ที่สแกนแล้ว CLEAN (S7-06 · BR-SDOC-05) |
+| `supplier.document.viewSensitive` | PROCUREMENT, FINANCE (ORG) — เปิดเอกสาร sensitive เช่นบัตรประชาชน ลง `SensitiveAccessLog` ทุกครั้ง (S7-06 · BR-SDOC-05 · NFR-PRIV-03) |
+| `supplier.document.verify` | PROCUREMENT (ORG) — ยืนยันหรือปฏิเสธเอกสาร PENDING ผู้ยืนยันอนุมัติใบสมัครนั้นไม่ได้ (S7-06 · BR-SDOC-03 · BR-SOD-11) |
+| `supplier.document.manage` | PROCUREMENT (ORG) — อัปโหลดเอกสารแทนผู้ขาย (S7-06) |
+| `admin.supplierDocumentTypes` | ORG_ADMIN (ORG) — เพิ่ม แก้ และปิดประเภทเอกสารผู้ขาย (S7-06 · BR-SDOC-01) |
 | `supplier.contact.manage` | PROCUREMENT (ORG) — เพิ่ม แก้ ปิดผู้ติดต่อของผู้ขาย และเพิกถอนการเข้าพอร์ทัล ทุกการเพิ่มหรือเปลี่ยนอีเมลแจ้งอีเมลในทะเบียนของผู้ขาย (S7-04 · BR-SUP-17 · BR-PORTAL-03) |
 | `catalog.view` | ทุก member (ORG) — ค้นหาแคตตาล็อก ราคาอ้างอิง และราคาตกลงที่มีผล (S6-10 · FR-INT-102) |
 | `catalog.manage` | PROCUREMENT (ORG) — เพิ่มและแก้สินค้า ตั้งและสิ้นสุดราคาตกลง มี event ทุกครั้ง (BR-PRC-06 · OQ-114) |
@@ -654,6 +659,9 @@ sequenceDiagram
 | `backtest-run` | `bcs/backtest.requested` | ย้อนทดสอบร่าง DOA หรือ workflow ที่มีเอกสารเกิน 500 ฉบับในช่วง 90 วัน แล้วบันทึกผลลง `BacktestRun` ครั้งเดียว ไม่เขียนข้อมูลธุรกิจ (FR-DOA-103 AC3 · ADR-111) | S6 |
 | `org-authority-apply` | `bcs/org_authority_change.approved` | sleepUntil(effectiveFrom) → ใช้การเปลี่ยน ย้ายงานค้างของตำแหน่งนั้นไปผู้ดำรงคนใหม่ และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16 BR-DOA-17) | S2 |
 | `tax-rate-expiry-alert` | cron รายวัน | เตือน PLATFORM_ADMIN ก่อนอัตรา VAT ช่วงสุดท้ายที่ตั้งไว้หมดอายุ 30 · 7 · 1 วัน (BR-VAT-01) | S4 |
+| `file-scan` | `bcs/file.uploaded` ที่ไฟล์ยัง `scanStatus = PENDING` (ทุกไฟล์ไม่สน kind) | สแกนไฟล์ด้วย adapter `src/integrations/scanner` (stub: สตริงทดสอบ EICAR = INFECTED · live ใน S7-22) ตั้ง `scanStatus` และปล่อย `file.scanned` (`linkKinds`) เท่านั้น | S7-06 |
+| `supplier-document-scanned` | `bcs/file.scanned` ที่ `linkKinds` มี `SUPPLIER_DOC` | เอกสาร PENDING ของไฟล์ CLEAN → `supplier_document.scanned` · INFECTED → REJECTED และอีเมลผู้ขาย (S10 S11 ฟัง kind ของตน) | S7-06 |
+| `supplier-document-expiry` | cron `TZ=Asia/Bangkok 0 7 * * *` | ทุกองค์กรที่เปิด `SUPPLIER`: เอกสาร VERIFIED ที่ถึง remindOn เตือนครั้งเดียว (อีเมลผู้ติดต่อหลัก · DIGEST จัดซื้อ) · เลยวันหมดอายุ → EXPIRED · idempotency key ต่อวันและเอกสาร (BR-SDOC-04) | S7-06 |
 
 บน staging (`APP_ENV=staging` เท่านั้น) งาน `outbox-sweeper` `consolidation` `report-schedules` และ `line-webhook-sweep` รันทุก 30 นาทีที่ :00 และ :30 แทนรอบในตาราง เพื่อให้อยู่ในโควตาฟรีของ Neon และ Inngest เกณฑ์ outbox ค้างของ `/api/health` รอเพิ่ม 29 นาที และการเตือน NFR-OBS-02 มาที่รอบที่สองติดกันที่ส่งไม่ได้ (ADR-054) · local และ production ใช้รอบในตารางเสมอ
 

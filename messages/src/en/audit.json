@@ -151,7 +151,9 @@
     "assistant_learning": "Assistants' notebook",
     "portal_session": "Supplier portal",
     "supplier_contact": "Supplier contacts",
-    "supplier_application": "Supplier application"
+    "supplier_application": "Supplier application",
+    "supplier_document": "Supplier documents",
+    "supplier_document_type": "Supplier document types"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -211,7 +213,9 @@
     "Assistant": "Assistant suggestions",
     "AssistantLearning": "What an assistant learned",
     "SupplierContact": "Supplier contact",
-    "SupplierApplication": "Supplier application"
+    "SupplierApplication": "Supplier application",
+    "SupplierDocument": "Supplier documents",
+    "SupplierDocumentType": "Supplier document types"
   },
   "events": {
     "approval_step": {
@@ -308,7 +312,8 @@
     },
     "file": {
       "downloaded": "File downloaded",
-      "uploaded": "File uploaded"
+      "uploaded": "File uploaded",
+      "scanned": "File scanned"
     },
     "form_version": {
       "drafted": "Form draft created",
@@ -626,6 +631,18 @@
       "rejected": "Supplier application not approved",
       "expired": "Supplier application expired",
       "cancelled": "Supplier application cancelled"
+    },
+    "supplier_document": {
+      "uploaded": "Supplier document uploaded",
+      "scanned": "Supplier document scanned",
+      "verified": "Supplier document verified",
+      "superseded": "Supplier document superseded",
+      "rejected": "Supplier document rejected",
+      "expired": "Supplier document expired",
+      "reminder_sent": "Supplier document expiry reminder sent"
+    },
+    "supplier_document_type": {
+      "updated": "Supplier document type changed"
     }
   }
 }

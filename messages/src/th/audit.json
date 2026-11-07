@@ -151,7 +151,9 @@
     "assistant_learning": "สมุดของผู้ช่วย",
     "portal_session": "พอร์ทัลผู้ขาย",
     "supplier_contact": "ผู้ติดต่อของผู้ขาย",
-    "supplier_application": "ใบสมัครผู้ขาย"
+    "supplier_application": "ใบสมัครผู้ขาย",
+    "supplier_document": "เอกสารผู้ขาย",
+    "supplier_document_type": "ประเภทเอกสารผู้ขาย"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -211,7 +213,9 @@
     "Assistant": "รายการเรื่องของผู้ช่วย",
     "AssistantLearning": "สิ่งที่ผู้ช่วยเรียนรู้",
     "SupplierContact": "ผู้ติดต่อของผู้ขาย",
-    "SupplierApplication": "ใบสมัครผู้ขาย"
+    "SupplierApplication": "ใบสมัครผู้ขาย",
+    "SupplierDocument": "เอกสารผู้ขาย",
+    "SupplierDocumentType": "ประเภทเอกสารผู้ขาย"
   },
   "events": {
     "approval_step": {
@@ -308,7 +312,8 @@
     },
     "file": {
       "downloaded": "ดาวน์โหลดไฟล์",
-      "uploaded": "อัปโหลดไฟล์"
+      "uploaded": "อัปโหลดไฟล์",
+      "scanned": "สแกนไฟล์"
     },
     "form_version": {
       "drafted": "สร้างร่างฟอร์มฉบับใหม่",
@@ -626,6 +631,18 @@
       "rejected": "ไม่อนุมัติใบสมัครผู้ขาย",
       "expired": "ใบสมัครผู้ขายหมดอายุ",
       "cancelled": "ยกเลิกใบสมัครผู้ขาย"
+    },
+    "supplier_document": {
+      "uploaded": "อัปโหลดเอกสารผู้ขาย",
+      "scanned": "เอกสารผู้ขายผ่านการสแกน",
+      "verified": "ยืนยันเอกสารผู้ขาย",
+      "superseded": "เอกสารผู้ขายถูกแทนด้วยฉบับใหม่",
+      "rejected": "ปฏิเสธเอกสารผู้ขาย",
+      "expired": "เอกสารผู้ขายหมดอายุ",
+      "reminder_sent": "เตือนเอกสารผู้ขายใกล้หมดอายุ"
+    },
+    "supplier_document_type": {
+      "updated": "แก้ประเภทเอกสารผู้ขาย"
     }
   }
 }

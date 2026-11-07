@@ -1,4 +1,5 @@
 import { systemDb } from './system'
+import { forTenant } from './tenant'
 
 // The portal's reads outside one tenant (S7-04 · §4.8): which organization a path names (/portal/[org] before any
 // session exists), and the global per-IP rate limit (PortalIpRateLimit has no organizationId · BR-PORTAL ข้อ 04). Only
@@ -31,4 +32,25 @@ export async function countPortalIpHit(scopeKey: string, bucket: 'LINK' | 'OTP',
     select: { count: true },
   })
   return row.count
+}
+
+/** Counts one hit of a contact, a supplier or an application in a bucket and window (PortalRateLimit · BR-PORTAL ข้อ 04) */
+export async function countPortalScopeHit(
+  organizationId: string,
+  scope: { readonly kind: 'CONTACT' | 'SUPPLIER' | 'APPLICATION'; readonly key: string },
+  bucket: 'LINK' | 'OTP' | 'UPLOAD' | 'INVOICE',
+  windowStart: Date,
+): Promise<number> {
+  const row = await forTenant(organizationId).portalRateLimit.upsert({
+    where: { organizationId_scopeKind_scopeKey_bucket_windowStart: { organizationId, scopeKind: scope.kind, scopeKey: scope.key, bucket, windowStart } },
+    create: { organizationId, scopeKind: scope.kind, scopeKey: scope.key, bucket, windowStart, count: 1 },
+    update: { count: { increment: 1 } },
+    select: { count: true },
+  })
+  return row.count
+}
+
+/** The organizations with SUPPLIER on: the daily jobs of S7 run once for each */
+export async function organizationsWithSupplier(): Promise<string[]> {
+  return (await systemDb.orgModule.findMany({ where: { module: 'SUPPLIER', enabled: true }, select: { organizationId: true }, orderBy: { organizationId: 'asc' } })).map((m) => m.organizationId)
 }

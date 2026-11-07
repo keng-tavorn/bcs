@@ -1201,7 +1201,7 @@ stateDiagram-v2
 1. เป็น pure function ใน `src/core` รับ input + policy + เวลาเป็นพารามิเตอร์ คืนผลลัพธ์พร้อมคำอธิบาย ห้ามอ่านเวลา สภาพแวดล้อม หรือฐานข้อมูลเอง
 2. ไฟล์ `tests/golden/*.yaml` ในหัวข้อนี้คือ **สัญญา** ของ engine ให้คัดลอกไปวางตามชื่อไฟล์ในบรรทัดแรกของแต่ละบล็อก test runner ต้องค้นหาไฟล์และนับเคสเอง (ไม่ hardcode จำนวน) และชื่อเทสต์ต้องมี id ของเคส เช่น `[GC-DOA-07]`
 3. เงินใน YAML เขียนเป็นสตริงบาท 2 ตำแหน่ง (`"20000.01"`) แล้วแปลงเป็นสตางค์ตอนโหลด เวลาเขียนเป็น ISO 8601 UTC (`Z`) หรือมี offset `+07:00`
-4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks,matching,workflow,duplicates,pricing,payment,bankfile}` (ai-checks เพิ่มใน S13-02 · workflow duplicates pricing เพิ่มใน S6-01 · payment เพิ่มใน S9-02 · bankfile เพิ่มใน S9-03)
+4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks,matching,workflow,duplicates,pricing,payment,bankfile,risk}` (ai-checks เพิ่มใน S13-02 · workflow duplicates pricing เพิ่มใน S6-01 · payment เพิ่มใน S9-02 · bankfile เพิ่มใน S9-03 · risk เพิ่มใน S11-03)
 5. ถ้าผลของ engine ขัดกับ golden case ห้ามแก้ golden case เพื่อให้เทสต์ผ่าน ให้หยุดและถาม (§17.4)
 6. `scripts/spec_check.py` คำนวณ golden cases ในเอกสารนี้ซ้ำด้วย implementation อ้างอิงภาษา Python ใช้ตรวจว่าตัวเลขใน spec สอดคล้องกันเองก่อนส่งให้ agent
 
@@ -3530,20 +3530,20 @@ engine ของขั้นเป็น pure function ใน `src/core/risk` ·
 
 | ธงทะเบียน | ระดับที่ใช้ | ใบประเมิน | การอนุมัติข้าม APPROVED | ผล | GC |
 | --- | --- | --- | --- | --- | --- |
-| CEASED (`registryFlagBlocks = true`) | ใดก็ได้ | ใดก็ได้ | ใดก็ได้ | `RISK_BLOCKED` REGISTRY_CEASED | 34 |
-| VAT_CANCELLED / NOT_FOUND | ใดก็ได้ | ไม่มีใบ COMPLETED หลังติดธง | ใดก็ได้ | `RISK_BLOCKED` REGISTRY_FLAGGED | 35 61 |
-| VAT_CANCELLED / NOT_FOUND | ใดก็ได้ | COMPLETED หลังติดธง | — | ตรวจต่อตามระดับ | 39 62 |
-| ธงใด (`registryFlagBlocks = false`) | ใดก็ได้ | ใดก็ได้ | — | ตรวจต่อตามระดับ + คำเตือน REGISTRY_FLAGGED ที่ต้องกรอกเหตุผล | 65 |
-| NONE | LOW / MEDIUM | ไม่มี · CURRENT | — | ผ่าน NOT_REQUIRED | 23 24 |
-| NONE | LOW / MEDIUM | OVERDUE | — | ผ่าน NOT_REQUIRED + คำเตือน REASSESSMENT_OVERDUE ที่ต้องกรอกเหตุผล | 37 |
-| NONE | HIGH | CURRENT และครอบบริบทของ PO | — | ผ่าน ASSESSMENT | 25 |
-| NONE | HIGH | CURRENT แต่ PO เพิ่มคัดกรอง | ไม่มีที่ใช้ได้ | `RISK_REASSESSMENT_REQUIRED` SCOPE_EXPANDED | 36 |
-| NONE | HIGH | CURRENT แต่ PO เพิ่มคัดกรอง | ใช้ได้ | ผ่าน OVERRIDE | 64 |
-| NONE | HIGH | OVERDUE | ไม่มีที่ใช้ได้ | `RISK_REASSESSMENT_REQUIRED` VALIDITY_LAPSED | 32 |
-| NONE | HIGH | IN_PROGRESS · ไม่มี | ไม่มีที่ใช้ได้ (รวม PENDING_APPROVAL และรายการที่ผูก PO อื่น) | `RISK_ASSESSMENT_REQUIRED` IN_PROGRESS / NOT_ASSESSED | 26 27 38 66 |
-| NONE | HIGH | ไม่ผ่านข้อบน | `expiresOn ≥ วัน PO` และ `usedGross + gross ≤ cap` | ผ่าน OVERRIDE (+ `usedCount` `usedGrossSatang` ครั้งแรกต่อ PO) | 28 31 33 67 |
-| NONE | HIGH | ไม่ผ่านข้อบน (รวม OVERDUE) | `expiresOn < วัน PO` | `RISK_BLOCKED` OVERRIDE_EXPIRED | 29 63 |
-| NONE | HIGH | ไม่ผ่านข้อบน | `usedGross + gross > cap` (รวมยอดใหม่จาก `po_change`) | `RISK_BLOCKED` OVERRIDE_CAP_EXCEEDED | 30 68 69 |
+| CEASED (`registryFlagBlocks = true`) | ใดก็ได้ | ใดก็ได้ | ใดก็ได้ | `RISK_BLOCKED` REGISTRY_CEASED | 36 |
+| VAT_CANCELLED / NOT_FOUND | ใดก็ได้ | ไม่มีใบ COMPLETED หลังติดธง | ใดก็ได้ | `RISK_BLOCKED` REGISTRY_FLAGGED | 37 42 |
+| VAT_CANCELLED / NOT_FOUND | ใดก็ได้ | COMPLETED หลังติดธง | — | ตรวจต่อตามระดับ | 41 43 |
+| ธงใด (`registryFlagBlocks = false`) | ใดก็ได้ | ใดก็ได้ | — | ตรวจต่อตามระดับ + คำเตือน REGISTRY_FLAGGED ที่ต้องกรอกเหตุผล | 46 |
+| NONE | LOW / MEDIUM | ไม่มี · CURRENT | — | ผ่าน NOT_REQUIRED | 25 26 |
+| NONE | LOW / MEDIUM | OVERDUE | — | ผ่าน NOT_REQUIRED + คำเตือน REASSESSMENT_OVERDUE ที่ต้องกรอกเหตุผล | 39 |
+| NONE | HIGH | CURRENT และครอบบริบทของ PO | — | ผ่าน ASSESSMENT | 27 |
+| NONE | HIGH | CURRENT แต่ PO เพิ่มคัดกรอง | ไม่มีที่ใช้ได้ | `RISK_REASSESSMENT_REQUIRED` SCOPE_EXPANDED | 38 |
+| NONE | HIGH | CURRENT แต่ PO เพิ่มคัดกรอง | ใช้ได้ | ผ่าน OVERRIDE | 45 |
+| NONE | HIGH | OVERDUE | ไม่มีที่ใช้ได้ | `RISK_REASSESSMENT_REQUIRED` VALIDITY_LAPSED | 34 |
+| NONE | HIGH | IN_PROGRESS · ไม่มี | ไม่มีที่ใช้ได้ (รวม PENDING_APPROVAL และรายการที่ผูก PO อื่น) | `RISK_ASSESSMENT_REQUIRED` IN_PROGRESS / NOT_ASSESSED | 28 29 40 47 |
+| NONE | HIGH | ไม่ผ่านข้อบน | `expiresOn ≥ วัน PO` และ `usedGross + gross ≤ cap` | ผ่าน OVERRIDE (+ `usedCount` `usedGrossSatang` ครั้งแรกต่อ PO) | 30 33 35 48 |
+| NONE | HIGH | ไม่ผ่านข้อบน (รวม OVERDUE) | `expiresOn < วัน PO` | `RISK_BLOCKED` OVERRIDE_EXPIRED | 31 44 |
+| NONE | HIGH | ไม่ผ่านข้อบน | `usedGross + gross > cap` (รวมยอดใหม่จาก `po_change`) | `RISK_BLOCKED` OVERRIDE_CAP_EXCEEDED | 32 49 50 |
 
 **Invariant ของขั้น (S11-01)**
 
@@ -3554,6 +3554,64 @@ engine ของขั้นเป็น pure function ใน `src/core/risk` ·
 | INV-RSK-03 | ใบ COMPLETED/SUPERSEDED: `pointsTotal` = Σ `RiskAnswer.points` ของคำถามในชุด และ `tier` = `scoreAssessment` ของคำตอบเหล่านั้นด้วย `RiskTier` ณ ตอนนั้น · `RiskAnswer` ของใบเหล่านี้ไม่ถูก UPDATE/DELETE | trigger `risk_answer_frozen` + integration test คำนวณซ้ำทุกใบหลังชุดของขั้น (เก็บ snapshot `tierThresholds` ใน `RiskAssessment.scoringSnapshot` jsonb เพื่อให้คำนวณซ้ำได้หลังเกณฑ์เปลี่ยน) |
 | INV-RSK-04 | ทุก `review_task.decided` มี `workflowVersionId` `ruleCodes` `slotNo` `assessmentId` และผู้ตัดสินเป็น `assigneeMemberId` หรือผู้รักษาการของเขา ณ เวลานั้นตามนิยาม BR-RSK-07 (delegation ที่ ACTIVE ไม่จำกัด `documentTypes` และไม่ตั้ง `maxAmountSatang` · G-2 ข้อ ก แบบความเสี่ยง) | เทสต์ schema ของ event + integration test ตรวจย้อนด้วย `resolveReviewStep` |
 | INV-RSK-05 | query ของผู้ตรวจ (`src/server/queries/risk-review.ts`) ใน ctx ของผู้ถือ slot A ไม่คืนคำตอบ เหตุผล หรือไฟล์ของ domain ที่ไม่ใช่ `GENERAL` ∪ `riskDomains` ของ A · query ของพอร์ทัลใน ctx ผู้ขาย A ไม่คืนใบของผู้ขาย B (INV-SUP ข้อ 01 ขยาย) | เทสต์ที่สร้างอัตโนมัติ: ใบที่มี 3 domain วนทุก query ด้วย ctx ของแต่ละ slot · query ของพอร์ทัลอยู่ใน `src/server/portal/queries-risk.ts` (ชื่อ `queries-*.ts` ตามแบบ `queries-rfx.ts` ของ S10) เพื่อให้เทสต์ INV-SUP ข้อ 01 ของ S7 ที่อ่านทุกไฟล์ `src/server/portal/queries*.ts` ครอบโดยอัตโนมัติ · **สมมติฐานตรวจไขว้:** ถ้าเทสต์จริงของ S7 อ่านเฉพาะ `queries.ts` ให้ S11-01 ขอ S7/agent หลักขยาย glob ก่อน · เทสต์ครอบรายการใหม่ของ `portalDb` ด้วย (ไฟล์ `RISK_EVIDENCE` และ `AgentAction` ของผู้ขาย B ไม่หลุดถึง A · SEAM-S10xS11-X-05 SEAM-P2xP1-X-06) |
+
+**Golden `risk-tier` (S11-03 · GC-RSK-01 ถึง GC-RSK-24 · `src/core/risk`)** เกณฑ์ นโยบาย และคำถามเป็น fixture ของ suite (ค่า demo ของ SIMEC) ไม่ใช่ค่าในโค้ด · ตัวรันเทียบผลทั้ง object · `document` ของเคสหลักฐานคือแถว `SupplierDocument` ที่ประเภทผูกคำถามนั้น (`status` ของเอกสาร · บริการแปลงผลของ `supplierDocumentStatus` ของ S7 เป็นแถวนี้) · ตัวเลือก `evidenceOption` ของคำถามคือตัวเลือก `evidence = true` และ `minTier` เขียนต่อรหัสตัวเลือก · ลำดับคำถามในไฟล์คือ `sortOrder`
+
+วิธีคำนวณ (risk-tier): ระดับตั้งต้น = ระดับสูงสุดใน `policy.screeningTierMap` ของข้อที่ตอบ `Y` และ HIGH เมื่อหมวดใดอยู่ใน `policy.highRiskCategories` (GC-RSK-02 → HIGH จาก processesPersonalData · PROF ก็อยู่ในรายการ · GC-RSK-06 ใช้ PROF เพราะ IT ไม่อยู่ในรายการแล้ว) · ชุดคำถาม = `appliesWhen` ว่าง หรือเป็นจริงบนบริบท (RQ-FIN-01 เข้าเมื่อ `$inherentTier = HIGH` จึงมีใน GC-RSK-02 และ 13 แต่ไม่มีใน 11 12) · คะแนน = ผลรวม `options[answer]` (GC-RSK-11: 10 + 10 + 8 + 0 + 8 + 0 = 36 · GC-RSK-12: 10 + 10 + 8 + 12 + 0 + 0 = 40) · `tierByPoints` = ระดับที่ `minPoints` สูงสุดซึ่ง ≤ คะแนน (18 → LOW · 20 → MEDIUM · 40 → HIGH) · ระดับสุดท้าย = สูงสุดของ tierByPoints, inherentTier, minTier ของตัวเลือกที่ตอบ (GC-RSK-13: 15 คะแนน LOW แต่ RQ-PRV-01 = C บังคับ HIGH) · หลักฐานใช้ได้เมื่อ VERIFIED และ `expiresOn ≥ today` (2026-11-01 ≥ 2026-11-01 ผ่าน · 2026-10-31 ไม่ผ่าน) และเมื่อคำถาม `evidenceScopeRequired`: scope ของเอกสารหลัง `normalizeScope` (= trim แล้วตัวพิมพ์เล็ก กติกาเดียวกับ BR-SDOC ข้อ 03 ของ S7 ไม่ยุบช่องว่างภายใน) ต้องเท่ากับ `question.evidenceScope` **และ** เท่ากับค่าใดใน workScopes (normalize ทุกฝั่ง · "  iso 27001 " → "iso 27001" = "ISO 27001" → "iso 27001" · GC-RSK-19 · ส่วน "iso  27001" สองช่องว่างจึงไม่ตรง เหมือนที่ S7 ถือเป็นคนละ scope · "ISO 9001" ≠ "ISO 27001" GC-RSK-17) · GC-RSK-24: RQ-PRM-02 มี `evidenceScope = "ISO 45001"` เอกสาร scope "ISO 27001" ไม่เท่า → SCOPE_MISMATCH แม้ workScopes มี "ISO 27001" และ ISO_CERT ฉบับนั้นใช้ตอบ RQ-IS-01 ได้ · คำตอบที่มี `evidenceDocumentId` อยู่แล้ว (`current`) คำนวณซ้ำด้วยกติกาเดียวกัน เอกสารไม่ผ่าน → `clearAnswer: true` และ event source EVIDENCE_REVOKED (GC-RSK-23) · ความสมบูรณ์: ทุกข้อในชุดต้องมีที่มา และระดับที่ `requiresExplicitAnswers` ไม่นับ EVIDENCE
+
+```yaml
+# tests/golden/risk-tier.yaml
+suite: risk-tier
+# เกณฑ์และคำถามเป็น fixture ของ suite (ค่า demo ของ SIMEC ตามชีต Risk_Tiers และ Risk_Questionnaire · OQ-221 OQ-222) ไม่ใช่ค่าในโค้ด
+tiers: [{ code: LOW, minPoints: 0, reviewMonths: 36, reminderDaysBefore: 30, blocksPo: false, requiresExplicitAnswers: false }, { code: MEDIUM, minPoints: 20, reviewMonths: 24, reminderDaysBefore: 30, blocksPo: false, requiresExplicitAnswers: false }, { code: HIGH, minPoints: 40, reviewMonths: 12, reminderDaysBefore: 30, blocksPo: true, requiresExplicitAnswers: true }]
+# policy = แถว RiskPolicy ที่ยืนยันแล้ว (ไม่ใช่ settings · BR-RSK-02) · highRiskCategories เหลือ PROF ตามรอบตรวจ (IT SUBCON ทำให้ผู้ขาย 25 รายในประวัติเป็น HIGH ตั้งแต่ PO แรก)
+policy: { screeningTierMap: { processesPersonalData: HIGH, accessesSystems: MEDIUM, accessesPremises: MEDIUM }, highRiskCategories: [PROF], registryFlagBlocks: true, mediumOverdueBlocks: false, overrideChatButton: false }
+questions:
+  - { code: RQ-GEN-01, domain: GENERAL, options: { A: 0, B: 5, C: 10 } }
+  - { code: RQ-GEN-02, domain: GENERAL, options: { A: 0, B: 5, C: 10 } }
+  - { code: RQ-GEN-03, domain: GENERAL, options: { Y: 0, N: 8 } }
+  - { code: RQ-PRV-01, domain: PRIVACY, appliesWhen: { field: processesPersonalData, op: eq, value: "Y" }, options: { A: 5, B: 10, C: 15 }, minTier: { C: HIGH } }
+  - { code: RQ-PRV-02, domain: PRIVACY, appliesWhen: { field: processesPersonalData, op: eq, value: "Y" }, options: { Y: 0, N: 12 } }
+  - { code: RQ-PRV-03, domain: PRIVACY, appliesWhen: { field: processesPersonalData, op: eq, value: "Y" }, options: { N: 0, Y: 10 } }
+  - { code: RQ-IS-01, domain: INFOSEC, appliesWhen: { field: accessesSystems, op: eq, value: "Y" }, options: { Y: 0, N: 12 }, evidenceOption: Y, evidenceScopeRequired: true, evidenceScope: "ISO 27001" }
+  - { code: RQ-IS-02, domain: INFOSEC, appliesWhen: { field: accessesSystems, op: eq, value: "Y" }, options: { Y: 0, N: 8 } }
+  - { code: RQ-IS-03, domain: INFOSEC, appliesWhen: { field: accessesSystems, op: eq, value: "Y" }, options: { Y: 0, N: 6 } }
+  - { code: RQ-PRM-01, domain: PREMISES, appliesWhen: { field: accessesPremises, op: eq, value: "Y" }, options: { Y: 0, N: 8 } }
+  - { code: RQ-PRM-02, domain: PREMISES, appliesWhen: { field: accessesPremises, op: eq, value: "Y" }, options: { Y: 0, N: 6 }, evidenceOption: Y, evidenceScopeRequired: true, evidenceScope: "ISO 45001" }
+  - { code: RQ-FIN-01, domain: FINANCE, appliesWhen: { field: $inherentTier, op: eq, value: HIGH }, options: { Y: 0, N: 10 } }
+defaults: { screening: { processesPersonalData: "N", accessesSystems: "N", accessesPremises: "N" }, categoryCodes: [MAT], payeeType: JURISTIC, today: "2026-11-01" }
+cases:
+  # S11-03 · ชุดคำถามและระดับตั้งต้น (BR-RSK-01 BR-RSK-03)
+  - { id: GC-RSK-01, title: ไม่เข้าคัดกรองข้อใด ได้เฉพาะคำถามทั่วไป, fn: selectQuestions, input: {}, expect: { inherentTier: LOW, questions: [RQ-GEN-01, RQ-GEN-02, RQ-GEN-03] } }
+  - { id: GC-RSK-02, title: ประมวลผลข้อมูลส่วนบุคคลและเข้าระบบ ได้ 10 ข้อรวมคำถามการเงินของระดับสูง, fn: selectQuestions, input: { screening: { processesPersonalData: "Y", accessesSystems: "Y", accessesPremises: "N" }, categoryCodes: [PROF] }, expect: { inherentTier: HIGH, questions: [RQ-GEN-01, RQ-GEN-02, RQ-GEN-03, RQ-PRV-01, RQ-PRV-02, RQ-PRV-03, RQ-IS-01, RQ-IS-02, RQ-IS-03, RQ-FIN-01] } }
+  - { id: GC-RSK-03, title: ระดับตั้งต้นเมื่อไม่เข้าข้อใด, fn: inherentTier, input: {}, expect: LOW }
+  - { id: GC-RSK-04, title: เข้าระบบอย่างเดียว, fn: inherentTier, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" } }, expect: MEDIUM }
+  - { id: GC-RSK-05, title: ประมวลผลข้อมูลส่วนบุคคล, fn: inherentTier, input: { screening: { processesPersonalData: "Y", accessesSystems: "N", accessesPremises: "N" } }, expect: HIGH }
+  - { id: GC-RSK-06, title: หมวดเสี่ยงสูง (PROF) โดยไม่เข้าคัดกรอง, fn: inherentTier, input: { categoryCodes: [PROF] }, expect: HIGH }
+  # S11-03 · คะแนนและระดับ (BR-RSK-04) · เท่าขอบนับระดับนั้น
+  - { id: GC-RSK-07, title: ตอบดีทุกข้อ ศูนย์คะแนน, fn: scoreAssessment, input: { answers: { RQ-GEN-01: A, RQ-GEN-02: A, RQ-GEN-03: Y } }, expect: { inherentTier: LOW, points: 0, tierByPoints: LOW, minTierFloor: LOW, tier: LOW } }
+  - { id: GC-RSK-08, title: 18 คะแนน ต่ำกว่าขอบ MEDIUM, fn: scoreAssessment, input: { answers: { RQ-GEN-01: C, RQ-GEN-02: A, RQ-GEN-03: N } }, expect: { inherentTier: LOW, points: 18, tierByPoints: LOW, minTierFloor: LOW, tier: LOW } }
+  - { id: GC-RSK-09, title: 20 คะแนนเท่าขอบพอดี เป็น MEDIUM, fn: scoreAssessment, input: { answers: { RQ-GEN-01: C, RQ-GEN-02: C, RQ-GEN-03: Y } }, expect: { inherentTier: LOW, points: 20, tierByPoints: MEDIUM, minTierFloor: LOW, tier: MEDIUM } }
+  - { id: GC-RSK-10, title: 23 คะแนน, fn: scoreAssessment, input: { answers: { RQ-GEN-01: B, RQ-GEN-02: C, RQ-GEN-03: N } }, expect: { inherentTier: LOW, points: 23, tierByPoints: MEDIUM, minTierFloor: LOW, tier: MEDIUM } }
+  - { id: GC-RSK-11, title: เข้าระบบ 36 คะแนน ยัง MEDIUM, fn: scoreAssessment, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, answers: { RQ-GEN-01: C, RQ-GEN-02: C, RQ-GEN-03: N, RQ-IS-01: Y, RQ-IS-02: N, RQ-IS-03: Y } }, expect: { inherentTier: MEDIUM, points: 36, tierByPoints: MEDIUM, minTierFloor: LOW, tier: MEDIUM } }
+  - { id: GC-RSK-12, title: 40 คะแนนเท่าขอบ HIGH พอดี, fn: scoreAssessment, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, answers: { RQ-GEN-01: C, RQ-GEN-02: C, RQ-GEN-03: N, RQ-IS-01: N, RQ-IS-02: Y, RQ-IS-03: Y } }, expect: { inherentTier: MEDIUM, points: 40, tierByPoints: HIGH, minTierFloor: LOW, tier: HIGH } }
+  - { id: GC-RSK-13, title: คะแนนต่ำแต่ตัวเลือกบังคับระดับ HIGH, fn: scoreAssessment, input: { screening: { processesPersonalData: "Y", accessesSystems: "N", accessesPremises: "N" }, answers: { RQ-GEN-01: A, RQ-GEN-02: A, RQ-GEN-03: Y, RQ-PRV-01: C, RQ-PRV-02: Y, RQ-PRV-03: N, RQ-FIN-01: Y } }, expect: { inherentTier: HIGH, points: 15, tierByPoints: LOW, minTierFloor: HIGH, tier: HIGH } }
+  # S11-03 · ตอบด้วยหลักฐาน (BR-RSK-05) · document = แถวจาก supplierDocumentStatus ของ S7
+  - { id: GC-RSK-14, title: ใบรับรองใช้ได้และขอบเขตตรง, fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2027-03-31", scope: "ISO 27001" } }, expect: { source: EVIDENCE, optionCode: Y } }
+  - { id: GC-RSK-15, title: หมดอายุวันนี้พอดียังใช้ได้, fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2026-11-01", scope: "ISO 27001" } }, expect: { source: EVIDENCE, optionCode: Y } }
+  - { id: GC-RSK-16, title: หมดอายุเมื่อวาน, fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2026-10-31", scope: "ISO 27001" } }, expect: { source: NONE, reason: EXPIRED } }
+  - { id: GC-RSK-17, title: ขอบเขตไม่ครอบงานที่จ้าง, fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2027-03-31", scope: "ISO 9001" } }, expect: { source: NONE, reason: SCOPE_MISMATCH } }
+  - { id: GC-RSK-18, title: ยังไม่ยืนยัน, fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], document: { status: PENDING, expiresOn: "2027-03-31", scope: "ISO 27001" } }, expect: { source: NONE, reason: NOT_VERIFIED } }
+  - { id: GC-RSK-19, title: ขอบเขตตรงหลัง normalize ทั้งสองฝั่ง (trim และตัวพิมพ์เล็ก กติกาเดียวกับ BR-SDOC ข้อ 03 ของ S7), fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2027-03-31", scope: "  iso 27001 " } }, expect: { source: EVIDENCE, optionCode: Y } }
+  # S11-03 · ความสมบูรณ์ (BR-RSK-06) · sources = ที่มาของคำตอบต่อข้อ
+  - { id: GC-RSK-20, title: ระดับ HIGH ข้อที่ตอบด้วยหลักฐานต้องยืนยันเอง, fn: assessmentCompleteness, input: { tier: HIGH, screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, sources: { RQ-GEN-01: EXPLICIT, RQ-GEN-02: EXPLICIT, RQ-GEN-03: EXPLICIT, RQ-IS-01: EVIDENCE, RQ-IS-02: EXPLICIT, RQ-IS-03: EXPLICIT } }, expect: { complete: false, missing: [RQ-IS-01] } }
+  - { id: GC-RSK-21, title: ระดับ MEDIUM หลักฐานนับเป็นคำตอบ, fn: assessmentCompleteness, input: { tier: MEDIUM, screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, sources: { RQ-GEN-01: EXPLICIT, RQ-GEN-02: EXPLICIT, RQ-GEN-03: EXPLICIT, RQ-IS-01: EVIDENCE, RQ-IS-02: EXPLICIT, RQ-IS-03: EXPLICIT } }, expect: { complete: true, missing: [] } }
+  - { id: GC-RSK-22, title: ขาดคำตอบหนึ่งข้อ, fn: assessmentCompleteness, input: { tier: MEDIUM, screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, sources: { RQ-GEN-01: EXPLICIT, RQ-GEN-02: EXPLICIT, RQ-IS-01: EVIDENCE, RQ-IS-02: EXPLICIT, RQ-IS-03: EXPLICIT } }, expect: { complete: false, missing: [RQ-GEN-03] } }
+  # รอบตรวจของขั้น · คำตอบที่ยืนยันจากหลักฐานแล้ว (EXPLICIT + evidenceDocumentId) ถูกคำนวณซ้ำด้วย (BR-RSK-05)
+  - { id: GC-RSK-23, title: ยืนยันคำตอบหลักฐานแล้วแต่ใบรับรองหมดอายุก่อนส่ง คำตอบถูกล้าง, fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], current: { source: EXPLICIT, optionCode: Y, evidenceDocumentId: D1 }, document: { id: D1, status: VERIFIED, expiresOn: "2026-10-31", scope: "ISO 27001" } }, expect: { source: NONE, reason: EXPIRED, clearAnswer: true, event: EVIDENCE_REVOKED } }
+  # รอบตรวจไขว้รอยต่อ (SEAM-S7xS11-X-09) · ISO_CERT ผูกสองคำถาม (RQ-IS-01 RQ-PRM-02) ใบฉบับเดียวเติมได้เฉพาะคำถามที่ scope ตรง
+  - { id: GC-RSK-24, title: ใบ ISO 27001 ไม่เติมคำถาม ISO 45001 ของประเภทเอกสารเดียวกัน, fn: evidenceSource, input: { question: RQ-PRM-02, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2027-03-31", scope: "ISO 27001" } }, expect: { source: NONE, reason: SCOPE_MISMATCH } }
+```
 
 ---
 
@@ -5502,7 +5560,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       51 ไฟล์ · 642 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       52 ไฟล์ · 666 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

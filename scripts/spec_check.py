@@ -1359,6 +1359,57 @@ def run_duplicates(d):
         out.append((c["id"], got == c["expect"], got))
     use_fixtures()
     return out
+def run_risk_tier(d):
+    # BR-RSK-01 BR-RSK-03 to BR-RSK-06 (§7.24 · S11-03): the inherent tier from screening and high-risk categories, the
+    # question set by appliesWhen, points and tier (highest of points band, inherent tier, minTier of an answer), an answer
+    # from evidence (VERIFIED, not expired, scope equal to the question's and a work scope after trim + lower case) and
+    # completeness (EVIDENCE does not count for a tier that requires explicit answers); compared as whole objects
+    order = ["LOW", "MEDIUM", "HIGH"]; top = lambda *ts: max(ts, key=order.index)
+    tiers = {t["code"]: t for t in d["tiers"]}; pol, df, qs = d["policy"], d["defaults"], d["questions"]
+    norm = lambda s: s.strip().lower()
+    def inherent(sc, cats):
+        t = "LOW"
+        for f, v in sc.items():
+            if v == "Y": t = top(t, pol["screeningTierMap"][f])
+        return "HIGH" if set(cats) & set(pol["highRiskCategories"]) else t
+    def holds(w, env):
+        if "all" in w: return all(holds(x, env) for x in w["all"])
+        if "any" in w: return any(holds(x, env) for x in w["any"])
+        if w["op"] == "anyIn": return bool(set(env["$category"]) & set(w["value"]))
+        if w["op"] == "eq": return str(env.get(w["field"])) == str(w["value"])
+        raise ValueError(f"op {w['op']} not used by risk-tier")
+    out = []
+    for c in d["cases"]:
+        i = c["input"]; sc = i.get("screening", df["screening"]); cats = i.get("categoryCodes", df["categoryCodes"])
+        it = inherent(sc, cats); env = {**sc, "$category": cats, "$payeeType": i.get("payeeType", df["payeeType"]), "$inherentTier": it}
+        qset = [q for q in qs if not q.get("appliesWhen") or holds(q["appliesWhen"], env)]
+        fn = c["fn"]
+        if fn == "inherentTier": got = it
+        elif fn == "selectQuestions": got = {"inherentTier": it, "questions": [q["code"] for q in qset]}
+        elif fn == "scoreAssessment":
+            ans = i["answers"]; picked = [(q, ans[q["code"]]) for q in qset if ans.get(q["code"]) in q["options"]]
+            pts = sum(q["options"][a] for q, a in picked)
+            floor = top("LOW", *[q.get("minTier", {}).get(a, "LOW") for q, a in picked])
+            band = max((t for t in d["tiers"] if t["minPoints"] <= pts), key=lambda t: t["minPoints"])["code"]
+            got = {"inherentTier": it, "points": pts, "tierByPoints": band, "minTierFloor": floor, "tier": top(band, it, floor)}
+        elif fn == "evidenceSource":
+            q = next(x for x in qs if x["code"] == i["question"]); doc = i["document"]; cur = i.get("current") or {}
+            held = bool(cur.get("evidenceDocumentId")); today = i.get("today", df["today"]); scope = norm(doc.get("scope") or "")
+            if "evidenceOption" not in q: why = "NOT_LINKED"
+            elif doc["status"] != "VERIFIED": why = "NOT_VERIFIED"
+            elif doc.get("expiresOn") and doc["expiresOn"] < today: why = "EXPIRED"
+            elif q.get("evidenceScopeRequired") and not (scope and scope == norm(q["evidenceScope"]) and scope in [norm(w) for w in i["workScopes"]]): why = "SCOPE_MISMATCH"
+            else: why = None
+            if why: got = {"source": "NONE", "reason": why, **({"clearAnswer": True, "event": "EVIDENCE_REVOKED"} if held else {})}
+            else: got = {"source": cur["source"] if held else "EVIDENCE", "optionCode": q["evidenceOption"]}
+        elif fn == "assessmentCompleteness":
+            src = i["sources"]; strict = tiers[i["tier"]]["requiresExplicitAnswers"]
+            ok_ = lambda s: s not in (None, "NONE") and not (strict and s == "EVIDENCE")
+            miss = [q["code"] for q in qset if q.get("required", True) and not ok_(src.get(q["code"]))]
+            got = {"complete": not miss, "missing": miss}
+        else: raise ValueError(f"fn {fn}")
+        out.append((c["id"], got == c["expect"], got))
+    return out
 def run_retention(d):  # BR-RET-01 แบ่งงวด · BR-RET-03 เงินประกัน (largest remainder สองส่วน) · BR-WHT-05 ภาษีตอนจ่าย (S8-09)
     out = []
     for c in d["cases"]:
@@ -2335,6 +2386,7 @@ RUNNERS = {
     "quotations": run_quotes,
     "receiving": run_gr,
     "retention": run_retention,
+    "risk-tier": run_risk_tier,
     "savings": run_savings,
     "sla": run_sla,
     "sod": run_sod,

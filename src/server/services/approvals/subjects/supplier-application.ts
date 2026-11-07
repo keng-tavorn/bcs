@@ -34,6 +34,12 @@ function phoneOf(app: { readonly registryData: unknown; readonly inviterPhone: s
   return app.phone ? { phone: app.phone, source: 'APPLICANT' } : { phone: null, source: null }
 }
 
+/** The juristic status the registries reported for the application (DBD's, else RD's), kept as Supplier.registryStatus */
+function juristicStatusOf(data: unknown): string | null {
+  const d = (data ?? {}) as { dbd?: { record?: { juristicStatus?: string } }; rd?: { record?: { juristicStatus?: string } } }
+  return d.dbd?.record?.juristicStatus ?? d.rd?.record?.juristicStatus ?? null
+}
+
 /** BR-SUP ข้อ 11: the flag a supplier starts with — VAT cancelled at the registry, or confirmed by hand when not found */
 function flagOf(app: { readonly payeeType: string; readonly registrySource: string | null; readonly registryData: unknown }): 'NONE' | 'VAT_CANCELLED' | 'NOT_FOUND' {
   if (app.payeeType === 'FOREIGN') return 'NONE'
@@ -93,7 +99,9 @@ export const supplierApplicationSubject: SubjectAdapter = {
       }
     }
 
-    // APPROVED: the supplier of a NEW application is created here, with what the application confirmed
+    // APPROVED: the supplier of a NEW application is created here, with what the application confirmed. One supplier code
+    // at a time in the organization: two approvals at once would suggest the same code
+    await lockRowsForUpdate(tx, 'Organization', ctx.organizationId, [ctx.organizationId])
     const codes = (await tx.supplier.findMany({ select: { code: true } })).map((s) => s.code)
     const phone = phoneOf(app)
     const created = await createSupplierInTx(tx, ctx, {
@@ -108,7 +116,7 @@ export const supplierApplicationSubject: SubjectAdapter = {
       phone: phone.phone,
       address: app.address,
       category: app.category,
-      registry: app.registrySource ? { source: app.registrySource as 'RD' | 'DBD' | 'MANUAL' | 'STUB', status: null, data: { ...((app.registryData ?? {}) as object), phoneSource: phone.source } } : null,
+      registry: app.registrySource ? { source: app.registrySource as 'RD' | 'DBD' | 'MANUAL' | 'STUB', status: juristicStatusOf(app.registryData), data: { ...((app.registryData ?? {}) as object), phoneSource: phone.source } } : null,
       registryFlag: flagOf(app),
       payeeType: app.payeeType,
       defaultWhtIncomeTypeCode: app.whtIncomeTypeCode,

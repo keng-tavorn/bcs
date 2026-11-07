@@ -38,7 +38,7 @@ interface Effects {
 }
 
 /** BR-SUP ข้อ 17: the register's address and the primary contact before the change hear who may now act for the supplier */
-async function tellRegister(tx: TenantTx, ctx: Ctx, input: { readonly supplierId: string; readonly contactId: string; readonly contactName: string; readonly changed: 'ADDED' | 'EMAIL'; readonly primaryBefore: string | null }): Promise<Effects> {
+export async function tellRegister(tx: TenantTx, ctx: Ctx, input: { readonly supplierId: string; readonly contactId: string; readonly contactName: string; readonly changed: 'ADDED' | 'EMAIL'; readonly primaryBefore: string | null }): Promise<Effects> {
   const out: Effects = { events: [], notifications: [], outbox: [] }
   const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: input.supplierId }, select: { status: true } })
   if (supplier.status !== 'ACTIVE') return out
@@ -62,7 +62,7 @@ async function tellRegister(tx: TenantTx, ctx: Ctx, input: { readonly supplierId
   return out
 }
 
-async function primaryOf(tx: TenantTx, supplierId: string): Promise<string | null> {
+export async function primaryOf(tx: TenantTx, supplierId: string): Promise<string | null> {
   return (await tx.supplierContact.findFirst({ where: { supplierId, isPrimary: true, status: 'ACTIVE' }, select: { id: true } }))?.id ?? null
 }
 

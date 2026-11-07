@@ -134,14 +134,19 @@ describe('[FR-SUP-101/AC1] PROCUREMENT invites a supplier', () => {
     expect(await inviteSupplier(as('proc_officer'), { kind: 'NEW', nameTh: 'x', taxId: '0999998010015', contact: { nameTh: 'x', email: `d-${randomUUID().slice(0, 6)}@supplier.test` } } as Parameters<typeof inviteSupplier>[1], key())).toMatchObject({ ok: false, error: { details: { reason: 'TAXID_CHECKSUM' } } })
   })
 
-  it('a registered supplier invited into the portal: EXISTING, approved at its contact\'s first sign-in, the portal open for it', async () => {
-    const supplier = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `EX-${randomUUID().slice(0, 4)}`, nameTh: 'บริษัท มีอยู่แล้ว จำกัด', taxId: taxId(), branchCode: '00000' } })
+  it('a registered supplier invited into the portal: EXISTING, its register address and primary contact told, approved at the first sign-in as one more contact', async () => {
+    const supplier = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `EX-${randomUUID().slice(0, 4)}`, nameTh: 'บริษัท มีอยู่แล้ว จำกัด', taxId: taxId(), branchCode: '00000', email: 'register.ex@supplier.test' } })
+    const primary = await prisma.supplierContact.create({ data: { organizationId: org.organizationId, supplierId: supplier.id, nameTh: 'ผู้ติดต่อหลักเดิม', email: `pri-${randomUUID().slice(0, 6)}@supplier.test`, isPrimary: true } })
     const r = await inviteSupplier(as('proc_officer'), { kind: 'EXISTING', supplierId: supplier.id, contact: { nameTh: 'คนเดิม', email: `ex-${randomUUID().slice(0, 6)}@supplier.test` } }, key())
     if (!r.ok) throw new Error(JSON.stringify(r.error))
     const contact = await prisma.supplierContact.findUniqueOrThrow({ where: { id: r.data.contactId } })
+    // BR-SUP-17: the register and the primary contact hear of the new person, never the new address
+    expect((await prisma.supplierNotice.findMany({ where: { subjectId: contact.id, templateKey: 'supplier.contact_added' } })).map((n) => n.toEmail).sort()).toEqual([primary.email, 'register.ex@supplier.test'].sort())
     await signedIn(contact)
     expect(await prisma.supplierApplication.findUniqueOrThrow({ where: { id: r.data.applicationId } })).toMatchObject({ status: 'APPROVED', approvedSupplierId: supplier.id, number: null })
-    expect(await prisma.supplierContact.findUniqueOrThrow({ where: { id: contact.id } })).toMatchObject({ supplierId: supplier.id })
+    // one primary contact stays: the invited person joins as another
+    expect(await prisma.supplierContact.findUniqueOrThrow({ where: { id: contact.id } })).toMatchObject({ supplierId: supplier.id, isPrimary: false })
+    expect(await prisma.supplierContact.findUniqueOrThrow({ where: { id: primary.id } })).toMatchObject({ isPrimary: true })
     expect((await prisma.supplier.findUniqueOrThrow({ where: { id: supplier.id } })).portalEnabled).toBe(true)
   })
 

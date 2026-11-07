@@ -23,7 +23,7 @@ import { requireModule } from '../modules'
 import { issueDocumentNumber } from '../numbering'
 import { checkRegistry } from './index'
 import { issuePortalLink } from './links'
-import { revokeContactSessions } from './contacts'
+import { primaryOf, revokeContactSessions, tellRegister } from './contacts'
 
 // Supplier applications (S7-05 · ADR-181 · BR-SUP ข้อ 08 ถึง ข้อ 11 · FR-SUP-101 FR-SUP-102 FR-SUP-104): PROCUREMENT invites
 // (a new supplier, or one already registered into the portal), the supplier fills the application in on the portal —
@@ -235,6 +235,9 @@ export const inviteSupplierCommand = defineCommand({
       select: { id: true },
     })
     const sent = await sendInvitation(tx, ctx, application.id, contact.id)
+    // a new person who may act for a registered supplier: its register address and primary contact hear of it, never the
+    // new address (BR-SUP ข้อ 08 · ข้อ 17)
+    if (supplierId) absorb(sent, await tellRegister(tx, ctx, { supplierId, contactId: contact.id, contactName: input.contact.nameTh, changed: 'ADDED', primaryBefore: await primaryOf(tx, supplierId) }))
     return {
       ok: true,
       result: { applicationId: application.id, contactId: contact.id },
@@ -271,7 +274,9 @@ export const reinviteSupplierCommand = defineCommand({
     if (!contact) return fail('VALIDATION_FAILED', 'the application has no contact', { reason: 'NO_CONTACT' })
     // the links sent before stop working: only the newest invitation opens the portal
     await tx.portalInviteLink.updateMany({ where: { applicationId: app.id, usedAt: null, revokedAt: null }, data: { revokedAt: ctx.now } })
-    await tx.supplierApplication.update({ where: { id: app.id }, data: { status: 'INVITED', invitedAt: ctx.now, lastActivityAt: ctx.now, expiresAt: await expiryOf(tx, ctx, ctx.now), remindedAt: null, escalatedAt: null, version: { increment: 1 } } })
+    // invitedAt stays the first invitation's: G-7 and the escalation count from it (BR-SUP ข้อ 12 ข้อ 13); the link and
+    // the expiry are new
+    await tx.supplierApplication.update({ where: { id: app.id }, data: { status: 'INVITED', lastActivityAt: ctx.now, expiresAt: await expiryOf(tx, ctx, ctx.now), remindedAt: null, version: { increment: 1 } } })
     const sent = await sendInvitation(tx, ctx, app.id, contact.id)
     const warnings = (app.duplicateWarnings as unknown as StoredWarning[]).map((w) => w.code)
     return {
@@ -621,7 +626,9 @@ export async function applicationSignedIn(tx: TenantTx, ctx: Ctx, contact: { rea
   }
   const supplierId = app.supplierId!
   await tx.supplierApplication.update({ where: { id: app.id }, data: { status: 'APPROVED', decidedAt: ctx.now, approvedSupplierId: supplierId, lastActivityAt: ctx.now, version: { increment: 1 } } })
-  await tx.supplierContact.updateMany({ where: { applicationId: app.id }, data: { supplierId } })
+  // the supplier keeps its primary contact: the invited person joins it as one more (supplier_contact_one_primary)
+  const primary = await primaryOf(tx, supplierId)
+  await tx.supplierContact.updateMany({ where: { applicationId: app.id }, data: { supplierId, ...(primary ? { isPrimary: false } : {}) } })
   await tx.supplier.update({ where: { id: supplierId }, data: { portalEnabled: true, version: { increment: 1 } } })
   return [
     { type: 'supplier_application.approved', aggregateType: 'SupplierApplication', aggregateId: app.id, data: { number: app.number, supplierId, kind: 'EXISTING', bankAccountChangeId: null } },

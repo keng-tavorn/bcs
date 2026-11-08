@@ -135,7 +135,8 @@
           "INVOICE_READ": "Read an invoice",
           "QUESTION": "Answered a question",
           "QUOTATION_READ": "Read a quotation",
-          "SAVINGS_NOTE": "Explained a saving"
+          "SAVINGS_NOTE": "Explained a saving",
+          "SUPPLIER_DOC_READ": "Supplier document reading"
         },
         "showing": "Showing only {filter}",
         "statusDone": "Done",
@@ -196,6 +197,10 @@
         "INTAKE": {
           "description": "Picks the request type and drafts the request from what the requester wrote or attached; the requester confirms before sending",
           "name": "Request helper"
+        },
+        "SUPPLIER_ONBOARDING": {
+          "description": "Reads the company certificate and VAT registration a supplier uploads with its application and fills them in for the supplier or procurement to check field by field; never reads an account number, verifies a document or approves a supplier",
+          "name": "Supplier Onboarding"
         }
       },
       "agentsTitle": "Assistants",
@@ -8783,6 +8788,39 @@
       "SUBMITTED": "Sent, being checked"
     },
     "apply": {
+      "ai": {
+        "byAi": "Filled by AI, please check",
+        "check": {
+          "FAIL": "This value failed a check (invalid number, not the application's, or an expired document). Do not take it until the document is checked.",
+          "WARN": "This value differs from the registry or what was typed. Check it again."
+        },
+        "confidence": "AI {percent}% sure",
+        "doc": {
+          "BANK_BOOK": "Bank book page",
+          "COMPANY_CERT": "Company certificate",
+          "OTHER": "Document",
+          "VAT_CERT": "VAT registration"
+        },
+        "done": "The AI values were taken. Check the rest of the form.",
+        "field": {
+          "accountName": "Account name",
+          "address": "Address",
+          "bankCode": "Bank",
+          "branchCode": "Branch",
+          "isVatRegistered": "VAT",
+          "nameEn": "Name (English)",
+          "nameTh": "Name (Thai)",
+          "taxId": "Taxpayer ID"
+        },
+        "intro": "Check each value against the document, tick the right ones and take them. A value you do not tick leaves what you typed. You always type the account number yourself.",
+        "mustConfirm": "confirm one by one",
+        "no": "Not VAT registered",
+        "takeRest": "Confirm all the other values",
+        "takeTicked": "Take the ticked values",
+        "taken": "Taken",
+        "title": "Values the AI read from your documents",
+        "yes": "VAT registered"
+      },
       "back": "Back to the previous step",
       "bank": {
         "accountName": "Account name",
@@ -8845,6 +8883,8 @@
       },
       "errors": {
         "ACCOUNT": "The account number is not valid for this bank.",
+        "AI_NOTHING_TAKEN": "Tick at least one value to take",
+        "AI_REVIEW_PENDING": "Some values filled by AI wait for your confirmation. Go to the company or documents step and tick them before sending.",
         "APPLICATION_INCOMPLETE": "It cannot be sent yet: see what is missing below.",
         "CONFLICT_VERSION": "The application was just changed elsewhere. Please check the latest and save again.",
         "DUPLICATE_REASON_REQUIRED": "Please give a reason for each likeness to a registered supplier.",
@@ -11508,6 +11548,35 @@
       "route": "Check the registries and send for approval"
     },
     "detail": {
+      "ai": {
+        "byAi": "Filled by AI, please check",
+        "check": {
+          "FAIL": "Failed a check",
+          "WARN": "Differs from the registry or what was typed"
+        },
+        "confidence": "{percent}% sure",
+        "doc": {
+          "BANK_BOOK": "Bank book page",
+          "COMPANY_CERT": "Company certificate",
+          "OTHER": "Document",
+          "VAT_CERT": "VAT registration"
+        },
+        "field": {
+          "accountName": "Account name",
+          "address": "Address",
+          "bankCode": "Bank",
+          "branchCode": "Branch",
+          "isVatRegistered": "VAT",
+          "nameEn": "Name (English)",
+          "nameTh": "Name (Thai)",
+          "taxId": "Taxpayer ID"
+        },
+        "mustConfirm": "confirm one by one",
+        "no": "Not VAT registered",
+        "taken": "Taken by the supplier",
+        "title": "Values the AI read from the documents",
+        "yes": "VAT registered"
+      },
       "back": "Back to applications",
       "by": "by {name}",
       "contacts": "Contacts",

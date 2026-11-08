@@ -48,6 +48,11 @@ interface SubjectKind {
    * waits (BR-AI-16) instead of passing for one the person changed
    */
   readonly align?: (proposed: Readonly<Record<string, string>>, current: Readonly<Record<string, string>>) => Readonly<Record<string, string>>
+  /**
+   * S7-14 (BR-AI-30 · ADR-189): a supplier contact on the portal may take the values in too (the supplier's application;
+   * S11's risk assessment). Unset, only a member of the organization does, as before
+   */
+  readonly supplierActor?: boolean
 }
 
 const kinds = new Map<string, SubjectKind>()
@@ -119,9 +124,11 @@ export async function assertNoPendingAiReview(tx: TenantTx, _ctx: Ctx, subject: 
  */
 export async function applyAiAssist(tx: TenantTx, ctx: Ctx, subject: AssistSubject, input?: AiAssist): Promise<Result<readonly EventDraft[]>> {
   if (!input) return ok([])
-  // A person takes the values in (BR-AI-01): the AI and the system never write a document through this
-  if (ctx.actor.type !== 'USER') return err('FORBIDDEN', 'only a person confirms what the AI filled in')
   const kind = kinds.get(subject.type)
+  // A person takes the values in (BR-AI-01): the AI and the system never write a document through this — a member, or a
+  // supplier contact on the portal for a subject that lets it (BR-AI-30)
+  const contact = ctx.actor.type === 'SUPPLIER' && ctx.channel === 'PORTAL' && kind?.supplierActor === true ? ctx.actor.supplierContactId : null
+  if (ctx.actor.type !== 'USER' && !contact) return err('FORBIDDEN', 'only a person confirms what the AI filled in')
   // A document whose AI part is not built yet (the invoice until S13-12) keeps P1-07's answer: the AI is not there for it
   if (!kind) return err('MODULE_DISABLED', `AI values do not reach a ${subject.type} yet`, { module: 'AI', field: 'aiAssist' })
   const [locked] = await lockRowsForUpdate(tx, 'AgentAction', ctx.organizationId, [input.agentActionId])
@@ -132,7 +139,7 @@ export async function applyAiAssist(tx: TenantTx, ctx: Ctx, subject: AssistSubje
     select: { id: true, status: true, level: true, purpose: true, subjectType: true, subjectId: true, review: true, appliedAt: true, requestedById: true },
   })
   // S17-08: a reading of a chat draft is its owner's (FR-LINE-301 AC7): anyone else is answered as for an unknown action
-  if (action.subjectType === 'CHAT_INTAKE' && action.requestedById !== ctx.actor.memberId) return err('NOT_FOUND', 'no such AI action', { field: 'aiAssist.agentActionId' })
+  if (action.subjectType === 'CHAT_INTAKE' && (ctx.actor.type !== 'USER' || action.requestedById !== ctx.actor.memberId)) return err('NOT_FOUND', 'no such AI action', { field: 'aiAssist.agentActionId' })
   if (action.status !== 'DRAFT' || action.level !== 'L1') {
     return err('INVALID_STATE_TRANSITION', `the AI action is ${action.status} ${action.level}`, { from: action.status, command: 'agent_action.apply' })
   }
@@ -157,14 +164,16 @@ export async function applyAiAssist(tx: TenantTx, ctx: Ctx, subject: AssistSubje
   const { pending, changed } = pendingOf(review, confirmed, current)
   if (pending.length && kind.final) return pendingError(pending.length, [action.id])
 
-  const memberId = ctx.actor.memberId
+  // who took it in: a member (appliedById), or the supplier's contact (appliedByContactId · BR-AI-30)
+  const memberId = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
+  const by = { appliedById: memberId, ...(contact ? { appliedByContactId: contact } : {}) }
   const nextReview = { ...review, confirmedPaths: [...confirmed].sort() }
   const event = { subjectType: subject.type, subjectId: subject.id }
   if (pending.length) {
     if (!agentActionTransition('DRAFT', 'agent_action.apply').ok) return err('INVALID_STATE_TRANSITION', 'cannot apply')
     await tx.agentAction.update({
       where: { id: action.id },
-      data: { subjectType: subject.type, subjectId: subject.id, review: nextReview, appliedAt: action.appliedAt ?? ctx.now, appliedById: memberId, version: { increment: 1 } },
+      data: { subjectType: subject.type, subjectId: subject.id, review: nextReview, appliedAt: action.appliedAt ?? ctx.now, ...by, version: { increment: 1 } },
     })
     return ok([{ type: 'agent_action.applied', aggregateType: 'AgentAction', aggregateId: action.id, data: { ...event, pending: pending.length } }])
   }
@@ -181,7 +190,7 @@ export async function applyAiAssist(tx: TenantTx, ctx: Ctx, subject: AssistSubje
       review: nextReview,
       ...(diff ? { diff } : {}),
       appliedAt: action.appliedAt ?? ctx.now,
-      appliedById: memberId,
+      ...by,
       decidedById: memberId,
       decidedAt: ctx.now,
       version: { increment: 1 },

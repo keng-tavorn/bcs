@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
-import { getSupplierApplicationForScreen } from '@/server/services/suppliers/applications-view'
+import { getSupplierApplicationForScreen, listApplicationAiReadings } from '@/server/services/suppliers/applications-view'
 import { listSupplierDocuments } from '@/server/services/suppliers/documents'
 import { formatDateTime } from '@/ui/format'
 import { Notice } from '@/ui/form/notice'
@@ -12,6 +12,7 @@ import { Facts, type Fact } from '@/ui/request-view/facts'
 import { Badge } from '@/ui/shadcn/badge'
 import { DocumentsPanel } from '@/ui/supplier-docs/documents-panel'
 import { ApplicationActions } from '@/ui/supplier-applications/application-actions'
+import { AiReadings } from '@/ui/supplier-applications/ai-readings'
 import { formatTaxId } from '@/ui/suppliers/model'
 import { getSession } from '../../../../_lib/session'
 import { completeUploadAction, requestUploadAction } from '../../../../_lib/file-actions'
@@ -51,7 +52,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
     )
   }
   const a = result.data
-  const docs = await listSupplierDocuments(ctx, { applicationId: a.id })
+  const [docs, aiReadings] = await Promise.all([listSupplierDocuments(ctx, { applicationId: a.id }), listApplicationAiReadings(ctx, a.id)])
   const f = a.fields
   const notSet = <span className="text-ink-muted">{t('detail.field.notSet')}</span>
   const source = (key: FieldWithSource) => {
@@ -174,6 +175,24 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         {docs.ok ? (
           <Panel title={t('detail.documents')} id="documents">
             <DocumentsPanel rows={docs.data.rows} canVerify={docs.data.canVerify} actions={{ verify: verifyDocumentAction, reject: rejectDocumentAction, open: openDocumentAction }} />
+          </Panel>
+        ) : null}
+        {/* S7-14 (FR-AI-304 AC2): what the AI read off the documents, beside them */}
+        {aiReadings.length ? (
+          <Panel title={t('detail.ai.title')} id="ai-readings">
+            <AiReadings
+              readings={aiReadings}
+              labels={{
+                byAi: t('detail.ai.byAi'),
+                taken: t('detail.ai.taken'),
+                mustConfirm: t('detail.ai.mustConfirm'),
+                confidence: (percent) => t('detail.ai.confidence', { percent }),
+                field: (path) => t(`detail.ai.field.${path as 'nameTh'}`),
+                doc: (code) => (code === 'COMPANY_CERT' || code === 'VAT_CERT' || code === 'BANK_BOOK' ? t(`detail.ai.doc.${code}`) : t('detail.ai.doc.OTHER')),
+                check: (result) => t(`detail.ai.check.${result}`),
+                yesNo: (value) => (value ? t('detail.ai.yes') : t('detail.ai.no')),
+              }}
+            />
           </Panel>
         ) : null}
         <Panel title={t('detail.contacts')} id="contacts">

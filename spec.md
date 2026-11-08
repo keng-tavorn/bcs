@@ -664,6 +664,7 @@ sequenceDiagram
 | `supplier-document-expiry` | cron `TZ=Asia/Bangkok 0 7 * * *` | ทุกองค์กรที่เปิด `SUPPLIER`: เอกสาร VERIFIED ที่ถึง remindOn เตือนครั้งเดียว (อีเมลผู้ติดต่อหลัก · DIGEST จัดซื้อ) · เลยวันหมดอายุ → EXPIRED · idempotency key ต่อวันและเอกสาร (BR-SDOC-04) | S7-06 |
 | `supplier-application-sla` | `bcs/supplier_application.invited` `.drafted` `.updated` `.returned` · `bcs/supplier_document.uploaded` และ `bcs/portal_session.signed_in` ของใบสมัคร · ยกเลิกเมื่อ `bcs/supplier_application.submitted` `.cancelled` `.expired` หรือ `.updated` ของใบเดียวกัน | อ่านใบล่าสุด → sleepUntil ตามลำดับเวลาของ remindAt (เตือนพร้อมรายการที่ขาด ครั้งเดียวต่อช่วงนิ่ง) escalateAt (แจ้งผู้เชิญและ PROCUREMENT ครั้งเดียวต่อใบ) expiresAt (`EXPIRED`) · ขั้นที่พบ `lastActivityAt` เปลี่ยนตอบ STALE และ run จบ (run ใหม่ของความเคลื่อนไหวนั้นทำแทน) · idempotency key `supplier-application-sla:<step>:<applicationId>:<lastActivityAt>` (BR-SUP-12 · ADR-187) | S7-07 |
 | `po-ack-reset` | `bcs/po.revision_sent` (S8) | revision ใหม่ที่ส่งผู้ขายแล้ว → `supplierAckStatus` กลับเป็น NOT_ACKNOWLEDGED พร้อม `po.ack_reset` (revision เก่าหรือรับทราบแล้วไม่ทำอะไร · ไม่แก้โค้ดของ S8 · BR-SUP-14 · ADR-188) | S7-11 |
+| `supplier-document-ai` | `bcs/supplier_document.scanned` (S7-14) | เอกสารของใบสมัครที่สแกน CLEAN แล้ว ประเภท `aiReadable` และผู้รับเงินอยู่ใน `aiReadablePayeeTypes` (`shouldReadDocument`) เปิด `supplier.aiAssist` ไม่เกิน 10 ครั้งต่อนาทีต่อใบ → ขอ `agent_action.request` purpose `SUPPLIER_DOC_READ` ในนามผู้ติดต่อที่อัปโหลด (`requestedByContactId`) ผ่านด่าน BR-AI-11 · ไม่ผ่านด่านใดข้ามโดยไม่กระทบใบสมัคร · การอ่านเองรันใน `ai-agent-run` (BR-AI-29 · FR-AI-304 AC1) | S7 |
 
 บน staging (`APP_ENV=staging` เท่านั้น) งาน `outbox-sweeper` `consolidation` `report-schedules` และ `line-webhook-sweep` รันทุก 30 นาทีที่ :00 และ :30 แทนรอบในตาราง เพื่อให้อยู่ในโควตาฟรีของ Neon และ Inngest เกณฑ์ outbox ค้างของ `/api/health` รอเพิ่ม 29 นาที และการเตือน NFR-OBS-02 มาที่รอบที่สองติดกันที่ส่งไม่ได้ (ADR-054) · local และ production ใช้รอบในตารางเสมอ
 
@@ -5513,6 +5514,27 @@ cases:
 
 ---
 
+### 12.7 S7 · golden ของ Supplier Onboarding Agent (ระยะ 2 · S7-14)
+
+ผลอ่านของ agent `SUPPLIER_ONBOARDING` (purpose `SUPPLIER_DOC_READ`) เทียบใบสมัครและ `registryData` ตาม BR-AI-29 ความมั่นใจตาม BR-AI-16 และช่องที่ยืนยันทีละช่องตาม BR-AI-30 · `shouldReadDocument` ตัดสินต่อฉบับ (GC-AI-95) · ตัวตรวจใน `src/core/ai-checks/supplier.ts` · ตัวคำนวณ `run_ai_supplier_verify` ใน `scripts/spec_check.py` · expect เทียบแบบส่วนย่อย (checks ที่ระบุต้องอยู่ในผล · confidenceBp ของฟิลด์ที่ระบุ · mustConfirm ทั้งชุด)
+
+```yaml
+# tests/golden/ai-supplier-verify.yaml
+suite: ai-supplier-verify
+note: ผลอ่านของ Supplier Onboarding Agent (BR-AI-29) เทียบใบสมัครและ registryData · ความมั่นใจตาม BR-AI-16 (FAIL → 0 · WARN → 5000 · PASS → ค่า × 100) · minConfidenceBp 9000 · today 2026-11-02 (Asia/Bangkok)
+fixture: { today: "2026-11-02", minConfidenceBp: 9000 }
+types: { COMPANY_CERT: { validityDays: 180, aiReadable: true, aiReadablePayeeTypes: [JURISTIC] }, VAT_CERT: { validityDays: 3650, aiReadable: true, aiReadablePayeeTypes: [JURISTIC] }, BANK_BOOK: { validityDays: 3650, aiReadable: false, aiReadablePayeeTypes: [] } }
+application: { taxId: "0999998020010", branchCode: "00000", payeeType: JURISTIC, nameTh: "บริษัท ราชบุรีคอนสตรัคชั่น จำกัด", address: "99 หมู่ 4 ต.เจดีย์หัก อ.เมือง จ.ราชบุรี 70000" }
+registryData: { name: "บริษัท ราชบุรีคอนสตรัคชั่น จำกัด", address: "99 หมู่ 4 ต.เจดีย์หัก อ.เมือง จ.ราชบุรี 70000", vatRegistered: true }
+cases:
+  - { id: GC-AI-92, title: หนังสือรับรองตรงทะเบียนทุกช่อง, input: { docType: COMPANY_CERT, read: { nameTh: "บจก. ราชบุรีคอนสตรัคชั่น", taxId: "0999998020010", branchCode: "00000", registeredAddress: "99 หมู่ 4 ต.เจดีย์หัก อ.เมือง จ.ราชบุรี 70000", issuedOn: "2026-10-20" }, confidence: { nameTh: 92, taxId: 99, branchCode: 97, registeredAddress: 88, issuedOn: 95 } }, expect: { checks: [{ code: TAXID_CHECKSUM, result: PASS }, { code: TAXID_MISMATCH, result: PASS }, { code: REGISTRY_NAME_MISMATCH, result: PASS }, { code: REGISTRY_ADDRESS_MISMATCH, result: PASS }, { code: DOC_DATE_FUTURE, result: PASS }, { code: DOC_EXPIRED, result: PASS }], confidenceBp: { nameTh: 9200, taxId: 9900, branchCode: 9700, registeredAddress: 8800, issuedOn: 9500 }, mustConfirm: [nameTh, taxId, branchCode, registeredAddress] } }
+  - { id: GC-AI-93, title: เลขที่อ่านได้ไม่ตรงใบสมัคร, input: { docType: COMPANY_CERT, read: { nameTh: "บริษัท ราชบุรีคอนสตรัคชั่น จำกัด", taxId: "0999998020028", branchCode: "00000", registeredAddress: "99 หมู่ 4 ต.เจดีย์หัก อ.เมือง จ.ราชบุรี 70000", issuedOn: "2026-10-20" }, confidence: { nameTh: 95, taxId: 96, branchCode: 97, registeredAddress: 90, issuedOn: 95 } }, expect: { checks: [{ code: TAXID_CHECKSUM, result: PASS }, { code: TAXID_MISMATCH, result: FAIL }], confidenceBp: { taxId: 0 }, mustConfirm: [nameTh, taxId, branchCode] } }
+  - { id: GC-AI-94, title: ที่อยู่ต่างจากทะเบียน และหนังสือรับรองหมดอายุแล้ว, input: { docType: COMPANY_CERT, validityDays: 180, read: { nameTh: "บริษัท ราชบุรีคอนสตรัคชั่น จำกัด", taxId: "0999998020010", branchCode: "00000", registeredAddress: "99/1 หมู่ 4 ต.เจดีย์หัก อ.เมือง จ.ราชบุรี 70000", issuedOn: "2026-05-01" }, confidence: { registeredAddress: 91, issuedOn: 94 } }, expect: { checks: [{ code: REGISTRY_ADDRESS_MISMATCH, result: WARN }, { code: DOC_EXPIRED, result: FAIL }], confidenceBp: { registeredAddress: 5000, issuedOn: 0 }, mustConfirm: [nameTh, taxId, branchCode, registeredAddress, issuedOn] } }
+  - { id: GC-AI-95, title: ประเภทที่ AI ไม่อ่าน หรือผู้รับเงินไม่อยู่ในรายการที่อ่านได้ ไม่เรียก agent, fn: shouldReadDocument, input: [{ docType: BANK_BOOK, payeeType: JURISTIC }, { docType: VAT_CERT, payeeType: INDIVIDUAL }, { docType: VAT_CERT, payeeType: JURISTIC }], expect: [{ read: false, reason: NOT_AI_READABLE }, { read: false, reason: PAYEE_TYPE_EXCLUDED }, { read: true }] }
+```
+
+วิธีคำนวณ (ai-supplier-verify): `0999998020010` และ `0999998020028` ผ่าน BR-TAXID-01 · GC-AI-92 `DOC_EXPIRED` PASS เพราะ 2026-10-20 + 179 = 2027-04-17 ≥ 2026-11-02 · ชื่อ "บจก. ราชบุรีคอนสตรัคชั่น" หลัง normalize (BR-SUP-09) ตรงทะเบียน · `registeredAddress` 8800 < 9000 จึงต้องยืนยัน · GC-AI-93 เลขที่อ่านได้ต่างจากใบสมัคร → `TAXID_MISMATCH` FAIL เพดาน 0 · GC-AI-94 2026-05-01 + 179 = 2026-10-27 < 2026-11-02 → `DOC_EXPIRED` FAIL · ที่อยู่ "99/1" ≠ "99" → WARN เพดาน 5000 · ฟิลด์ที่ไม่มีความมั่นใจนับ 0 · GC-AI-95 BANK_BOOK `aiReadable = false` → ไม่อ่าน · VAT_CERT ของ INDIVIDUAL ไม่อยู่ใน `aiReadablePayeeTypes` → ไม่อ่าน · ของ JURISTIC อ่าน
+
 ## 13. Non-functional requirements
 
 | ID | หมวด | ความต้องการ |
@@ -5706,7 +5728,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       55 ไฟล์ · 696 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       56 ไฟล์ · 700 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge
@@ -8304,6 +8326,7 @@ AI_MODEL_INTAKE=
 AI_MODEL_BRIEF=
 AI_MODEL_INSIGHT=
 AI_MODEL_DOA_DRAFTER=
+AI_MODEL_SUPPLIER_ONBOARDING=
 ```
 
 ## ภาคผนวก C — แผนผังเอกสารต้นทาง → spec

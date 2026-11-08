@@ -8,6 +8,10 @@ import { apOrg, receive, sentPo } from '../support/ap'
 import { makeCtx } from '@/server/context'
 import { confirmInvoiceCoding, submitInvoice } from '@/server/services/ap'
 import { listApInvoices } from '@/server/services/ap/view-list'
+import { aiAgentRunRun } from '@/server/jobs/ai-agent-run'
+import { runMonthlyGrant } from '@/server/services/ai'
+import { requestSupplierDocumentRead } from '@/server/services/ai/agents/supplier-onboarding'
+import { scanFile } from '@/server/services/suppliers/documents'
 
 // Run by tests/e2e/portal-apply.spec.ts against the e2e database only (S7-08): `invite` makes an organization of its own
 // with SUPPLIER on (the phase-2 fixtures), its document types, and an invitation of a new supplier; prints the org code
@@ -35,6 +39,34 @@ if (what === 'invite') {
   if (!r.ok) throw new Error(JSON.stringify(r.error))
   const notice = await prisma.supplierNotice.findFirstOrThrow({ where: { applicationId: r.data.applicationId, templateKey: 'supplier.invitation' } })
   console.log(JSON.stringify({ org: code, url: (notice.data as { url: string }).url, contactId: r.data.contactId, applicationId: r.data.applicationId }))
+} else if (what === 'invite-ai') {
+  // S7-14 (scene 1 with the AI on · fixture): PAY SUPPLIER and AI on, the Supplier Onboarding Agent on with the month's
+  // credits, the company certificate and the VAT registration readable by the AI, an invitation of RATCHABURI's tax id
+  const org = await createP2Org({ modules: ['PAY', 'SUPPLIER', 'AI'] })
+  const at = new Date()
+  await prisma.supplierDocumentType.createMany({
+    data: [
+      { organizationId: org.organizationId, code: 'COMPANY_CERT', nameTh: 'หนังสือรับรองบริษัท', nameEn: 'Company certificate', appliesTo: ['JURISTIC'], required: true, validityDays: 180, aiReadable: true },
+      { organizationId: org.organizationId, code: 'VAT_CERT', nameTh: 'ภ.พ.20', nameEn: 'VAT registration', appliesTo: ['JURISTIC'], required: true, aiReadable: true, aiReadablePayeeTypes: ['JURISTIC'] },
+    ],
+  })
+  await prisma.aiAgentSetting.create({ data: { organizationId: org.organizationId, agent: 'SUPPLIER_ONBOARDING', enabled: true, level: 'L1' } })
+  await runMonthlyGrant(org.organizationId, at)
+  const code = (await prisma.organization.findUniqueOrThrow({ where: { id: org.organizationId }, select: { code: true } })).code.toLowerCase()
+  const r = await inviteSupplier(org.ctxOf('proc_officer', at), { kind: 'NEW', nameTh: 'บริษัท ราชบุรีคอนสตรัคชั่น จำกัด', taxId: '0999998020010', branchCode: '00000', payeeType: 'JURISTIC', contact: { nameTh: 'คุณสมศักดิ์', email: `rcb-${randomUUID().slice(0, 8)}@supplier.test` } }, { idempotencyKey: randomUUID(), sender: null })
+  if (!r.ok) throw new Error(JSON.stringify(r.error))
+  const notice = await prisma.supplierNotice.findFirstOrThrow({ where: { applicationId: r.data.applicationId, templateKey: 'supplier.invitation' } })
+  console.log(JSON.stringify({ org: code, organizationId: org.organizationId, url: (notice.data as { url: string }).url, contactId: r.data.contactId, applicationId: r.data.applicationId }))
+} else if (what === 'ai-read') {
+  // the jobs of the clean scan and the AI's reading, run now for the application's newest document (Inngest is not in e2e)
+  const [organizationId, applicationId] = arg!.split(':')
+  const doc = await prisma.supplierDocument.findFirstOrThrow({ where: { organizationId, applicationId }, orderBy: { createdAt: 'desc' }, select: { id: true, fileId: true } })
+  const now = new Date()
+  await scanFile(organizationId!, doc.fileId, now)
+  const requested = await requestSupplierDocumentRead(organizationId!, doc.id, now)
+  const action = await prisma.agentAction.findFirst({ where: { organizationId, subjectId: applicationId }, orderBy: { createdAt: 'desc' }, select: { id: true } })
+  const read = action ? await aiAgentRunRun({ data: { organizationId, aggregateId: action.id, data: { purpose: 'SUPPLIER_DOC_READ' } } }, { run: (_id, fn) => fn() }) : 'NONE'
+  console.log(JSON.stringify({ requested, read }))
 } else if (what === 'code') {
   const notice = await prisma.supplierNotice.findFirstOrThrow({ where: { contactId: arg!, templateKey: 'supplier.otp' }, orderBy: { createdAt: 'desc' } })
   console.log(JSON.stringify({ code: (notice.data as { code: string }).code }))

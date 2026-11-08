@@ -107,6 +107,35 @@
       "ON_BEHALF": "Filled in by procurement",
       "AI": "Read by AI from a document",
       "REGISTRY": "From the registry"
+    },
+    "ai": {
+      "title": "Values the AI read from the documents",
+      "byAi": "Filled by AI, please check",
+      "taken": "Taken by the supplier",
+      "mustConfirm": "confirm one by one",
+      "confidence": "{percent}% sure",
+      "yes": "VAT registered",
+      "no": "Not VAT registered",
+      "doc": {
+        "COMPANY_CERT": "Company certificate",
+        "VAT_CERT": "VAT registration",
+        "BANK_BOOK": "Bank book page",
+        "OTHER": "Document"
+      },
+      "field": {
+        "nameTh": "Name (Thai)",
+        "nameEn": "Name (English)",
+        "taxId": "Taxpayer ID",
+        "branchCode": "Branch",
+        "address": "Address",
+        "isVatRegistered": "VAT",
+        "bankCode": "Bank",
+        "accountName": "Account name"
+      },
+      "check": {
+        "WARN": "Differs from the registry or what was typed",
+        "FAIL": "Failed a check"
+      }
     }
   },
   "actions": {

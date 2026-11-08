@@ -1,6 +1,6 @@
 import { getEnv } from '@/lib/env'
 import { aiActionsExpire } from './ai-actions-expire'
-import { aiAgentRun } from './ai-agent-run'
+import { aiAgentRun, supplierDocumentAi } from './ai-agent-run'
 import { aiApprovalBrief } from './ai-approval-brief'
 import { chatIntakeAi } from './chat-intake-ai'
 import { chatIntakeImage } from './chat-intake-image'
@@ -70,6 +70,7 @@ export const functions = [
   // S7-06: the central scan of uploaded files, S7's listener of it, and the daily expiry of supplier documents
   fileScan,
   supplierDocumentScannedJob,
+  supplierDocumentAi,
   supplierDocumentExpiry,
   supplierApplicationSla,
   poAckReset,

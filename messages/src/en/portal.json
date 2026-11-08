@@ -201,7 +201,42 @@
       "CONFLICT_VERSION": "The application was just changed elsewhere. Please check the latest and save again.",
       "INVALID_STATE_TRANSITION": "This application can no longer be changed.",
       "ACCOUNT": "The account number is not valid for this bank.",
-      "FORBIDDEN": "You may not do this."
+      "FORBIDDEN": "You may not do this.",
+      "AI_REVIEW_PENDING": "Some values filled by AI wait for your confirmation. Go to the company or documents step and tick them before sending.",
+      "AI_NOTHING_TAKEN": "Tick at least one value to take"
+    },
+    "ai": {
+      "title": "Values the AI read from your documents",
+      "intro": "Check each value against the document, tick the right ones and take them. A value you do not tick leaves what you typed. You always type the account number yourself.",
+      "byAi": "Filled by AI, please check",
+      "confidence": "AI {percent}% sure",
+      "mustConfirm": "confirm one by one",
+      "taken": "Taken",
+      "yes": "VAT registered",
+      "no": "Not VAT registered",
+      "takeTicked": "Take the ticked values",
+      "takeRest": "Confirm all the other values",
+      "done": "The AI values were taken. Check the rest of the form.",
+      "doc": {
+        "COMPANY_CERT": "Company certificate",
+        "VAT_CERT": "VAT registration",
+        "BANK_BOOK": "Bank book page",
+        "OTHER": "Document"
+      },
+      "field": {
+        "nameTh": "Name (Thai)",
+        "nameEn": "Name (English)",
+        "taxId": "Taxpayer ID",
+        "branchCode": "Branch",
+        "address": "Address",
+        "isVatRegistered": "VAT",
+        "bankCode": "Bank",
+        "accountName": "Account name"
+      },
+      "check": {
+        "WARN": "This value differs from the registry or what was typed. Check it again.",
+        "FAIL": "This value failed a check (invalid number, not the application's, or an expired document). Do not take it until the document is checked."
+      }
     }
   },
   "profile": {

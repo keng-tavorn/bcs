@@ -18,7 +18,9 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { enqueueSupplierNotice } from '@/server/notifications/supplier-notices'
 import { PORTAL_SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-templates-portal'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
-import { assertNoPendingAiReview } from '../ai/assist-contract'
+import { AiAssistInput, applyAiAssist, assertNoPendingAiReview } from '../ai/assist-contract'
+// S7-14: what the Supplier Onboarding Agent read off a document, by path of the application, for aiAssist (BR-AI-30)
+import './ai-assist'
 import { startRoute } from '../approvals/route'
 import { requireModule } from '../modules'
 import { issueDocumentNumber } from '../numbering'
@@ -344,7 +346,7 @@ async function editor(tx: TenantTx, ctx: Ctx, app: { readonly id: string; readon
   return { side: 'ON_BEHALF' }
 }
 
-const UpdateInput = ApplicationRef.extend({ fields: ApplicationFields, duplicateReasons: DuplicateReasons.optional() })
+const UpdateInput = ApplicationRef.extend({ fields: ApplicationFields, duplicateReasons: DuplicateReasons.optional(), aiAssist: AiAssistInput.optional() })
 
 export const updateApplicationCommand = defineCommand({
   name: 'supplierApplication.update',
@@ -377,13 +379,15 @@ export const updateApplicationCommand = defineCommand({
       }
     }
     const changed = Object.keys(f).filter((k) => f[k as keyof typeof f] !== undefined)
-    if (changed.length === 0) return fail('VALIDATION_FAILED', 'nothing changed', { field: 'fields', reason: 'NO_CHANGE' })
+    if (changed.length === 0 && !input.aiAssist) return fail('VALIDATION_FAILED', 'nothing changed', { field: 'fields', reason: 'NO_CHANGE' })
     // the duplicate rules on what the application would become; reasons are asked for at submit (a draft may wait)
     const next = { taxId: (data.taxId as string | null | undefined) ?? (data.taxId === null ? null : app.taxId), branchCode: (data.branchCode as string | undefined) ?? app.branchCode, nameTh: (data.nameTh as string | undefined) ?? app.nameTh, email: (data.email as string | null | undefined) ?? app.email }
     const reasons = { ...Object.fromEntries((app.duplicateWarnings as unknown as StoredWarning[]).filter((w) => w.reason).map((w) => [w.code, w.reason!])), ...(input.duplicateReasons ?? {}) }
     const checked = await duplicateCheck(tx, next, app.id, reasons, false)
     if (!checked.ok) return checked
-    const sources = { ...(app.fieldSources as Record<string, string>), ...Object.fromEntries(changed.map((k) => [k, who.side === 'ON_BEHALF' ? 'ON_BEHALF' : 'MANUAL'])) }
+    // a value the person took from the AI's reading is labelled AI (BR-AI-30 · the label only, a person confirmed it)
+    const fromAi = new Set(input.aiAssist?.confirmedPaths ?? [])
+    const sources = { ...(app.fieldSources as Record<string, string>), ...Object.fromEntries(changed.map((k) => [k, fromAi.has(k) ? 'AI' : who.side === 'ON_BEHALF' ? 'ON_BEHALF' : 'MANUAL'])) }
     const moved = app.status === 'INVITED' ? { status: 'DRAFT' as const } : {}
     const row = await tx.supplierApplication.update({
       where: { id: app.id },
@@ -398,10 +402,16 @@ export const updateApplicationCommand = defineCommand({
       },
       select: { version: true },
     })
+    // after the application is written: what the person kept is compared with what the AI read (a refusal rolls it all back)
+    const assist = await applyAiAssist(tx, ctx, { type: 'SUPPLIER_APPLICATION', id: app.id }, input.aiAssist)
+    if (!assist.ok) return { ok: false, error: assist.error }
     return {
       ok: true,
       result: { applicationId: app.id, version: row.version },
-      events: [{ type: 'supplier_application.updated', aggregateType: 'SupplierApplication', aggregateId: app.id, data: { fields: changed, by: who.side, warnings: checked.warnings.map((w) => w.code) } }],
+      events: [
+        ...(changed.length ? [{ type: 'supplier_application.updated', aggregateType: 'SupplierApplication', aggregateId: app.id, data: { fields: changed, by: who.side, warnings: checked.warnings.map((w) => w.code) } }] : []),
+        ...assist.data,
+      ],
     }
   },
 })

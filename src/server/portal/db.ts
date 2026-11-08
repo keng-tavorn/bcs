@@ -42,6 +42,8 @@ export const PORTAL_MODELS: PortalModel[] = [
   // S7-12: the supplier's own payments, paid or failed, and its 50 ทวิ (FR-PAY-103 AC8 · masked by the query)
   { model: 'paymentRunItem', where: (a) => (a.supplierId ? { supplierId: a.supplierId, status: { in: ['PAID', 'FAILED'] } } : NONE) },
   { model: 'whtCertificate', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : NONE) },
+  // S7-14: what the Supplier Onboarding Agent read off the documents of the contact's own application (BR-AI-30)
+  { model: 'agentAction', where: (a) => (a.applicationId ? { purpose: 'SUPPLIER_DOC_READ', subjectType: 'SUPPLIER_APPLICATION', subjectId: a.applicationId } : NONE) },
 ]
 
 export const PORTAL_MODEL_NAMES: ReadonlySet<string> = new Set(PORTAL_MODELS.map((m) => m.model))

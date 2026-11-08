@@ -1,3 +1,4 @@
+import { aiReadingOf, type AiReading } from './ai-assist'
 import { BANKS } from '@/core/bankfile/banks'
 import type { Result } from '@/core/result'
 import { authorize } from '@/server/authz'
@@ -263,3 +264,26 @@ export async function listInvitableSuppliers(ctx: Ctx): Promise<Result<readonly 
 
 /** The banks an account may be at (ADR-131), for the bank step of the form */
 export const bankChoices = (): readonly { readonly code: string; readonly nameTh: string }[] => BANKS.map((b) => ({ code: b.code, nameTh: b.nameTh }))
+
+/**
+ * S7-14 (FR-AI-304 AC2): what the Supplier Onboarding Agent read off the application's documents, for its page — the
+ * same reader as the application (supplier.application.view), read only; the values go in by the supplier's portal or
+ * procurement's own form
+ */
+export async function listApplicationAiReadings(ctx: Ctx, applicationId: string): Promise<AiReading[]> {
+  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+    if (!(await requireModule(ctx, 'SUPPLIER', tx)).ok) return []
+    const may = await authorize(tx, ctx, 'supplier.application.view', { assigneeMemberIds: await assigneesOf(tx, applicationId) })
+    if (!may.ok) return []
+    const actions = await tx.agentAction.findMany({
+      where: { purpose: 'SUPPLIER_DOC_READ', subjectType: 'SUPPLIER_APPLICATION', subjectId: applicationId, status: 'DRAFT' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 20,
+      select: { id: true, createdAt: true, review: true, fieldConfidence: true, verification: true, inputRefs: true },
+    })
+    const docIds = actions.map((a) => (a.inputRefs as { documentId?: string } | null)?.documentId).filter((id): id is string => Boolean(id))
+    const docs = docIds.length ? await tx.supplierDocument.findMany({ where: { id: { in: docIds }, applicationId }, select: { id: true, documentTypeCode: true, file: { select: { fileName: true } } } }) : []
+    const docOf = new Map(docs.map((d) => [d.id, d]))
+    return actions.map((a) => aiReadingOf(a, docOf))
+  })
+}

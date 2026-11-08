@@ -3504,6 +3504,7 @@
         "closed": "Closed for bids",
         "concluded": "RFI concluded",
         "created": "RFx created",
+        "evaluating": "Bids under evaluation",
         "extended": "Close extended",
         "lines_changed": "RFx lines changed",
         "opened": "Opened for bids",
@@ -3554,7 +3555,13 @@
         "discarded": "Proposed risk tier values discarded",
         "proposed": "New risk tier values proposed"
       },
+      "score": {
+        "saved": "Scores saved as a draft",
+        "submitted": "Scores sent"
+      },
       "scorecard": {
+        "evaluator_added": "Evaluator added",
+        "evaluator_recused": "Evaluator stepped aside",
         "locked": "Criteria locked",
         "recomputed": "Scores recomputed",
         "revealed": "Scores revealed",
@@ -3713,6 +3720,7 @@
       "risk_questionnaire": "Risk questionnaire",
       "risk_review": "Reassessments",
       "risk_tier": "Risk tiers",
+      "score": "Scoring",
       "scorecard": "Scoring",
       "security": "Security",
       "supplier": "Suppliers",
@@ -5870,6 +5878,7 @@
     "RISK_QUESTIONNAIRE_NOT_PUBLISHED": "No supplier risk questionnaire is in effect yet. Please contact your administrator.",
     "RISK_TIER_NOT_CONFIGURED": "The risk tiers are not set yet. Please contact your administrator.",
     "SCORECARD_INCOMPLETE": "The criteria must weigh 100% in all and the scorecard needs at least {min} evaluators",
+    "SCORES_INCOMPLETE": "{missing} scores are still missing (every criterion of every bid)",
     "SOD_VIOLATION": "Not allowed because it breaks segregation of duties ({rule})",
     "STEP_UP_LOCKED": "Too many wrong PINs. Try again after {time}",
     "STEP_UP_REQUIRED": "This action requires PIN confirmation",
@@ -11855,6 +11864,66 @@
     },
     "signedInAs": "Signed in as {name}",
     "skipToContent": "Skip to content"
+  },
+  "sourcing": {
+    "score": {
+      "bid": "Bid",
+      "cancel": "Cancel",
+      "comment": "Comment (optional)",
+      "commentOf": "{criterion} comment on {supplier}",
+      "criteria": "Criteria and weights",
+      "errors": {
+        "FAILED": "That did not work. Please try again",
+        "FORBIDDEN": "You may not do this",
+        "INVALID_STATE_TRANSITION": "This cannot be done in the current state",
+        "MODULE_DISABLED": "Sourcing is not open for this organization",
+        "SCORES_INCOMPLETE": "{missing} scores are still missing",
+        "SOD_VIOLATION": "You requested a source line or created the RFx, so you may not score it",
+        "VALIDATION_FAILED": "Something is not valid. Please check again"
+      },
+      "evaluatorStatus": {
+        "ASSIGNED": "Not sent",
+        "RECUSED": "Stepped aside",
+        "SUBMITTED": "Sent"
+      },
+      "evaluators": "Evaluators",
+      "intro": "Score each bid on each criterion from 0 to 100 on your own. Other evaluators do not see your scores until everyone has sent theirs.",
+      "invalid": "Type a whole number from 0 to 100",
+      "mineRecused": "You stepped aside from this evaluation",
+      "mineSent": "You have sent your scores; waiting for the other evaluators",
+      "net": "Before VAT",
+      "notClosed": "Bids can be scored once the RFx is closed",
+      "notEvaluator": "You are not an evaluator of this RFx: you see its state, and the result once revealed",
+      "partial": "Not every line offered",
+      "priceComputed": "Computed from the amount before VAT",
+      "priceScore": "Price score",
+      "rank": "Rank",
+      "ranking": "Totals and ranking",
+      "recuse": "Step aside from scoring",
+      "recuseBody": "Say why, for example an interest in one of the suppliers. Your scores will not count.",
+      "recuseConfirm": "Step aside",
+      "recuseReason": "Reason",
+      "recuseTitle": "Step aside from scoring",
+      "recused": "You stepped aside",
+      "revealedNow": "Scores sent, and the totals are revealed",
+      "save": "Save draft",
+      "saved": "Draft saved",
+      "scoreOf": "{criterion} score of {supplier}",
+      "status": {
+        "DRAFT": "Not open",
+        "LOCKED": "Waiting for every evaluator",
+        "REVEALED": "Scores revealed"
+      },
+      "submit": "Send scores",
+      "submitBody": "Sent scores cannot change. They are revealed once every evaluator has sent theirs.",
+      "submitConfirm": "Send scores",
+      "submitTitle": "Send all your scores",
+      "submitted": "Scores sent",
+      "supplier": "Supplier",
+      "title": "Score {number}",
+      "total": "Total",
+      "weight": "{name} {percent}%"
+    }
   },
   "supplierDocs": {
     "documents": {

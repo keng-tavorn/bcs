@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { checkSod, paymentRunSodExtra, type ApprovalSubject, type OrgAuthorityChangeKind, type SodAction } from '@/core/sod'
 import { loadYaml, pick } from './doa-fixtures'
 
-// tests/golden/sod.yaml (spec §7.5): GC-SOD-01 to GC-SOD-16 (GC-SOD-10 on: the payment run and the bank account change of S9).
+// tests/golden/sod.yaml (spec §7.5): GC-SOD-01 to GC-SOD-16 (GC-SOD-10 on: the payment run and the bank account change of S9),
+// GC-SOD-17 (S7) and GC-SOD-20 (S10-08: who may not score an RFx · BR-SOD-14).
 
 interface SodCase {
   id: string
   title?: string
   input: {
-    action: 'DECIDE_APPROVAL' | 'POST_GR' | 'PROPOSE_ORG_AUTHORITY_CHANGE' | 'PREPARE_PAYMENT'
+    action: 'DECIDE_APPROVAL' | 'POST_GR' | 'PROPOSE_ORG_AUTHORITY_CHANGE' | 'PREPARE_PAYMENT' | 'SCORE_RFX'
     actor: string
     requester?: string
     approvers?: string[]
@@ -20,6 +21,8 @@ interface SodCase {
     payDate?: string
     recentBankChangeDays?: number
     bankChanges?: Array<{ proposer: string; effectiveOn: string }>
+    rfxCreator?: string
+    sourceRequesters?: string[]
   }
   expect: Record<string, unknown>
 }
@@ -28,6 +31,7 @@ const suite = loadYaml<{ sodPolicy: { approverMayReceive: boolean; requesterMayR
 
 function action(i: SodCase['input']): SodAction {
   const recentBankChanges = i.bankChanges ? { payDate: i.payDate!, recentBankChangeDays: i.recentBankChangeDays!, changes: i.bankChanges.map((b) => ({ proposerMemberId: b.proposer, effectiveOn: b.effectiveOn })) } : undefined
+  if (i.action === 'SCORE_RFX') return { kind: 'SCORE_RFX', actorMemberId: i.actor, rfxCreatorMemberIds: i.rfxCreator ? [i.rfxCreator] : [], sourceRequesterMemberIds: i.sourceRequesters ?? [] }
   if (i.action === 'PREPARE_PAYMENT') return { kind: 'PREPARE_PAYMENT', actorMemberId: i.actor, recentBankChanges: recentBankChanges! }
   if (i.action === 'POST_GR') return { kind: 'POST_GR', actorMemberId: i.actor, requesterMemberIds: i.requester ? [i.requester] : [], approverMemberIds: i.approvers ?? [] }
   if (i.action === 'PROPOSE_ORG_AUTHORITY_CHANGE') return { kind: 'PROPOSE_ORG_AUTHORITY_CHANGE', changeKind: i.kind!, actorMemberId: i.actor, beneficiaryMemberId: i.beneficiary ?? null }

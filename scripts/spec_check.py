@@ -537,6 +537,8 @@ def run_sod(d):
             elif subj == "PURCHASE_ORDER" and i["actor"] == i.get("poCreator"): rule = "BR-SOD-03"
         elif i["action"] == "PREPARE_PAYMENT":
             if sod_recent_change(i): rule = "BR-SOD-10"
+        elif i["action"] == "SCORE_RFX":  # S10-08: the RFx's creator and the requesters of its source lines
+            if i["actor"] == i.get("rfxCreator") or i["actor"] in i.get("sourceRequesters", []): rule = "BR-SOD-14"
         elif i["action"] == "POST_GR":
             if not st["approverMayReceive"] and i["actor"] in i.get("approvers", []): rule = "BR-SOD-02"
             elif i["actor"] == i.get("requester") and not st["requesterMayReceive"]: rule = "BR-SOD-07"

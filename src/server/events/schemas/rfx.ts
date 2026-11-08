@@ -26,6 +26,8 @@ defineEvents('RfxEvent', {
   // a supplier's question: its id, never its words (BR-RFX-04)
   'rfx.question_asked': { schema: z.object({ questionId: z.uuid(), inviteId: z.uuid() }) },
   'rfx.question_answered': { schema: z.object({ questionId: z.uuid(), visibility: z.enum(['ALL', 'ASKER']), notified: z.int().min(0), originalCommentId: z.uuid().nullable(), reasonCommentId: z.uuid().nullable() }) },
+  // S10-08: the first score saved (or an evaluator added) after the close
+  'rfx.evaluating': { schema: z.object({ by: z.enum(['SCORE', 'EVALUATOR_ADDED']) }) },
   'rfx.concluded': { schema: z.object({ requestLineIds: z.array(z.uuid()) }) },
   'rfx.cancelled': { schema: z.object({ reasonCommentId: z.uuid(), requestLineIds: z.array(z.uuid()) }) },
   'rfx.reopened': { schema: z.object({ fromRfxEventId: z.uuid(), requestLineIds: z.array(z.uuid()) }) },
@@ -44,15 +46,24 @@ defineEvents('RfxInvite', {
   'rfx_invite.supplier_linked': { schema: z.object({ rfxEventId: z.uuid(), applicationId: z.uuid(), supplierId: z.uuid() }) },
 })
 
+const RankingRow = z.object({ bidId: z.uuid(), totalBp: z.int().min(0).max(BASIS_POINTS_WHOLE) })
+
 defineEvents('Scorecard', {
   'scorecard.updated': {
     schema: z.object({ rfxEventId: z.uuid(), criteria: z.array(z.object({ code: z.string(), weightBp: z.int().min(0).max(BASIS_POINTS_WHOLE), kind: z.enum(['PRICE', 'QUALITY']) })).min(1), evaluatorMemberIds: z.array(z.uuid()) }),
   },
   'scorecard.locked': { schema: z.object({ rfxEventId: z.uuid() }) },
   // S10-04 reveals an RFQ priced only at its close; S10-08 adds the ranking of the evaluators' scores
-  'scorecard.revealed': { schema: z.object({ rfxEventId: z.uuid(), priceOnly: z.boolean() }) },
+  // S10-08: the ranking as revealed, best first (bid and total in basis points), so it stays readable after a recompute
+  'scorecard.revealed': { schema: z.object({ rfxEventId: z.uuid(), priceOnly: z.boolean(), ranking: z.array(RankingRow).optional() }) },
   // S10-06 (BR-RFX-10): a bid disqualified after the reveal
-  'scorecard.recomputed': { schema: z.object({ rfxEventId: z.uuid(), bidId: z.uuid(), reason: z.enum(['DISQUALIFIED']) }) },
+  'scorecard.recomputed': { schema: z.object({ rfxEventId: z.uuid(), bidId: z.uuid(), reason: z.enum(['DISQUALIFIED']), ranking: z.array(RankingRow).optional() }) },
+  // S10-08 (BR-RFX-09 · BR-SOD-14): evaluators added (after the close with a reason the award's facts show), one who
+  // stepped aside, and the scores saved and sent — never a score in the data before the reveal
+  'scorecard.evaluator_added': { schema: z.object({ rfxEventId: z.uuid(), memberIds: z.array(z.uuid()).min(1), afterClose: z.boolean(), reasonCommentId: z.uuid().optional() }) },
+  'scorecard.evaluator_recused': { schema: z.object({ rfxEventId: z.uuid(), memberId: z.uuid() }) },
+  'score.saved': { schema: z.object({ rfxEventId: z.uuid(), entries: z.int().min(0) }) },
+  'score.submitted': { schema: z.object({ rfxEventId: z.uuid(), memberId: z.uuid() }) },
 })
 
 defineEvents('Bid', {

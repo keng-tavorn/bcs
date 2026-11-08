@@ -23,6 +23,7 @@ import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from 
 import { enabledModules, requireModule } from '../modules'
 import { issueDocumentNumber } from '../numbering'
 import { freeLines } from '../procurement/pool'
+import { rankingData, rankingOf } from './ranking'
 import { absorb, effects, inviteContactOf, mailInvites, orgCodeOf, sendInvitation, supplierSnapshot, type Effects, type RfxMailFacts } from './invites'
 
 // The life of an RFx (S10-04 · ADR-201 · BR-RFX-01 to 03 05 16 18 · FR-SRC-201 AC1 AC2 AC3 AC5 AC6): PROCUREMENT makes an
@@ -828,10 +829,20 @@ async function closeNow(tx: TenantTx, ctx: Ctx, rfx: Rfx, early: boolean): Promi
   out.events.push({ type: 'rfx.closed', aggregateType: 'RfxEvent', aggregateId: rfx.id, data: { bidCount, declinedCount, early } })
   // an RFQ priced only (one PRICE criterion) needs no evaluator: its ranking is the price, seen at the close (BR-RFX-09)
   if (rfx.scorecardId) {
-    const card = await tx.scorecard.findUnique({ where: { id: rfx.scorecardId }, select: { id: true, status: true, criteria: { select: { kind: true } } } })
-    if (card && card.status === 'LOCKED' && card.criteria.every((c) => c.kind === 'PRICE')) {
+    const card = await tx.scorecard.findUnique({ where: { id: rfx.scorecardId }, select: { id: true, status: true, criteria: { select: { kind: true } }, evaluators: { where: { status: 'ASSIGNED' }, select: { memberId: true } } } })
+    const priceOnly = card !== null && card.criteria.every((c) => c.kind === 'PRICE')
+    if (card && card.status === 'LOCKED' && priceOnly) {
+      const ranking = await rankingOf(tx, card.id)
       await tx.scorecard.update({ where: { id: card.id }, data: { status: 'REVEALED', revealedAt: ctx.now, version: { increment: 1 } } })
-      out.events.push({ type: 'scorecard.revealed', aggregateType: 'Scorecard', aggregateId: card.id, data: { rfxEventId: rfx.id, priceOnly: true } })
+      out.events.push({ type: 'scorecard.revealed', aggregateType: 'Scorecard', aggregateId: card.id, data: { rfxEventId: rfx.id, priceOnly: true, ranking: rankingData(ranking) } })
+    }
+    // S10-08: the RFx's creator, and its evaluators who score now (BR-NOTI-11 · rfx.closed_internal)
+    const told = new Set<string>()
+    const recipients: Array<[string, boolean]> = [[rfx.createdById, false], ...(card && !priceOnly ? card.evaluators.map((e): [string, boolean] => [e.memberId, true]) : [])]
+    for (const [memberId, score] of recipients) {
+      if (told.has(memberId)) continue
+      told.add(memberId)
+      out.notifications.push({ recipientMemberId: memberId, templateKey: 'rfx.closed_internal', data: { rfxEventId: rfx.id, number: closed.number, title: closed.title, score }, urgency: 'IMMEDIATE', dedupeKey: `rfx.closed_internal:${rfx.id}:${memberId}`, subjectType: 'RfxEvent', subjectId: rfx.id })
     }
   }
   absorb(out, await mailInvites(tx, ctx, { ...mailFacts(closed) }, ['BID_SUBMITTED'], SOURCING_SUPPLIER_TEMPLATES.closed, 'closed', { closedAt: ctx.now.toISOString() }))

@@ -164,7 +164,8 @@
     "risk_questionnaire": "Risk questionnaire",
     "risk_assessment": "Supplier risk assessments",
     "review_task": "Risk reviewer tasks",
-    "risk_review": "Reassessments"
+    "risk_review": "Reassessments",
+    "score": "Scoring"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -682,7 +683,8 @@
       "reopened": "RFx reopened",
       "question_asked": "Supplier asked a question",
       "question_answered": "Question answered",
-      "concluded": "RFI concluded"
+      "concluded": "RFI concluded",
+      "evaluating": "Bids under evaluation"
     },
     "rfx_invite": {
       "created": "Supplier invited",
@@ -696,7 +698,9 @@
       "updated": "Criteria and evaluators set",
       "locked": "Criteria locked",
       "revealed": "Scores revealed",
-      "recomputed": "Scores recomputed"
+      "recomputed": "Scores recomputed",
+      "evaluator_added": "Evaluator added",
+      "evaluator_recused": "Evaluator stepped aside"
     },
     "bid": {
       "disqualified": "Bid disqualified",
@@ -742,6 +746,10 @@
     },
     "risk_review": {
       "completed": "Reassessment done"
+    },
+    "score": {
+      "saved": "Scores saved as a draft",
+      "submitted": "Scores sent"
     }
   }
 }

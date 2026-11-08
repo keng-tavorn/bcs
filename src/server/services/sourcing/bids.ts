@@ -17,6 +17,7 @@ import { SOURCING_SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-tem
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { requireModule } from '../modules'
 import { absorb, effects, orgCodeOf, portalLoginUrl } from './invites'
+import { rankingData, rankingOf } from './ranking'
 import { gate, lockedRfx } from './rfx'
 
 // Bids (S10-06 · ADR-203 ADR-204 · BR-RFX-03 06 07 08 10 · FR-SRC-202 AC1 to AC4 AC6): the contact of an invited, ACTIVE
@@ -422,7 +423,9 @@ export const disqualifyBidCommand = defineCommand({
       const card = await tx.scorecard.findUnique({ where: { id: rfx.scorecardId }, select: { id: true, status: true } })
       if (card?.status === 'REVEALED') {
         await tx.scorecard.update({ where: { id: card.id }, data: { version: { increment: 1 } } })
-        events.push({ type: 'scorecard.recomputed', aggregateType: 'Scorecard', aggregateId: card.id, data: { rfxEventId: rfx.id, bidId: bid.id, reason: 'DISQUALIFIED' } })
+        // the ranking without the bid; the one before stays in the event of the reveal (AC6)
+        const ranking = await rankingOf(tx, card.id)
+        events.push({ type: 'scorecard.recomputed', aggregateType: 'Scorecard', aggregateId: card.id, data: { rfxEventId: rfx.id, bidId: bid.id, reason: 'DISQUALIFIED', ranking: rankingData(ranking) } })
       }
     }
     return { ok: true, result: { bidId: bid.id }, events }

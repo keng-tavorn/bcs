@@ -164,7 +164,8 @@
     "risk_questionnaire": "แบบประเมินความเสี่ยง",
     "risk_assessment": "แบบประเมินความเสี่ยงคู่ค้า",
     "review_task": "งานผู้ตรวจความเสี่ยง",
-    "risk_review": "การประเมินซ้ำ"
+    "risk_review": "การประเมินซ้ำ",
+    "score": "การให้คะแนน"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -682,7 +683,8 @@
       "reopened": "เปิด RFx ใหม่",
       "question_asked": "ผู้ขายถามคำถาม",
       "question_answered": "ตอบคำถามผู้ขาย",
-      "concluded": "สรุปผล RFI"
+      "concluded": "สรุปผล RFI",
+      "evaluating": "เริ่มพิจารณาข้อเสนอ"
     },
     "rfx_invite": {
       "created": "เชิญผู้ขายเข้า RFx",
@@ -696,7 +698,9 @@
       "updated": "ตั้งเกณฑ์และผู้ประเมิน",
       "locked": "ล็อกเกณฑ์ให้คะแนน",
       "revealed": "เปิดเผยคะแนน",
-      "recomputed": "คำนวณคะแนนใหม่"
+      "recomputed": "คำนวณคะแนนใหม่",
+      "evaluator_added": "เพิ่มผู้ประเมิน",
+      "evaluator_recused": "ผู้ประเมินถอนตัว"
     },
     "bid": {
       "disqualified": "ตัดสิทธิ์ข้อเสนอ",
@@ -742,6 +746,10 @@
     },
     "risk_review": {
       "completed": "การประเมินซ้ำเสร็จ"
+    },
+    "score": {
+      "saved": "บันทึกร่างคะแนน",
+      "submitted": "ส่งคะแนน"
     }
   }
 }

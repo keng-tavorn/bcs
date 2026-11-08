@@ -289,6 +289,8 @@ export const RFX_SUMMARY_MAX = 1_000
 export const RFX_QUESTION_MAX = 2_000
 /** S10-07 (BR-RFX-07 · BR-PORTAL-07): the files a supplier attaches to one bid (its quotation, catalogue, an RFI's answer) */
 export const BID_FILES_MAX = 10
+/** S10-08: the scores one save or send of an evaluator carries at most (bids × quality criteria) */
+export const RFX_SCORE_ENTRIES_MAX = 1_000
 // S11-04 (BR-RSK-01 · BR-RSK-02): the size of what an administrator types into the risk questionnaire and the tiers —
 // limits of input, not thresholds (the thresholds are the organization's RiskTier rows)
 /** Characters of a question or of the reason of a change */

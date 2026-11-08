@@ -436,6 +436,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `admin.supplierDocumentTypes` | ORG_ADMIN (ORG) — เพิ่ม แก้ และปิดประเภทเอกสารผู้ขาย (S7-06 · BR-SDOC-01) |
 | `sourcing.view` | ผู้ขอ (OWN) · ผู้ได้รับงาน (ASSIGNED) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR (ORG) — RFx ผู้ขอและผู้ติดตามของคำขอต้นทางเห็นสถานะ ผู้ได้รับงาน (ผู้ประเมิน ผู้อนุมัติผล) เห็นที่ได้รับ · ก่อนปิดรับไม่มีใครเห็นราคาเมื่อ `sealed` (S10-04 · BR-RFX-06) |
 | `sourcing.manage` | PROCUREMENT (ORG) — สร้าง แก้ เชิญ ตั้ง Scorecard เปิด แก้ไขหลังเปิด ขยาย ปิดก่อน ยกเลิก และเปิดใหม่ RFx (S10-04 · BR-RFX-01 ถึง 05) |
+| `sourcing.score` | ผู้ได้รับงาน (ASSIGNED) — ผู้ประเมินที่ถูกตั้งใน Scorecard ของ RFx ให้คะแนน ส่งคะแนน และถอนตัว (ผู้ขอของบรรทัดต้นทางและผู้สร้าง RFx ตั้งเป็นผู้ประเมินไม่ได้ · BR-SOD-14 · S10-08 · BR-RFX-09) |
 | `admin.riskTiers` | ORG_ADMIN, DOA_ADMIN (ORG) — เสนอ ยืนยัน และยกเลิกเกณฑ์ระดับความเสี่ยงและนโยบายด่าน (`admin.riskTiers.*` `admin.riskPolicy.*`) ผู้ยืนยันต้องไม่ใช่ผู้เสนอ (`SAME_EDITOR`) · ORG_ADMIN ไม่ได้เมื่อ DOA ฉบับที่มีผลแยกผู้ดูแล DOA (S11-04 · BR-RSK-02 · BR-WF-17) |
 | `admin.riskQuestionnaire` | ORG_ADMIN, DOA_ADMIN (ORG) — ร่าง แก้ ส่ง เผยแพร่ และตีกลับฉบับแบบประเมิน ผู้เผยแพร่ต้องไม่ใช่ผู้ส่ง (`SAME_EDITOR`) · ORG_ADMIN ไม่ได้เมื่อ DOA ฉบับที่มีผลแยกผู้ดูแล DOA (S11-04 · BR-RSK-02 · BR-WF-17) |
 | `risk.assessment.view` | PROCUREMENT FINANCE EXECUTIVE AUDITOR (ORG) — อ่านแฟ้มใบประเมิน คำตอบ ที่มาของคำตอบ และ metadata ของหลักฐาน (S11-05 · BR-RSK-14 · ผู้ถือ slot ของผู้ตรวจและ role REVIEWER_* เพิ่มใน S11-06) |
@@ -1959,6 +1960,8 @@ cases:
   - { id: GC-SOD-15, title: การเปลี่ยนบัญชีเกิน 30 วันแล้ว, input: { action: PREPARE_PAYMENT, actor: fin_ap1, payDate: "2026-10-16", recentBankChangeDays: 30, bankChanges: [{ proposer: fin_ap1, effectiveOn: "2026-09-15" }] }, expect: { ok: true } }
   - { id: GC-SOD-16, title: ผู้เสนอเปลี่ยนบัญชีภายใน 30 วันอนุมัติรอบที่จ่ายเข้าบัญชีนั้น, input: { action: DECIDE_APPROVAL, subject: PAYMENT_RUN, actor: dm_fin, requester: fin_tre1, invoiceRecorders: [fin_ap1], payDate: "2026-10-16", recentBankChangeDays: 30, bankChanges: [{ proposer: dm_fin, effectiveOn: "2026-09-20" }] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-10 } }
   - { id: GC-SOD-17, title: ผู้เชิญอนุมัติใบสมัครผู้ขายเอง, input: { action: DECIDE_APPROVAL, subject: SUPPLIER_APPLICATION, actor: dm_proc, requester: dm_proc }, expect: { error: SOD_VIOLATION, rule: BR-SOD-11 } }
+  # S10-08 (BR-SOD-14): who may not score an RFx — its creator and the requesters of its source lines (GC-SOD-19 is S10-10's)
+  - { id: GC-SOD-20, title: ผู้ขอของบรรทัดต้นทางเป็นผู้ประเมิน, input: { action: SCORE_RFX, actor: req_con, rfxCreator: proc_officer, sourceRequesters: [req_con, asst_con] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-14 } }
 ```
 
 ### 7.6 รักษาการ (Delegation)
@@ -6057,6 +6060,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `ALREADY_INVITED` | 409 | เชิญผู้ขายรายนี้ใน RFx นี้แล้ว |
 | `SUPPLIER_FLAGGED` | 422 | ผู้ขายรายนี้ถูกติดธงสถานะทะเบียน ({flag}) |
 | `SCORECARD_INCOMPLETE` | 422 | ต้องมีเกณฑ์ที่น้ำหนักรวม 100% และผู้ประเมินอย่างน้อย {min} คน |
+| `SCORES_INCOMPLETE` | 422 | ยังให้คะแนนไม่ครบ {missing} ช่อง (ทุกเกณฑ์ของทุกข้อเสนอ) |
 | `QUESTION_CUTOFF_PASSED` | 409 | พ้นกำหนดรับคำถามเมื่อ {cutoff} |
 | `RFX_CLOSED` | 409 | RFx นี้ปิดรับข้อเสนอแล้วเมื่อ {closesAt} |
 | `SUPPLIER_NOT_APPROVED` | 422 | ยื่นข้อเสนอได้เมื่อการสมัครเป็นผู้ขายได้รับอนุมัติแล้ว |

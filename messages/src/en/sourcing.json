@@ -1,0 +1,60 @@
+{
+  "score": {
+    "title": "Score {number}",
+    "intro": "Score each bid on each criterion from 0 to 100 on your own. Other evaluators do not see your scores until everyone has sent theirs.",
+    "notClosed": "Bids can be scored once the RFx is closed",
+    "notEvaluator": "You are not an evaluator of this RFx: you see its state, and the result once revealed",
+    "status": {
+      "DRAFT": "Not open",
+      "LOCKED": "Waiting for every evaluator",
+      "REVEALED": "Scores revealed"
+    },
+    "evaluators": "Evaluators",
+    "evaluatorStatus": {
+      "ASSIGNED": "Not sent",
+      "SUBMITTED": "Sent",
+      "RECUSED": "Stepped aside"
+    },
+    "criteria": "Criteria and weights",
+    "weight": "{name} {percent}%",
+    "priceComputed": "Computed from the amount before VAT",
+    "bid": "Bid",
+    "net": "Before VAT",
+    "partial": "Not every line offered",
+    "scoreOf": "{criterion} score of {supplier}",
+    "commentOf": "{criterion} comment on {supplier}",
+    "comment": "Comment (optional)",
+    "save": "Save draft",
+    "saved": "Draft saved",
+    "submit": "Send scores",
+    "submitTitle": "Send all your scores",
+    "submitBody": "Sent scores cannot change. They are revealed once every evaluator has sent theirs.",
+    "submitConfirm": "Send scores",
+    "submitted": "Scores sent",
+    "revealedNow": "Scores sent, and the totals are revealed",
+    "cancel": "Cancel",
+    "recuse": "Step aside from scoring",
+    "recuseTitle": "Step aside from scoring",
+    "recuseBody": "Say why, for example an interest in one of the suppliers. Your scores will not count.",
+    "recuseReason": "Reason",
+    "recuseConfirm": "Step aside",
+    "recused": "You stepped aside",
+    "mineSent": "You have sent your scores; waiting for the other evaluators",
+    "mineRecused": "You stepped aside from this evaluation",
+    "ranking": "Totals and ranking",
+    "rank": "Rank",
+    "supplier": "Supplier",
+    "priceScore": "Price score",
+    "total": "Total",
+    "invalid": "Type a whole number from 0 to 100",
+    "errors": {
+      "SCORES_INCOMPLETE": "{missing} scores are still missing",
+      "SOD_VIOLATION": "You requested a source line or created the RFx, so you may not score it",
+      "INVALID_STATE_TRANSITION": "This cannot be done in the current state",
+      "FORBIDDEN": "You may not do this",
+      "VALIDATION_FAILED": "Something is not valid. Please check again",
+      "MODULE_DISABLED": "Sourcing is not open for this organization",
+      "FAILED": "That did not work. Please try again"
+    }
+  }
+}

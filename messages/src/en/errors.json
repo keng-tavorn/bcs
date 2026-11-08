@@ -70,5 +70,9 @@
   "ALREADY_INVITED": "This supplier is invited to this RFx already",
   "SUPPLIER_FLAGGED": "The registry flags this supplier ({flag})",
   "SCORECARD_INCOMPLETE": "The criteria must weigh 100% in all and the scorecard needs at least {min} evaluators",
-  "QUESTION_CUTOFF_PASSED": "Questions closed at {cutoff}"
+  "QUESTION_CUTOFF_PASSED": "Questions closed at {cutoff}",
+  "RFX_CLOSED": "This RFx closed for bids at {closesAt}",
+  "SUPPLIER_NOT_APPROVED": "A bid can be sent once the supplier is approved",
+  "BID_INCOMPLETE": "The bid lacks the price of lines: {lines}",
+  "VAT_INCLUSIVE_NOT_ALLOWED": "This RFx takes prices before VAT only"
 }

@@ -475,7 +475,8 @@
       "pin_locked": "Transaction PIN locked for a while",
       "sod_blocked": "Separation of duties blocked an action",
       "token_misuse": "Decision link misused",
-      "rate_limited": "Too many requests limited"
+      "rate_limited": "Too many requests limited",
+      "sealed_bid_denied": "Sealed prices refused before the close"
     },
     "supplier": {
       "created": "Supplier added",
@@ -687,15 +688,22 @@
       "created": "Supplier invited",
       "removed": "Invite withdrawn",
       "expired": "Invite expired",
-      "supplier_linked": "Invite linked to the approved supplier"
+      "supplier_linked": "Invite linked to the approved supplier",
+      "viewed": "Supplier opened the RFx",
+      "declined": "Supplier declined to bid"
     },
     "scorecard": {
       "updated": "Criteria and evaluators set",
       "locked": "Criteria locked",
-      "revealed": "Scores revealed"
+      "revealed": "Scores revealed",
+      "recomputed": "Scores recomputed"
     },
     "bid": {
-      "disqualified": "Bid disqualified"
+      "disqualified": "Bid disqualified",
+      "saved": "Bid draft saved",
+      "submitted": "Bid submitted",
+      "withdrawn": "Bid withdrawn",
+      "recorded_on_behalf": "Bid recorded for the supplier"
     },
     "risk_tier": {
       "proposed": "New risk tier values proposed",

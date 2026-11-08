@@ -47,6 +47,11 @@ export const PORTAL_ACTIONS = new Map<string, PortalRule>([
   // S10-05 (BR-RFX-04 · INV-RFX-01): an invited contact reads the RFx and asks while it is open; a declined invite may still ask
   ['portal.rfx.view', invitedTo],
   ['portal.rfx.ask', (a, f) => invitedTo(a, f) && f.rfxInviteStatus !== 'EXPIRED' && f.rfxStatus === 'OPEN'],
+  // S10-06 (BR-RFX-03 · ADR-203): declining an open invite; a bid from the contact of an ACTIVE supplier while the RFx is open;
+  // the winner confirms its prices before VAT (OQ-212 · S10-11)
+  ['portal.rfx.decline', (a, f) => invitedTo(a, f) && f.rfxStatus === 'OPEN' && (f.rfxInviteStatus === 'INVITED' || f.rfxInviteStatus === 'VIEWED')],
+  ['portal.rfx.bid', (a, f) => activeSupplier(a, f) && invitedTo(a, f) && f.rfxStatus === 'OPEN' && ['INVITED', 'VIEWED', 'BID_SUBMITTED', 'WITHDRAWN'].includes(f.rfxInviteStatus ?? '')],
+  ['portal.rfx.confirmNetPrices', (a, f) => activeSupplier(a, f) && invitedTo(a, f)],
 ])
 
 /** FORBIDDEN unless the action is known and its rule allows the contact (an unknown action is never allowed) */

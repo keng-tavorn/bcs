@@ -37,6 +37,9 @@ defineEvents('RfxInvite', {
   },
   'rfx_invite.removed': { schema: z.object({ rfxEventId: z.uuid(), reasonCommentId: z.uuid() }) },
   'rfx_invite.expired': { schema: z.object({ rfxEventId: z.uuid() }) },
+  // S10-06: the detail page's POST once per invite; a decline says whether a reason was given, never the reason
+  'rfx_invite.viewed': { schema: z.object({ rfxEventId: z.uuid() }) },
+  'rfx_invite.declined': { schema: z.object({ rfxEventId: z.uuid(), withReason: z.boolean() }) },
   // ADR-203: the application of an invite was approved and became this supplier
   'rfx_invite.supplier_linked': { schema: z.object({ rfxEventId: z.uuid(), applicationId: z.uuid(), supplierId: z.uuid() }) },
 })
@@ -48,8 +51,17 @@ defineEvents('Scorecard', {
   'scorecard.locked': { schema: z.object({ rfxEventId: z.uuid() }) },
   // S10-04 reveals an RFQ priced only at its close; S10-08 adds the ranking of the evaluators' scores
   'scorecard.revealed': { schema: z.object({ rfxEventId: z.uuid(), priceOnly: z.boolean() }) },
+  // S10-06 (BR-RFX-10): a bid disqualified after the reveal
+  'scorecard.recomputed': { schema: z.object({ rfxEventId: z.uuid(), bidId: z.uuid(), reason: z.enum(['DISQUALIFIED']) }) },
 })
 
 defineEvents('Bid', {
   'bid.disqualified': { schema: z.object({ rfxEventId: z.uuid(), reasonCommentId: z.uuid() }) },
+  // S10-06: amounts only when the RFx is not sealed (BR-RFX-06 · BR-RFX-17)
+  'bid.saved': { schema: z.object({ rfxEventId: z.uuid(), lines: z.int().min(0) }) },
+  'bid.submitted': {
+    schema: z.object({ rfxEventId: z.uuid(), submitCount: z.int().min(1), isPartial: z.boolean(), revisionNoAtSubmit: z.int().min(1), onBehalf: z.boolean(), net: z.string().optional(), vat: z.string().optional(), gross: z.string().optional() }),
+  },
+  'bid.withdrawn': { schema: z.object({ rfxEventId: z.uuid(), withReason: z.boolean() }) },
+  'bid.recorded_on_behalf': { schema: z.object({ rfxEventId: z.uuid(), memberId: z.uuid(), fileId: z.uuid() }) },
 })

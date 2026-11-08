@@ -11,6 +11,7 @@ export const SOURCING_SUPPLIER_TEMPLATES = {
   amended: 'rfx.amended',
   extended: 'rfx.extended',
   questionAnswered: 'rfx.question_answered',
+  bidReceived: 'rfx.bid_received',
   closed: 'rfx.closed',
   cancelled: 'rfx.cancelled',
 } as const
@@ -86,6 +87,15 @@ registerSupplierTemplate(SOURCING_SUPPLIER_TEMPLATES.questionAnswered, (d, c) =>
     `คำถามและคำตอบของ ${str(d.number)} / A question answered`,
     [`เรียน ${c.supplierName}`, `${c.organizationName} ตอบคำถามของ ${str(d.number)} "${str(d.title)}"`, `คำถาม: ${str(d.question)}`, `คำตอบ: ${str(d.answer)}`, `อ่านคำถามคำตอบทั้งหมดในพอร์ทัล ${str(d.loginUrl)}`],
     [`${c.organizationName} answered a question about ${str(d.number)} "${titleEn(d)}".`, `Question: ${str(d.question)}`, `Answer: ${str(d.answer)}`, `Read every question and answer on the portal ${str(d.loginUrl)}.`],
+  ),
+)
+
+// BR-RFX-07: the supplier's own amounts back, never anyone else's
+registerSupplierTemplate(SOURCING_SUPPLIER_TEMPLATES.bidReceived, (d, c) =>
+  supplierMail(
+    `${c.organizationName} ได้รับข้อเสนอของท่านสำหรับ ${str(d.number)} แล้ว / Bid received`,
+    [`เรียน ${c.supplierName}`, `${c.organizationName} ได้รับข้อเสนอครั้งที่ ${str(d.submitCount)} ของท่านสำหรับ ${str(d.number)} "${str(d.title)}" แล้ว`, ...(d.rfi ? [] : [`ยอดก่อน VAT ${str(d.net)} บาท · VAT ${str(d.vat)} บาท · รวม ${str(d.gross)} บาท`]), `แก้หรือถอนได้จนปิดรับที่พอร์ทัล ${str(d.loginUrl)}`],
+    [`${c.organizationName} received your bid no. ${str(d.submitCount)} for ${str(d.number)} "${titleEn(d)}".`, ...(d.rfi ? [] : [`Before VAT ${str(d.net)} THB · VAT ${str(d.vat)} THB · total ${str(d.gross)} THB`]), `You may change or withdraw it until the close on the portal ${str(d.loginUrl)}.`],
   ),
 )
 

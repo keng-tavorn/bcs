@@ -61,6 +61,8 @@ const LOCKABLE = [
   'RfxEvent',
   'RfxInvite',
   'RfxQuestion',
+  // S10-06: a bid saved, submitted, withdrawn or disqualified one command at a time (INV-RFX-02)
+  'Bid',
   'Scorecard',
   // S11-04: a tier or the policy proposed, confirmed or discarded one change at a time; a questionnaire version changed
   // one command at a time (BR-RSK-02)

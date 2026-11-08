@@ -5524,7 +5524,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | portal_session (S7-04 · aggregate `SupplierContact`) | `portal_session.link_requested` `portal_session.otp_requested` `portal_session.otp_failed` `portal_session.otp_locked` `portal_session.signed_in` (newDevice · firstSignIn) `portal_session.signed_out` `portal_session.revoked` (reason) `portal_session.csrf_rejected` · ไม่มีรหัส OTP token อีเมล หรือ IP ดิบ (NFR-SEC-09) |
 | rfx (S10-04) | `rfx.created` (kind · sourceKind · requestLineIds · sealed · minInvites) `rfx.updated` (fields) `rfx.unsealed` (reasonCommentId · BR-RFX-06) `rfx.lines_changed` `rfx.opened` (number · closesAt · inviteCount · minInvites · fewerInvitesReasonCommentId · sealed) `rfx.amended` (revisionNo · changedFields) `rfx.extended` (from · to) `rfx.reminded` (invites · revisionNo) `rfx.closed` (bidCount · declinedCount · early) `rfx.cancelled` (reasonCommentId · requestLineIds) `rfx.reopened` (fromRfxEventId) · S10-05: `rfx.question_asked` (questionId · inviteId · ไม่มีข้อความ) `rfx.question_answered` (visibility · notified · originalCommentId) `rfx.concluded` · data เป็นรหัส id และจำนวน ไม่มีราคา |
 | rfx_invite (S10-04) | `rfx_invite.created` (supplierId หรือ applicationId · afterOpen · riskBlocked) `rfx_invite.removed` (reasonCommentId) `rfx_invite.expired` `rfx_invite.supplier_linked` (ADR-203) |
-| scorecard · bid (S10-04 · ต่อใน S10-06 S10-08) | `scorecard.updated` (criteria · evaluatorMemberIds) `scorecard.locked` `scorecard.revealed` (priceOnly) · `bid.disqualified` (reasonCommentId) |
+| scorecard · bid (S10-04 S10-06 · ต่อใน S10-08) | `scorecard.updated` (criteria · evaluatorMemberIds) `scorecard.locked` `scorecard.revealed` (priceOnly) `scorecard.recomputed` (bidId · reason) · `bid.saved` (lines) `bid.submitted` (submitCount · isPartial · revisionNoAtSubmit · onBehalf · ยอดเฉพาะเมื่อไม่ซองปิด) `bid.withdrawn` `bid.recorded_on_behalf` (memberId · fileId) `bid.disqualified` (reasonCommentId) · `rfx_invite.viewed` `rfx_invite.declined` · `security.sealed_bid_denied` (BR-RFX-06) |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` `approval_task.followed_up` (NEW-124 · actor คือผู้กดส่ง · data มีผู้รับ ทาง ความสัมพันธ์กับเอกสาร ไม่มีข้อความ) |
 | approval_step | `approval_step.completed` (S6 · ขั้นหลาย slot ของคณะกรรมการและผู้ตรวจได้ผลแล้ว: outcome quorum ผลต่อ slot · BR-WF-01) |
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` · S6-15: `budget.transferred_out` `budget.transferred_in` · S6-16: `budget.overrun_funded` `budget.overrun_returned` · S6-18: `budget.alert_raised` (ครั้งเดียวต่อบรรทัด เกณฑ์ และปีงบ) |
@@ -6057,6 +6057,10 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `SUPPLIER_FLAGGED` | 422 | ผู้ขายรายนี้ถูกติดธงสถานะทะเบียน ({flag}) |
 | `SCORECARD_INCOMPLETE` | 422 | ต้องมีเกณฑ์ที่น้ำหนักรวม 100% และผู้ประเมินอย่างน้อย {min} คน |
 | `QUESTION_CUTOFF_PASSED` | 409 | พ้นกำหนดรับคำถามเมื่อ {cutoff} |
+| `RFX_CLOSED` | 409 | RFx นี้ปิดรับข้อเสนอแล้วเมื่อ {closesAt} |
+| `SUPPLIER_NOT_APPROVED` | 422 | ยื่นข้อเสนอได้เมื่อการสมัครเป็นผู้ขายได้รับอนุมัติแล้ว |
+| `BID_INCOMPLETE` | 422 | ข้อเสนอยังขาดราคาของรายการ: {lines} |
+| `VAT_INCLUSIVE_NOT_ALLOWED` | 422 | RFx นี้รับเฉพาะราคาก่อน VAT |
 | `RISK_TIER_NOT_CONFIGURED` | 422 | ยังไม่ได้ตั้งเกณฑ์ระดับความเสี่ยง กรุณาติดต่อผู้ดูแลระบบ |
 | `RISK_POLICY_NOT_CONFIGURED` | 422 | ยังไม่ได้ยืนยันนโยบายความเสี่ยงคู่ค้า กรุณาติดต่อผู้ดูแลระบบ |
 | `RISK_QUESTIONNAIRE_NOT_PUBLISHED` | 422 | ยังไม่มีแบบประเมินความเสี่ยงฉบับที่มีผล กรุณาติดต่อผู้ดูแลระบบ |

@@ -3,5 +3,6 @@
 
 export * from './rfx'
 export { answerQuestion, askQuestion, concludeRfx } from './questions'
+export { bidForMember, declineRfx, disqualifyBid, recordBidOnBehalf, saveBid, submitBid, viewRfx, withdrawBid, type MemberBidView } from './bids'
 export { registerSupplierRiskProvider, type SupplierRiskProvider, type SupplierRiskStatus } from './risk-link'
 export { openSourcingDocuments } from './usage'

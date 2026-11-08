@@ -43,6 +43,20 @@ export const PORTAL_MODELS: PortalModel[] = [
   { model: 'agentAction', where: (a) => (a.supplierId ? { subjectType: 'RISK_ASSESSMENT', requestedByContactId: a.supplierContactId } : NONE) },
 ]
 
+// S10-06 (INV-RFX-01 · BR-RFX-06): an RFx the contact's supplier or application is invited to (never a draft, never a
+// removed invite), its lines and amendments, the questions answered to all or asked from its own invite; its own invites
+// and bids only
+const invitedTo = (a: SupplierActor) => ({ status: { not: 'DRAFT' }, invites: { some: { ...bySupplierOrApplication(a), status: { not: 'REMOVED' } } } })
+PORTAL_MODELS.push(
+  { model: 'rfxInvite', where: (a) => ({ ...bySupplierOrApplication(a), status: { not: 'REMOVED' } }) },
+  { model: 'rfxEvent', where: invitedTo },
+  { model: 'rfxLine', where: (a) => ({ rfxEvent: invitedTo(a) }) },
+  { model: 'rfxAmendment', where: (a) => ({ rfxEvent: invitedTo(a) }) },
+  { model: 'rfxQuestion', where: (a) => ({ rfxEvent: invitedTo(a), OR: [{ status: 'ANSWERED', visibility: 'ALL' }, { invite: bySupplierOrApplication(a) }] }) },
+  { model: 'bid', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : NONE) },
+  { model: 'bidLine', where: (a) => (a.supplierId ? { bid: { supplierId: a.supplierId } } : NONE) },
+)
+
 export const PORTAL_MODEL_NAMES: ReadonlySet<string> = new Set(PORTAL_MODELS.map((m) => m.model))
 
 /** The condition of the model for the actor of the portal context; throws for a model outside the registry or a non-portal ctx */

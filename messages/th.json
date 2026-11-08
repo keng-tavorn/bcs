@@ -3214,7 +3214,11 @@
         "updated": "แก้คำขอเปลี่ยนบัญชีธนาคาร"
       },
       "bid": {
-        "disqualified": "ตัดสิทธิ์ข้อเสนอ"
+        "disqualified": "ตัดสิทธิ์ข้อเสนอ",
+        "recorded_on_behalf": "บันทึกข้อเสนอแทนผู้ขาย",
+        "saved": "บันทึกร่างข้อเสนอ",
+        "submitted": "ยื่นข้อเสนอ",
+        "withdrawn": "ถอนข้อเสนอ"
       },
       "budget": {
         "actualized": "ตัดงบเป็นจ่ายจริง",
@@ -3509,9 +3513,11 @@
       },
       "rfx_invite": {
         "created": "เชิญผู้ขายเข้า RFx",
+        "declined": "ผู้ขายแจ้งไม่เสนอราคา",
         "expired": "คำเชิญหมดอายุ",
         "removed": "ถอนคำเชิญ",
-        "supplier_linked": "ผูกคำเชิญกับผู้ขายที่อนุมัติแล้ว"
+        "supplier_linked": "ผูกคำเชิญกับผู้ขายที่อนุมัติแล้ว",
+        "viewed": "ผู้ขายเปิดดู RFx"
       },
       "risk_assessment": {
         "answered": "บันทึกคำตอบแบบประเมิน",
@@ -3547,12 +3553,14 @@
       },
       "scorecard": {
         "locked": "ล็อกเกณฑ์ให้คะแนน",
+        "recomputed": "คำนวณคะแนนใหม่",
         "revealed": "เปิดเผยคะแนน",
         "updated": "ตั้งเกณฑ์และผู้ประเมิน"
       },
       "security": {
         "pin_locked": "ล็อก PIN ยืนยันธุรกรรมชั่วคราว",
         "rate_limited": "จำกัดคำขอที่ถี่เกินไป",
+        "sealed_bid_denied": "ปฏิเสธการเปิดดูราคาก่อนปิดรับ",
         "sod_blocked": "ระบบกันการทำหน้าที่ซ้อนกัน",
         "token_misuse": "พบการใช้ลิงก์ตัดสินผิดวิธี"
       },
@@ -5811,6 +5819,7 @@
     "ATTACHMENT_RULE_FAILED": "เอกสารแนบไม่ครบตามกฎ {rule}: {missing}",
     "BANK_ACCOUNT_NOT_APPROVED": "ผู้ขาย {supplier} ยังไม่มีบัญชีรับเงินที่อนุมัติแล้ว",
     "BANK_FILE_CHECK_FAILED": "ตรวจก่อนสร้างไฟล์จ่ายเงินไม่ผ่าน: {checks}",
+    "BID_INCOMPLETE": "ข้อเสนอยังขาดราคาของรายการ: {lines}",
     "BUDGET_INSUFFICIENT": "งบไม่พอ คงเหลือ {available} บาท ขาด {shortfall} บาท",
     "BUDGET_LINE_CLOSED": "บรรทัดงบนี้ถูกระงับหรือปิดแล้ว",
     "CODING_NOT_CONFIRMED": "ยังไม่ได้ยืนยันรหัสบัญชีของบรรทัด {lines}",
@@ -5851,6 +5860,7 @@
     "RATE_LIMITED": "ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง",
     "RETENTION_NOT_DUE": "คืนเงินประกันผลงานได้ตั้งแต่ {date}",
     "REVIEWER_NOT_FOUND": "ไม่พบผู้ตรวจ {position} ของ {department} ตามข้อ {rule} กรุณาติดต่อผู้ดูแลระบบ",
+    "RFX_CLOSED": "RFx นี้ปิดรับข้อเสนอแล้วเมื่อ {closesAt}",
     "RISK_ANSWERS_INCOMPLETE": "แบบประเมินยังขาดคำตอบ: {missing}",
     "RISK_ASSESSMENT_OPEN": "ผู้ขายรายนี้มีแบบประเมินที่เปิดอยู่แล้ว",
     "RISK_POLICY_NOT_CONFIGURED": "ยังไม่ได้ยืนยันนโยบายความเสี่ยงคู่ค้า กรุณาติดต่อผู้ดูแลระบบ",
@@ -5862,6 +5872,7 @@
     "STEP_UP_REQUIRED": "รายการนี้ต้องยืนยันด้วย PIN",
     "SUPPLIER_DOCUMENT_UNVERIFIED": "เอกสาร {types} ยังไม่ได้ยืนยัน จึงส่งอนุมัติไม่ได้",
     "SUPPLIER_FLAGGED": "ผู้ขายรายนี้ถูกติดธงสถานะทะเบียน ({flag})",
+    "SUPPLIER_NOT_APPROVED": "ยื่นข้อเสนอได้เมื่อการสมัครเป็นผู้ขายได้รับอนุมัติแล้ว",
     "TAX_RATE_NOT_CONFIGURED": "ยังไม่มีอัตรา VAT สำหรับวันที่ {date} กรุณาติดต่อผู้ดูแลแพลตฟอร์ม",
     "TOKEN_EXPIRED": "ลิงก์หมดอายุ กรุณาเปิดจากระบบ",
     "TOKEN_INVALID": "ลิงก์ไม่ถูกต้อง",
@@ -5869,6 +5880,7 @@
     "UNAUTHENTICATED": "กรุณาเข้าสู่ระบบ",
     "VALIDATION_FAILED": "ข้อมูลไม่ถูกต้อง: {field}",
     "VARIANCE_NOT_ACCEPTABLE": "รายการไม่ตรงชนิด {type} ขออนุมัติไม่ได้ ต้องแก้ที่ต้นเหตุหรือปฏิเสธใบ",
+    "VAT_INCLUSIVE_NOT_ALLOWED": "RFx นี้รับเฉพาะราคาก่อน VAT",
     "WHT_FORM_PAYEE_MISMATCH": "ประเภทเงินได้ {code} ใช้กับผู้รับเงินแบบ {payeeType} ไม่ได้",
     "WHT_TYPE_NOT_CONFIGURED": "ยังไม่ได้ตั้งประเภทเงินได้ {code} หรืออัตรา",
     "WORKFLOW_LINT_FAILED": "workflow ฉบับนี้ยังไม่ผ่านการตรวจ: {codes}"

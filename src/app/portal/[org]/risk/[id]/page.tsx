@@ -303,7 +303,8 @@ function Question({
               </label>
               <input id={`file-${q.code}`} name="file" type="file" required accept="application/pdf,image/jpeg,image/png,image/webp" className="text-base" />
               <label className="flex min-h-11 items-start gap-3 py-2">
-                <input type="checkbox" name="aiReadable" value="1" defaultChecked={answer.evidenceAiReadable} aria-describedby={`ai-${q.code}`} className={choiceClass} />
+                {/* each file is its own consent (BR-AI-33): unticked unless the contact ticks it for this file */}
+                <input type="checkbox" name="aiReadable" value="1" aria-describedby={`ai-${q.code}`} className={choiceClass} />
                 <span>{t('risk.evidence.aiReadable')}</span>
               </label>
               <p id={`ai-${q.code}`} className="text-sm text-ink-muted">

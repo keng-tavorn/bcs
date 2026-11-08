@@ -40,3 +40,12 @@ export async function runRiskCommand<T>(
   revalidatePath(path)
   return { ok: true, ...(id ? { id: id(r.data) } : {}) }
 }
+
+/** A file opened through a service that checks the right each time and returns a link of a few minutes (a POST) */
+export async function openRiskFile(key: string, call: (ctx: NonNullable<Awaited<ReturnType<typeof currentCtx>>>) => Promise<{ ok: true; data: { url: string } } | { ok: false; error: AppError }>): Promise<RiskAdminOutcome> {
+  const ctx = await currentCtx()
+  if (!ctx) return NO_SESSION
+  if (!submissionKey.safeParse(key).success) return BAD_KEY
+  const r = await call(ctx)
+  return r.ok ? { ok: true, url: r.data.url } : refused(r.error)
+}

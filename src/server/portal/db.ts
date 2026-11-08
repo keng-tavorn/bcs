@@ -37,7 +37,8 @@ export const PORTAL_MODELS: PortalModel[] = [
   { model: 'riskAssessment', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : NONE) },
   { model: 'riskAnswer', where: (a) => (a.supplierId ? { assessment: { supplierId: a.supplierId } } : NONE) },
   { model: 'riskQuestion', where: (a) => (a.supplierId ? { questionnaire: { assessments: { some: { supplierId: a.supplierId } } } } : NONE) },
-  // a file link names its answer by id only (no relation): the query adds subjectId ∈ the answers it read through riskAnswer
+  // a file link names its answer by id only (no relation), so this condition cannot pin the supplier: every portal query
+  // of fileLink MUST add subjectId ∈ the answers it read through riskAnswer (review S11-05 ข้อ 6)
   { model: 'fileLink', where: (a) => (a.supplierId ? { kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer' } : NONE) },
   { model: 'agentAction', where: (a) => (a.supplierId ? { subjectType: 'RISK_ASSESSMENT', requestedByContactId: a.supplierContactId } : NONE) },
 ]

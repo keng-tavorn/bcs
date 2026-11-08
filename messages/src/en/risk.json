@@ -286,7 +286,9 @@
         "NOT_FOUND": "Not found",
         "VALIDATION_FAILED": "Something is missing or not valid",
         "RISK_TIER_NOT_CONFIGURED": "The risk tiers are not set yet. Please contact your administrator",
-        "RISK_POLICY_NOT_CONFIGURED": "The supplier risk policy is not confirmed yet. Please contact your administrator"
+        "RISK_POLICY_NOT_CONFIGURED": "The supplier risk policy is not confirmed yet. Please contact your administrator",
+        "FILE_NOT_SCANNED": "The file is still being checked for viruses. Try again in a moment.",
+        "FILE_INFECTED": "This file failed the security check, so it cannot be opened."
       },
       "reason": {
         "SAME_EDITOR": "Whoever proposed or sent it cannot confirm or publish it. Another administrator must",
@@ -365,6 +367,8 @@
     "save": "Save the answers",
     "saving": "Saving…",
     "filled": "Answers filled in were saved",
-    "missing": "Still to answer: {codes}"
+    "missing": "Still to answer: {codes}",
+    "openFile": "Open file {name}",
+    "openDocument": "Open the certificate"
   }
 }

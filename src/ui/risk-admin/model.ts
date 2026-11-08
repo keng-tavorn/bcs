@@ -21,7 +21,7 @@ export interface TierValues {
 export type TierChangeInput = Partial<TierValues>
 
 export type RiskAdminOutcome =
-  | { readonly ok: true; readonly id?: string }
+  | { readonly ok: true; readonly id?: string; /** a file to open: a link of a few minutes (S11-05) */ readonly url?: string }
   | {
       readonly ok: false
       readonly code: string

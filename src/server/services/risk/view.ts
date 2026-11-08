@@ -21,8 +21,8 @@ export interface RiskAnswerView {
   readonly note: string | null
   readonly answeredAt: Date
   readonly byName: string | null
-  readonly evidenceDocument: { readonly documentTypeCode: string; readonly scope: string | null; readonly expiresOn: Date } | null
-  readonly files: readonly { readonly fileName: string; readonly scanStatus: string }[]
+  readonly evidenceDocument: { readonly id: string; readonly documentTypeCode: string; readonly scope: string | null; readonly expiresOn: Date } | null
+  readonly files: readonly { readonly fileId: string; readonly fileName: string; readonly scanStatus: string }[]
 }
 
 export interface RiskQuestionView {
@@ -55,6 +55,8 @@ export interface RiskAssessmentView {
   readonly questionnaire: { readonly code: string; readonly versionNo: number }
   readonly questions: readonly RiskQuestionView[]
   readonly canManage: boolean
+  /** risk.evidence.view: may open the files and the certificates behind the answers */
+  readonly canViewEvidence: boolean
 }
 
 export async function riskAssessmentView(ctx: Ctx, assessmentId: string): Promise<Result<RiskAssessmentView>> {
@@ -65,7 +67,7 @@ export async function riskAssessmentView(ctx: Ctx, assessmentId: string): Promis
     if (!may.ok) return may
     const a = await loadAssessment(tx, assessmentId)
     if (!a) return fail('NOT_FOUND', 'assessment not found')
-    const manage = await authorize(tx, ctx, 'risk.assessment.manage')
+    const [manage, evidence] = await Promise.all([authorize(tx, ctx, 'risk.assessment.manage'), authorize(tx, ctx, 'risk.evidence.view')])
     const [supplier, openedBy] = await Promise.all([
       tx.supplier.findUniqueOrThrow({ where: { id: a.supplierId }, select: { id: true, code: true, nameTh: true, nameEn: true } }),
       tx.member.findUniqueOrThrow({ where: { id: a.openedById }, select: { displayNameTh: true } }),
@@ -77,7 +79,7 @@ export async function riskAssessmentView(ctx: Ctx, assessmentId: string): Promis
       tx.member.findMany({ where: { id: { in: memberIds } }, select: { id: true, displayNameTh: true } }),
       tx.supplierContact.findMany({ where: { id: { in: contactIds } }, select: { id: true, nameTh: true } }),
       tx.supplierDocument.findMany({ where: { id: { in: docIds } }, select: { id: true, documentTypeCode: true, scope: true, expiresOn: true } }),
-      tx.fileLink.findMany({ where: { kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer', subjectId: { in: a.answers.map((x) => x.id) } }, select: { subjectId: true, file: { select: { fileName: true, scanStatus: true } } } }),
+      tx.fileLink.findMany({ where: { kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer', subjectId: { in: a.answers.map((x) => x.id) } }, select: { subjectId: true, file: { select: { id: true, fileName: true, scanStatus: true } } } }),
     ])
     const stored = new Map(a.questionnaire.questions.map((q) => [q.code, q]))
     const questions: RiskQuestionView[] = questionsOf(a).map((q) => {
@@ -103,7 +105,7 @@ export async function riskAssessmentView(ctx: Ctx, assessmentId: string): Promis
               answeredAt: answer.answeredAt,
               byName: answer.answeredByMemberId ? (members.find((m) => m.id === answer.answeredByMemberId)?.displayNameTh ?? null) : answer.answeredByContactId ? (contacts.find((c) => c.id === answer.answeredByContactId)?.nameTh ?? null) : null,
               evidenceDocument: answer.evidenceDocumentId ? (docs.find((d) => d.id === answer.evidenceDocumentId) ?? null) : null,
-              files: links.filter((l) => l.subjectId === answer.id).map((l) => l.file),
+              files: links.filter((l) => l.subjectId === answer.id).map((l) => ({ fileId: l.file.id, fileName: l.file.fileName, scanStatus: l.file.scanStatus })),
             }
           : null,
       }
@@ -130,6 +132,7 @@ export async function riskAssessmentView(ctx: Ctx, assessmentId: string): Promis
         questionnaire: { code: a.questionnaire.code, versionNo: a.questionnaire.versionNo },
         questions,
         canManage: manage.ok,
+        canViewEvidence: evidence.ok,
       },
     }
   })

@@ -16,11 +16,13 @@ const SAME = 'async.data.aggregateId == event.data.aggregateId'
 export const riskAssessmentSla = inngest.createFunction(
   {
     id: 'risk-assessment-sla',
-    triggers: [{ event: 'bcs/risk_assessment.opened' }, { event: 'bcs/risk_assessment.answered' }, { event: 'bcs/risk_assessment.returned' }],
+    // every command that moves lastActivityAt starts the wait again: answers, files, and a return to the supplier
+    triggers: [{ event: 'bcs/risk_assessment.opened' }, { event: 'bcs/risk_assessment.answered' }, { event: 'bcs/risk_assessment.evidence_uploaded' }, { event: 'bcs/risk_assessment.returned' }],
     cancelOn: [
       { event: 'bcs/risk_assessment.submitted', if: SAME },
       { event: 'bcs/risk_assessment.cancelled', if: SAME },
       { event: 'bcs/risk_assessment.answered', if: SAME },
+      { event: 'bcs/risk_assessment.evidence_uploaded', if: SAME },
     ],
   },
   async ({ event, step }) => {

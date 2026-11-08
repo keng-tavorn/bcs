@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import type { AppError, Result } from '@/core/result'
 import { RISK_ASSESSMENT_MACHINE, transition } from '@/core/state-machines'
-import { deleteObject, putObject } from '@/integrations/storage'
+import { deleteObject, presignDownload, putObject } from '@/integrations/storage'
 import { MS_PER_HOUR, RISK_EVIDENCE_FILES_PER_QUESTION, SUPPLIER_DOC_MAX_BYTES } from '@/lib/constants'
 import { newId } from '@/lib/ids'
+import { riskSettingsOf } from '@/lib/org-settings'
 import { PORTAL_PRIVACY_NOTICE_VERSION, PORTAL_UPLOADS_PER_HOUR } from '@/lib/portal-limits'
 import { authorize } from '@/server/authz'
 import { systemCtx, type Ctx } from '@/server/context'
@@ -14,7 +15,7 @@ import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { enqueueSupplierNotice } from '@/server/notifications/supplier-notices'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { requireModule } from '../modules'
-import { sniffSupplierFile, type SupplierFileMime } from '../suppliers/documents'
+import { requestSupplierDocumentDownload, sniffSupplierFile, type SupplierFileMime } from '../suppliers/documents'
 import { contactMay } from './assessments'
 import { RISK_SUPPLIER_TEMPLATES } from './templates'
 
@@ -43,11 +44,17 @@ const uploadCommand = defineCommand({
     const on = await requireModule(ctx, 'RISK', tx)
     if (!on.ok) return { ok: false, error: on.error }
     await lockRowsForUpdate(tx, 'RiskAssessment', ctx.organizationId, [input.assessmentId])
-    const a = await tx.riskAssessment.findFirst({ where: { id: input.assessmentId }, select: { id: true, status: true, supplierId: true, answers: { where: { questionCode: input.questionCode }, select: { id: true } } } })
+    const a = await tx.riskAssessment.findFirst({
+      where: { id: input.assessmentId },
+      select: { id: true, status: true, supplierId: true, answers: { where: { questionCode: input.questionCode }, select: { id: true, evidenceAiReadable: true } } },
+    })
     if (!a) return fail('NOT_FOUND', 'assessment not found')
     if (ctx.actor.type === 'SUPPLIER') {
       const may = await contactMay(tx, ctx, a, 'portal.risk.evidence.upload')
       if (!may.ok) return may
+      // as answer and submit: an organization that answers for its suppliers takes no file from their contacts
+      const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
+      if (!riskSettingsOf(org.settings).portalAnswering) return fail('FORBIDDEN', 'the organization answers for its suppliers', { reason: 'PORTAL_ANSWERING_OFF' })
       // BR-PORTAL ข้อ 08: nothing is uploaded before the current privacy notice (which tells of the AI) is accepted
       const contact = await tx.supplierContact.findUniqueOrThrow({ where: { id: ctx.actor.supplierContactId }, select: { privacyNoticeVersion: true } })
       if (contact.privacyNoticeVersion !== PORTAL_PRIVACY_NOTICE_VERSION) return fail('PRIVACY_NOTICE_OUTDATED', 'the current privacy notice is not accepted yet', { version: PORTAL_PRIVACY_NOTICE_VERSION })
@@ -67,7 +74,10 @@ const uploadCommand = defineCommand({
       data: { id: fileId, organizationId: ctx.organizationId, storageKey: input.file.storageKey, fileName: input.file.fileName, mimeType: input.file.mimeType, sizeBytes: input.file.sizeBytes, sha256: input.file.sha256, status: 'AVAILABLE', uploadedById: memberId, scanStatus: 'PENDING' },
     })
     await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId, subjectType: 'RiskAnswer', subjectId: answer.id, kind: 'RISK_EVIDENCE' } })
-    if (input.aiReadable !== undefined) await tx.riskAnswer.update({ where: { id: answer.id }, data: { evidenceAiReadable: input.aiReadable } })
+    // BR-AI-33: the AI reads the files of an answer only when every one of them was ticked as it was sent — one file sent
+    // unticked keeps them all from the AI, and a later tick never opens a file sent before without one
+    const aiReadable = input.aiReadable === true && (linked === 0 || answer.evidenceAiReadable)
+    if (aiReadable !== answer.evidenceAiReadable) await tx.riskAnswer.update({ where: { id: answer.id }, data: { evidenceAiReadable: aiReadable } })
     await tx.riskAssessment.update({ where: { id: a.id }, data: { lastActivityAt: ctx.now, version: { increment: 1 } } })
     return {
       ok: true,
@@ -148,6 +158,63 @@ const scannedCommand = defineCommand({
     }
   },
 })
+
+// ---------- opening the evidence (risk.evidence.view · BR-RSK-14) ----------
+
+const DOWNLOAD_TTL_SECONDS = 300
+
+/** risk.evidence.view with RISK on, inside the caller's transaction */
+async function evidenceViewer(tx: TenantTx, ctx: Ctx): Promise<{ ok: true } | Fail> {
+  const on = await requireModule(ctx, 'RISK', tx)
+  if (!on.ok) return { ok: false, error: on.error }
+  const may = await authorize(tx, ctx, 'risk.evidence.view')
+  return may.ok ? { ok: true } : { ok: false, error: may.error }
+}
+
+const evidenceDownloadCommand = defineCommand({
+  name: 'riskAssessment.evidence.download',
+  capability: 'risk.evidence.view',
+  input: z.strictObject({ assessmentId: z.uuid(), fileId: z.uuid() }),
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ storageKey: string; fileName: string; mimeType: string }>> {
+    const may = await evidenceViewer(tx, ctx)
+    if (!may.ok) return may
+    const answers = await tx.riskAnswer.findMany({ where: { assessmentId: input.assessmentId }, select: { id: true } })
+    const link = await tx.fileLink.findFirst({
+      where: { fileId: input.fileId, kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer', subjectId: { in: answers.map((x) => x.id) } },
+      select: { file: { select: { storageKey: true, fileName: true, mimeType: true, scanStatus: true } } },
+    })
+    if (!link) return fail('NOT_FOUND', 'no such file behind an answer of this assessment')
+    // a file opens once the central scan called it clean (S7's file-scan)
+    if (link.file.scanStatus !== 'CLEAN') return fail(link.file.scanStatus === 'INFECTED' ? 'FILE_INFECTED' : 'FILE_NOT_SCANNED', 'the file is not clean', { scanStatus: link.file.scanStatus })
+    return {
+      ok: true,
+      result: { storageKey: link.file.storageKey, fileName: link.file.fileName, mimeType: link.file.mimeType },
+      events: [{ type: 'file.downloaded', aggregateType: 'File', aggregateId: input.fileId, data: { fileId: input.fileId } }],
+    }
+  },
+})
+
+/** A five-minute link to one evidence file of an assessment, after the checks and the event (a POST, never a GET) */
+export async function requestRiskEvidenceDownload(ctx: Ctx, input: { assessmentId: string; fileId: string }, options: RunOptions): Promise<Result<{ url: string; expiresInSeconds: number }>> {
+  const r = await runCommand(ctx, evidenceDownloadCommand, input, options)
+  if (!r.ok) return r
+  return { ok: true, data: { url: await presignDownload(r.data.storageKey, { fileName: r.data.fileName, contentType: r.data.mimeType, inline: true }, DOWNLOAD_TTL_SECONDS), expiresInSeconds: DOWNLOAD_TTL_SECONDS } }
+}
+
+/**
+ * The supplier's certificate an evidence answer of the assessment rests on: risk.evidence.view here, then S7's
+ * supplierDocument.requestDownload with the same context (its own right, scan check and log of a sensitive type)
+ */
+export async function requestRiskEvidenceDocumentDownload(ctx: Ctx, input: { assessmentId: string; documentId: string }, options: RunOptions): Promise<Result<{ url: string; expiresInSeconds: number }>> {
+  const behind = await forTenant(ctx.organizationId).$transaction(async (tx): Promise<{ ok: true } | Fail> => {
+    const may = await evidenceViewer(tx, ctx)
+    if (!may.ok) return may
+    const answer = await tx.riskAnswer.findFirst({ where: { assessmentId: input.assessmentId, evidenceDocumentId: input.documentId }, select: { id: true } })
+    return answer ? { ok: true } : fail('NOT_FOUND', 'no answer of this assessment rests on the document')
+  })
+  if (!behind.ok) return behind
+  return requestSupplierDocumentDownload(ctx, { documentId: input.documentId, purpose: 'ตรวจแบบประเมินความเสี่ยงคู่ค้า' }, options)
+}
 
 /** The listener of file.scanned for RISK_EVIDENCE: INFECTED → the link removed and the supplier told; CLEAN → nothing */
 export async function riskEvidenceScanned(organizationId: string, fileId: string, result: 'CLEAN' | 'INFECTED', now: Date): Promise<'REJECTED' | 'SKIPPED'> {

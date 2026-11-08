@@ -11033,6 +11033,8 @@
         "code": {
           "CONFLICT_VERSION": "Someone changed this before you. Reload the page and check again",
           "FAILED": "That did not work. Try again",
+          "FILE_INFECTED": "This file failed the security check, so it cannot be opened.",
+          "FILE_NOT_SCANNED": "The file is still being checked for viruses. Try again in a moment.",
           "FORBIDDEN": "You may not do this",
           "INVALID_STATE_TRANSITION": "The status has changed. Reload the page and check again",
           "MODULE_DISABLED": "This organization has not switched on supplier risk",
@@ -11359,6 +11361,8 @@
       "notAnswered": "Not answered",
       "notAnsweredOptional": "Not answered (optional)",
       "note": "Note: {note}",
+      "openDocument": "Open the certificate",
+      "openFile": "Open file {name}",
       "questions": "Questions and answers",
       "result": "Result",
       "resultValue": "{tier} tier · {points} points",

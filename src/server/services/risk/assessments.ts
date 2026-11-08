@@ -171,6 +171,21 @@ function evidenceFor(q: RiskQuestionDef, docs: readonly EvidenceDoc[], workScope
 }
 
 /**
+ * An answer cleared — by its person, or as evidence gone stale: a row with the supplier's files behind it keeps them (a
+ * FileLink names its answer by id only) and loses its choice; any other row goes. An answer from a certificate cannot
+ * lose its document and stay (risk_answer_shape), so its files lose their link, the files kept for the audit.
+ */
+async function clearAnswer(tx: TenantTx, answer: { readonly id: string; readonly source: string }): Promise<void> {
+  const files = { subjectType: 'RiskAnswer', subjectId: answer.id, kind: 'RISK_EVIDENCE' } as const
+  if (answer.source !== 'EVIDENCE' && (await tx.fileLink.count({ where: files })) > 0) {
+    await tx.riskAnswer.update({ where: { id: answer.id }, data: { optionCode: null, points: 0, evidenceDocumentId: null } })
+    return
+  }
+  await tx.fileLink.deleteMany({ where: files })
+  await tx.riskAnswer.delete({ where: { id: answer.id } })
+}
+
+/**
  * BR-RSK-05 on save and on send: every answer that rests on a document — from evidence, or confirmed from it — is checked
  * against the document as it is today; one whose document no longer answers it is cleared (event source EVIDENCE_REVOKED).
  */
@@ -187,7 +202,7 @@ async function revokeStaleEvidence(tx: TenantTx, ctx: Ctx, a: AssessmentRow, que
     const r = q && doc ? evidenceSource(q, { workScopes: a.workScopes, document: { ...doc, expiresOn: doc.expiresOn.toISOString().slice(0, 10) }, current, today }) : null
     // the document still answers it (from evidence, or confirmed from it and kept as the person's own)
     if (r && r.source !== 'NONE') continue
-    await tx.riskAnswer.delete({ where: { id: answer.id } })
+    await clearAnswer(tx, answer)
     revoked.push(answer.questionCode)
   }
   return {
@@ -414,8 +429,8 @@ async function saveAnswers(tx: TenantTx, ctx: Ctx, input: z.infer<typeof AnswerI
       if (!item.confirmEvidence || item.optionCode !== existing.optionCode) return fail('VALIDATION_FAILED', 'an answer from a certificate is confirmed, not changed', { reason: 'EVIDENCE_LOCKED', questionCode: item.questionCode })
     }
     if (item.optionCode === null) {
-      if (existing) await tx.riskAnswer.delete({ where: { id: existing.id } })
-      if (existing) changed.push(item.questionCode)
+      if (existing?.optionCode != null) changed.push(item.questionCode)
+      if (existing) await clearAnswer(tx, existing)
       continue
     }
     const option = q.options.find((o) => o.code === item.optionCode)

@@ -10,6 +10,8 @@ import {
   cancelRiskAssessment,
   fillRiskAssessmentOnBehalf,
   openRiskAssessment,
+  requestRiskEvidenceDocumentDownload,
+  requestRiskEvidenceDownload,
   riskAssessmentView,
   riskEvidenceScanned,
   submitRiskAssessment,
@@ -262,6 +264,71 @@ describe('[FR-RSK-204/AC4] [BR-RSK-18] the files behind an answer', () => {
     // the job again (a retry): the same answer, nothing told twice
     expect(await riskEvidenceScanned(org.organizationId, first.fileId, 'INFECTED', NOW)).toBe('REJECTED')
     expect(await prisma.supplierNotice.count({ where: { subjectId: a.assessmentId, templateKey: 'supplier.risk_evidence_rejected' } })).toBe(1)
+  })
+
+  it('[BR-AI-33] the AI reads the files of an answer only while every one of them was ticked as it was sent', async () => {
+    const s = await supplierWithContact('RA-AI')
+    const a = ok(await openRiskAssessment(as('proc_officer'), { supplierId: s.supplierId, screening: SCREEN }, key()))
+    ok(await answerRiskAssessment(s.portal(), { assessmentId: a.assessmentId, expectedVersion: await version(a.assessmentId), answers: [{ questionCode: 'RQ-GEN-01', optionCode: 'Y' }] }, key()))
+    const upload = (name: string, aiReadable?: boolean) => uploadRiskEvidence(s.portal(), { assessmentId: a.assessmentId, questionCode: 'RQ-GEN-01', fileName: name, bytes: PDF(name), aiReadable }, key())
+    const first = ok(await upload('clean.pdf', true))
+    const flag = async () => (await prisma.riskAnswer.findUniqueOrThrow({ where: { id: first.answerId } })).evidenceAiReadable
+    expect(await flag()).toBe(true)
+    // a file sent unticked keeps every file of the answer from the AI; a later tick does not open it again
+    ok(await upload('personal.pdf'))
+    expect(await flag()).toBe(false)
+    ok(await upload('another.pdf', true))
+    expect(await flag()).toBe(false)
+  })
+
+  it('[BR-RSK-14] the files and the certificate behind the answers open for risk.evidence.view once clean; never for others (deny)', async () => {
+    const s = await supplierWithContact('RA-OPEN')
+    const iso = await verifiedIso(s.supplierId, 'ISO 27001')
+    const a = ok(await openRiskAssessment(as('proc_officer'), { supplierId: s.supplierId, screening: SCREEN, workScopes: ['ISO 27001'] }, key()))
+    ok(await answerRiskAssessment(s.portal(), { assessmentId: a.assessmentId, expectedVersion: await version(a.assessmentId), answers: [{ questionCode: 'RQ-GEN-01', optionCode: 'Y' }] }, key()))
+    const file = ok(await uploadRiskEvidence(s.portal(), { assessmentId: a.assessmentId, questionCode: 'RQ-GEN-01', fileName: 'policy.pdf', bytes: PDF('open') }, key()))
+    const open = (who: string, fileId = file.fileId, assessmentId = a.assessmentId) => requestRiskEvidenceDownload(as(who), { assessmentId, fileId }, key())
+    // not scanned yet → it does not open
+    expect(await open('proc_officer')).toMatchObject({ ok: false, error: { code: 'FILE_NOT_SCANNED' } })
+    await prisma.fileObject.update({ where: { id: file.fileId }, data: { scanStatus: 'CLEAN' } })
+    expect(ok(await open('proc_officer')).url).toMatch(/^https?:\/\//)
+    expect(ok(await open('auditor')).url).toMatch(/^https?:\/\//)
+    expect(await prisma.event.count({ where: { aggregateId: file.fileId, type: 'file.downloaded' } })).toBe(2)
+    // a requester has no risk.evidence.view; a file of another assessment is not this one's
+    expect(await open('req_con')).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    const other = await supplierWithContact('RA-OPEN2')
+    const b = ok(await openRiskAssessment(as('proc_officer'), { supplierId: other.supplierId, screening: SCREEN }, key()))
+    expect(await open('proc_officer', file.fileId, b.assessmentId)).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
+    // the certificate RQ-IS-01 rests on, through S7's own check
+    const doc = (who: string, documentId = iso.id) => requestRiskEvidenceDocumentDownload(as(who), { assessmentId: a.assessmentId, documentId }, key())
+    expect(ok(await doc('auditor')).url).toMatch(/^https?:\/\//)
+    expect(await doc('req_con')).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    const unrelated = await verifiedIso(other.supplierId, 'ISO 9001')
+    expect(await doc('proc_officer', unrelated.id)).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
+    expect(ok(await riskAssessmentView(as('auditor'), a.assessmentId)).canViewEvidence).toBe(true)
+  })
+
+  it('an answer cleared keeps the files behind it (five at most still); the portal that does not answer takes no file', async () => {
+    const s = await supplierWithContact('RA-KEEP')
+    const a = ok(await openRiskAssessment(as('proc_officer'), { supplierId: s.supplierId, screening: SCREEN }, key()))
+    const answer = async (optionCode: string | null) => ok(await answerRiskAssessment(s.portal(), { assessmentId: a.assessmentId, expectedVersion: await version(a.assessmentId), answers: [{ questionCode: 'RQ-GEN-01', optionCode }] }, key()))
+    await answer('Y')
+    for (let i = 0; i < 5; i++) ok(await uploadRiskEvidence(s.portal(), { assessmentId: a.assessmentId, questionCode: 'RQ-GEN-01', fileName: `k${i}.pdf`, bytes: PDF(`k${i}`) }, key()))
+    await answer(null)
+    const row = await prisma.riskAnswer.findFirstOrThrow({ where: { assessmentId: a.assessmentId, questionCode: 'RQ-GEN-01' } })
+    expect(row).toMatchObject({ optionCode: null, points: 0 })
+    expect(await prisma.fileLink.count({ where: { subjectId: row.id, kind: 'RISK_EVIDENCE' } })).toBe(5)
+    await answer('N')
+    expect(await uploadRiskEvidence(s.portal(), { assessmentId: a.assessmentId, questionCode: 'RQ-GEN-01', fileName: 'k6.pdf', bytes: PDF('k6') }, key())).toMatchObject({ ok: false, error: { details: { reason: 'TOO_MANY_FILES' } } })
+    // risk.portalAnswering off: answers and files from the contact are refused alike
+    const before = await prisma.organization.findUniqueOrThrow({ where: { id: org.organizationId }, select: { settings: true } })
+    const settings = (before.settings ?? {}) as Record<string, unknown>
+    await prisma.organization.update({ where: { id: org.organizationId }, data: { settings: { ...settings, risk: { ...((settings.risk as object) ?? {}), portalAnswering: false } } } })
+    try {
+      expect(await uploadRiskEvidence(s.portal(), { assessmentId: a.assessmentId, questionCode: 'RQ-PRV-01', fileName: 'x.pdf', bytes: PDF('x') }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN', details: { reason: 'PORTAL_ANSWERING_OFF' } } })
+    } finally {
+      await prisma.organization.update({ where: { id: org.organizationId }, data: { settings: before.settings ?? {} } })
+    }
   })
 
   it('a contact who has not accepted the current privacy notice uploads nothing', async () => {

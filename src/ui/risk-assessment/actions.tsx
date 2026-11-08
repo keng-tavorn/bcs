@@ -108,6 +108,29 @@ export function AssessmentButtons({ version, questions, actions }: { version: nu
   )
 }
 
+/** Opens an evidence file or a certificate in a new tab: a POST that checks risk.evidence.view each time (S11-05) */
+export function OpenFileButton({ label, open }: { label: string; open: (key: string) => Promise<RiskAdminOutcome> }) {
+  const failureText = useFailureText()
+  const working = useRun()
+  const [failure, setFailure] = useState<string | null>(null)
+
+  async function onClick() {
+    setFailure(null)
+    const outcome = await working.run(open)
+    if (!outcome.ok) setFailure(failureText(outcome))
+    else if (outcome.url) window.open(outcome.url, '_blank', 'noopener')
+  }
+
+  return (
+    <span className="inline-flex flex-col items-start gap-1">
+      <Button variant="link" className="h-auto min-h-11 p-0 text-base lg:min-h-0" disabled={working.pending} onClick={() => void onClick()}>
+        {label}
+      </Button>
+      {failure ? <span className="text-danger">{failure}</span> : null}
+    </span>
+  )
+}
+
 function FillDialog({ questions, fill, onClose, onSaved }: { questions: readonly FillQuestion[]; fill: (answers: { questionCode: string; optionCode: string }[], key: string) => Promise<RiskAdminOutcome>; onClose: () => void; onSaved: () => void }) {
   const t = useSay('risk.assessment')
   const failureText = useFailureText()

@@ -8,10 +8,10 @@ import { StatusBadge } from '@/ui/document/badges'
 import type { BadgeLook } from '@/ui/document/badge-looks'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { RISK_DOMAINS_UI, RISK_TIERS } from '@/ui/risk-admin/model'
-import { AssessmentButtons, type FillQuestion } from '@/ui/risk-assessment/actions'
+import { AssessmentButtons, OpenFileButton, type FillQuestion } from '@/ui/risk-assessment/actions'
 import { getSession } from '../../../../_lib/session'
 import { day, localeOf, when } from '../../../_tracking/present'
-import { cancelAssessmentAction, fillOnBehalfAction, submitAssessmentAction } from './actions'
+import { cancelAssessmentAction, fillOnBehalfAction, openEvidenceDocumentAction, openEvidenceFileAction, submitAssessmentAction } from './actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('risk.assessment')
@@ -92,11 +92,15 @@ export default async function RiskAssessmentPage({ params }: { params: Promise<{
                               {q.answer.evidenceDocument ? (
                                 <span className="text-ink-muted">{t('evidenceDocument', { type: q.answer.evidenceDocument.documentTypeCode, scope: q.answer.evidenceDocument.scope ?? '-', date: day(locale, q.answer.evidenceDocument.expiresOn) })}</span>
                               ) : null}
+                              {q.answer.evidenceDocument && a.canViewEvidence ? <OpenFileButton label={t('openDocument')} open={openEvidenceDocumentAction.bind(null, a.id, q.answer.evidenceDocument.id)} /> : null}
                               {q.answer.note ? <span className="text-ink-muted">{t('note', { note: q.answer.note })}</span> : null}
                               {q.answer.files.length ? (
                                 <ul className="text-ink-muted">
-                                  {q.answer.files.map((f, i) => (
-                                    <li key={i}>{t('file', { name: f.fileName, scan: (SCANS as readonly string[]).includes(f.scanStatus) ? t(`scan.${f.scanStatus as (typeof SCANS)[number]}`) : f.scanStatus })}</li>
+                                  {q.answer.files.map((f) => (
+                                    <li key={f.fileId} className="flex flex-col">
+                                      <span>{t('file', { name: f.fileName, scan: (SCANS as readonly string[]).includes(f.scanStatus) ? t(`scan.${f.scanStatus as (typeof SCANS)[number]}`) : f.scanStatus })}</span>
+                                      {a.canViewEvidence && f.scanStatus === 'CLEAN' ? <OpenFileButton label={t('openFile', { name: f.fileName })} open={openEvidenceFileAction.bind(null, a.id, f.fileId)} /> : null}
+                                    </li>
                                   ))}
                                 </ul>
                               ) : null}

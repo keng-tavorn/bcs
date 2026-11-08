@@ -58,6 +58,8 @@
   "SUPPLIER_DOCUMENT_UNVERIFIED": "Documents {types} are not verified yet, so it cannot be sent for approval.",
   "FILE_NOT_SCANNED": "The file is still being checked. Please wait a moment.",
   "FILE_INFECTED": "This file failed the security check. Please upload another file.",
+  "RISK_TIER_NOT_CONFIGURED": "The risk tiers are not set yet. Please contact your administrator.",
+  "RISK_POLICY_NOT_CONFIGURED": "The supplier risk policy is not confirmed yet. Please contact your administrator.",
   "RATE_LIMITED": "Too many attempts. Please try again later",
   "EXTERNAL_SERVICE_ERROR": "An external system is not responding ({service})",
   "INTERNAL": "Something went wrong (reference {requestId})",

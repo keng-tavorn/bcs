@@ -434,6 +434,8 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `supplier.document.verify` | PROCUREMENT (ORG) — ยืนยันหรือปฏิเสธเอกสาร PENDING ผู้ยืนยันอนุมัติใบสมัครนั้นไม่ได้ (S7-06 · BR-SDOC-03 · BR-SOD-11) |
 | `supplier.document.manage` | PROCUREMENT (ORG) — อัปโหลดเอกสารแทนผู้ขาย (S7-06) |
 | `admin.supplierDocumentTypes` | ORG_ADMIN (ORG) — เพิ่ม แก้ และปิดประเภทเอกสารผู้ขาย (S7-06 · BR-SDOC-01) |
+| `admin.riskTiers` | ORG_ADMIN, DOA_ADMIN (ORG) — เสนอ ยืนยัน และยกเลิกเกณฑ์ระดับความเสี่ยงและนโยบายด่าน (`admin.riskTiers.*` `admin.riskPolicy.*`) ผู้ยืนยันต้องไม่ใช่ผู้เสนอ (`SAME_EDITOR`) · ORG_ADMIN ไม่ได้เมื่อ DOA ฉบับที่มีผลแยกผู้ดูแล DOA (S11-04 · BR-RSK-02 · BR-WF-17) |
+| `admin.riskQuestionnaire` | ORG_ADMIN, DOA_ADMIN (ORG) — ร่าง แก้ ส่ง เผยแพร่ และตีกลับฉบับแบบประเมิน ผู้เผยแพร่ต้องไม่ใช่ผู้ส่ง (`SAME_EDITOR`) · ORG_ADMIN ไม่ได้เมื่อ DOA ฉบับที่มีผลแยกผู้ดูแล DOA (S11-04 · BR-RSK-02 · BR-WF-17) |
 | `supplier.contact.manage` | PROCUREMENT (ORG) — เพิ่ม แก้ ปิดผู้ติดต่อของผู้ขาย และเพิกถอนการเข้าพอร์ทัล ทุกการเพิ่มหรือเปลี่ยนอีเมลแจ้งอีเมลในทะเบียนของผู้ขาย (S7-04 · BR-SUP-17 · BR-PORTAL-03) |
 | `catalog.view` | ทุก member (ORG) — ค้นหาแคตตาล็อก ราคาอ้างอิง และราคาตกลงที่มีผล (S6-10 · FR-INT-102) |
 | `catalog.manage` | PROCUREMENT (ORG) — เพิ่มและแก้สินค้า ตั้งและสิ้นสุดราคาตกลง มี event ทุกครั้ง (BR-PRC-06 · OQ-114) |
@@ -5210,6 +5212,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | supplier_application (S7-05) | `supplier_application.invited` (kind · reinvite) `supplier_application.drafted` `supplier_application.updated` (fields · by) `supplier_application.submitted` `supplier_application.routed` (registryOutcome) `supplier_application.returned` (by) `supplier_application.approved` (supplierId · bankAccountChangeId) `supplier_application.rejected` `supplier_application.expired` `supplier_application.cancelled` · ไม่มีเลขผู้เสียภาษี เลขบัญชี หรืออีเมล · `supplier.created` schemaVersion 2 (`via: APPLICATION` · applicationId · registryFlag · phoneSource) |
 | supplier_contact (S7-04) | `supplier_contact.created` `supplier_contact.updated` (changed) `supplier_contact.deactivated` (sessionsRevoked) `supplier_contact.privacy_notice_accepted` (privacyNoticeVersion) |
+| risk_tier · risk_policy · risk_questionnaire (S11-04 · ไม่มีข้อความของคำถามหรือคำตอบ · BR-RSK-20) | `risk_tier.proposed` (code · pendingChange) `risk_tier.confirmed` (code · changed: field from to · proposedById confirmedById) `risk_tier.discarded` · `risk_policy.proposed` (fields · pendingChange) `risk_policy.confirmed` (changed · proposedById confirmedById) `risk_policy.discarded` · `risk_questionnaire.drafted` (versionNo · copiedFromVersionNo) `risk_questionnaire.updated` (questionCode · action ADDED CHANGED REMOVED REORDERED) `risk_questionnaire.submitted` (effectiveFrom · questions · warnings) `risk_questionnaire.rejected` `risk_questionnaire.published` (effectiveFrom · submittedById publishedById) `risk_questionnaire.superseded` (supersededById) |
 | portal_session (S7-04 · aggregate `SupplierContact`) | `portal_session.link_requested` `portal_session.otp_requested` `portal_session.otp_failed` `portal_session.otp_locked` `portal_session.signed_in` (newDevice · firstSignIn) `portal_session.signed_out` `portal_session.revoked` (reason) `portal_session.csrf_rejected` · ไม่มีรหัส OTP token อีเมล หรือ IP ดิบ (NFR-SEC-09) |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` `approval_task.followed_up` (NEW-124 · actor คือผู้กดส่ง · data มีผู้รับ ทาง ความสัมพันธ์กับเอกสาร ไม่มีข้อความ) |
 | approval_step | `approval_step.completed` (S6 · ขั้นหลาย slot ของคณะกรรมการและผู้ตรวจได้ผลแล้ว: outcome quorum ผลต่อ slot · BR-WF-01) |
@@ -5737,6 +5740,8 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `SUPPLIER_DOCUMENT_UNVERIFIED` | 422 | เอกสาร {types} ยังไม่ได้ยืนยัน จึงส่งอนุมัติไม่ได้ |
 | `FILE_NOT_SCANNED` | 409 | ไฟล์ยังอยู่ระหว่างตรวจความปลอดภัย กรุณารอสักครู่ |
 | `FILE_INFECTED` | 422 | ไฟล์นี้ไม่ผ่านการตรวจความปลอดภัย กรุณาอัปโหลดไฟล์ใหม่ |
+| `RISK_TIER_NOT_CONFIGURED` | 422 | ยังไม่ได้ตั้งเกณฑ์ระดับความเสี่ยง กรุณาติดต่อผู้ดูแลระบบ |
+| `RISK_POLICY_NOT_CONFIGURED` | 422 | ยังไม่ได้ยืนยันนโยบายความเสี่ยงคู่ค้า กรุณาติดต่อผู้ดูแลระบบ |
 | `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |
 | `EXTERNAL_SERVICE_ERROR` | 502 | ระบบภายนอกไม่ตอบสนอง ({service}) |
 | `INTERNAL` | 500 | เกิดข้อผิดพลาด (รหัสอ้างอิง {requestId}) |

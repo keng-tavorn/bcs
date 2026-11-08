@@ -1,0 +1,86 @@
+[
+  {
+    "screen": "tiers",
+    "width": 1440,
+    "axe": [],
+    "sideways": 0,
+    "smallText": 0
+  },
+  {
+    "screen": "tiers",
+    "width": 375,
+    "axe": [],
+    "sideways": 0,
+    "smallText": 0
+  },
+  {
+    "screen": "questionnaire",
+    "width": 1440,
+    "axe": [],
+    "sideways": 0,
+    "smallText": 0
+  },
+  {
+    "screen": "questionnaire",
+    "width": 375,
+    "axe": [],
+    "sideways": 0,
+    "smallText": 0
+  },
+  {
+    "screen": "version-draft",
+    "width": 1440,
+    "axe": [],
+    "sideways": 0,
+    "smallText": 0
+  },
+  {
+    "screen": "version-draft",
+    "width": 375,
+    "axe": [],
+    "sideways": 0,
+    "smallText": 0
+  },
+  {
+    "screen": "version-published",
+    "width": 1440,
+    "axe": [],
+    "sideways": 0,
+    "smallText": 0
+  },
+  {
+    "screen": "version-published",
+    "width": 375,
+    "axe": [],
+    "sideways": 0,
+    "smallText": 0
+  },
+  {
+    "screen": "tiers-dialog",
+    "width": 1440,
+    "axe": [],
+    "sideways": 0,
+    "smallText": 0
+  },
+  {
+    "screen": "tiers-dialog",
+    "width": 375,
+    "axe": [],
+    "sideways": 0,
+    "smallText": 0
+  },
+  {
+    "screen": "question-dialog",
+    "width": 1440,
+    "axe": [],
+    "sideways": 0,
+    "smallText": 0
+  },
+  {
+    "screen": "question-dialog",
+    "width": 375,
+    "axe": [],
+    "sideways": 0,
+    "smallText": 0
+  }
+]

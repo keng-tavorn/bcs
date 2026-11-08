@@ -2,6 +2,18 @@
 // tier, answers from evidence, whether it may be sent, and its status on a day. Pure: the organization's tiers, policy
 // and questionnaire are passed in, dates are calendar days in Asia/Bangkok.
 
+export {
+  applyTierChanges,
+  lintQuestionnaire,
+  RISK_QUESTION_CODE,
+  riskConditionProblem,
+  tierOrderProblem,
+  type LintDocumentType,
+  type LintQuestion,
+  type QuestionnaireLintCode,
+  type QuestionnaireLintIssue,
+  type TierChange,
+} from './admin'
 export { evidenceSource, normalizeScope, riskStatusAt, type CurrentAnswer, type EvidenceDocument, type EvidenceInput, type EvidenceReason, type EvidenceResult, type RiskDateStatus } from './evidence'
 export { assessmentCompleteness, scoreAssessment, tierByPoints, type AnswerSource, type Completeness, type Score } from './score'
 export { inherentTier, maxTier, questionsInSet, riskConditionHolds, selectQuestions, type QuestionSet } from './select'

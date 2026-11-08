@@ -153,7 +153,10 @@
     "supplier_contact": "Supplier contacts",
     "supplier_application": "Supplier application",
     "supplier_document": "Supplier documents",
-    "supplier_document_type": "Supplier document types"
+    "supplier_document_type": "Supplier document types",
+    "risk_tier": "Risk tiers",
+    "risk_policy": "Risk check policy",
+    "risk_questionnaire": "Risk questionnaire"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -215,7 +218,10 @@
     "SupplierContact": "Supplier contact",
     "SupplierApplication": "Supplier application",
     "SupplierDocument": "Supplier documents",
-    "SupplierDocumentType": "Supplier document types"
+    "SupplierDocumentType": "Supplier document types",
+    "RiskTier": "Risk tier",
+    "RiskPolicy": "Risk check policy",
+    "RiskQuestionnaire": "Risk questionnaire version"
   },
   "events": {
     "approval_step": {
@@ -643,6 +649,24 @@
     },
     "supplier_document_type": {
       "updated": "Supplier document type changed"
+    },
+    "risk_tier": {
+      "proposed": "New risk tier values proposed",
+      "confirmed": "Risk tier values confirmed",
+      "discarded": "Proposed risk tier values discarded"
+    },
+    "risk_policy": {
+      "proposed": "New risk check policy proposed",
+      "confirmed": "Risk check policy confirmed",
+      "discarded": "Proposed risk check policy discarded"
+    },
+    "risk_questionnaire": {
+      "drafted": "Risk questionnaire version drafted",
+      "updated": "Question of a draft changed",
+      "submitted": "Risk questionnaire version sent for publishing",
+      "rejected": "Risk questionnaire version sent back",
+      "published": "Risk questionnaire version published",
+      "superseded": "Risk questionnaire version replaced"
     }
   }
 }

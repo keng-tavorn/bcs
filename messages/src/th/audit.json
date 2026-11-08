@@ -153,7 +153,10 @@
     "supplier_contact": "ผู้ติดต่อของผู้ขาย",
     "supplier_application": "ใบสมัครผู้ขาย",
     "supplier_document": "เอกสารผู้ขาย",
-    "supplier_document_type": "ประเภทเอกสารผู้ขาย"
+    "supplier_document_type": "ประเภทเอกสารผู้ขาย",
+    "risk_tier": "เกณฑ์ระดับความเสี่ยง",
+    "risk_policy": "นโยบายด่านความเสี่ยง",
+    "risk_questionnaire": "แบบประเมินความเสี่ยง"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -215,7 +218,10 @@
     "SupplierContact": "ผู้ติดต่อของผู้ขาย",
     "SupplierApplication": "ใบสมัครผู้ขาย",
     "SupplierDocument": "เอกสารผู้ขาย",
-    "SupplierDocumentType": "ประเภทเอกสารผู้ขาย"
+    "SupplierDocumentType": "ประเภทเอกสารผู้ขาย",
+    "RiskTier": "เกณฑ์ระดับความเสี่ยง",
+    "RiskPolicy": "นโยบายด่านความเสี่ยง",
+    "RiskQuestionnaire": "ฉบับแบบประเมินความเสี่ยง"
   },
   "events": {
     "approval_step": {
@@ -643,6 +649,24 @@
     },
     "supplier_document_type": {
       "updated": "แก้ประเภทเอกสารผู้ขาย"
+    },
+    "risk_tier": {
+      "proposed": "เสนอเกณฑ์ระดับความเสี่ยงใหม่",
+      "confirmed": "ยืนยันเกณฑ์ระดับความเสี่ยง",
+      "discarded": "ยกเลิกเกณฑ์ระดับความเสี่ยงที่เสนอ"
+    },
+    "risk_policy": {
+      "proposed": "เสนอนโยบายด่านความเสี่ยงใหม่",
+      "confirmed": "ยืนยันนโยบายด่านความเสี่ยง",
+      "discarded": "ยกเลิกนโยบายด่านความเสี่ยงที่เสนอ"
+    },
+    "risk_questionnaire": {
+      "drafted": "ร่างฉบับแบบประเมินความเสี่ยง",
+      "updated": "แก้คำถามในฉบับร่าง",
+      "submitted": "ส่งฉบับแบบประเมินให้เผยแพร่",
+      "rejected": "ตีกลับฉบับแบบประเมิน",
+      "published": "เผยแพร่ฉบับแบบประเมิน",
+      "superseded": "ฉบับแบบประเมินถูกแทนด้วยฉบับใหม่"
     }
   }
 }

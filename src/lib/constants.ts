@@ -271,3 +271,14 @@ export const OTP_CODE_SPACE = 1_000_000
 export const SUPPLIER_DOC_MAX_BYTES = 20 * 1024 * 1024
 /** The longest a supplier document type may last (BR-SDOC ข้อ 01): a hundred years */
 export const SUPPLIER_DOC_MAX_VALIDITY_DAYS = 36_500
+
+// S11-04 (BR-RSK-01 · BR-RSK-02): the size of what an administrator types into the risk questionnaire and the tiers —
+// limits of input, not thresholds (the thresholds are the organization's RiskTier rows)
+/** Characters of a question or of the reason of a change */
+export const RISK_TEXT_MAX = 1000
+/** Characters of a question's help */
+export const RISK_HELP_MAX = 2000
+/** Points of one option of a question */
+export const RISK_OPTION_POINTS_MAX = 1000
+/** The largest lower bound of a tier an administrator may type */
+export const RISK_TIER_POINTS_MAX = 1_000_000

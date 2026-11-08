@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { normalizeAccount } from '@/core/bankfile/account'
 import type { AppError, Result } from '@/core/result'
 import { applicationSla, findSupplierDuplicates, type DuplicateWarningCode, type ExistingSupplier } from '@/core/supplier-onboarding'
+import { requiredDocumentFor } from '@/core/supplier-docs'
 import { normalizeTaxId } from '@/core/thai/taxid'
 import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import { supplierSettingsOf } from '@/lib/org-settings'
@@ -409,8 +410,8 @@ export const updateApplicationCommand = defineCommand({
  * What the application still lacks before a submit (BR-SUP ข้อ 11 · BR-SDOC ข้อ 01): the fields by name, then each required
  * document type with no copy pending or verified as `document:<code>`. The reminder of BR-SUP ข้อ 12 names the same list.
  */
-export async function missingItems(tx: TenantTx, app: { id: string; nameTh: string; taxId: string | null; branchCode: string; payeeType: string; address: string | null }): Promise<string[]> {
-  const types = await requiredTypes(tx, app.payeeType)
+export async function missingItems(tx: TenantTx, app: { id: string; nameTh: string; taxId: string | null; branchCode: string; payeeType: string; isVatRegistered: boolean; address: string | null }): Promise<string[]> {
+  const types = await requiredTypes(tx, app.payeeType, app.isVatRegistered)
   const have = new Set((await tx.supplierDocument.findMany({ where: { applicationId: app.id, status: { in: ['PENDING', 'VERIFIED'] } }, select: { documentTypeCode: true } })).map((d) => d.documentTypeCode))
   return [...missingFields(app), ...types.filter((t) => !have.has(t)).map((t) => `document:${t}`)]
 }
@@ -425,10 +426,10 @@ function missingFields(app: { nameTh: string; taxId: string | null; branchCode: 
   return missing
 }
 
-/** The document types the application must have (BR-SDOC ข้อ 01): active, required, for its payee type */
-export async function requiredTypes(tx: TenantTx, payeeType: string): Promise<string[]> {
-  const types = await tx.supplierDocumentType.findMany({ where: { active: true, required: true }, select: { code: true, appliesTo: true }, orderBy: { code: 'asc' } })
-  return types.filter((t) => (t.appliesTo as string[]).includes(payeeType)).map((t) => t.code)
+/** The document types the application must have (BR-SDOC ข้อ 01): active, required, for its payee type — ภ.พ.20 only when registered for VAT (S7-28) */
+export async function requiredTypes(tx: TenantTx, payeeType: string, isVatRegistered: boolean): Promise<string[]> {
+  const types = await tx.supplierDocumentType.findMany({ where: { active: true, required: true }, select: { code: true, required: true, appliesTo: true }, orderBy: { code: 'asc' } })
+  return types.filter((t) => requiredDocumentFor(t, { payeeType, isVatRegistered })).map((t) => t.code)
 }
 
 export const submitApplicationCommand = defineCommand({
@@ -562,7 +563,7 @@ export const verifyAndRouteCommand = defineCommand({
     if (!app) return fail('NOT_FOUND', 'application not found')
     if (app.version !== input.expectedVersion) return fail('CONFLICT_VERSION', 'the application changed since it was opened', { currentVersion: app.version })
     if (app.status !== 'SUBMITTED') return fail('INVALID_STATE_TRANSITION', 'only a submitted application is sent on its route', { status: app.status })
-    const types = await requiredTypes(tx, app.payeeType)
+    const types = await requiredTypes(tx, app.payeeType, app.isVatRegistered)
     const verified = new Set((await tx.supplierDocument.findMany({ where: { applicationId: app.id, status: 'VERIFIED' }, select: { documentTypeCode: true } })).map((d) => d.documentTypeCode))
     const unverified = types.filter((t) => !verified.has(t))
     if (unverified.length) return fail('SUPPLIER_DOCUMENT_UNVERIFIED', 'required documents are not verified', { types: unverified })

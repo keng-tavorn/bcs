@@ -110,7 +110,7 @@ async function playApplication(organizationId: string, row: Row, now: Date, cale
       // 3. filled in by its contact, or by procurement on its behalf, with the documents it needs (scanned clean)
       const filler = (t: Date) => (row.filledOnBehalf ? member(row.filledOnBehalf, t) : contactCtx(t))
       must(row, 'update', await updateApplication(filler(at(0.1)), { applicationId, expectedVersion: await version(applicationId), fields: { address: `${row.ref} ถนนตัวอย่าง (สมมติ)`, isVatRegistered: row.payeeType === 'JURISTIC', category: row.category, email: row.contactEmail } }, opts(row, 'update')))
-      const docs = (await db.$transaction((tx) => requiredTypes(tx, row.payeeType))).filter((t) => !row.missingDocs.includes(t))
+      const docs = (await db.$transaction((tx) => requiredTypes(tx, row.payeeType, row.payeeType === 'JURISTIC'))).filter((t) => !row.missingDocs.includes(t))
       const types = new Map((await db.supplierDocumentType.findMany({ select: { code: true, validityDays: true } })).map((t) => [t.code, t.validityDays]))
       const uploadAt = at(row.status === 'DRAFT' ? 1 : 0.15)
       const uploaded: string[] = []

@@ -91,6 +91,17 @@ export function normalizeScope(scope: string | null): string {
   return scope === null ? '' : scope.normalize('NFC').replace(SPACES, ' ').trim().toLowerCase()
 }
 
+/** The VAT registration (ภ.พ.20): required only of a payee registered for VAT (BR-SDOC-01 · S7-28) */
+export const VAT_CERT_TYPE = 'VAT_CERT'
+
+/**
+ * BR-SDOC-01: whether a type is required of an application or a supplier — the type is required, it applies to the
+ * payee's type, and the VAT registration only when the payee is registered for VAT (S7-28)
+ */
+export function requiredDocumentFor(type: { readonly code: string; readonly required: boolean; readonly appliesTo: readonly string[] }, owner: { readonly payeeType: string; readonly isVatRegistered: boolean }): boolean {
+  return type.required && type.appliesTo.includes(owner.payeeType) && (type.code !== VAT_CERT_TYPE || owner.isVatRegistered)
+}
+
 /**
  * BR-SDOC ข้อ 03: the verified copies a newly verified document replaces — every one of a single-instance type, else
  * those of the same scope after normalizeScope — and the ones it keeps, each in the order given.

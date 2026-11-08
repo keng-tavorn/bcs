@@ -9,6 +9,9 @@ import { Notice } from '../form/notice'
 import { useSubmissionKey } from '../form/submission-key'
 import type { AdminFailure, AdminOutcome } from './outcome'
 
+/** How the SUPPLIER usage check counts open portal sessions in OPEN_DOCUMENTS (src/server/services/suppliers/usage.ts) */
+const PORTAL_SESSIONS = 'PORTAL_SESSIONS:'
+
 export type SetModuleAction = (
   input: { organizationId: string; module: string; enabled: boolean; contractRef: string; reason: string },
   idempotencyKey: string,
@@ -53,7 +56,11 @@ export function ModuleSwitch({
       const types = (f.documentTypes ?? []).map((d) => documentTypeNames[d] ?? d).join(', ')
       return t('errors.MODULE_RULES_MISSING', { documentTypes: types })
     }
-    if (f.code === 'MODULE_IN_USE' && f.reason === 'OPEN_DOCUMENTS') return t('errors.OPEN_DOCUMENTS', { documents: (f.documents ?? []).join(', ') })
+    if (f.code === 'MODULE_IN_USE' && f.reason === 'OPEN_DOCUMENTS') {
+      // S7 (BR-SUP ข้อ 16): open portal sessions come counted as "PORTAL_SESSIONS:<n>", never named
+      const documents = (f.documents ?? []).map((d) => (d.startsWith(PORTAL_SESSIONS) ? t('errors.PORTAL_SESSIONS', { count: Number(d.slice(PORTAL_SESSIONS.length)) }) : d))
+      return t('errors.OPEN_DOCUMENTS', { documents: documents.join(', ') })
+    }
     if (f.code === 'MODULE_IN_USE') return t('errors.REQUIRED_BY', { modules: listed })
     if (f.code === 'VALIDATION_FAILED' && f.reason === 'NO_CHANGE') return t('errors.NO_CHANGE')
     if (f.code === 'VALIDATION_FAILED' && f.reason === 'CORE_ALWAYS_ON') return t('errors.CORE_ALWAYS_ON')

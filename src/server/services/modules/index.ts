@@ -12,6 +12,7 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { openInvoiceNumbers } from '../ap/track'
 import { openPaymentDocuments } from '../payments/runs'
+import { openSupplierDocuments } from '../suppliers/usage'
 
 // Modules (spec §4.11, FR-PLT-011, FR-ADM-006 AC1, BR-AUTH-08, ADR-034). Only the BCS team switches modules, with a
 // contract reference and a reason, at /platform/tenants/[orgId]/modules; ORG_ADMIN sees the state at /admin/modules
@@ -76,6 +77,9 @@ const usageChecks = new Map<Module, ModuleUsageCheck>()
 // S8 (BR-IVC-06): PAY stays on while an invoice is not yet paid, rejected or cancelled; S9 (OQ-33): nor while a payment
 // run or a bank account change is not finished
 usageChecks.set('PAY', async (tx) => [...(await openInvoiceNumbers(tx)), ...(await openPaymentDocuments(tx))])
+// S7 (BR-SUP ข้อ 16): SUPPLIER stays on while an application is open or a portal session is (SOURCING and RISK hold it
+// on through MODULE_REQUIRES)
+usageChecks.set('SUPPLIER', openSupplierDocuments)
 
 /** Each optional module registers its check when it is built (S7 onwards); tier 1 has none. */
 export function registerModuleUsageCheck(module: Module, check: ModuleUsageCheck): void {

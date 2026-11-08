@@ -100,6 +100,7 @@ const KIND_TH: Readonly<Record<string, string>> = {
   PO_CHANGE: 'ใบแก้ไข PO',
   PAYMENT_RUN: 'รอบจ่าย',
   BANK_ACCOUNT_CHANGE: 'การเปลี่ยนบัญชีธนาคาร',
+  SUPPLIER_APPLICATION: 'ใบสมัครผู้ขาย',
 }
 const LINE_PREFIX = 'DECISIONS_ON_LINE_'
 /** A KPI measure code in Thai; a code without words stays the code */

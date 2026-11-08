@@ -14,6 +14,7 @@ export const LINK_SUBJECTS = [
   'PO_CHANGE',
   'PAYMENT_RUN',
   'BANK_ACCOUNT_CHANGE',
+  'SUPPLIER_APPLICATION',
 ] as const
 
 export type LinkSubject = (typeof LINK_SUBJECTS)[number]

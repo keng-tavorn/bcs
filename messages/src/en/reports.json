@@ -78,7 +78,8 @@
     "INVOICE": "invoices",
     "PO_CHANGE": "PO changes",
     "PAYMENT_RUN": "payment runs",
-    "BANK_ACCOUNT_CHANGE": "bank account changes"
+    "BANK_ACCOUNT_CHANGE": "bank account changes",
+    "SUPPLIER_APPLICATION": "supplier applications"
   },
   "units": {
     "percent": "{value}%",

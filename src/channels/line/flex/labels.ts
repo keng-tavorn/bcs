@@ -21,6 +21,8 @@ export const SUBJECT_KIND: Readonly<Record<string, Text>> = {
   PO_CHANGE: { th: 'การแก้ไขใบสั่งซื้อ', en: 'PO change' },
   // S9 (ADR-135)
   ...PAY_SUBJECT_KINDS,
+  // S7 (BR-NOTI ข้อ 10: the kind only; a sole proprietor's name never reaches the card)
+  SUPPLIER_APPLICATION: { th: 'ใบสมัครผู้ขาย', en: 'Supplier application' },
 }
 const DOCUMENT: Text = { th: 'เอกสาร', en: 'Document' }
 

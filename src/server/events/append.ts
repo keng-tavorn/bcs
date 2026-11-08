@@ -45,7 +45,8 @@ function actorColumns(ctx: Ctx) {
     case 'AI_AGENT':
       return { actorType: 'AI_AGENT' as const, agentId: ctx.actor.agentId }
     case 'SUPPLIER':
-      return { actorType: 'SUPPLIER' as const }
+      // the contact, never a member (BR-PORTAL-06 · INV-SUP-05 · ADR-183)
+      return { actorType: 'SUPPLIER' as const, actorSupplierContactId: ctx.actor.supplierContactId }
     case 'SYSTEM':
       return { actorType: 'SYSTEM' as const }
   }

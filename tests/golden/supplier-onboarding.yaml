@@ -1,0 +1,45 @@
+# tests/golden/supplier-onboarding.yaml
+suite: supplier-onboarding
+calendar: { timezone: Asia/Bangkok, workdays: [MON, TUE, WED, THU, FRI], start: "08:30", end: "17:30", holidays: ["2026-10-13", "2026-10-23"] }
+settings: { applicationReminderBusinessDays: 3, applicationEscalateBusinessDays: 10, applicationExpireDays: 30, otpMinutes: 10, otpMaxAttempts: 5, otpLockMinutes: 15 }
+existing:
+  # ผู้ขายและใบสมัครที่เปิดอยู่ขององค์กร (จากชีต Suppliers ของ SIMEC)
+  - { ref: SP0001, taxId: "0999998010014", branchCode: "00000", nameTh: "บริษัท เกียรติไพศาลค้าวัสดุ จำกัด", email: "sp0001@supplier.simec.local" }
+  - { ref: SP0196, taxId: "0999998010014", branchCode: "00003", nameTh: "บริษัท เกียรติไพศาลค้าวัสดุ จำกัด (สาขาชลบุรี)", email: "sp0196@supplier.simec.local" }
+  - { ref: SP0105, taxId: "0999998011053", branchCode: "00000", nameTh: "ห้างหุ้นส่วนจำกัด รังสิตเทรดดิ้งวิศวกรรมโยธา", email: "sp0105@supplier.simec.local" }
+cases:
+  # normalizeSupplierName (BR-SUP-09)
+  - { id: GC-SUP-09, title: ตัดคำว่าบริษัทและจำกัด, fn: normalizeSupplierName, input: "บริษัท เกียรติไพศาลค้าวัสดุ จำกัด", expect: "เกียรติไพศาลค้าวัสดุ" }
+  - { id: GC-SUP-10, title: บจก. ย่อให้ผลเดียวกัน, fn: normalizeSupplierName, input: "บจก. เกียรติไพศาลค้าวัสดุ", expect: "เกียรติไพศาลค้าวัสดุ" }
+  - { id: GC-SUP-11, title: หจก. กับห้างหุ้นส่วนจำกัด, fn: normalizeSupplierName, input: "หจก.รังสิตเทรดดิ้งวิศวกรรมโยธา", expect: "รังสิตเทรดดิ้งวิศวกรรมโยธา" }
+  - { id: GC-SUP-12, title: ข้อความสาขาในวงเล็บคงไว้, fn: normalizeSupplierName, input: "บริษัท เกียรติไพศาลค้าวัสดุ จำกัด (สาขาชลบุรี)", expect: "เกียรติไพศาลค้าวัสดุ(สาขาชลบุรี)" }
+  - { id: GC-SUP-13, title: ชื่ออังกฤษตัดรูปแบบบริษัทและตัวพิมพ์, fn: normalizeSupplierName, input: "SIAM STEEL COMPANY LIMITED", expect: "siamsteel" }
+  # findSupplierDuplicates (BR-SUP-09) · candidate = ค่าที่กรอกในคำเชิญหรือใบสมัคร
+  - { id: GC-SUP-14, title: เลขและสาขาตรง บล็อก, fn: findSupplierDuplicates, input: { taxId: "0999998010014", branchCode: "00003", nameTh: "บจก. เกียรติไพศาลค้าวัสดุ", email: "x@example.com" }, expect: { error: DUPLICATE_SUPPLIER, reason: DUPLICATE_TAXID, matches: [SP0196] } }
+  - { id: GC-SUP-15, title: เลขตรงสาขาต่าง เตือน, fn: findSupplierDuplicates, input: { taxId: "0999998010014", branchCode: "00004", nameTh: "บริษัท ใหม่ จำกัด", email: "x@example.com" }, expect: { warnings: [{ code: SAME_TAXID_OTHER_BRANCH, matches: [SP0001, SP0196] }] } }
+  - { id: GC-SUP-16, title: ชื่อตรงหลัง normalize, fn: findSupplierDuplicates, input: { taxId: "0999998020010", branchCode: "00000", nameTh: "บจก. เกียรติไพศาลค้าวัสดุ", email: "x@example.com" }, expect: { warnings: [{ code: DUPLICATE_NAME, matches: [SP0001] }] } }
+  - { id: GC-SUP-17, title: อีเมลตรงไม่สนตัวพิมพ์และช่องว่าง, fn: findSupplierDuplicates, input: { taxId: "0999998020010", branchCode: "00000", nameTh: "บริษัท ราชบุรีคอนสตรัคชั่น จำกัด", email: " SP0105@Supplier.SIMEC.local " }, expect: { warnings: [{ code: DUPLICATE_EMAIL, matches: [SP0105] }] } }
+  - { id: GC-SUP-18, title: ไม่ซ้ำ, fn: findSupplierDuplicates, input: { taxId: "0999998020010", branchCode: "00000", nameTh: "บริษัท ราชบุรีคอนสตรัคชั่น จำกัด", email: "rcb@supplier.simec.local" }, expect: { warnings: [] } }
+  - { id: GC-SUP-19, title: เลขผู้เสียภาษี check digit ผิด, fn: findSupplierDuplicates, input: { taxId: "0999998010015", branchCode: "00000", nameTh: "บริษัท ก จำกัด", email: "a@example.com" }, expect: { error: VALIDATION_FAILED, reason: TAXID_CHECKSUM } }
+  # verifyOtp (BR-PORTAL-02) · challenge สร้าง 2026-11-02T02:00:00Z รหัส 482913
+  - { id: GC-SUP-20, title: รหัสถูกภายในเวลา, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 0, attempt: "482913", now: "2026-11-02T02:04:00Z" }, expect: { ok: true } }
+  - { id: GC-SUP-21, title: ผิดครั้งที่ 4 ยังเหลือ 1 ครั้ง, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 3, attempt: "000000", now: "2026-11-02T02:03:00Z" }, expect: { error: OTP_INVALID, attempts: 4, remaining: 1 } }
+  - { id: GC-SUP-22, title: ผิดครั้งที่ 5 ล็อก 15 นาที, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 4, attempt: "000000", now: "2026-11-02T02:03:00Z" }, expect: { error: OTP_LOCKED, attempts: 5, lockedUntil: "2026-11-02T02:18:00Z" } }
+  - { id: GC-SUP-23, title: รหัสถูกแต่ถูกล็อกแล้ว, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 5, lockedUntil: "2026-11-02T02:18:00Z", attempt: "482913", now: "2026-11-02T02:05:00Z" }, expect: { error: OTP_LOCKED } }
+  - { id: GC-SUP-24, title: นาทีที่ 10 พอดีถือว่าหมดอายุ, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 0, attempt: "482913", now: "2026-11-02T02:10:00Z" }, expect: { error: OTP_EXPIRED } }
+  - { id: GC-SUP-25, title: ก่อนหมดอายุ 1 วินาที, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 0, attempt: "482913", now: "2026-11-02T02:09:59Z" }, expect: { ok: true } }
+  # applicationSla (BR-SUP-12) · วันทำการ = 540 นาที
+  - { id: GC-SUP-26, title: เชิญศุกร์ 10:00, fn: applicationSla, input: { invitedAt: "2026-10-09T03:00:00Z", lastActivityAt: "2026-10-09T03:00:00Z" }, expect: { remindAt: "2026-10-15T03:00:00Z", escalateAt: "2026-10-27T03:00:00Z", expiresAt: "2026-11-08T03:00:00Z" } }
+  - { id: GC-SUP-27, title: เชิญจันทร์ 17:00 ข้ามวันหยุด 13 ต.ค., fn: applicationSla, input: { invitedAt: "2026-10-12T10:00:00Z", lastActivityAt: "2026-10-12T10:00:00Z" }, expect: { remindAt: "2026-10-16T10:00:00Z", escalateAt: "2026-10-28T10:00:00Z", expiresAt: "2026-11-11T10:00:00Z" } }
+  - { id: GC-SUP-28, title: เชิญวันเสาร์ เริ่มนับจันทร์, fn: applicationSla, input: { invitedAt: "2026-10-10T07:00:00Z", lastActivityAt: "2026-10-10T07:00:00Z" }, expect: { remindAt: "2026-10-15T10:30:00Z", escalateAt: "2026-10-27T10:30:00Z", expiresAt: "2026-11-09T07:00:00Z" } }
+  - { id: GC-SUP-29, title: มีความเคลื่อนไหวแล้ว เตือนนับใหม่จาก lastActivityAt, fn: applicationSla, input: { invitedAt: "2026-10-09T03:00:00Z", lastActivityAt: "2026-10-14T02:00:00Z" }, expect: { remindAt: "2026-10-19T02:00:00Z", escalateAt: "2026-10-27T03:00:00Z", expiresAt: "2026-11-08T03:00:00Z" } }
+  # g7 (BR-SUP-13) · วันทำการทศนิยม 1 ตำแหน่ง ปัด half-up · ตัวกลางล่าง
+  - { id: GC-SUP-30, title: วันทำการจากคำเชิญถึงอนุมัติ, fn: g7BusinessDays, input: [{ invitedAt: "2026-10-05T02:00:00Z", decidedAt: "2026-10-07T03:00:00Z" }, { invitedAt: "2026-10-05T02:00:00Z", decidedAt: "2026-10-16T09:00:00Z" }, { invitedAt: "2026-10-09T03:00:00Z", decidedAt: "2026-10-15T08:30:00Z" }, { invitedAt: "2026-10-06T01:30:00Z", decidedAt: "2026-10-06T10:30:00Z" }], expect: ["2.1", "8.8", "3.6", "1.0"] }
+  - { id: GC-SUP-31, title: มัธยฐานตัวกลางล่างของ 4 ใบ, fn: g7Median, input: ["2.1", "8.8", "3.6", "1.0"], expect: "2.1" }
+  - { id: GC-SUP-32, title: มัธยฐานของ 3 ใบ (seed demo), fn: g7Median, input: ["2.1", "8.8", "3.6"], expect: "3.6" }
+  - { id: GC-SUP-33, title: ไม่มีใบที่อนุมัติ, fn: g7Median, input: [], expect: null }
+  # เคสขอบที่เพิ่มในรอบตรวจ ADR-075 (ต่อท้ายช่วงเดิม)
+  - { id: GC-SUP-48, title: คำบอกรูปแบบตัดเฉพาะคำเต็ม ไม่กินตัวอักษรในชื่อ, fn: normalizeSupplierName, input: "Prince Co., Ltd.", expect: "prince" }
+  - { id: GC-SUP-49, title: ผู้ขายต่างประเทศไม่มีเลขผู้เสียภาษี ตรวจเฉพาะชื่อและอีเมล, fn: findSupplierDuplicates, input: { taxId: null, isForeign: true, branchCode: "00000", nameTh: "ACME Trading Pte. Ltd.", email: "sp0105@supplier.simec.local" }, expect: { warnings: [{ code: DUPLICATE_EMAIL, matches: [SP0105] }] } }
+  - { id: GC-SUP-50, title: ถึงเวลาปลดล็อกพอดี แต่ challenge หมดอายุแล้ว, fn: verifyOtp, input: { createdAt: "2026-11-02T02:00:00Z", code: "482913", attempts: 5, lockedUntil: "2026-11-02T02:18:00Z", attempt: "482913", now: "2026-11-02T02:18:00Z" }, expect: { error: OTP_EXPIRED } }
+  - { id: GC-SUP-51, title: ความเคลื่อนไหวหลังส่งต่อ เตือนนับใหม่แต่ไม่ส่งต่อซ้ำ, fn: applicationSla, input: { invitedAt: "2026-10-09T03:00:00Z", lastActivityAt: "2026-10-28T02:00:00Z" }, expect: { remindAt: "2026-11-02T02:00:00Z", escalateAt: "2026-10-27T03:00:00Z", expiresAt: "2026-11-08T03:00:00Z" } }

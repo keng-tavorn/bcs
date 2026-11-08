@@ -202,6 +202,8 @@ export const NEW_REQUEST_SEARCH_OVER = 6
 // ---------- S6 settings (src/lib/org-settings.ts) ----------
 /** The longest window or lapse an S6 day setting takes: about ten years */
 export const SETTINGS_MAX_DAYS = 3660
+/** S7: the longest a portal link, code lock or idle session may be set to, in minutes (one day) */
+export const SETTINGS_MAX_MINUTES = 1440
 /** One hundred percent in basis points, and the highest budget alert threshold (ten times the current budget) */
 export const BP_PER_WHOLE = 10_000
 export const BUDGET_ALERT_MAX_BP = 10 * BP_PER_WHOLE
@@ -261,3 +263,11 @@ export const EXCEPTION_HELP_MESSAGE_MAX_CHARS = 2_000
 export const FOLLOW_UPS_PER_TASK_PER_DAY = 1
 export const FOLLOW_UP_QUIET_MS = 2 * MS_PER_HOUR
 export const FOLLOW_UP_MESSAGE_MAX_CHARS = 1_000
+
+/** How many six-digit one-time codes there are (the portal's OTP · BR-PORTAL ข้อ 02) */
+export const OTP_CODE_SPACE = 1_000_000
+
+/** The largest file a supplier uploads (BR-PORTAL ข้อ 07: 20 MB) */
+export const SUPPLIER_DOC_MAX_BYTES = 20 * 1024 * 1024
+/** The longest a supplier document type may last (BR-SDOC ข้อ 01): a hundred years */
+export const SUPPLIER_DOC_MAX_VALIDITY_DAYS = 36_500

@@ -12,6 +12,7 @@ import { budgetTransferSubject } from './budget-transfer'
 import { invoiceSubject } from './invoice'
 import { paymentRunSubject } from './payment-run'
 import { poChangeSubject } from './po-change'
+import { supplierApplicationSubject } from './supplier-application'
 import { workflowVersionSubject } from './workflow-version'
 
 // The subject registry (ADR-068, P1-07, docs/sub-specs/P1.md "ทะเบียน subject step-up และสัญญากลาง"): the approval
@@ -94,6 +95,8 @@ export const SUBJECT_ADAPTERS: Readonly<Record<RegisteredSubject, SubjectAdapter
   PO_CHANGE: poChangeSubject,
   PAYMENT_RUN: paymentRunSubject,
   BANK_ACCOUNT_CHANGE: bankAccountChangeSubject,
+  // S7 (BR-DOA-26)
+  SUPPLIER_APPLICATION: supplierApplicationSubject,
 }
 
 export function isRegisteredSubject(type: string): type is RegisteredSubject {

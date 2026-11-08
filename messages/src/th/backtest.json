@@ -37,6 +37,7 @@
     "PO_CHANGE": "แก้ใบสั่งซื้อ",
     "PAYMENT_RUN": "รอบจ่ายเงิน",
     "BANK_ACCOUNT_CHANGE": "เปลี่ยนบัญชีธนาคารผู้ขาย",
+    "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
     "OTHER": "เอกสาร"
   },
   "sideErrors": {

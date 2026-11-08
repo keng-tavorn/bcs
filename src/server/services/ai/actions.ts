@@ -144,8 +144,9 @@ async function replayOf(ctx: Ctx, input: z.input<typeof RequestInput>, existing:
   const setting = await forTenant(ctx.organizationId).aiAgentSetting.findFirst({ where: { agent: existing.agent }, select: { minConfidenceBp: true } })
   return ok({
     agentActionId: existing.id,
-    agent: existing.agent,
-    purpose: existing.purpose,
+    // the same purpose as asked (checked above), so its agent
+    agent: AGENT_OF_PURPOSE[input.purpose],
+    purpose: input.purpose,
     level: existing.level,
     minConfidenceBp: setting?.minConfidenceBp ?? DEFAULT_MIN_CONFIDENCE_BP,
     model: existing.model ?? '',

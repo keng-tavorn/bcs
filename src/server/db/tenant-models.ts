@@ -117,6 +117,16 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'PaymentRunItemWht',
   'PaymentRunDocument',
   'PaymentFile',
+  // S7-01 (PortalIpRateLimit has no organizationId: a global table, §4.8)
+  'SupplierContact',
+  'PortalInviteLink',
+  'PortalOtpChallenge',
+  'PortalSession',
+  'SupplierApplication',
+  'SupplierDocumentType',
+  'SupplierDocument',
+  'PoAcknowledgement',
+  'PortalRateLimit',
 ])
 
 // Have an organizationId column but are platform tables reached only through platform code (spec §4.8).

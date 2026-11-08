@@ -176,7 +176,8 @@ export interface BankAccountChangeDto {
   readonly callVerifiedAt: string | null
   readonly callVerificationNote: string | null
   readonly proofs: ReadonlyArray<{ readonly fileId: string; readonly fileName: string; readonly mimeType: string }>
-  readonly submittedById: string
+  /** empty while a change from the portal waits for FINANCE to claim it (ADR-190) */
+  readonly submittedById: string | null
   readonly submittedAt: string | null
   readonly decidedAt: string | null
   readonly version: number
@@ -362,7 +363,7 @@ export async function listBankAccountChanges(ctx: Ctx, input: z.input<typeof Lis
         ownerKind: r.ownerKind,
         supplier: r.supplier,
         status: r.status,
-        proposer: people.get(r.submittedById) ?? null,
+        proposer: r.submittedById ? (people.get(r.submittedById) ?? null) : null,
         submittedAt: r.submittedAt?.toISOString() ?? null,
         createdAt: r.createdAt.toISOString(),
       })),
@@ -529,7 +530,7 @@ export async function getBankAccountChangeActivity(ctx: Ctx, input: { readonly c
     const people = await peopleOf(tx, [change.submittedById, ...open.map((t) => t.assigneeMemberId), ...events.flatMap((e) => [e.actorMemberId, e.onBehalfOfMemberId])])
     const isProposer = me === change.submittedById && isAllowed(principal, 'bankAccountChange.propose')
     return ok({
-      proposer: people.get(change.submittedById) ?? null,
+      proposer: change.submittedById ? (people.get(change.submittedById) ?? null) : null,
       waitingFor: [...new Set(open.map((t) => t.assigneeMemberId))].map((id) => people.get(id)).filter((p): p is BankPersonDto => !!p),
       openTaskId: mine?.id ?? null,
       isProposer,

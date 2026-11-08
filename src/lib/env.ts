@@ -256,6 +256,8 @@ const schema = z
     MAILPIT_API_URL: optional(urlSchema()).transform((v) => v ?? 'http://localhost:8025'),
 
     REGISTRY_MODE: z.enum(['stub', 'live']).default('stub'),
+    // S7-06 (BR-PORTAL ข้อ 07 · OQ-191): the virus scan of uploaded files — stub on a machine and in tests, live at go-live (S7-22)
+    FILE_SCAN_MODE: z.enum(['stub', 'live']).default('stub'),
     RD_VAT_SERVICE_URL: optional(urlSchema()),
     DBD_JURISTIC_API_URL: optional(urlSchema()),
 

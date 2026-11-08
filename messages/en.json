@@ -39,6 +39,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "purchase order",
       "REQUEST": "purchase request",
+      "SUPPLIER_APPLICATION": "supplier application",
       "VARIANCE": "the receiving variance of purchase order",
       "WORKFLOW_VERSION": "workflow change"
     },
@@ -665,7 +666,8 @@
       "PAYMENT_RUN": "Payment run",
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order (PO)",
-      "PURCHASE_REQUEST": "Purchase request (PR)"
+      "PURCHASE_REQUEST": "Purchase request (PR)",
+      "SUPPLIER_APPROVAL": "New supplier approval"
     },
     "download": "Download {name} as YAML",
     "editor": {
@@ -963,7 +965,8 @@
         "PAYMENT_RUN": "Payment run",
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order (PO)",
-        "PURCHASE_REQUEST": "Purchase request (PR)"
+        "PURCHASE_REQUEST": "Purchase request (PR)",
+        "SUPPLIER_APPROVAL": "New supplier approval"
       },
       "effectiveApplied": "Took effect {time}",
       "effectiveLabel": "Effective",
@@ -3080,6 +3083,10 @@
       "Retention": "Performance retention",
       "Security": "Security",
       "Supplier": "Supplier",
+      "SupplierApplication": "Supplier application",
+      "SupplierContact": "Supplier contact",
+      "SupplierDocument": "Supplier documents",
+      "SupplierDocumentType": "Supplier document types",
       "SupplierNotice": "E-mail to a supplier",
       "Variance": "Receiving variance",
       "WhtCertificate": "Withholding tax certificate",
@@ -3108,6 +3115,7 @@
       "PURCHASE_ORDER": "Purchase order {label}",
       "REQUEST": "Request {label}",
       "SUPPLIER": "Supplier {label}",
+      "SUPPLIER_APPLICATION": "Supplier application",
       "VARIANCE": "Receiving variance of {label}",
       "WORKFLOW_VERSION": "Workflow change"
     },
@@ -3282,6 +3290,7 @@
       },
       "file": {
         "downloaded": "File downloaded",
+        "scanned": "File scanned",
         "uploaded": "File uploaded"
       },
       "form_version": {
@@ -3407,6 +3416,16 @@
         "returned": "PO change returned",
         "submitted": "PO change submitted"
       },
+      "portal_session": {
+        "csrf_rejected": "Portal request without its protection token refused",
+        "link_requested": "Contact asked for a portal link",
+        "otp_failed": "Wrong portal code",
+        "otp_locked": "Portal code locked",
+        "otp_requested": "Portal code sent",
+        "revoked": "Portal access revoked",
+        "signed_in": "Contact signed in to the portal",
+        "signed_out": "Contact signed out of the portal"
+      },
       "position": {
         "assigned": "Position holder appointed",
         "unassigned": "Position holding ended"
@@ -3454,6 +3473,7 @@
       },
       "security": {
         "pin_locked": "Transaction PIN locked for a while",
+        "rate_limited": "Too many requests limited",
         "sod_blocked": "Separation of duties blocked an action",
         "token_misuse": "Decision link misused"
       },
@@ -3463,6 +3483,36 @@
         "registry_status_changed": "Supplier's register status changed",
         "tax_profile_updated": "Supplier's tax profile changed",
         "updated": "Supplier details changed"
+      },
+      "supplier_application": {
+        "approved": "Supplier application approved",
+        "cancelled": "Supplier application cancelled",
+        "drafted": "Supplier started its application",
+        "expired": "Supplier application expired",
+        "invited": "Supplier invited to apply",
+        "rejected": "Supplier application not approved",
+        "returned": "Supplier application returned",
+        "routed": "Supplier application sent for approval",
+        "submitted": "Supplier application sent",
+        "updated": "Supplier application changed"
+      },
+      "supplier_contact": {
+        "created": "Supplier contact added",
+        "deactivated": "Supplier contact deactivated",
+        "privacy_notice_accepted": "Contact acknowledged the privacy notice",
+        "updated": "Supplier contact changed"
+      },
+      "supplier_document": {
+        "expired": "Supplier document expired",
+        "rejected": "Supplier document rejected",
+        "reminder_sent": "Supplier document expiry reminder sent",
+        "scanned": "Supplier document scanned",
+        "superseded": "Supplier document superseded",
+        "uploaded": "Supplier document uploaded",
+        "verified": "Supplier document verified"
+      },
+      "supplier_document_type": {
+        "updated": "Supplier document type changed"
       },
       "supplier_notice": {
         "failed": "E-mail to the supplier failed",
@@ -3554,6 +3604,7 @@
       "payment_run_item": "Payment run items",
       "po": "Purchase orders",
       "po_change": "PO changes",
+      "portal_session": "Supplier portal",
       "position": "Positions",
       "price_agreement": "Agreed prices",
       "push_device": "BCS Go phones",
@@ -3563,6 +3614,10 @@
       "retention": "Performance retention",
       "security": "Security",
       "supplier": "Suppliers",
+      "supplier_application": "Supplier application",
+      "supplier_contact": "Supplier contacts",
+      "supplier_document": "Supplier documents",
+      "supplier_document_type": "Supplier document types",
       "supplier_notice": "E-mails to suppliers",
       "variance": "Receiving variances",
       "wht_certificate": "Withholding tax certificates",
@@ -3806,6 +3861,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order",
       "REQUEST": "Purchase request",
+      "SUPPLIER_APPLICATION": "Supplier application",
       "VARIANCE": "Receiving variance"
     },
     "summary": "{total, plural, =0 {No documents were sent in this period} one {# document} other {# documents}}",
@@ -4268,6 +4324,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order",
       "REQUEST": "Request",
+      "SUPPLIER_APPLICATION": "Supplier application",
       "VARIANCE": "Receiving variance",
       "WORKFLOW_VERSION": "Workflow change"
     },
@@ -5224,7 +5281,8 @@
       "PAYMENT_RUN": "Payment run",
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order (PO)",
-      "PURCHASE_REQUEST": "Purchase request (PR)"
+      "PURCHASE_REQUEST": "Purchase request (PR)",
+      "SUPPLIER_APPROVAL": "New supplier approval"
     },
     "errors": {
       "AMOUNT": "Enter the cap in baht with at most 2 decimals, e.g. 10000 or 10,000.50",
@@ -5653,6 +5711,7 @@
     "AI_FILE_UNSUPPORTED": "The AI cannot read this file ({reason}): PDF, JPEG, PNG or WebP up to 20 MB; an e-Tax file uses the e-Tax import",
     "AI_NOT_EVALUATED": "This version of the AI assistant {agent} has not passed its evaluation yet, so it cannot be used",
     "AI_REVIEW_PENDING": "{count} fields the AI filled in are not confirmed yet",
+    "APPLICATION_INCOMPLETE": "The application still lacks: {missing}",
     "APPROVER_NOT_FOUND": "No holder of {position} in {department}. Please contact your administrator",
     "ATTACHMENT_RULE_FAILED": "Required attachments missing under rule {rule}: {missing}",
     "BANK_ACCOUNT_NOT_APPROVED": "Supplier {supplier} has no approved bank account yet",
@@ -5667,7 +5726,10 @@
     "DOA_NOT_CONFIGURED": "No delegation of authority is in effect for this document. Please contact your administrator",
     "DOCUMENT_NOT_PAYABLE": "{kind} {number} is not ready for payment or is in another payment run",
     "DUPLICATE_INVOICE": "This invoice number is already recorded for this supplier",
+    "DUPLICATE_SUPPLIER": "This supplier is already registered ({reason}).",
     "EXTERNAL_SERVICE_ERROR": "An external system is not responding ({service})",
+    "FILE_INFECTED": "This file failed the security check. Please upload another file.",
+    "FILE_NOT_SCANNED": "The file is still being checked. Please wait a moment.",
     "FORBIDDEN": "You do not have permission to do this",
     "IDEMPOTENCY_CONFLICT": "This command was already sent with different data",
     "INTERNAL": "Something went wrong (reference {requestId})",
@@ -5678,19 +5740,25 @@
     "MODULE_IN_USE": "Cannot disable the module: {reason}",
     "NOT_FOUND": "Not found",
     "NO_HIGHER_AUTHORITY": "The DOA has no authority above the requester for this amount",
+    "OTP_EXPIRED": "The code has expired. Please ask for a new sign-in link.",
+    "OTP_INVALID": "The code is not right. {remaining} tries left.",
+    "OTP_LOCKED": "Too many wrong codes. Try again after {time}.",
     "PAYMENT_DATE_INVALID": "The pay date {date} cannot be used: {reason}",
     "PAYMENT_FLAGS_CHANGED": "The flags of the payment run changed since you opened the page: reload it and check again",
     "PAYMENT_FLAG_REASON_REQUIRED": "The item of {supplier} has flag {flag}: give a reason before sending",
     "PAYMENT_ITEM_NOT_POSITIVE": "The transfer to supplier {supplier} must be more than zero (now THB {transfer})",
+    "PORTAL_NOT_ENABLED": "This account cannot use the portal yet. Please contact procurement.",
     "PO_CHANGE_BELOW_PROGRESS": "Cannot change below what was received or invoiced ({reason})",
     "PO_CHANGE_EXCEEDS_REQUEST": "More than is left on the source request ({left} left)",
     "PO_CHANGE_OPEN": "This PO has a change that is not finished",
+    "PRIVACY_NOTICE_OUTDATED": "Please read and acknowledge the current privacy notice first.",
     "RATE_LIMITED": "Too many attempts. Please try again later",
     "RETENTION_NOT_DUE": "The retention can be released from {date}",
     "REVIEWER_NOT_FOUND": "No reviewer {position} of {department} for rule {rule}. Please contact your administrator",
     "SOD_VIOLATION": "Not allowed because it breaks segregation of duties ({rule})",
     "STEP_UP_LOCKED": "Too many wrong PINs. Try again after {time}",
     "STEP_UP_REQUIRED": "This action requires PIN confirmation",
+    "SUPPLIER_DOCUMENT_UNVERIFIED": "Documents {types} are not verified yet, so it cannot be sent for approval.",
     "TAX_RATE_NOT_CONFIGURED": "No VAT rate is configured for {date}. Please contact the platform administrator",
     "TOKEN_EXPIRED": "This link has expired. Please open it from the system",
     "TOKEN_INVALID": "This link is not valid",
@@ -6551,6 +6619,7 @@
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order",
         "REQUEST": "Request",
+        "SUPPLIER_APPLICATION": "Supplier application",
         "VARIANCE": "Receiving variance",
         "WORKFLOW_VERSION": "Workflow change"
       },
@@ -6786,6 +6855,7 @@
         "PURCHASE_ORDER": "Purchase order {label}",
         "REQUEST": "Request {label}",
         "SUPPLIER": "Supplier {label}",
+        "SUPPLIER_APPLICATION": "Supplier application",
         "VARIANCE": "Receiving variance of {label}",
         "WORKFLOW_VERSION": "Workflow change",
         "unknown": "Document not found"
@@ -6932,6 +7002,7 @@
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order {label}",
         "REQUEST": "Request {label}",
+        "SUPPLIER_APPLICATION": "Supplier application",
         "VARIANCE": "Receiving variance of {label}",
         "WORKFLOW_VERSION": "Workflow change",
         "unknown": "Document not found"
@@ -6973,6 +7044,7 @@
       "PO_CHANGE": "PO changes",
       "PURCHASE_ORDER": "purchase orders",
       "PURCHASE_REQUEST": "purchase requests",
+      "SUPPLIER_APPLICATION": "supplier applications",
       "VARIANCE": "receiving variances",
       "WORKFLOW_VERSION": "reviewer workflow versions"
     },
@@ -8358,6 +8430,7 @@
         "NOT_FOUND": "This organization was not found. Go back to customer organizations and choose again.",
         "NO_CHANGE": "The module is already in this state. Reload the page to see the latest state.",
         "OPEN_DOCUMENTS": "Documents are still open in this module: {documents}. The customer must close them first.",
+        "PORTAL_SESSIONS": "{count} open supplier portal sessions",
         "REASON": "Enter a reason of at least 3 characters.",
         "REQUIRED_BY": "These modules still use this one: {modules}. Switch them off first.",
         "REQUIRES": "Switch on {modules} first, then this module.",
@@ -8680,6 +8753,68 @@
     "title": "Withdraw this version",
     "withdrawn": "Withdrawn on {time}: this version will not take effect",
     "withdrawnBy": "Asked by {name} on {time}"
+  },
+  "portal": {
+    "applicationStatus": {
+      "APPROVED": "Approved",
+      "CANCELLED": "Cancelled",
+      "DRAFT": "Being filled in",
+      "EXPIRED": "Expired",
+      "INVITED": "Invited",
+      "PENDING_APPROVAL": "Waiting for approval",
+      "REJECTED": "Not approved",
+      "RETURNED": "Returned for changes",
+      "SUBMITTED": "Sent, being checked"
+    },
+    "errors": {
+      "FAILED": "That did not work. Please try again.",
+      "OTP_EXPIRED": "The code has expired. Please ask for a new sign-in link.",
+      "OTP_INVALID": "The code is not right. {remaining} tries left.",
+      "OTP_LOCKED": "Too many wrong codes. Try again after {time}.",
+      "PRIVACY_NOTICE_OUTDATED": "Please read and acknowledge the current privacy notice first.",
+      "RATE_LIMITED": "Too many requests. Please try again in a moment.",
+      "TOKEN_EXPIRED": "This link has expired. Please ask for a new sign-in link.",
+      "TOKEN_INVALID": "This link does not work. Please ask for a new sign-in link.",
+      "TOKEN_USED": "This link was used already. Please ask for a new sign-in link.",
+      "VALIDATION_FAILED": "Please check what you typed."
+    },
+    "home": {
+      "applicationStatus": "Application status: {status}",
+      "documents": "Your documents",
+      "forApplication": "Supplier application of {name}",
+      "forSupplier": "You are signed in for {supplier}",
+      "greeting": "Hello {name}",
+      "signOut": "Sign out"
+    },
+    "link": {
+      "intro": "Press the button to get a six-digit code by e-mail. This link works once.",
+      "submit": "Send me a code",
+      "title": "Confirm your sign-in"
+    },
+    "login": {
+      "email": "E-mail",
+      "intro": "Type the e-mail this organization has on record. We will send a sign-in link, usable once, to that address.",
+      "sent": "If this e-mail is on record, a sign-in link will arrive within a few minutes. Please check your inbox.",
+      "submit": "Send me a sign-in link",
+      "title": "Sign in to the supplier portal"
+    },
+    "of": "of {organization}",
+    "otp": {
+      "code": "Six-digit code",
+      "intro": "We sent a six-digit code to your e-mail. It works for 10 minutes, on this device only.",
+      "submit": "Sign in",
+      "title": "Enter your code"
+    },
+    "privacy": {
+      "2026-11-01": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them. You may ask its procurement team for a copy, a correction or deletion of your data.",
+      "accept": "I have read it",
+      "title": "Privacy notice"
+    },
+    "title": "Supplier portal",
+    "unavailable": {
+      "body": "The supplier portal of this link is not open. Please check the link or ask the person who sent it to you.",
+      "title": "Not available"
+    }
   },
   "priceReference": {
     "agreement": "Agreed price with {supplier}: {price} baht/{uom}",
@@ -9682,6 +9817,7 @@
       "PO_CHANGE": "PO changes",
       "PURCHASE_ORDER": "purchase orders",
       "PURCHASE_REQUEST": "purchase requests",
+      "SUPPLIER_APPLICATION": "supplier applications",
       "VARIANCE": "receiving variances",
       "WORKFLOW_VERSION": "reviewer workflow versions"
     },
@@ -10593,6 +10729,7 @@
           "PO_CHANGE": "PO change",
           "PURCHASE_ORDER": "purchase order",
           "REQUEST": "purchase request",
+          "SUPPLIER_APPLICATION": "supplier application",
           "VARIANCE": "receiving variance",
           "WORKFLOW_VERSION": "workflow change"
         },
@@ -10879,6 +11016,7 @@
       "savings": "Savings",
       "security": "Account security",
       "settings": "My settings",
+      "supplierDocumentTypes": "Supplier document types",
       "suppliers": "Suppliers",
       "tasks": "Approvals",
       "tenants": "Customer organizations",
@@ -10926,6 +11064,94 @@
     },
     "signedInAs": "Signed in as {name}",
     "skipToContent": "Skip to content"
+  },
+  "supplierDocs": {
+    "documents": {
+      "back": "Back to the portal home",
+      "columns": {
+        "action": "Manage",
+        "dates": "Issued – expires",
+        "status": "Status",
+        "type": "Type"
+      },
+      "confirmReject": "Confirm not accepted",
+      "documentType": "Document type",
+      "download": "Open file",
+      "empty": "This supplier has no document yet",
+      "expiresOn": "Expiry printed on the document (if any)",
+      "file": "File (PDF, JPG, PNG or WebP, at most 20 MB)",
+      "idCardHint": "ID card: please cover the religion field before you photograph or scan it",
+      "issuedOn": "Issued on",
+      "reject": "Not accepted",
+      "rejectReason": "Why it is not accepted",
+      "scan": {
+        "INFECTED": "Unsafe file",
+        "PENDING": "Scanning the file"
+      },
+      "scope": "Scope (e.g. ISO 9001)",
+      "sensitiveNote": "Sensitive document: opening the file is logged",
+      "status": {
+        "EXPIRED": "Expired",
+        "PENDING": "Waiting for checks",
+        "REJECTED": "Not accepted",
+        "SUPERSEDED": "Replaced",
+        "VERIFIED": "Verified"
+      },
+      "title": "Supplier documents",
+      "upload": "Upload a document",
+      "uploadTitle": "Send a new document",
+      "uploaded": "Sent. The file is being scanned, then procurement will check it",
+      "verify": "Verify"
+    },
+    "errors": {
+      "CONFLICT_VERSION": "The document changed. Please reload the page",
+      "FAILED": "That did not work. Please try again",
+      "FILE_INFECTED": "This file failed the security check",
+      "FILE_NOT_SCANNED": "The file is still being checked. Please wait a moment",
+      "FORBIDDEN": "You may not do this",
+      "PRIVACY_NOTICE_OUTDATED": "Please acknowledge the privacy notice first",
+      "RATE_LIMITED": "Too many files. Please try again later",
+      "VALIDATION_FAILED": "Please check what you typed"
+    },
+    "types": {
+      "appliesTo": "For suppliers that are",
+      "close": "Close",
+      "closed": "Closed",
+      "code": "Code",
+      "codeHint": "Capitals, digits and underscores, e.g. COMPANY_CERT. An existing code changes that type",
+      "columns": {
+        "action": "Manage",
+        "appliesTo": "For",
+        "flags": "Rules",
+        "rule": "Valid / reminder",
+        "type": "Type"
+      },
+      "days": "{count} days",
+      "empty": "No document type yet",
+      "flagMany": "One per scope",
+      "flagRequired": "Required",
+      "flagSensitive": "Sensitive",
+      "formTitle": "Add or change a type",
+      "intro": "The documents suppliers send through the portal. Required types must be there before an application is sent and before it goes for approval. Close a type you no longer use instead of deleting it.",
+      "listTitle": "Types",
+      "nameEn": "Name in English",
+      "nameTh": "Name in Thai",
+      "noExpiry": "Date on the document",
+      "payee": {
+        "FOREIGN": "Foreign",
+        "INDIVIDUAL": "Individuals",
+        "JURISTIC": "Companies"
+      },
+      "reminderDaysBefore": "Remind before expiry (days)",
+      "required": "Required",
+      "save": "Save type",
+      "saved": "Saved",
+      "sensitive": "Sensitive (every opening of the file is logged)",
+      "singleInstance": "One copy per supplier",
+      "title": "Supplier document types",
+      "validityDays": "Valid for (days)",
+      "validityHint": "Leave empty to use the expiry printed on the document"
+    }
   },
   "suppliers": {
     "branch": {
@@ -11527,7 +11753,8 @@
         "PAYMENT_RUN": "Payment run",
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order (PO)",
-        "PURCHASE_REQUEST": "Purchase request (PR)"
+        "PURCHASE_REQUEST": "Purchase request (PR)",
+        "SUPPLIER_APPROVAL": "New supplier approval"
       },
       "doaEffective": "In effect from",
       "doaField": {

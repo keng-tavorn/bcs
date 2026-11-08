@@ -8,13 +8,15 @@ import { createFixtureClient, createLiveClient, fixtureKey, type AiCallResult, t
 import { AGENT_OF_PURPOSE, BRIEF_PROFILE, DECISION_ADVICE_WORDS, EVAL_THRESHOLDS_BP, modelFor, priceOf, PROMPT_VERSIONS, type AiAgentName, type AiPurposeName } from '../src/lib/ai-config'
 import { BriefText, DoaDraft, IntakeDraft, QuestionPlan } from '../src/lib/ai-schemas/agents'
 import { DocumentReading, isCriticalField } from '../src/lib/ai-schemas/document'
+import { SupplierDocumentReading } from '../src/lib/ai-schemas/supplier-document'
 import { companyNameKey } from '../src/core/thai/company-name'
 import { loadAgentCases, type AgentCases } from './lib/ai-eval-agents'
 import { AI_ANSWERS_DIR, AI_DOCS_DIR, loadEvalDocuments, ROOT, truthReading, type EvalDocument } from './lib/ai-eval-cases'
 import { loadSavingsCases, type SavingsCase } from './ai-eval-savings'
+import { loadSupplierCases, SUPPLIER_DOCS_DIR, SUPPLIER_EVAL_FIELDS, supplierConfidenceOf, supplierFieldCorrect, supplierTruthReading, type SupplierCase } from './lib/ai-eval-supplier'
 
 // `pnpm ai:eval` — the evaluation set of §12.4, demo tier (S13-05, BR-AI-26, OQ-141, ADR-143 ADR-146):
-//   pnpm ai:eval [--agent document|intake|brief|insight|doa] [--purpose <purpose>] [--live] [--model <id>] [--record]
+//   pnpm ai:eval [--agent document|intake|brief|insight|doa|supplier] [--purpose <purpose>] [--live] [--model <id>] [--record]
 //                [--limit <n>] [--only <id,id>] [--save-answers] [--show-wrong]
 // Without --live it plays the recorded answers of tests/fixtures/ai (no key, no cost) to test the scoring; --live calls
 // Claude with ANTHROPIC_API_KEY from .env and costs money (S13-13 S13-14). --record writes the report under
@@ -23,7 +25,7 @@ import { loadSavingsCases, type SavingsCase } from './ai-eval-savings'
 // --live) keeps what Claude really answered as the recorded answers instead (S13-13 S13-14). --limit <n> runs only the
 // first n cases of each group, to try a key or a prompt cheaply; a limited run never passes.
 
-const AGENT_FLAG: Readonly<Record<string, AiAgentName>> = { document: 'DOCUMENT', intake: 'INTAKE', brief: 'APPROVAL_BRIEF', insight: 'INSIGHT', doa: 'DOA_DRAFTER' }
+const AGENT_FLAG: Readonly<Record<string, AiAgentName>> = { document: 'DOCUMENT', intake: 'INTAKE', brief: 'APPROVAL_BRIEF', insight: 'INSIGHT', doa: 'DOA_DRAFTER', supplier: 'SUPPLIER_ONBOARDING' }
 
 interface Args {
   agents: AiAgentName[]
@@ -227,6 +229,42 @@ async function evalDocuments(run: Run, client: AiClient, model: (a: AiAgentName,
   }
 }
 
+/** A supplier's document of the S7-15 set, as the file the agent reads */
+type SupplierManifest = Map<string, { file: string; mediaType: string }>
+const supplierFile = (c: { id: string }, manifest: SupplierManifest): AiFile => {
+  const m = manifest.get(c.id)
+  if (!m) throw new Error(`${c.id} has no file: run pnpm exec tsx scripts/ai-docs-supplier.ts`)
+  return { bytes: readFileSync(path.join(SUPPLIER_DOCS_DIR, m.file)), mediaType: m.mediaType as AiFile['mediaType'] }
+}
+
+/**
+ * S7-15 (FR-AI-304 AC5 · OQ-186): each supplier document read by the Supplier Onboarding Agent, its fields scored against
+ * the answer a person checked (scripts/lib/ai-eval-supplier.ts), grouped by the document's type
+ */
+async function evalSupplier(run: Run, client: AiClient, model: (a: AiAgentName, p?: AiPurposeName) => string, cases: readonly SupplierCase[], args: Args, manifest: SupplierManifest) {
+  for (const c of first(cases, args.limit)) {
+    const r = await client.extract({ purpose: 'SUPPLIER_DOC_READ', model: model('SUPPLIER_ONBOARDING', 'SUPPLIER_DOC_READ'), schema: SupplierDocumentReading, files: [supplierFile(c, manifest)] })
+    const edits = run.documentsNeedingEdit.get(c.docType) ?? { edited: 0, total: 0 }
+    edits.total++
+    if (!r.ok) {
+      run.failures.push(`${c.id} ${r.errorCode}`)
+      edits.edited++
+      run.documentsNeedingEdit.set(c.docType, edits)
+      continue
+    }
+    let wrong = false
+    for (const f of SUPPLIER_EVAL_FIELDS) {
+      const ok = supplierFieldCorrect(f.field, c, r.output)
+      const conf = supplierConfidenceOf(r.output, f.field)
+      if (!ok) wrong = true
+      if (!ok && args.showWrong) console.error(`wrong ${c.id} ${f.field}: expected ${JSON.stringify(c[f.field])} read ${JSON.stringify(r.output[f.field])} (${conf})`)
+      run.tally.add('SUPPLIER_ONBOARDING', 'SUPPLIER_DOC_READ', c.docType, f.field, ok, { missed: !ok && conf >= 90, threshold: f.thresholdBp, critical: f.critical })
+    }
+    if (wrong) edits.edited++
+    run.documentsNeedingEdit.set(c.docType, edits)
+  }
+}
+
 /** The supplier's name as the Intake Agent matches it to the register (intake.ts: its legal form, case and spaces aside) */
 const sameName = (a: string | null, b: string) => a !== null && companyNameKey(a) === companyNameKey(b)
 
@@ -372,7 +410,7 @@ function report(metrics: readonly Metric[], run: Run, args: Args, models: Record
   return `${lines.join('\n')}\n`
 }
 
-async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, savings: readonly SavingsCase[], manifest: Map<string, { file: string; mediaType: string }>) {
+async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, savings: readonly SavingsCase[], manifest: Map<string, { file: string; mediaType: string }>, supplier: { cases: readonly SupplierCase[]; manifest: SupplierManifest }) {
   const save = (purpose: AiPurposeName, key: string, output: unknown, model: string) => {
     const answer: FixtureAnswer & { recorded: string } = { promptVersion: PROMPT_VERSIONS[purpose], model, recorded: 'TRUTH', output, usage: { input: 1800, output: 420 } }
     const file = path.join(AI_ANSWERS_DIR, `${key}.json`)
@@ -404,6 +442,7 @@ async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, sa
     const sentences = [`พบเรื่องของ {{v:${Object.hasOwn(c.facts, 'description') ? 'description' : 'item'}}}`, `ยอดที่คำนวณได้ {{v:${c.mustMention}}} บาท`]
     save('SAVINGS_NOTE', fixtureKey({ purpose: 'SAVINGS_NOTE', text: c.text }), { sentences }, model('INSIGHT'))
   }
+  for (const c of supplier.cases) save('SUPPLIER_DOC_READ', fixtureKey({ purpose: 'SUPPLIER_DOC_READ', files: [supplierFile(c, supplier.manifest)] }), supplierTruthReading(c), model('SUPPLIER_ONBOARDING', 'SUPPLIER_DOC_READ'))
   for (const c of cases.doa) {
     save('DOA_DRAFT', fixtureKey({ purpose: 'DOA_DRAFT', text: c.text, files: [docFile({ id: c.id }, manifest)] }), { rules: c.rules }, model('DOA_DRAFTER'))
   }
@@ -419,8 +458,12 @@ async function main() {
   const manifest = new Map(
     (JSON.parse(readFileSync(path.join(AI_DOCS_DIR, 'manifest.json'), 'utf8')) as { files: Array<{ id: string; file: string; mediaType: string }> }).files.map((f) => [f.id, f]),
   )
+  const supplierCases = loadSupplierCases()
+  const supplierManifest: SupplierManifest = new Map(
+    (JSON.parse(readFileSync(path.join(SUPPLIER_DOCS_DIR, 'manifest.json'), 'utf8')) as { files: Array<{ id: string; file: string; mediaType: string }> }).files.map((f) => [f.id, f]),
+  )
   if (args.writeAnswers) {
-    await writeAnswers(docs, cases, savings, manifest)
+    await writeAnswers(docs, cases, savings, manifest, { cases: supplierCases, manifest: supplierManifest })
     console.log('ai:eval wrote the recorded answers of fixture mode from the truth of every case')
     return
   }
@@ -436,6 +479,7 @@ async function main() {
   const model = (a: AiAgentName, p?: AiPurposeName) => args.model ?? modelFor(a, env, p)
   if (args.agents.includes('DOCUMENT')) await evalDocuments(run, client, model, docs, args, manifest)
   await evalAgents(run, client, model, cases, savings, args, manifest)
+  if (args.agents.includes('SUPPLIER_ONBOARDING')) await evalSupplier(run, client, model, supplierCases, args, supplierManifest)
   const metrics = run.tally.metrics()
   const purposes = (Object.keys(PROMPT_VERSIONS) as AiPurposeName[]).filter((p) => args.agents.includes(AGENT_OF_PURPOSE[p]) && (!args.purpose || p === args.purpose))
   const models = Object.fromEntries(purposes.map((p) => [p, model(AGENT_OF_PURPOSE[p], p)]))

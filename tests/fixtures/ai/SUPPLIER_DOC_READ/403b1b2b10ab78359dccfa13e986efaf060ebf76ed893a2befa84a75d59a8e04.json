@@ -1,0 +1,75 @@
+{
+  "promptVersion": "SUPPLIER_DOC_READ@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "docType": "COMPANY_CERT",
+    "nameTh": "บริษัท อยุธยาเครื่องจักรกล จำกัด",
+    "nameEn": "AYUTTHAYA MACHINERY COMPANY LIMITED",
+    "taxId": "0999998020621",
+    "branchCode": "00000",
+    "registeredAddress": "77/9 หมู่ 2 ต.คลองสวนพลู อ.พระนครศรีอยุธยา จ.พระนครศรีอยุธยา 13000",
+    "registrationDate": "2013-05-30",
+    "issuedOn": "2026-08-18",
+    "isVatRegistered": null,
+    "bankName": null,
+    "accountName": null,
+    "documentNumber": null,
+    "confidence": [
+      {
+        "field": "docType",
+        "value": 98
+      },
+      {
+        "field": "nameTh",
+        "value": 96
+      },
+      {
+        "field": "nameEn",
+        "value": 96
+      },
+      {
+        "field": "taxId",
+        "value": 93
+      },
+      {
+        "field": "branchCode",
+        "value": 90
+      },
+      {
+        "field": "registeredAddress",
+        "value": 88
+      },
+      {
+        "field": "registrationDate",
+        "value": 93
+      },
+      {
+        "field": "issuedOn",
+        "value": 90
+      },
+      {
+        "field": "isVatRegistered",
+        "value": 80
+      },
+      {
+        "field": "bankName",
+        "value": 95
+      },
+      {
+        "field": "accountName",
+        "value": 95
+      },
+      {
+        "field": "documentNumber",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 1501,
+    "output": 844,
+    "cacheRead": 1747,
+    "cacheWrite": 0
+  }
+}

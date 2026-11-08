@@ -40,7 +40,7 @@ export const PROMPT_VERSIONS: Readonly<Record<AiPurposeName, string>> = {
   QUESTION: 'QUESTION@3',
   DOA_DRAFT: 'DOA_DRAFT@2',
   SAVINGS_NOTE: 'SAVINGS_NOTE@3',
-  SUPPLIER_DOC_READ: 'SUPPLIER_DOC_READ@1',
+  SUPPLIER_DOC_READ: 'SUPPLIER_DOC_READ@3',
 }
 
 export const AI_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] as const
@@ -54,7 +54,8 @@ const DEFAULT_MODEL: Readonly<Record<AiAgentName, AiModelId>> = {
   APPROVAL_BRIEF: 'claude-haiku-5-5',
   INSIGHT: 'claude-sonnet-5-5',
   DOA_DRAFTER: 'claude-opus-5-5',
-  // TODO(OQ-145): S7-15 measures the Supplier Onboarding Agent; Sonnet reads documents of this kind for S13
+  // S7-15 (OQ-145's way · docs/reports/ai-eval/supplier-onboarding-2026-11-08.md): Haiku missed a tax id on a photo of a
+  // company certificate, Sonnet read all 12 documents right
   SUPPLIER_ONBOARDING: 'claude-sonnet-5-5',
 }
 
@@ -169,13 +170,15 @@ export const EVAL_GATES: readonly EvalGate[] = [
   { agent: 'DOA_DRAFTER', purpose: 'DOA_DRAFT', promptVersion: 'DOA_DRAFT@2', model: 'claude-opus-5-5', tier: 'SYNTHETIC', report: '2026-10-14-doa_drafter-config-live.md' },
   // NEW-136: a saving's explanation, 24 savings of the four kinds of §7.21 (SAVINGS_NOTE@1 and @2 had sentences too long)
   { agent: 'INSIGHT', purpose: 'SAVINGS_NOTE', promptVersion: 'SAVINGS_NOTE@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-11-03-savings_note-config-live.md' },
+  // S7-15 (FR-AI-304 AC5 · OQ-186): the 12 synthetic supplier documents, every field at its floor (the real tier waits for S7-23)
+  { agent: 'SUPPLIER_ONBOARDING', purpose: 'SUPPLIER_DOC_READ', promptVersion: 'SUPPLIER_DOC_READ@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: 'supplier-onboarding-2026-11-08.md' },
 ]
 
 /**
  * Purposes whose evaluation has not run yet, so no gate passes them: live mode refuses them (AI_NOT_EVALUATED) and only
- * fixture mode answers. SUPPLIER_DOC_READ waits for S7-15 (the synthetic set run on the real API · OQ-186).
+ * fixture mode answers. None now: SUPPLIER_DOC_READ passed its synthetic set in S7-15 (OQ-186).
  */
-export const AWAITING_EVALUATION: readonly AiPurposeName[] = ['SUPPLIER_DOC_READ']
+export const AWAITING_EVALUATION: readonly AiPurposeName[] = []
 
 /** The tier an environment needs: production only trusts a REAL evaluation (BR-AI-11) */
 export const requiredGateTier = (appEnv: string): GateTier => (appEnv === 'production' ? 'REAL' : 'SYNTHETIC')
@@ -225,7 +228,7 @@ export const DECISION_ADVICE_WORDS = [
 ] as const
 
 /** Passing marks of the evaluation, demo tier (OQ-141 · BR-AI-26): critical fields 9800 bp with nothing slipped through */
-export const EVAL_THRESHOLDS_BP = { critical: 9800, other: 9000, intakeType: 9500, intakeLines: 9000, briefFlags: 9500, briefText: 9500, insightTools: 9000 } as const // TODO(OQ-141)
+export const EVAL_THRESHOLDS_BP = { critical: 9800, other: 9000, intakeType: 9500, intakeLines: 9000, briefFlags: 9500, briefText: 9500, insightTools: 9000, supplierKey: 9500, supplierAddress: 9000 } as const // TODO(OQ-141) · supplier* OQ-186 (S7-15)
 
 /** Limits of BR-AI-11 BR-AI-12 BR-AI-21 and the state machine of AgentAction */
 export const AI_LIMITS = {

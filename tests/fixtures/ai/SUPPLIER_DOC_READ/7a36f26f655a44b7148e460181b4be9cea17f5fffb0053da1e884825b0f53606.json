@@ -1,0 +1,75 @@
+{
+  "promptVersion": "SUPPLIER_DOC_READ@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "docType": "COMPANY_CERT",
+    "nameTh": "ห้างหุ้นส่วนจำกัด สุพรรณบุรีวัสดุภัณฑ์",
+    "nameEn": "SUPHANBURI MATERIALS LIMITED PARTNERSHIP",
+    "taxId": "0999998020354",
+    "branchCode": "00000",
+    "registeredAddress": "45/2 ถนนมาลัยแมน ต.ท่าพี่เลี้ยง อ.เมือง จ.สุพรรณบุรี 72000",
+    "registrationDate": "2011-07-15",
+    "issuedOn": "2026-09-28",
+    "isVatRegistered": null,
+    "bankName": null,
+    "accountName": null,
+    "documentNumber": null,
+    "confidence": [
+      {
+        "field": "docType",
+        "value": 97
+      },
+      {
+        "field": "nameTh",
+        "value": 96
+      },
+      {
+        "field": "nameEn",
+        "value": 96
+      },
+      {
+        "field": "taxId",
+        "value": 95
+      },
+      {
+        "field": "branchCode",
+        "value": 90
+      },
+      {
+        "field": "registeredAddress",
+        "value": 94
+      },
+      {
+        "field": "registrationDate",
+        "value": 95
+      },
+      {
+        "field": "issuedOn",
+        "value": 95
+      },
+      {
+        "field": "isVatRegistered",
+        "value": 80
+      },
+      {
+        "field": "bankName",
+        "value": 95
+      },
+      {
+        "field": "accountName",
+        "value": 95
+      },
+      {
+        "field": "documentNumber",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 1501,
+    "output": 873,
+    "cacheRead": 1747,
+    "cacheWrite": 0
+  }
+}

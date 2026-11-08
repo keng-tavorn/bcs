@@ -1,0 +1,75 @@
+{
+  "promptVersion": "SUPPLIER_DOC_READ@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "docType": "VAT_CERT",
+    "nameTh": "บริษัท ขอนแก่นโลจิสติกส์ จำกัด",
+    "nameEn": null,
+    "taxId": "0999998020966",
+    "branchCode": "00001",
+    "registeredAddress": "211 หมู่ 14 ถนนมิตรภาพ ต.ศิลา อ.เมือง จ.ขอนแก่น 40000",
+    "registrationDate": "2019-06-17",
+    "issuedOn": "2022-02-11",
+    "isVatRegistered": true,
+    "bankName": null,
+    "accountName": null,
+    "documentNumber": null,
+    "confidence": [
+      {
+        "field": "docType",
+        "value": 99
+      },
+      {
+        "field": "nameTh",
+        "value": 97
+      },
+      {
+        "field": "nameEn",
+        "value": 95
+      },
+      {
+        "field": "taxId",
+        "value": 96
+      },
+      {
+        "field": "branchCode",
+        "value": 90
+      },
+      {
+        "field": "registeredAddress",
+        "value": 93
+      },
+      {
+        "field": "registrationDate",
+        "value": 96
+      },
+      {
+        "field": "issuedOn",
+        "value": 96
+      },
+      {
+        "field": "isVatRegistered",
+        "value": 99
+      },
+      {
+        "field": "bankName",
+        "value": 95
+      },
+      {
+        "field": "accountName",
+        "value": 95
+      },
+      {
+        "field": "documentNumber",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 1613,
+    "output": 803,
+    "cacheRead": 1747,
+    "cacheWrite": 0
+  }
+}

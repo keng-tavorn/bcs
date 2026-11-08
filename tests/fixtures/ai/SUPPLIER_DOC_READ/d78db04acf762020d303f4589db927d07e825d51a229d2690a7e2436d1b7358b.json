@@ -1,0 +1,75 @@
+{
+  "promptVersion": "SUPPLIER_DOC_READ@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "docType": "COMPANY_CERT",
+    "nameTh": "บริษัท ราชบุรีคอนสตรัคชั่น จำกัด",
+    "nameEn": "RATCHABURI CONSTRUCTION COMPANY LIMITED",
+    "taxId": "0999998020010",
+    "branchCode": "00000",
+    "registeredAddress": "99 หมู่ 4 ต.เจดีย์หัก อ.เมือง จ.ราชบุรี 70000",
+    "registrationDate": "2015-03-02",
+    "issuedOn": "2026-10-20",
+    "isVatRegistered": null,
+    "bankName": null,
+    "accountName": null,
+    "documentNumber": null,
+    "confidence": [
+      {
+        "field": "docType",
+        "value": 98
+      },
+      {
+        "field": "nameTh",
+        "value": 97
+      },
+      {
+        "field": "nameEn",
+        "value": 97
+      },
+      {
+        "field": "taxId",
+        "value": 95
+      },
+      {
+        "field": "branchCode",
+        "value": 90
+      },
+      {
+        "field": "registeredAddress",
+        "value": 95
+      },
+      {
+        "field": "registrationDate",
+        "value": 95
+      },
+      {
+        "field": "issuedOn",
+        "value": 95
+      },
+      {
+        "field": "isVatRegistered",
+        "value": 80
+      },
+      {
+        "field": "bankName",
+        "value": 95
+      },
+      {
+        "field": "accountName",
+        "value": 95
+      },
+      {
+        "field": "documentNumber",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 1613,
+    "output": 742,
+    "cacheRead": 0,
+    "cacheWrite": 1747
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "promptVersion": "SUPPLIER_DOC_READ@1",
+  "promptVersion": "SUPPLIER_DOC_READ@3",
   "model": "claude-sonnet-5-5",
   "recorded": "SYNTHETIC",
   "output": {

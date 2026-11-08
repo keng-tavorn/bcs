@@ -16,7 +16,7 @@
     "predev": "node scripts/build-messages.mjs",
     "prebuild": "node scripts/build-messages.mjs",
     "lint": "eslint .",
-    "typecheck": "node scripts/build-messages.mjs && next typegen && tsc --noEmit",
+    "typecheck": "node scripts/build-messages.mjs && next typegen && node --max-old-space-size=8192 node_modules/typescript/bin/tsc --noEmit",
     "test": "vitest run --project unit",
     "test:golden": "vitest run --project golden",
     "test:property": "vitest run --project property",

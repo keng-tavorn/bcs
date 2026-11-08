@@ -1,6 +1,6 @@
 # docs/feature-status.yaml — the only place that says what works (spec §0.5, §15.6).
 # Sales material may cite only `verified` and `live`. status: planned | in_progress | done | verified | live
-updatedAt: 2026-11-08
+updatedAt: 2026-11-04
 features:
   FR-PLT-001:
     status: done
@@ -1012,23 +1012,3 @@ features:
       - tests/generated/permissions.test.ts
     verifiedBy: null
     notes: "AC1–AC3 ผู้ติดตาม เสร็จใน S16-06 · AC4–AC5 การกล่าวถึงด้วย @ และสวิตช์แสดงกิจกรรม อยู่ใน S16-14 [go-live]"
-  FR-SRC-201:
-    status: in_progress
-    step: S10
-    evidence:
-      - tests/integration/s10-schema.test.ts
-      - tests/integration/sourcing-rfx.test.ts
-      - tests/integration/sourcing-questions.test.ts
-      - tests/unit/sourcing.test.ts
-    verifiedBy: null
-    notes: "S10-04 the RFx cycle (create, invite, open, amend, extend, close, cancel, reopen · rfx-close and rfx-reminder jobs) · S10-05 RFI and questions and answers · pages of procurement come in S10-12"
-  FR-SRC-202:
-    status: in_progress
-    step: S10
-    evidence:
-      - tests/integration/sourcing-bids.test.ts
-      - tests/integration/sourcing-portal.test.ts
-      - tests/unit/sourcing-boundary.test.ts
-      - tests/e2e/rfx-portal.spec.ts
-    verifiedBy: null
-    notes: "S10-06 AC1 to AC4 and AC6: bids in the portal (save, submit, withdraw, decline, view), the sealed envelope until the close, a bid recorded on behalf, disqualify · S10-07 the portal pages on a phone (list, detail, the bid form step by step, the result, the home's row) in the contact's language, the bid's files (BID_DOC through the allowlist and the scan) · AC5 the comparison table in S10-09"

@@ -3048,6 +3048,7 @@
       "BacktestRun": "Backtest run",
       "BankAccount": "Bank account",
       "BankAccountChange": "Bank account change",
+      "Bid": "Bid",
       "BudgetGrant": "Cross-department budget grant",
       "BudgetLine": "Budget line",
       "BudgetOverrun": "Over-budget approval",
@@ -3084,6 +3085,9 @@
       "Request": "Request",
       "RequestType": "Request type",
       "Retention": "Performance retention",
+      "RfxEvent": "RFx",
+      "RfxInvite": "Bid invitation",
+      "Scorecard": "Scorecard",
       "Security": "Security",
       "Supplier": "Supplier",
       "SupplierApplication": "Supplier application",
@@ -3202,6 +3206,9 @@
         "returned": "Bank account change returned",
         "submitted": "Bank account change submitted",
         "updated": "Bank account change edited"
+      },
+      "bid": {
+        "disqualified": "Bid disqualified"
       },
       "budget": {
         "actualized": "Budget moved to actual",
@@ -3475,6 +3482,30 @@
         "release_due": "Retention due for release",
         "released": "Retention released"
       },
+      "rfx": {
+        "amended": "RFx amended after opening",
+        "cancelled": "RFx cancelled",
+        "closed": "Closed for bids",
+        "created": "RFx created",
+        "extended": "Close extended",
+        "lines_changed": "RFx lines changed",
+        "opened": "Opened for bids",
+        "reminded": "Suppliers reminded before the close",
+        "reopened": "RFx reopened",
+        "unsealed": "Prices unsealed before the close",
+        "updated": "RFx edited"
+      },
+      "rfx_invite": {
+        "created": "Supplier invited",
+        "expired": "Invite expired",
+        "removed": "Invite withdrawn",
+        "supplier_linked": "Invite linked to the approved supplier"
+      },
+      "scorecard": {
+        "locked": "Criteria locked",
+        "revealed": "Scores revealed",
+        "updated": "Criteria and evaluators set"
+      },
       "security": {
         "pin_locked": "Transaction PIN locked for a while",
         "rate_limited": "Too many requests limited",
@@ -3577,6 +3608,7 @@
       "backtest": "Backtest",
       "bank_account": "Bank accounts",
       "bank_account_change": "Bank account changes",
+      "bid": "Supplier bids",
       "budget": "Budget",
       "budget_grant": "Cross-department budget grants",
       "budget_overrun": "Over-budget approval",
@@ -3616,6 +3648,9 @@
       "request": "Requests",
       "request_type": "Request types",
       "retention": "Performance retention",
+      "rfx": "Sourcing (RFx)",
+      "rfx_invite": "Bid invitations",
+      "scorecard": "Scoring",
       "security": "Security",
       "supplier": "Suppliers",
       "supplier_application": "Supplier application",

@@ -154,7 +154,11 @@
     "supplier_contact": "Supplier contacts",
     "supplier_application": "Supplier application",
     "supplier_document": "Supplier documents",
-    "supplier_document_type": "Supplier document types"
+    "supplier_document_type": "Supplier document types",
+    "rfx": "Sourcing (RFx)",
+    "rfx_invite": "Bid invitations",
+    "scorecard": "Scoring",
+    "bid": "Supplier bids"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -216,7 +220,11 @@
     "SupplierContact": "Supplier contact",
     "SupplierApplication": "Supplier application",
     "SupplierDocument": "Supplier documents",
-    "SupplierDocumentType": "Supplier document types"
+    "SupplierDocumentType": "Supplier document types",
+    "RfxEvent": "RFx",
+    "RfxInvite": "Bid invitation",
+    "Scorecard": "Scorecard",
+    "Bid": "Bid"
   },
   "events": {
     "approval_step": {
@@ -644,6 +652,33 @@
     },
     "supplier_document_type": {
       "updated": "Supplier document type changed"
+    },
+    "rfx": {
+      "created": "RFx created",
+      "updated": "RFx edited",
+      "unsealed": "Prices unsealed before the close",
+      "lines_changed": "RFx lines changed",
+      "opened": "Opened for bids",
+      "amended": "RFx amended after opening",
+      "extended": "Close extended",
+      "reminded": "Suppliers reminded before the close",
+      "closed": "Closed for bids",
+      "cancelled": "RFx cancelled",
+      "reopened": "RFx reopened"
+    },
+    "rfx_invite": {
+      "created": "Supplier invited",
+      "removed": "Invite withdrawn",
+      "expired": "Invite expired",
+      "supplier_linked": "Invite linked to the approved supplier"
+    },
+    "scorecard": {
+      "updated": "Criteria and evaluators set",
+      "locked": "Criteria locked",
+      "revealed": "Scores revealed"
+    },
+    "bid": {
+      "disqualified": "Bid disqualified"
     }
   }
 }

@@ -3048,6 +3048,7 @@
       "BacktestRun": "การย้อนทดสอบ",
       "BankAccount": "บัญชีธนาคาร",
       "BankAccountChange": "คำขอเปลี่ยนบัญชีธนาคาร",
+      "Bid": "ข้อเสนอ",
       "BudgetGrant": "สิทธิ์ใช้งบข้ามฝ่าย",
       "BudgetLine": "บรรทัดงบ",
       "BudgetOverrun": "การขออนุมัติเกินงบ",
@@ -3084,6 +3085,9 @@
       "Request": "คำขอ",
       "RequestType": "ประเภทคำขอ",
       "Retention": "เงินประกันผลงาน",
+      "RfxEvent": "RFx",
+      "RfxInvite": "คำเชิญเสนอราคา",
+      "Scorecard": "เกณฑ์ให้คะแนน",
       "Security": "ความปลอดภัย",
       "Supplier": "ผู้ขาย",
       "SupplierApplication": "ใบสมัครผู้ขาย",
@@ -3202,6 +3206,9 @@
         "returned": "ส่งกลับคำขอเปลี่ยนบัญชีธนาคาร",
         "submitted": "ส่งคำขอเปลี่ยนบัญชีธนาคาร",
         "updated": "แก้คำขอเปลี่ยนบัญชีธนาคาร"
+      },
+      "bid": {
+        "disqualified": "ตัดสิทธิ์ข้อเสนอ"
       },
       "budget": {
         "actualized": "ตัดงบเป็นจ่ายจริง",
@@ -3475,6 +3482,30 @@
         "release_due": "เงินประกันครบกำหนดคืน",
         "released": "อนุมัติคืนเงินประกันผลงาน"
       },
+      "rfx": {
+        "amended": "แก้ไข RFx หลังเปิด",
+        "cancelled": "ยกเลิก RFx",
+        "closed": "ปิดรับข้อเสนอ",
+        "created": "สร้าง RFx",
+        "extended": "ขยายเวลาปิดรับ",
+        "lines_changed": "เปลี่ยนรายการของ RFx",
+        "opened": "เปิดรับข้อเสนอ",
+        "reminded": "เตือนผู้ขายก่อนปิดรับ",
+        "reopened": "เปิด RFx ใหม่",
+        "unsealed": "เปิดซองราคาก่อนปิดรับ",
+        "updated": "แก้ RFx"
+      },
+      "rfx_invite": {
+        "created": "เชิญผู้ขายเข้า RFx",
+        "expired": "คำเชิญหมดอายุ",
+        "removed": "ถอนคำเชิญ",
+        "supplier_linked": "ผูกคำเชิญกับผู้ขายที่อนุมัติแล้ว"
+      },
+      "scorecard": {
+        "locked": "ล็อกเกณฑ์ให้คะแนน",
+        "revealed": "เปิดเผยคะแนน",
+        "updated": "ตั้งเกณฑ์และผู้ประเมิน"
+      },
       "security": {
         "pin_locked": "ล็อก PIN ยืนยันธุรกรรมชั่วคราว",
         "rate_limited": "จำกัดคำขอที่ถี่เกินไป",
@@ -3577,6 +3608,7 @@
       "backtest": "ย้อนทดสอบ",
       "bank_account": "บัญชีธนาคาร",
       "bank_account_change": "คำขอเปลี่ยนบัญชีธนาคาร",
+      "bid": "ข้อเสนอของผู้ขาย",
       "budget": "งบประมาณ",
       "budget_grant": "สิทธิ์ใช้งบข้ามฝ่าย",
       "budget_overrun": "ขออนุมัติเกินงบ",
@@ -3616,6 +3648,9 @@
       "request": "คำขอ",
       "request_type": "ประเภทคำขอ",
       "retention": "เงินประกันผลงาน",
+      "rfx": "การจัดหา (RFx)",
+      "rfx_invite": "คำเชิญเสนอราคา",
+      "scorecard": "การให้คะแนน",
       "security": "ความปลอดภัย",
       "supplier": "ผู้ขาย",
       "supplier_application": "ใบสมัครผู้ขาย",

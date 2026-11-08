@@ -5,8 +5,10 @@ import { BYTES_PER_KIB } from '@/lib/constants'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { getSupplierBankCard } from '@/server/services/bank-accounts/view'
+import { listSupplierDocuments } from '@/server/services/suppliers/documents'
 import { getSupplierForScreen, type SupplierDetailDto } from '@/server/services/suppliers/view'
 import { SupplierBankCard } from '@/ui/bank-accounts/supplier-bank-card'
+import { DocumentsPanel } from '@/ui/supplier-docs/documents-panel'
 import { formatDateTime } from '@/ui/format'
 import { Notice } from '@/ui/form/notice'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
@@ -17,6 +19,7 @@ import { ProofList } from '@/ui/suppliers/proof-list'
 import { Flag, SupplierStatusLabel } from '@/ui/suppliers/status'
 import { getSession } from '../../../_lib/session'
 import { revealAccountAction } from '../../finance/bank-accounts/actions'
+import { openDocumentAction, rejectDocumentAction, verifyDocumentAction } from './document-actions'
 import { supplierProofUrlAction, updateSupplierAction } from '../actions'
 
 export async function generateMetadata() {
@@ -99,7 +102,13 @@ export default async function SupplierPage({ params, searchParams }: { params: P
   if (!ctx) return null
   const [t, locale] = await Promise.all([getTranslations('suppliers'), getLocale().then((l) => (l === 'en' ? 'en' : 'th') as 'th' | 'en')])
   // S9-09: the card of the account the supplier is paid into (null without module PAY or bankAccount.view)
-  const [result, bankCard] = await Promise.all([getSupplierForScreen(ctx, id), getSupplierBankCard(ctx, { supplierId: id })])
+  // S7-06: the supplier's documents (refused without supplier.document.view or module SUPPLIER: the panel is not shown)
+  const [result, bankCard, documents, tDocs] = await Promise.all([
+    getSupplierForScreen(ctx, id),
+    getSupplierBankCard(ctx, { supplierId: id }),
+    /^[0-9a-f-]{36}$/i.test(id) ? listSupplierDocuments(ctx, { supplierId: id }) : Promise.resolve({ ok: false as const }),
+    getTranslations('supplierDocs'),
+  ])
   if (!result.ok && result.error.code === 'NOT_FOUND') notFound()
   if (!result.ok) {
     return (
@@ -153,6 +162,13 @@ export default async function SupplierPage({ params, searchParams }: { params: P
         ) : null}
 
         {bankCard.ok && bankCard.data ? <SupplierBankCard supplierId={s.id} card={bankCard.data} reveal={revealAccountAction} /> : null}
+
+        {/* S7-06 (BR-SDOC ข้อ 03 ข้อ 05): the supplier's documents, for whoever may see them (supplier.document.view) */}
+        {documents.ok ? (
+          <Panel id="supplier-documents" title={tDocs('documents.title')}>
+            <DocumentsPanel rows={documents.data.rows} canVerify={documents.data.canVerify} actions={{ verify: verifyDocumentAction, reject: rejectDocumentAction, open: openDocumentAction }} />
+          </Panel>
+        ) : null}
 
         {v.canManage && f ? (
           <>

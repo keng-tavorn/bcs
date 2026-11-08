@@ -40,7 +40,8 @@
     "INVOICE_EXCEPTION": "Invoice exception",
     "PO_CHANGE": "PO change",
     "PAYMENT_RUN": "Payment run",
-    "BANK_ACCOUNT_CHANGE": "Bank account change"
+    "BANK_ACCOUNT_CHANGE": "Bank account change",
+    "SUPPLIER_APPROVAL": "New supplier approval"
   },
   "band": {
     "range": "above {from} up to {to} baht",

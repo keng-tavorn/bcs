@@ -32,6 +32,7 @@
     "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
     "PAYMENT_RUN": "รอบจ่ายเงิน",
     "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
+    "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
     "BUDGET_LINE": "บรรทัดงบ {label}",
     "MEMBER": "สมาชิก {label}",
     "SUPPLIER": "ผู้ขาย {label}"
@@ -147,7 +148,12 @@
     "push_device": "โทรศัพท์ในแอป BCS Go",
     "chat_intake": "ขอผ่านแชท LINE",
     "assistant": "ผู้ช่วย BCS",
-    "assistant_learning": "สมุดของผู้ช่วย"
+    "assistant_learning": "สมุดของผู้ช่วย",
+    "portal_session": "พอร์ทัลผู้ขาย",
+    "supplier_contact": "ผู้ติดต่อของผู้ขาย",
+    "supplier_application": "ใบสมัครผู้ขาย",
+    "supplier_document": "เอกสารผู้ขาย",
+    "supplier_document_type": "ประเภทเอกสารผู้ขาย"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -205,7 +211,11 @@
     "PushDevice": "โทรศัพท์ในแอป BCS Go",
     "ChatIntake": "ร่างคำขอจากแชท",
     "Assistant": "รายการเรื่องของผู้ช่วย",
-    "AssistantLearning": "สิ่งที่ผู้ช่วยเรียนรู้"
+    "AssistantLearning": "สิ่งที่ผู้ช่วยเรียนรู้",
+    "SupplierContact": "ผู้ติดต่อของผู้ขาย",
+    "SupplierApplication": "ใบสมัครผู้ขาย",
+    "SupplierDocument": "เอกสารผู้ขาย",
+    "SupplierDocumentType": "ประเภทเอกสารผู้ขาย"
   },
   "events": {
     "approval_step": {
@@ -302,7 +312,8 @@
     },
     "file": {
       "downloaded": "ดาวน์โหลดไฟล์",
-      "uploaded": "อัปโหลดไฟล์"
+      "uploaded": "อัปโหลดไฟล์",
+      "scanned": "สแกนไฟล์"
     },
     "form_version": {
       "drafted": "สร้างร่างฟอร์มฉบับใหม่",
@@ -442,7 +453,8 @@
     "security": {
       "pin_locked": "ล็อก PIN ยืนยันธุรกรรมชั่วคราว",
       "sod_blocked": "ระบบกันการทำหน้าที่ซ้อนกัน",
-      "token_misuse": "พบการใช้ลิงก์ตัดสินผิดวิธี"
+      "token_misuse": "พบการใช้ลิงก์ตัดสินผิดวิธี",
+      "rate_limited": "จำกัดคำขอที่ถี่เกินไป"
     },
     "supplier": {
       "created": "เพิ่มผู้ขาย",
@@ -591,6 +603,46 @@
       "disabled": "ปิดสิ่งที่ผู้ช่วยเรียนรู้",
       "enabled": "เปิดใช้สิ่งที่ผู้ช่วยเรียนรู้อีกครั้ง",
       "forgotten": "ลบสิ่งที่ผู้ช่วยเรียนรู้"
+    },
+    "portal_session": {
+      "link_requested": "ผู้ติดต่อขอลิงก์เข้าพอร์ทัล",
+      "otp_requested": "ส่งรหัสยืนยันพอร์ทัล",
+      "otp_failed": "กรอกรหัสยืนยันพอร์ทัลผิด",
+      "otp_locked": "ล็อกรหัสยืนยันพอร์ทัล",
+      "signed_in": "ผู้ติดต่อเข้าพอร์ทัล",
+      "signed_out": "ผู้ติดต่อออกจากพอร์ทัล",
+      "revoked": "เพิกถอนการเข้าพอร์ทัล",
+      "csrf_rejected": "ปฏิเสธคำขอพอร์ทัลที่ไม่มีโทเค็นป้องกัน"
+    },
+    "supplier_contact": {
+      "created": "เพิ่มผู้ติดต่อของผู้ขาย",
+      "updated": "แก้ผู้ติดต่อของผู้ขาย",
+      "deactivated": "ปิดผู้ติดต่อของผู้ขาย",
+      "privacy_notice_accepted": "ผู้ติดต่อรับทราบประกาศความเป็นส่วนตัว"
+    },
+    "supplier_application": {
+      "invited": "เชิญผู้ขายสมัคร",
+      "drafted": "ผู้ขายเริ่มกรอกใบสมัคร",
+      "updated": "แก้ใบสมัครผู้ขาย",
+      "submitted": "ส่งใบสมัครผู้ขาย",
+      "routed": "ส่งใบสมัครผู้ขายเข้าเส้นทางอนุมัติ",
+      "returned": "ตีกลับใบสมัครผู้ขาย",
+      "approved": "อนุมัติใบสมัครผู้ขาย",
+      "rejected": "ไม่อนุมัติใบสมัครผู้ขาย",
+      "expired": "ใบสมัครผู้ขายหมดอายุ",
+      "cancelled": "ยกเลิกใบสมัครผู้ขาย"
+    },
+    "supplier_document": {
+      "uploaded": "อัปโหลดเอกสารผู้ขาย",
+      "scanned": "เอกสารผู้ขายผ่านการสแกน",
+      "verified": "ยืนยันเอกสารผู้ขาย",
+      "superseded": "เอกสารผู้ขายถูกแทนด้วยฉบับใหม่",
+      "rejected": "ปฏิเสธเอกสารผู้ขาย",
+      "expired": "เอกสารผู้ขายหมดอายุ",
+      "reminder_sent": "เตือนเอกสารผู้ขายใกล้หมดอายุ"
+    },
+    "supplier_document_type": {
+      "updated": "แก้ประเภทเอกสารผู้ขาย"
     }
   }
 }

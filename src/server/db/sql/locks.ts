@@ -47,6 +47,15 @@ const LOCKABLE = [
   'BankAccountChange',
   'BankAccount',
   'PaymentRun',
+  // S7: a link used once, a code tried one attempt at a time, a contact changed one change at a time (BR-PORTAL ข้อ 01 ข้อ 02)
+  'PortalInviteLink',
+  'PortalOtpChallenge',
+  'SupplierContact',
+  'PortalSession',
+  // S7-05: an application decided, routed or changed one at a time (INV-SUP-02)
+  'SupplierApplication',
+  // S7-06: a document verified, rejected or superseded one change at a time
+  'SupplierDocument',
 ] as const
 export type LockableTable = (typeof LOCKABLE)[number]
 /** Tables whose key is not "id": a budget line's balance is keyed by the line (§6.2) */

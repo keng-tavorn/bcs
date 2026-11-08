@@ -38,6 +38,7 @@ export type MenuKey =
   | 'org'
   | 'calendar'
   | 'numbering'
+  | 'supplierDocumentTypes'
   | 'requestTypes'
   | 'line'
   | 'doa'
@@ -110,6 +111,8 @@ export const MENU: readonly MenuItem[] = [
   { key: 'org', href: '/admin/org', group: 'admin', capability: 'admin.orgStructure.editBasic', module: 'CORE', ready: true },
   { key: 'calendar', href: '/admin/calendar', group: 'admin', capability: 'admin.calendar', module: 'CORE', ready: true },
   { key: 'numbering', href: '/admin/numbering', group: 'admin', capability: 'admin.numbering', module: 'CORE', ready: true },
+  // S7-06 (BR-SDOC ข้อ 01): the supplier document types, once the BCS team switched SUPPLIER on
+  { key: 'supplierDocumentTypes', href: '/admin/supplier-document-types', group: 'admin', capability: 'admin.supplierDocumentTypes', module: 'SUPPLIER', ready: true },
   { key: 'requestTypes', href: '/admin/request-types', group: 'admin', capability: 'admin.requestTypes', module: 'CORE', ready: true },
   // The organization's LINE channel (FR-ADM-006 AC2 AC3; §9.1 lists the channels after the request types)
   { key: 'line', href: '/admin/line', group: 'admin', capability: 'admin.channels', module: 'CORE', ready: true },

@@ -2,7 +2,7 @@ import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import { lineNet, vatFromNet } from '@/core/money/math'
 import type { AiClient } from '@/integrations/ai'
 import { setAiClientForTests } from '@/integrations/ai'
-import { PROMPT_VERSIONS, type AiPurposeName } from '@/lib/ai-config'
+import { isAiPurposeName, PROMPT_VERSIONS, type AiPurposeName } from '@/lib/ai-config'
 import { systemClock } from '@/lib/clock'
 import { prisma } from '@/server/db/client'
 import { getReceivingPo } from '@/server/queries/receiving'
@@ -105,6 +105,7 @@ if (mode === 'on') {
   const pending = await prisma.agentAction.findMany({ where: { organizationId: org.id, agent: { in: ['DOCUMENT', 'INTAKE', 'DOA_DRAFTER'] }, status: 'PENDING' }, select: { id: true, purpose: true, subjectType: true, subjectId: true } })
   let drafted = 0
   for (const action of pending) {
+    if (!isAiPurposeName(action.purpose)) continue
     const output = action.purpose === 'INTAKE' ? INTAKE_DRAFT : action.purpose === 'DOA_DRAFT' ? await regulationOf() : await readingFor(action.purpose, action.subjectType, action.subjectId)
     const client: AiClient = {
       mode: 'fixture',

@@ -37,6 +37,7 @@
     "PO_CHANGE": "PO change",
     "PAYMENT_RUN": "Payment run",
     "BANK_ACCOUNT_CHANGE": "Supplier bank account change",
+    "SUPPLIER_APPLICATION": "Supplier application",
     "OTHER": "Document"
   },
   "sideErrors": {

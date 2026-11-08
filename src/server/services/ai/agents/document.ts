@@ -7,7 +7,7 @@ import { normalizeTaxId } from '@/core/thai/taxid'
 import { rateFor, taxDateOf } from '@/core/vat'
 import { AI_FILE_MEDIA_TYPES, getAiClient, type AiFileMediaType } from '@/integrations/ai'
 import { readObject } from '@/integrations/storage'
-import { AGENT_OF_PURPOSE, AI_LIMITS, modelForPurpose, type AiPurposeName } from '@/lib/ai-config'
+import { AGENT_OF_PURPOSE, AI_LIMITS, isAiPurposeName, modelForPurpose, type AiPurposeName } from '@/lib/ai-config'
 import { DocumentReading } from '@/lib/ai-schemas/document'
 import { getEnv } from '@/lib/env'
 import { contentMatchesType, isAllowedMimeType } from '@/lib/file-types'
@@ -262,7 +262,7 @@ async function invoiceProposal(organizationId: string, now: Date, poId: string, 
 export async function runDocumentRead(organizationId: string, agentActionId: string, now: Date): Promise<'DRAFT' | 'FAILED' | 'SKIPPED'> {
   const db = forTenant(organizationId)
   const action = await db.agentAction.findFirst({ where: { id: agentActionId }, select: { id: true, status: true, agent: true, purpose: true, promptVersion: true, subjectType: true, subjectId: true, inputRefs: true } })
-  if (!action || action.status !== 'PENDING' || !DOCUMENT_PURPOSES.includes(action.purpose)) return 'SKIPPED'
+  if (!action || action.status !== 'PENDING' || !isAiPurposeName(action.purpose) || !DOCUMENT_PURPOSES.includes(action.purpose)) return 'SKIPPED'
   const purpose = action.purpose as AiPurposeName
   const model = modelForPurpose(purpose, aiRuntime().modelEnv)
   const finish = async (input: Omit<Parameters<typeof completeAgentAction>[3], 'agentActionId' | 'requestedModel'>) => {

@@ -1,0 +1,7 @@
+# tests/golden/doa-p2-lint.yaml
+suite: doa-lint
+fixtures: [fixtures/org-p1.yaml, fixtures/doa-versions-p2.yaml]
+# input.base = the version in the fixture · removeRules as doa-lint.yaml · modules = the modules on (required types by BR-DOA-23)
+cases:
+  - { id: GC-DOA-73, title: เปิด SUPPLIER แต่ไม่มีข้อ SA และ BA, fn: lintDoaVersion, input: { base: 1, modules: [SUPPLIER], removeRules: [SA-01, BA-01] }, expect: { errors: [{ code: DOA_LINT_MISSING_DOCTYPE, documentType: BANK_ACCOUNT_CHANGE }, { code: DOA_LINT_MISSING_DOCTYPE, documentType: SUPPLIER_APPROVAL }], warnings: [] } }
+  - { id: GC-DOA-74, title: ชนิดที่ไม่มียอดไม่มีตารางผลที่ขอบ, fn: boundaryTable, input: { base: 1, documentType: SUPPLIER_APPROVAL }, expect: { rows: [] } }

@@ -32,6 +32,7 @@
     "PO_CHANGE": "PO change",
     "PAYMENT_RUN": "Payment run",
     "BANK_ACCOUNT_CHANGE": "Bank account change",
+    "SUPPLIER_APPLICATION": "Supplier application",
     "BUDGET_LINE": "Budget line {label}",
     "MEMBER": "Member {label}",
     "SUPPLIER": "Supplier {label}"
@@ -147,7 +148,12 @@
     "push_device": "BCS Go phones",
     "chat_intake": "Requests through the LINE chat",
     "assistant": "BCS assistants",
-    "assistant_learning": "Assistants' notebook"
+    "assistant_learning": "Assistants' notebook",
+    "portal_session": "Supplier portal",
+    "supplier_contact": "Supplier contacts",
+    "supplier_application": "Supplier application",
+    "supplier_document": "Supplier documents",
+    "supplier_document_type": "Supplier document types"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -205,7 +211,11 @@
     "PushDevice": "BCS Go phone",
     "ChatIntake": "Chat request draft",
     "Assistant": "Assistant suggestions",
-    "AssistantLearning": "What an assistant learned"
+    "AssistantLearning": "What an assistant learned",
+    "SupplierContact": "Supplier contact",
+    "SupplierApplication": "Supplier application",
+    "SupplierDocument": "Supplier documents",
+    "SupplierDocumentType": "Supplier document types"
   },
   "events": {
     "approval_step": {
@@ -302,7 +312,8 @@
     },
     "file": {
       "downloaded": "File downloaded",
-      "uploaded": "File uploaded"
+      "uploaded": "File uploaded",
+      "scanned": "File scanned"
     },
     "form_version": {
       "drafted": "Form draft created",
@@ -442,7 +453,8 @@
     "security": {
       "pin_locked": "Transaction PIN locked for a while",
       "sod_blocked": "Separation of duties blocked an action",
-      "token_misuse": "Decision link misused"
+      "token_misuse": "Decision link misused",
+      "rate_limited": "Too many requests limited"
     },
     "supplier": {
       "created": "Supplier added",
@@ -591,6 +603,46 @@
       "disabled": "Learning switched off",
       "enabled": "Learning used again",
       "forgotten": "Learning deleted"
+    },
+    "portal_session": {
+      "link_requested": "Contact asked for a portal link",
+      "otp_requested": "Portal code sent",
+      "otp_failed": "Wrong portal code",
+      "otp_locked": "Portal code locked",
+      "signed_in": "Contact signed in to the portal",
+      "signed_out": "Contact signed out of the portal",
+      "revoked": "Portal access revoked",
+      "csrf_rejected": "Portal request without its protection token refused"
+    },
+    "supplier_contact": {
+      "created": "Supplier contact added",
+      "updated": "Supplier contact changed",
+      "deactivated": "Supplier contact deactivated",
+      "privacy_notice_accepted": "Contact acknowledged the privacy notice"
+    },
+    "supplier_application": {
+      "invited": "Supplier invited to apply",
+      "drafted": "Supplier started its application",
+      "updated": "Supplier application changed",
+      "submitted": "Supplier application sent",
+      "routed": "Supplier application sent for approval",
+      "returned": "Supplier application returned",
+      "approved": "Supplier application approved",
+      "rejected": "Supplier application not approved",
+      "expired": "Supplier application expired",
+      "cancelled": "Supplier application cancelled"
+    },
+    "supplier_document": {
+      "uploaded": "Supplier document uploaded",
+      "scanned": "Supplier document scanned",
+      "verified": "Supplier document verified",
+      "superseded": "Supplier document superseded",
+      "rejected": "Supplier document rejected",
+      "expired": "Supplier document expired",
+      "reminder_sent": "Supplier document expiry reminder sent"
+    },
+    "supplier_document_type": {
+      "updated": "Supplier document type changed"
     }
   }
 }

@@ -10,6 +10,7 @@ import { listModules, registerModuleUsageCheck, requireModule, setModule } from 
 import { createDoaOrg } from '../support/doa-org'
 import { createMember, createOrg } from '../support/factory'
 import { createP1Org } from '../support/p1-org'
+import { createP2Org } from '../support/p2-org'
 
 // FR-PLT-011 (module gate and rules) and FR-ADM-006 AC1 (the BCS team switches modules; ORG_ADMIN sees and is told).
 
@@ -49,7 +50,10 @@ describe('[FR-PLT-011/AC1] a switched-off module refuses its services', () => {
 
 describe('[FR-PLT-011/AC2] dependencies are respected both ways', () => {
   it('switching on SOURCING while SUPPLIER is off is refused and names SUPPLIER', async () => {
-    const { platform } = await setup()
+    // S7-02 (BR-DOA-24 · BR-DOA-26): SUPPLIER now needs the SA and BA rules in the DOA, so the organization is one of
+    // the phase-2 fixtures with no module on
+    const org = await createP2Org({ modules: [] })
+    const platform = await platformCtxFor(org.organizationId)
     expect(await setModule(platform, change('SOURCING', true), key())).toMatchObject({
       ok: false,
       error: { code: 'MODULE_DISABLED', details: { module: 'SUPPLIER', missing: ['SUPPLIER'] } },

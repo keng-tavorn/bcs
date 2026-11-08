@@ -529,6 +529,94 @@ export const BANK_ACCOUNT_CHANGE_MACHINE = machine<BankAccountChangeState, BankA
   { from: ['DRAFT', 'PENDING_APPROVAL'], command: 'bankAccountChange.cancel', to: 'CANCELLED' },
 ])
 
+// S7 (docs/sub-specs/S7.md "State machine" · §6.4): the supplier application, the supplier document and the portal
+// session. Creating a row (invite, self-registration, upload, sign-in) is not a transition. One state may take two
+// commands that differ by kind: the service picks the command from the application's kind (BR-SUP-08)
+export const SUPPLIER_APPLICATION_STATES = ['INVITED', 'DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'RETURNED', 'APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED'] as const
+export type SupplierApplicationState = (typeof SUPPLIER_APPLICATION_STATES)[number]
+export const SUPPLIER_APPLICATION_COMMANDS = [
+  // first portal sign-in of a contact of a NEW application, whatever the link's purpose (in portal.verifyOtp)
+  'supplierApplication.contact_signed_in',
+  // first portal sign-in of a contact of an EXISTING supplier: no number, no DOA route (BR-SUP-08)
+  'supplierApplication.existing_confirmed',
+  'supplierApplication.update',
+  'supplierApplication.submit',
+  'supplierApplication.verifyAndRoute',
+  'supplierApplication.return',
+  'supplierApplication.final_approval',
+  'approval.reject',
+  'approval.return',
+  'supplierApplication.expire',
+  'supplierApplication.cancel',
+  'supplierApplication.remind',
+  'supplierApplication.escalate',
+  'supplierApplication.reinvite',
+] as const
+export type SupplierApplicationCommand = (typeof SUPPLIER_APPLICATION_COMMANDS)[number]
+
+export const SUPPLIER_APPLICATION_MACHINE = machine<SupplierApplicationState, SupplierApplicationCommand>('SupplierApplication', SUPPLIER_APPLICATION_STATES, SUPPLIER_APPLICATION_COMMANDS, [
+  { from: ['INVITED'], command: 'supplierApplication.contact_signed_in', to: 'DRAFT' },
+  { from: ['INVITED'], command: 'supplierApplication.existing_confirmed', to: 'APPROVED' },
+  // saving a draft keeps DRAFT or RETURNED; procurement filling in for an INVITED one starts the draft (BR-SUP-10)
+  { from: ['INVITED', 'DRAFT'], command: 'supplierApplication.update', to: 'DRAFT' },
+  { from: ['RETURNED'], command: 'supplierApplication.update', to: 'RETURNED' },
+  { from: ['DRAFT', 'RETURNED'], command: 'supplierApplication.submit', to: 'SUBMITTED' },
+  { from: ['SUBMITTED'], command: 'supplierApplication.verifyAndRoute', to: 'PENDING_APPROVAL' },
+  { from: ['SUBMITTED'], command: 'supplierApplication.return', to: 'RETURNED' },
+  { from: ['PENDING_APPROVAL'], command: 'supplierApplication.final_approval', to: 'APPROVED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.return', to: 'RETURNED' },
+  { from: ['INVITED', 'DRAFT', 'RETURNED'], command: 'supplierApplication.expire', to: 'EXPIRED' },
+  { from: ['INVITED', 'DRAFT', 'RETURNED', 'SUBMITTED'], command: 'supplierApplication.cancel', to: 'CANCELLED' },
+  // reminders and escalation keep the state (BR-SUP-12)
+  { from: ['INVITED'], command: 'supplierApplication.remind', to: 'INVITED' },
+  { from: ['DRAFT'], command: 'supplierApplication.remind', to: 'DRAFT' },
+  { from: ['RETURNED'], command: 'supplierApplication.remind', to: 'RETURNED' },
+  { from: ['INVITED'], command: 'supplierApplication.escalate', to: 'INVITED' },
+  { from: ['DRAFT'], command: 'supplierApplication.escalate', to: 'DRAFT' },
+  { from: ['RETURNED'], command: 'supplierApplication.escalate', to: 'RETURNED' },
+  { from: ['EXPIRED'], command: 'supplierApplication.reinvite', to: 'INVITED' },
+])
+
+export const SUPPLIER_DOCUMENT_STATES = ['PENDING', 'VERIFIED', 'REJECTED', 'EXPIRED', 'SUPERSEDED'] as const
+export type SupplierDocumentState = (typeof SUPPLIER_DOCUMENT_STATES)[number]
+export const SUPPLIER_DOCUMENT_COMMANDS = [
+  'supplierDocument.scanned_clean',
+  'supplierDocument.scanned_infected',
+  'supplierDocument.verify',
+  'supplierDocument.reject',
+  'supplierDocument.supersede',
+  'supplierDocument.expire',
+  'supplierDocument.remind',
+] as const
+export type SupplierDocumentCommand = (typeof SUPPLIER_DOCUMENT_COMMANDS)[number]
+
+// verify needs the file CLEAN (INV-SUP-03): the service refuses FILE_NOT_SCANNED or FILE_INFECTED before the table
+export const SUPPLIER_DOCUMENT_MACHINE = machine<SupplierDocumentState, SupplierDocumentCommand>('SupplierDocument', SUPPLIER_DOCUMENT_STATES, SUPPLIER_DOCUMENT_COMMANDS, [
+  { from: ['PENDING'], command: 'supplierDocument.scanned_clean', to: 'PENDING' },
+  { from: ['PENDING'], command: 'supplierDocument.scanned_infected', to: 'REJECTED' },
+  { from: ['PENDING'], command: 'supplierDocument.verify', to: 'VERIFIED' },
+  { from: ['PENDING'], command: 'supplierDocument.reject', to: 'REJECTED' },
+  // the VERIFIED document of the same type and scope when a newer one is verified (BR-SDOC-03)
+  { from: ['VERIFIED'], command: 'supplierDocument.supersede', to: 'SUPERSEDED' },
+  { from: ['VERIFIED'], command: 'supplierDocument.expire', to: 'EXPIRED' },
+  { from: ['VERIFIED'], command: 'supplierDocument.remind', to: 'VERIFIED' },
+])
+
+export const PORTAL_SESSION_STATES = ['ACTIVE', 'REVOKED'] as const
+export type PortalSessionState = (typeof PORTAL_SESSION_STATES)[number]
+export const PORTAL_SESSION_COMMANDS = ['portal_session.touch', 'portal.signOut', 'portal_session.expire', 'portal_session.revoke'] as const
+export type PortalSessionCommand = (typeof PORTAL_SESSION_COMMANDS)[number]
+
+// A session is ACTIVE until signed out, idle or past its absolute end, or revoked (contact deactivated, supplier
+// inactive, application closed, procurement) (BR-PORTAL-03); a revoked session never comes back
+export const PORTAL_SESSION_MACHINE = machine<PortalSessionState, PortalSessionCommand>('PortalSession', PORTAL_SESSION_STATES, PORTAL_SESSION_COMMANDS, [
+  { from: ['ACTIVE'], command: 'portal_session.touch', to: 'ACTIVE' },
+  { from: ['ACTIVE'], command: 'portal.signOut', to: 'REVOKED' },
+  { from: ['ACTIVE'], command: 'portal_session.expire', to: 'REVOKED' },
+  { from: ['ACTIVE'], command: 'portal_session.revoke', to: 'REVOKED' },
+])
+
 export const MACHINES = [
   REQUEST_MACHINE,
   SUPPLIER_REQUEST_MACHINE,
@@ -555,4 +643,8 @@ export const MACHINES = [
   PAYMENT_RUN_ITEM_MACHINE,
   PAYMENT_RUN_DOCUMENT_MACHINE,
   BANK_ACCOUNT_CHANGE_MACHINE,
+  // S7
+  SUPPLIER_APPLICATION_MACHINE,
+  SUPPLIER_DOCUMENT_MACHINE,
+  PORTAL_SESSION_MACHINE,
 ] as const

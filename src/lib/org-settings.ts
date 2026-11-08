@@ -3,7 +3,7 @@ import { AI_CREDIT_DEFAULTS } from './ai-config'
 import { BcsGoSettingsSchema, ChatIntakeSettingsSchema } from './s17-settings'
 import { BP_WHOLE } from './constants'
 import AP_DEFAULTS from './ap-defaults.json'
-import { BASIS_POINTS_WHOLE, BUDGET_ALERT_DEFAULT_BP, BUDGET_ALERT_MAX_BP, SETTINGS_MAX_DAYS } from './constants'
+import { BASIS_POINTS_WHOLE, BUDGET_ALERT_DEFAULT_BP, BUDGET_ALERT_MAX_BP, SETTINGS_MAX_DAYS, SETTINGS_MAX_MINUTES } from './constants'
 
 // Organization.settings (spec §6.2, Appendix A "ค่าตั้งต้นขององค์กร"): every save must pass this schema
 // (FR-PLT-001 AC2). Defaults for the demo org live in prisma/seed/org-settings.demo.yaml; each comment names
@@ -39,6 +39,30 @@ export const EXPRESS_FIELDS = [
 ] as const
 export type ExpressField = (typeof EXPRESS_FIELDS)[number]
 
+// S7 (BR-PORTAL-01 to 04 · BR-SUP-12 · BR-SUP-17 · BR-PORTAL-09): set by seed (Settings sheet, S7-13); the defaults are
+// those of the open questions, in supplierSettingsOf
+const SupplierSettingsSchema = z
+  .object({
+    otpChannel: z.enum(['EMAIL', 'SMS']).optional(),
+    inviteLinkDays: positiveDays.optional(),
+    loginLinkMinutes: z.number().int().min(1).max(SETTINGS_MAX_MINUTES).optional(),
+    otpMinutes: z.number().int().min(1).max(60).optional(),
+    otpMaxAttempts: z.number().int().min(1).max(10).optional(),
+    otpLockMinutes: z.number().int().min(1).max(SETTINGS_MAX_MINUTES).optional(),
+    sessionIdleMinutes: z.number().int().min(1).max(SETTINGS_MAX_MINUTES).optional(),
+    sessionMaxHours: z.number().int().min(1).max(168).optional(),
+    applicationReminderBusinessDays: positiveDays.optional(),
+    applicationEscalateBusinessDays: positiveDays.optional(),
+    applicationExpireDays: positiveDays.optional(),
+    selfRegistration: z.boolean().optional(),
+    aiAssist: z.boolean().optional(),
+    portalInvoice: z.boolean().optional(),
+    closedApplicationFileRetentionDays: positiveDays.optional(),
+    contactRetentionDays: positiveDays.optional(),
+    newContactBankHoldBusinessDays: z.number().int().min(0).max(SETTINGS_MAX_DAYS).optional(),
+  })
+  .strict()
+
 export const OrgSettingsSchema = z
   .object({
     locale: z.enum(['th', 'en']),
@@ -68,6 +92,7 @@ export const OrgSettingsSchema = z
         PO: numberingRule,
         PR: numberingRule,
         RQ: numberingRule,
+        SUP: numberingRule.optional(),
         WHT_CERT: numberingRule.optional(),
       })
       .strict(),
@@ -139,6 +164,9 @@ export const OrgSettingsSchema = z
     // organization saved before S17 parses as it is and keeps asking through the chat switched off)
     chatIntake: ChatIntakeSettingsSchema.optional(),
     bcsGo: BcsGoSettingsSchema.optional(),
+    // S7: suppliers and the supplier portal (docs/sub-specs/S7.md); every key optional, missing reads as the default of
+    // supplierSettingsOf below, so an organization saved before S7 parses as it is
+    supplier: SupplierSettingsSchema.optional(),
   })
   .strict()
 
@@ -276,4 +304,34 @@ export function paymentSettingsOf(settings: unknown): PaymentSettings {
   const payment = settings !== null && typeof settings === 'object' ? (settings as { payment?: unknown }).payment : undefined
   const parsed = OrgSettingsSchema.shape.payment.safeParse(payment)
   return { ...DEFAULT_PAYMENT, ...(parsed.success ? parsed.data : {}) }
+}
+
+/** The S7 settings of an organization: the portal's links, codes and sessions, the application's SLA, retention */
+export type SupplierSettings = Required<z.infer<typeof SupplierSettingsSchema>>
+
+const DEFAULT_SUPPLIER: SupplierSettings = {
+  otpChannel: 'EMAIL', // TODO(OQ-181)
+  inviteLinkDays: 7,
+  loginLinkMinutes: 15,
+  otpMinutes: 10,
+  otpMaxAttempts: 5,
+  otpLockMinutes: 15,
+  sessionIdleMinutes: 30,
+  sessionMaxHours: 24,
+  applicationReminderBusinessDays: 3, // TODO(OQ-184)
+  applicationEscalateBusinessDays: 10, // TODO(OQ-184)
+  applicationExpireDays: 30, // TODO(OQ-184)
+  selfRegistration: false, // TODO(OQ-185)
+  aiAssist: true, // TODO(OQ-186)
+  portalInvoice: true, // TODO(OQ-187)
+  closedApplicationFileRetentionDays: 365, // TODO(OQ-188)
+  contactRetentionDays: 365, // TODO(OQ-188)
+  newContactBankHoldBusinessDays: 2, // TODO(OQ-192)
+}
+
+/** settings.supplier of stored settings, each missing key read as its default */
+export function supplierSettingsOf(settings: unknown): SupplierSettings {
+  const supplier = settings !== null && typeof settings === 'object' ? (settings as { supplier?: unknown }).supplier : undefined
+  const parsed = OrgSettingsSchema.shape.supplier.safeParse(supplier)
+  return { ...DEFAULT_SUPPLIER, ...(parsed.success ? parsed.data : {}) }
 }

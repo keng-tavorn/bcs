@@ -413,7 +413,8 @@ export const submitBankAccountChangeCommand = defineCommand({
       ctx,
       { type: 'BANK_ACCOUNT_CHANGE', id: change.id, label: `${number} ${changeTitle(change)}` },
       // BR-PAY-08: no amount; the proposer never approves (BR-SOD-05, BR-DOA-06)
-      { documentType: 'BANK_ACCOUNT_CHANGE', requesterMemberId: change.submittedById, chargedDepartmentId: department, conflictMemberIds: [change.submittedById], at: ctx.now },
+      // the proposer is the sender (ownedBy above): a change from the portal is sent by the member who claimed it (ADR-190)
+      { documentType: 'BANK_ACCOUNT_CHANGE', requesterMemberId: who.memberId, chargedDepartmentId: department, conflictMemberIds: [who.memberId], at: ctx.now },
     )
     if (!route.ok) return { ok: false, error: route.error }
     await tx.bankAccountChange.update({ where: { id: change.id }, data: { number, status: to, submittedAt: ctx.now, currentRouteId: route.data.routeId, version: { increment: 1 } } })
@@ -472,6 +473,8 @@ export function cancelBankAccountChange(ctx: Ctx, input: z.input<typeof CancelIn
 
 /** §10.1 bank_account_change.decided: the proposer hears the decision */
 function decidedNotice(change: ChangeRow, outcome: SubjectDecision['outcome'], number: string): NotificationDraft {
+  // a change past DRAFT always has its member (bank_account_change_submitter · ADR-190)
+  if (!change.submittedById) throw new Error(`bank account change ${change.id} was decided without a member who sent it`)
   return {
     recipientMemberId: change.submittedById,
     templateKey: 'bank_account_change.decided',

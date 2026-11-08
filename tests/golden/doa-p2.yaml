@@ -1,0 +1,11 @@
+# tests/golden/doa-p2.yaml
+suite: doa
+fixtures: [fixtures/org-p1.yaml, fixtures/doa-versions-p2.yaml]
+defaults: { documentType: SUPPLIER_APPROVAL, requester: proc_officer, department: PROC, at: "2026-11-02T03:00:00Z" }
+# requester = the inviter (in conflict with the application · BR-SOD ข้อ 11) · alsoConflicting = whoever filled it in on the
+# supplier's behalf, sent it on its route or verified its documents (the same shape · GC-DOA-71 takes the one who filled it in)
+cases:
+  - { id: GC-DOA-69, title: อนุมัติผู้ขายใหม่ไปผู้จัดการจัดซื้อ, input: {}, expect: { version: 1, rule: SA-01, approvers: [dm_proc] } }
+  - { id: GC-DOA-70, title: ผู้จัดการจัดซื้อเชิญเอง ไม่มีช่วงถัดไป, input: { requester: dm_proc }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-DOA-71, title: ผู้กรอกแทนเป็นผู้จัดการจัดซื้อ, input: { alsoConflicting: [dm_proc] }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-DOA-72, title: ชนิดที่ไม่มียอดแต่ส่งยอดมา, input: { amount: "1.00" }, expect: { error: VALIDATION_FAILED } }

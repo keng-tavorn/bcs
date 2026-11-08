@@ -37,6 +37,7 @@
     "org": "ผังองค์กร",
     "calendar": "ปฏิทินทำการและวันหยุด",
     "numbering": "รูปแบบเลขเอกสาร",
+    "supplierDocumentTypes": "ประเภทเอกสารผู้ขาย",
     "requestTypes": "ประเภทคำขอ",
     "line": "ตั้งค่า LINE",
     "doa": "อำนาจอนุมัติ (DOA)",

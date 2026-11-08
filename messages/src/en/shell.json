@@ -37,6 +37,7 @@
     "org": "Organization structure",
     "calendar": "Business calendar",
     "numbering": "Document numbers",
+    "supplierDocumentTypes": "Supplier document types",
     "requestTypes": "Request types",
     "line": "LINE settings",
     "doa": "Approval authority (DOA)",

@@ -33,6 +33,8 @@ export const APPROVAL_SUBJECTS = [
   'PO_CHANGE',
   'PAYMENT_RUN',
   'BANK_ACCOUNT_CHANGE',
+  // S7 (BR-DOA-26 · ADR-182): a supplier application, approved through SUPPLIER_APPROVAL
+  'SUPPLIER_APPLICATION',
 ] as const
 export type ApprovalSubject = (typeof APPROVAL_SUBJECTS)[number]
 export type OrgAuthorityChangeKind = 'POSITION_ASSIGN' | 'POSITION_END' | 'DEPARTMENT_REPARENT' | 'DELEGATION_ON_BEHALF' | 'IDENTITY_RESET'
@@ -79,7 +81,7 @@ export interface RecentBankChanges {
   readonly changes: ReadonlyArray<{ readonly proposerMemberId: string; readonly effectiveOn: string }>
 }
 
-export type SodRule = 'BR-SOD-01' | 'BR-SOD-02' | 'BR-SOD-03' | 'BR-SOD-04' | 'BR-SOD-05' | 'BR-SOD-06' | 'BR-SOD-07' | 'BR-SOD-08' | 'BR-SOD-09' | 'BR-SOD-10'
+export type SodRule = 'BR-SOD-01' | 'BR-SOD-02' | 'BR-SOD-03' | 'BR-SOD-04' | 'BR-SOD-05' | 'BR-SOD-06' | 'BR-SOD-07' | 'BR-SOD-08' | 'BR-SOD-09' | 'BR-SOD-10' | 'BR-SOD-11'
 export type SodResult = { readonly ok: true } | { readonly ok: false; readonly error: 'SOD_VIOLATION'; readonly rule: SodRule }
 
 const allowed: SodResult = { ok: true }
@@ -115,6 +117,9 @@ export function checkSod(action: SodAction, policy: SodPolicy): SodResult {
       const own = action.requesterMemberIds.includes(action.actorMemberId)
       // The submitter of a policy change never approves it (4-eyes)
       if (action.subject === 'DOA_VERSION') return own ? violation('BR-SOD-06') : allowed
+      // S7: whoever invited the supplier, filled the application in for it, sent it on its route or verified its
+      // documents never approves it (BR-SOD-11) — before the general rule, so the refusal names the right rule
+      if (action.subject === 'SUPPLIER_APPLICATION') return own ? violation('BR-SOD-11') : allowed
       if (action.subject === 'ORG_AUTHORITY_CHANGE') return own ? violation('BR-SOD-08') : allowed
       // S9: the preparer, a recorder of its invoices or who changed an account it pays into never approves a run;
       // the proposer of a bank account change never approves it

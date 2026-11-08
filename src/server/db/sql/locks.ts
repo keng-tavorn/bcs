@@ -60,6 +60,7 @@ const LOCKABLE = [
   // counted once when the last evaluator submits (BR-RFX-18)
   'RfxEvent',
   'RfxInvite',
+  'RfxQuestion',
   'Scorecard',
   // S11-04: a tier or the policy proposed, confirmed or discarded one change at a time; a questionnaire version changed
   // one command at a time (BR-RSK-02)

@@ -48,7 +48,7 @@ const ACTIVE_INVITE = ['INVITED', 'VIEWED', 'DECLINED', 'BID_SUBMITTED', 'WITHDR
 
 const memberOf = (ctx: Ctx): string | null => (ctx.actor.type === 'USER' ? ctx.actor.memberId : null)
 
-async function gate(tx: TenantTx, ctx: Ctx, capability: Capability): Promise<Fail | null> {
+export async function gate(tx: TenantTx, ctx: Ctx, capability: Capability): Promise<Fail | null> {
   const on = await requireModule(ctx, 'SOURCING', tx)
   if (!on.ok) return { ok: false, error: on.error }
   const may = await authorize(tx, ctx, capability)
@@ -60,14 +60,14 @@ async function settingsOf(tx: TenantTx, ctx: Ctx) {
   return sourcingSettingsOf(org.settings)
 }
 
-async function lockedRfx(tx: TenantTx, ctx: Ctx, rfxEventId: string) {
+export async function lockedRfx(tx: TenantTx, ctx: Ctx, rfxEventId: string) {
   await lockRowsForUpdate(tx, 'RfxEvent', ctx.organizationId, [rfxEventId])
   return tx.rfxEvent.findUnique({ where: { id: rfxEventId } })
 }
 type Rfx = NonNullable<Awaited<ReturnType<typeof lockedRfx>>>
 
 /** The state machine and the optimistic version of the RFx; the next state on success */
-function step(rfx: Rfx, command: RfxEventCommand, expectedVersion: number): Fail | { readonly to: Rfx['status'] } {
+export function step(rfx: Rfx, command: RfxEventCommand, expectedVersion: number): Fail | { readonly to: Rfx['status'] } {
   const t = transition(RFX_EVENT_MACHINE, rfx.status, command)
   if (!t.ok) return fail('INVALID_STATE_TRANSITION', `${command} is not allowed from ${rfx.status}`, { from: rfx.status, command })
   if (rfx.version !== expectedVersion) return fail('CONFLICT_VERSION', 'the RFx changed meanwhile', { expectedVersion, version: rfx.version })
@@ -420,7 +420,7 @@ export const addRfxLinesCommand = defineCommand({
 })
 
 /** Lets the request lines of these RFx lines go back to the pool (INV-RFX-03) */
-async function releaseSources(tx: TenantTx, where: { readonly rfxEventId: string; readonly rfxLineId?: string }): Promise<string[]> {
+export async function releaseSources(tx: TenantTx, where: { readonly rfxEventId: string; readonly rfxLineId?: string }): Promise<string[]> {
   const sources = await tx.rfxLineSource.findMany({ where: { active: true, rfxLine: { rfxEventId: where.rfxEventId, ...(where.rfxLineId ? { id: where.rfxLineId } : {}) } }, select: { id: true, requestLineId: true } })
   if (sources.length === 0) return []
   await tx.rfxLineSource.updateMany({ where: { id: { in: sources.map((s) => s.id) } }, data: { active: false } })

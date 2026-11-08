@@ -678,7 +678,10 @@
       "reminded": "Suppliers reminded before the close",
       "closed": "Closed for bids",
       "cancelled": "RFx cancelled",
-      "reopened": "RFx reopened"
+      "reopened": "RFx reopened",
+      "question_asked": "Supplier asked a question",
+      "question_answered": "Question answered",
+      "concluded": "RFI concluded"
     },
     "rfx_invite": {
       "created": "Supplier invited",

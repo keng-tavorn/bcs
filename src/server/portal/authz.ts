@@ -16,6 +16,9 @@ export interface PortalFacts {
   readonly portalInvoice?: boolean
   /** S11: the status of the risk assessment the contact acts on */
   readonly riskAssessmentStatus?: string | null
+  /** S10: the status of the contact's invite to the RFx, and of the RFx */
+  readonly rfxInviteStatus?: string | null
+  readonly rfxStatus?: string | null
 }
 
 export type PortalRule = (actor: SupplierActor, facts: PortalFacts) => boolean
@@ -23,6 +26,8 @@ export type PortalRule = (actor: SupplierActor, facts: PortalFacts) => boolean
 const EDITABLE_APPLICATION = new Set(['INVITED', 'DRAFT', 'RETURNED'])
 const EDITABLE_RISK_ASSESSMENT = new Set(['DRAFT', 'RETURNED'])
 const activeSupplier = (a: SupplierActor, f: PortalFacts) => Boolean(a.supplierId) && f.supplierStatus === 'ACTIVE'
+// S10: an invite that still counts (not removed); the RFx is open for questions (BR-RFX-04)
+const invitedTo = (a: SupplierActor, f: PortalFacts) => Boolean(a.supplierId || a.applicationId) && Boolean(f.rfxInviteStatus) && f.rfxInviteStatus !== 'REMOVED'
 
 export const PORTAL_ACTIONS = new Map<string, PortalRule>([
   // S7
@@ -39,6 +44,9 @@ export const PORTAL_ACTIONS = new Map<string, PortalRule>([
   ['portal.risk.answer', (a, f) => activeSupplier(a, f) && EDITABLE_RISK_ASSESSMENT.has(f.riskAssessmentStatus ?? '')],
   ['portal.risk.submit', (a, f) => activeSupplier(a, f) && EDITABLE_RISK_ASSESSMENT.has(f.riskAssessmentStatus ?? '')],
   ['portal.risk.evidence.upload', (a, f) => activeSupplier(a, f) && EDITABLE_RISK_ASSESSMENT.has(f.riskAssessmentStatus ?? '')],
+  // S10-05 (BR-RFX-04 · INV-RFX-01): an invited contact reads the RFx and asks while it is open; a declined invite may still ask
+  ['portal.rfx.view', invitedTo],
+  ['portal.rfx.ask', (a, f) => invitedTo(a, f) && f.rfxInviteStatus !== 'EXPIRED' && f.rfxStatus === 'OPEN'],
 ])
 
 /** FORBIDDEN unless the action is known and its rule allows the contact (an unknown action is never allowed) */

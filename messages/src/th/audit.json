@@ -678,7 +678,10 @@
       "reminded": "เตือนผู้ขายก่อนปิดรับ",
       "closed": "ปิดรับข้อเสนอ",
       "cancelled": "ยกเลิก RFx",
-      "reopened": "เปิด RFx ใหม่"
+      "reopened": "เปิด RFx ใหม่",
+      "question_asked": "ผู้ขายถามคำถาม",
+      "question_answered": "ตอบคำถามผู้ขาย",
+      "concluded": "สรุปผล RFI"
     },
     "rfx_invite": {
       "created": "เชิญผู้ขายเข้า RFx",

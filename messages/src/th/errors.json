@@ -69,5 +69,6 @@
   "CONFIG_PACKAGE_INVALID": "ไฟล์ชุดค่าตั้งไม่ถูกต้องหรือถูกแก้ไข ({reason})",
   "ALREADY_INVITED": "เชิญผู้ขายรายนี้ใน RFx นี้แล้ว",
   "SUPPLIER_FLAGGED": "ผู้ขายรายนี้ถูกติดธงสถานะทะเบียน ({flag})",
-  "SCORECARD_INCOMPLETE": "ต้องมีเกณฑ์ที่น้ำหนักรวม 100% และผู้ประเมินอย่างน้อย {min} คน"
+  "SCORECARD_INCOMPLETE": "ต้องมีเกณฑ์ที่น้ำหนักรวม 100% และผู้ประเมินอย่างน้อย {min} คน",
+  "QUESTION_CUTOFF_PASSED": "พ้นกำหนดรับคำถามเมื่อ {cutoff}"
 }

@@ -23,6 +23,10 @@ defineEvents('RfxEvent', {
   'rfx.extended': { schema: z.object({ from: ISO, to: ISO, closesAt: ISO }) },
   'rfx.reminded': { schema: z.object({ invites: z.int().min(1), revisionNo: z.int().min(1), closesAt: ISO }) },
   'rfx.closed': { schema: z.object({ bidCount: z.int().min(0), declinedCount: z.int().min(0), early: z.boolean() }) },
+  // a supplier's question: its id, never its words (BR-RFX-04)
+  'rfx.question_asked': { schema: z.object({ questionId: z.uuid(), inviteId: z.uuid() }) },
+  'rfx.question_answered': { schema: z.object({ questionId: z.uuid(), visibility: z.enum(['ALL', 'ASKER']), notified: z.int().min(0), originalCommentId: z.uuid().nullable(), reasonCommentId: z.uuid().nullable() }) },
+  'rfx.concluded': { schema: z.object({ requestLineIds: z.array(z.uuid()) }) },
   'rfx.cancelled': { schema: z.object({ reasonCommentId: z.uuid(), requestLineIds: z.array(z.uuid()) }) },
   'rfx.reopened': { schema: z.object({ fromRfxEventId: z.uuid(), requestLineIds: z.array(z.uuid()) }) },
 })

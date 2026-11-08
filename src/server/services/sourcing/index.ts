@@ -2,5 +2,6 @@
 // in their own file; the screens and the jobs import from here.
 
 export * from './rfx'
+export { answerQuestion, askQuestion, concludeRfx } from './questions'
 export { registerSupplierRiskProvider, type SupplierRiskProvider, type SupplierRiskStatus } from './risk-link'
 export { openSourcingDocuments } from './usage'

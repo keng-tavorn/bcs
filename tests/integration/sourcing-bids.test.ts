@@ -47,6 +47,8 @@ beforeAll(async () => {
   for (const m of ['SUPPLIER', 'SOURCING'] as const) {
     await prisma.orgModule.create({ data: { organizationId: org.organizationId, module: m, enabled: true, enabledAt: new Date('2026-01-01T00:00:00Z'), contractRef: 'TEST-S10', reason: 'องค์กรทดสอบจัดหา' } })
   }
+  // the member "auditor" holds AUDITOR: sourcing.view at ORG (the shared test organization gives roles to procurement only)
+  await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.auditor!, role: 'AUDITOR', grantedAt: new Date('2026-01-01T00:00:00Z') } })
 }, 120_000)
 
 const proc = (now = MON) => org.ctxOf('proc_officer', now)

@@ -818,6 +818,16 @@ export const extendRfxCommand = defineCommand({
 
 // ---------- closing: the job at closesAt (rfx.close) and procurement early (rfx.closeEarly) ----------
 
+const closedNotice = (rfxEventId: string, rfx: { number: string | null; title: string }, memberId: string, score: boolean) => ({
+  recipientMemberId: memberId,
+  templateKey: 'rfx.closed_internal',
+  data: { rfxEventId, number: rfx.number, title: rfx.title, score },
+  urgency: 'IMMEDIATE' as const,
+  dedupeKey: `rfx.closed_internal:${rfxEventId}:${memberId}`,
+  subjectType: 'RfxEvent',
+  subjectId: rfxEventId,
+})
+
 async function closeNow(tx: TenantTx, ctx: Ctx, rfx: Rfx, early: boolean): Promise<Effects & { readonly bidCount: number }> {
   const out = effects()
   const expiring = await tx.rfxInvite.findMany({ where: { rfxEventId: rfx.id, status: { in: ['INVITED', 'VIEWED'] } }, select: { id: true } })
@@ -836,15 +846,11 @@ async function closeNow(tx: TenantTx, ctx: Ctx, rfx: Rfx, early: boolean): Promi
       await tx.scorecard.update({ where: { id: card.id }, data: { status: 'REVEALED', revealedAt: ctx.now, version: { increment: 1 } } })
       out.events.push({ type: 'scorecard.revealed', aggregateType: 'Scorecard', aggregateId: card.id, data: { rfxEventId: rfx.id, priceOnly: true, ranking: rankingData(ranking) } })
     }
-    // S10-08: the RFx's creator, and its evaluators who score now (BR-NOTI-11 · rfx.closed_internal)
-    const told = new Set<string>()
-    const recipients: Array<[string, boolean]> = [[rfx.createdById, false], ...(card && !priceOnly ? card.evaluators.map((e): [string, boolean] => [e.memberId, true]) : [])]
-    for (const [memberId, score] of recipients) {
-      if (told.has(memberId)) continue
-      told.add(memberId)
-      out.notifications.push({ recipientMemberId: memberId, templateKey: 'rfx.closed_internal', data: { rfxEventId: rfx.id, number: closed.number, title: closed.title, score }, urgency: 'IMMEDIATE', dedupeKey: `rfx.closed_internal:${rfx.id}:${memberId}`, subjectType: 'RfxEvent', subjectId: rfx.id })
-    }
+    // S10-08: its evaluators score now (BR-NOTI-11 · rfx.closed_internal)
+    if (card && !priceOnly) for (const e of card.evaluators) if (e.memberId !== rfx.createdById) out.notifications.push(closedNotice(rfx.id, closed, e.memberId, true))
   }
+  // every RFx's creator is told of its close, an RFI's too (S10-08 review 3)
+  out.notifications.push(closedNotice(rfx.id, closed, rfx.createdById, false))
   absorb(out, await mailInvites(tx, ctx, { ...mailFacts(closed) }, ['BID_SUBMITTED'], SOURCING_SUPPLIER_TEMPLATES.closed, 'closed', { closedAt: ctx.now.toISOString() }))
   return { ...out, bidCount }
 }

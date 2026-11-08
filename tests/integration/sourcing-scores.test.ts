@@ -4,6 +4,7 @@ import { prisma } from '@/server/db/client'
 import { portalCtx } from '@/server/portal/session'
 import {
   assignEvaluators,
+  bidForMember,
   closeRfxAt,
   createRfx,
   disqualifyBid,
@@ -58,6 +59,8 @@ beforeAll(async () => {
   for (const m of ['SUPPLIER', 'SOURCING'] as const) {
     await prisma.orgModule.create({ data: { organizationId: org.organizationId, module: m, enabled: true, enabledAt: new Date('2026-01-01T00:00:00Z'), contractRef: 'TEST-S10', reason: 'องค์กรทดสอบจัดหา' } })
   }
+  // the member "auditor" holds AUDITOR: sourcing.view at ORG (the shared test organization gives roles to procurement only)
+  await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.auditor!, role: 'AUDITOR', grantedAt: new Date('2026-01-01T00:00:00Z') } })
   const settings = (await prisma.organization.findUniqueOrThrow({ where: { id: org.organizationId } })).settings as Record<string, unknown>
   await prisma.organization.update({ where: { id: org.organizationId }, data: { settings: { ...settings, sourcing: { allowVatInclusiveBids: true } } } })
 }, 120_000)
@@ -161,6 +164,23 @@ describe('[FR-SRC-203/AC2] scores are given on their own, complete, once', () =>
       expect(await recuseEvaluator(as(code), { rfxEventId, reason: 'ไม่เกี่ยวข้อง' }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     }
     expect(await assignEvaluators(as('dm_proc'), { rfxEventId, expectedVersion: (await cardOf(rfxEventId)).version, memberIds: [org.member.vp_sup!], reason: 'เพิ่มผู้ประเมิน' }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    // a save of nothing records nothing (review 4)
+    expect(await saveScores(as('dm_proc'), { rfxEventId, entries: [] }, key())).toMatchObject({ ok: false, error: { details: { reason: 'EMPTY' } } })
+    expect((await prisma.rfxEvent.findUniqueOrThrow({ where: { id: rfxEventId } })).status).toBe('CLOSED')
+  })
+
+  it('[sourcing.view] a member who neither runs, audits nor evaluates the RFx reads none of its bids, scores or ranking (review 1 2)', async () => {
+    const { rfxEventId, bids } = await scene()
+    ok(await submitScores(as('dm_proc'), { rfxEventId, entries: scoresOf(bids, 0) }, key()))
+    ok(await submitScores(as('dm_it'), { rfxEventId, entries: scoresOf(bids, 1) }, key()))
+    expect((await cardOf(rfxEventId)).status).toBe('REVEALED')
+    // req_con: an employee, no ORG role of sourcing.view, not an evaluator, not a requester of this RFx's lines
+    expect(await scoreSheet(as('req_con'), rfxEventId)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await scoreEntriesOf(as('req_con'), { rfxEventId, evaluatorMemberId: org.member.dm_proc! })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await bidForMember(as('req_con'), bids[0]!)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    // the auditor (ORG) and an evaluator (ASSIGNED) still read them
+    expect(ok(await scoreSheet(as('auditor'), rfxEventId)).ranking).toHaveLength(3)
+    expect(ok(await bidForMember(as('dm_it'), bids[0]!)).net).toBe('300950.00')
   })
 })
 

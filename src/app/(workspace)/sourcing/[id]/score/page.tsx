@@ -120,7 +120,7 @@ export default async function ScorePage({ params }: { params: Promise<{ id: stri
                   initial={s.me.entries}
                   actions={{
                     save: saveScoresAction.bind(null, s.rfx.id),
-                    submit: submitScoresAction.bind(null, s.rfx.id, s.scorecard.id),
+                    submit: submitScoresAction.bind(null, s.rfx.id),
                     recuse: recuseAction.bind(null, s.rfx.id),
                   }}
                 />

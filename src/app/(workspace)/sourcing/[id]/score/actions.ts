@@ -36,12 +36,12 @@ export async function saveScoresAction(rfxEventId: string, entries: ScoreEntryIn
 }
 
 /**
- * One send per evaluator per scorecard (docs/sub-specs/S10.md: score:<scorecardId>:<memberId> · §4.3): a double click
- * gets the first answer; a refusal (scores missing) is not kept, so the evaluator sends again with the same key
+ * One send per evaluator per scorecard (docs/sub-specs/S10.md: score:<scorecardId>:<memberId> · §4.3 · an RFx has one
+ * scorecard, so its id stands for it — never an id the browser sends): a double click gets the first answer; a refusal
+ * (scores missing) is not kept, so the evaluator sends again with the same key
  */
-export async function submitScoresAction(rfxEventId: string, scorecardId: string, entries: ScoreEntryInput[], key: string) {
-  if (!submissionKey.safeParse(scorecardId).success) return { ok: false, code: 'VALIDATION_FAILED' } satisfies ScoreOutcome
-  return run(rfxEventId, key, (ctx) => submitScores(ctx, { rfxEventId, entries }, { idempotencyKey: `score:${scorecardId}:${ctx.actor.type === 'USER' ? ctx.actor.memberId : 'none'}` }))
+export async function submitScoresAction(rfxEventId: string, entries: ScoreEntryInput[], key: string) {
+  return run(rfxEventId, key, (ctx) => submitScores(ctx, { rfxEventId, entries }, { idempotencyKey: `score:${rfxEventId}:${ctx.actor.type === 'USER' ? ctx.actor.memberId : 'none'}` }))
 }
 
 export async function recuseAction(rfxEventId: string, reason: string, key: string) {

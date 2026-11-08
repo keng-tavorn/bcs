@@ -13,6 +13,7 @@ import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { requireModule } from '../modules'
+import { rfxReading } from './access'
 import { gate, lockedRfx, scoringConflicts } from './rfx'
 import { rankingData, rankingOf, type RankedRow } from './ranking'
 
@@ -59,9 +60,11 @@ async function evaluatorOf(tx: TenantTx, ctx: Ctx, card: Card): Promise<Fail | {
   return me
 }
 
-/** BR-SOD-14 for one member, with the refusal kept (security.sod_blocked) */
-async function sodOf(tx: TenantTx, rfx: Parameters<typeof scoringConflicts>[1], memberId: string, action: string): Promise<Fail | null> {
-  const sod = checkSod({ kind: 'SCORE_RFX', actorMemberId: memberId, ...(await scoringConflicts(tx, rfx)) }, { approverMayReceive: false, requesterMayReceive: true })
+type Conflicts = Awaited<ReturnType<typeof scoringConflicts>>
+
+/** BR-SOD-14 for one member against the RFx's conflicts (read once per command), with the refusal kept (security.sod_blocked) */
+function sodOf(rfx: { id: string }, conflicts: Conflicts, memberId: string, action: string): Fail | null {
+  const sod = checkSod({ kind: 'SCORE_RFX', actorMemberId: memberId, ...conflicts }, { approverMayReceive: false, requesterMayReceive: true })
   if (sod.ok) return null
   return {
     ok: false,
@@ -123,8 +126,9 @@ export const assignEvaluatorsCommand = defineCommand({
     if (memberIds.some((id) => card.evaluators.some((e) => e.memberId === id))) return fail('VALIDATION_FAILED', 'already an evaluator of this scorecard', { field: 'memberIds', reason: 'ALREADY_EVALUATOR' })
     const members = await tx.member.findMany({ where: { id: { in: memberIds }, status: 'ACTIVE' }, select: { id: true } })
     if (members.length !== memberIds.length) return fail('VALIDATION_FAILED', 'an evaluator is not an active member', { field: 'memberIds', reason: 'MEMBER' })
+    const conflicts = await scoringConflicts(tx, rfx)
     for (const memberId of memberIds) {
-      const sod = await sodOf(tx, rfx, memberId, 'scorecard.assignEvaluators')
+      const sod = sodOf(rfx, conflicts, memberId, 'scorecard.assignEvaluators')
       if (sod) return sod
     }
     await tx.scorecardEvaluator.createMany({ data: memberIds.map((memberId) => ({ organizationId: ctx.organizationId, scorecardId: card.id, memberId, assignedAt: ctx.now })) })
@@ -224,6 +228,8 @@ export const saveScoresCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ saved: number }>> {
     const got = await scoreable(tx, ctx, input.rfxEventId, 'score.save')
     if (isFail(got)) return got
+    // a save of nothing records nothing (S10-08 review 4)
+    if (!input.entries.length) return fail('VALIDATION_FAILED', 'no score to save', { field: 'entries', reason: 'EMPTY' })
     const wrote = await writeEntries(tx, ctx, got.rfx.id, got.card.id, got.memberId, input.entries)
     if (wrote) return wrote
     return {
@@ -243,7 +249,7 @@ export const submitScoresCommand = defineCommand({
     if (isFail(got)) return got
     const { rfx, card, memberId } = got
     // BR-SOD-14 again at the send: an evaluator who became a requester of a source line meanwhile does not count
-    const sod = await sodOf(tx, rfx, memberId, 'score.submit')
+    const sod = sodOf(rfx, await scoringConflicts(tx, rfx), memberId, 'score.submit')
     if (sod) return sod
     const wrote = await writeEntries(tx, ctx, rfx.id, card.id, memberId, input.entries)
     if (wrote) return wrote
@@ -300,9 +306,12 @@ export async function scoreSheet(ctx: Ctx, rfxEventId: string): Promise<Result<S
     })
     const memberId = memberOf(ctx)
     const evaluator = card.evaluators.some((e) => e.memberId === memberId)
-    const may = evaluator ? await authorize(tx, ctx, 'sourcing.score', { assigneeMemberIds: card.evaluators.map((e) => e.memberId) }) : await authorize(tx, ctx, 'sourcing.view')
+    // an evaluator reads the bids as one; anyone else as sourcing.view lets them (access.ts): a requester of a source line
+    // sees the state, never a price or a score (S10-08 review 1)
+    const may = evaluator ? await authorize(tx, ctx, 'sourcing.score', { assigneeMemberIds: card.evaluators.map((e) => e.memberId) }) : await rfxReading(tx, ctx, rfx.id)
     if (!may.ok) return may
-    const open = SCORING.has(rfx.status) || rfx.status === 'AWARDED'
+    const prices = evaluator || may.data === 'PRICES'
+    const open = prices && (SCORING.has(rfx.status) || rfx.status === 'AWARDED')
     const bids = open
       ? await tx.bid.findMany({ where: { rfxEventId: rfx.id, status: 'SUBMITTED' }, orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }], select: { id: true, netSatang: true, vatSatang: true, grossSatang: true, isPartial: true, supplier: { select: { nameTh: true } } } })
       : []
@@ -317,7 +326,7 @@ export async function scoreSheet(ctx: Ctx, rfxEventId: string): Promise<Result<S
         bids: bids.map((b) => ({ id: b.id, supplierName: b.supplier.nameTh, net: satangToAmount(b.netSatang), vat: satangToAmount(b.vatSatang), gross: satangToAmount(b.grossSatang), isPartial: b.isPartial })),
         evaluators: card.evaluators.map((e) => ({ memberId: e.memberId, name: e.member.displayNameTh, status: e.status })),
         me: me ? { status: me.status, entries: mine.map((e) => ({ bidId: e.bidId, criterionCode: e.criterion.code, score: e.score, comment: e.comment })) } : null,
-        ranking: card.status === 'REVEALED' ? (await rankingOf(tx, card.id)).rows : null,
+        ranking: prices && card.status === 'REVEALED' ? (await rankingOf(tx, card.id)).rows : null,
       },
     }
   })
@@ -335,8 +344,9 @@ export async function scoreEntriesOf(ctx: Ctx, input: { rfxEventId: string; eval
     if (!rfx?.scorecardId) return fail('NOT_FOUND', 'RFx or scorecard not found')
     const card = await tx.scorecard.findUniqueOrThrow({ where: { id: rfx.scorecardId }, select: { id: true, status: true, evaluators: { select: { memberId: true } } } })
     const own = input.evaluatorMemberId === memberOf(ctx)
-    const may = own ? await authorize(tx, ctx, 'sourcing.score', { assigneeMemberIds: card.evaluators.map((e) => e.memberId) }) : await authorize(tx, ctx, 'sourcing.view')
+    const may = own ? await authorize(tx, ctx, 'sourcing.score', { assigneeMemberIds: card.evaluators.map((e) => e.memberId) }) : await rfxReading(tx, ctx, input.rfxEventId)
     if (!may.ok) return may
+    if (!own && may.data !== 'PRICES') return fail('FORBIDDEN', 'the scores are read by procurement, finance, executives, auditors and the evaluators', { reason: 'SCORES' })
     if (!own && card.status !== 'REVEALED') return fail('FORBIDDEN', 'another evaluator\'s scores are read once revealed', { reason: 'NOT_REVEALED' })
     const rows = await tx.scoreEntry.findMany({ where: { scorecardId: card.id, evaluatorMemberId: input.evaluatorMemberId, ...(own ? {} : { submittedAt: { not: null } }) }, select: { bidId: true, score: true, submittedAt: true, criterion: { select: { code: true } } } })
     return { ok: true as const, data: rows.map((r) => ({ bidId: r.bidId, criterionCode: r.criterion.code, score: r.score, submitted: r.submittedAt !== null })) }

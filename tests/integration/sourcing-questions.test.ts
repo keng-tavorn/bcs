@@ -101,6 +101,8 @@ describe('[FR-SRC-201/AC4] an RFI ends CONCLUDED with procurement summary — no
     const { rfxEventId } = await openedRfx('RFI')
     expect(await concludeRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), conclusionNote: 'ยังไม่ปิดรับ' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION' } })
     expect(await closeRfxAt(org.organizationId, rfxEventId, '2026-11-16T02:00:00.000Z', new Date('2026-11-16T02:00:00Z'))).toEqual({ closed: true })
+    // S10-08 review 3: an RFI (no scorecard) tells its creator of the close too
+    expect(await prisma.notification.count({ where: { organizationId: org.organizationId, recipientMemberId: org.member.proc_officer!, templateKey: 'rfx.closed_internal', subjectId: rfxEventId } })).toBe(1)
     ok(await concludeRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), conclusionNote: 'ผู้รับเหมาสองรายพร้อมทำงานเหล็ก จะเชิญเข้า RFP ไตรมาสหน้า' }, key()))
     expect(await prisma.rfxEvent.findUniqueOrThrow({ where: { id: rfxEventId } })).toMatchObject({ status: 'CONCLUDED', conclusionNote: 'ผู้รับเหมาสองรายพร้อมทำงานเหล็ก จะเชิญเข้า RFP ไตรมาสหน้า', awardDecisionId: null })
     expect(await prisma.awardDecision.count({ where: { rfxEventId } })).toBe(0)

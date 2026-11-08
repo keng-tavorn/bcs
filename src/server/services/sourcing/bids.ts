@@ -17,6 +17,7 @@ import { SOURCING_SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-tem
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { requireModule } from '../modules'
 import { absorb, effects, orgCodeOf, portalLoginUrl } from './invites'
+import { rfxReading } from './access'
 import { rankingData, rankingOf } from './ranking'
 import { gate, lockedRfx } from './rfx'
 
@@ -462,10 +463,12 @@ export interface MemberBidView {
 /** A bid's prices for a member with sourcing.view: refused FORBIDDEN reason SEALED before the close of a sealed RFx */
 export async function bidForMember(ctx: Ctx, bidId: string): Promise<Result<MemberBidView>> {
   const db = forTenant(ctx.organizationId)
-  const may = await db.$transaction((tx) => authorize(tx, ctx, 'sourcing.view'))
-  if (!may.ok) return may
   const bid = await db.bid.findUnique({ where: { id: bidId }, include: { lines: true, rfxEvent: { select: { id: true, status: true, sealed: true } } } })
   if (!bid) return { ok: false, error: { code: 'NOT_FOUND', message: 'bid not found' } }
+  // sourcing.view with the RFx as its resource: only those who read its prices (S10-08 review 2 · access.ts)
+  const may = await db.$transaction((tx) => rfxReading(tx, ctx, bid.rfxEventId))
+  if (!may.ok) return may
+  if (may.data !== 'PRICES') return { ok: false, error: { code: 'FORBIDDEN', message: 'a requester sees the RFx, not its prices', details: { reason: 'PRICES' } } }
   const beforeClose = bid.rfxEvent.status === 'DRAFT' || bid.rfxEvent.status === 'OPEN'
   if (bid.rfxEvent.sealed && beforeClose) {
     const r = await runCommand(ctx, sealedDeniedCommand, { bidId, rfxEventId: bid.rfxEvent.id }, { idempotencyKey: `bid.readSealed:${bidId}:${ctx.requestId}` })

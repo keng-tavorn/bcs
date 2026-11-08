@@ -37,7 +37,7 @@ export const assignSupplierCommand = defineCommand({
       if (!supplier) return fail('VALIDATION_FAILED', 'unknown supplier', { field: 'supplierId', reason: 'SUPPLIER' })
       if (supplier.status !== 'ACTIVE') return fail('VALIDATION_FAILED', 'the supplier is inactive', { field: 'supplierId', reason: 'SUPPLIER_INACTIVE' })
     }
-    const lines = await tx.requestLine.findMany({ where: { id: { in: lineIds } }, select: { id: true, requestId: true, supplierId: true } })
+    const lines = await tx.requestLine.findMany({ where: { id: { in: lineIds } }, select: { id: true, requestId: true, supplierId: true, rfxEventId: true } })
     if (lines.length !== lineIds.length) return fail('NOT_FOUND', 'request line not found')
     const requestIds = await lockRowsForUpdate(
       tx,
@@ -45,6 +45,12 @@ export const assignSupplierCommand = defineCommand({
       ctx.organizationId,
       lines.map((l) => l.requestId),
     )
+    // S10 (INV-RFX-03): a line in an RFx that has not ended gets its supplier from the award, never here (LINE_IN_RFX);
+    // read after the lock, as rfx.create takes the same lock before it holds a line
+    const inRfx = (await tx.requestLine.findMany({ where: { id: { in: lineIds }, rfxEventId: { not: null } }, select: { id: true, rfxEvent: { select: { id: true, number: true } } } }))
+    if (inRfx.length) {
+      return fail('VALIDATION_FAILED', 'a line in an RFx gets its supplier from the award', { field: 'requestLineIds', reason: 'LINE_IN_RFX', requestLineIds: inRfx.map((l) => l.id), rfx: [...new Set(inRfx.map((l) => l.rfxEvent!.number ?? l.rfxEvent!.id))] })
+    }
     const free = new Set((await freeLines(tx, { requestIds })).map((l) => l.requestLineId))
     const notInPool = lineIds.filter((id) => !free.has(id))
     if (notInPool.length) return fail('VALIDATION_FAILED', 'only lines in the pool get a supplier here', { field: 'requestLineIds', reason: 'LINE_NOT_IN_POOL', requestLineIds: notInPool })

@@ -13,6 +13,7 @@
 // budget.transfer.submit and the ASSIGNED reader of budget.view (FR-BUD-103, OQ-105). S6-16 added budget.overrun.submit
 // (FR-BUD-101, OQ-104). S6-21 added config.export, config.import and platform.sandbox.manage (FR-PLT-101, OQ-108).
 // NEW-125 added admin.ai.view (ORG_ADMIN and AUDITOR read /admin/ai), which the user confirmed with NEW-125 (ADR-080, ADR-083).
+// S10-04 added sourcing.view and sourcing.manage, approved with docs/sub-specs/S10.md (ADR-075 · docs/reports/p2-decisions.md).
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -166,6 +167,11 @@ export const PERMISSIONS = {
   'supplier.document.verify': PROCUREMENT_ONLY,
   'supplier.document.manage': PROCUREMENT_ONLY,
   'admin.supplierDocumentTypes': ORG_ADMIN_ONLY,
+  // S10-04 (BR-RFX-01 to 06 · docs/sub-specs/S10.md "สิทธิ์"): who reads an RFx — the requesters of its source requests and
+  // whoever has a task of it (an evaluator, the approver of its award) see it, never a sealed price before it closes —
+  // and PROCUREMENT that runs it
+  'sourcing.view': [anyMember('OWN'), anyMember('ASSIGNED'), ...roles(['PROCUREMENT', 'FINANCE', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
+  'sourcing.manage': PROCUREMENT_ONLY,
   // S6-10 (FR-INT-102, BR-PRC-06 · OQ-114): every member searches the catalogue; PROCUREMENT keeps it and its agreed prices
   'catalog.view': [anyMember('ORG')],
   'catalog.manage': PROCUREMENT_ONLY,

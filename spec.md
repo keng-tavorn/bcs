@@ -434,6 +434,8 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `supplier.document.verify` | PROCUREMENT (ORG) — ยืนยันหรือปฏิเสธเอกสาร PENDING ผู้ยืนยันอนุมัติใบสมัครนั้นไม่ได้ (S7-06 · BR-SDOC-03 · BR-SOD-11) |
 | `supplier.document.manage` | PROCUREMENT (ORG) — อัปโหลดเอกสารแทนผู้ขาย (S7-06) |
 | `admin.supplierDocumentTypes` | ORG_ADMIN (ORG) — เพิ่ม แก้ และปิดประเภทเอกสารผู้ขาย (S7-06 · BR-SDOC-01) |
+| `sourcing.view` | ผู้ขอ (OWN) · ผู้ได้รับงาน (ASSIGNED) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR (ORG) — RFx ผู้ขอและผู้ติดตามของคำขอต้นทางเห็นสถานะ ผู้ได้รับงาน (ผู้ประเมิน ผู้อนุมัติผล) เห็นที่ได้รับ · ก่อนปิดรับไม่มีใครเห็นราคาเมื่อ `sealed` (S10-04 · BR-RFX-06) |
+| `sourcing.manage` | PROCUREMENT (ORG) — สร้าง แก้ เชิญ ตั้ง Scorecard เปิด แก้ไขหลังเปิด ขยาย ปิดก่อน ยกเลิก และเปิดใหม่ RFx (S10-04 · BR-RFX-01 ถึง 05) |
 | `supplier.contact.manage` | PROCUREMENT (ORG) — เพิ่ม แก้ ปิดผู้ติดต่อของผู้ขาย และเพิกถอนการเข้าพอร์ทัล ทุกการเพิ่มหรือเปลี่ยนอีเมลแจ้งอีเมลในทะเบียนของผู้ขาย (S7-04 · BR-SUP-17 · BR-PORTAL-03) |
 | `catalog.view` | ทุก member (ORG) — ค้นหาแคตตาล็อก ราคาอ้างอิง และราคาตกลงที่มีผล (S6-10 · FR-INT-102) |
 | `catalog.manage` | PROCUREMENT (ORG) — เพิ่มและแก้สินค้า ตั้งและสิ้นสุดราคาตกลง มี event ทุกครั้ง (BR-PRC-06 · OQ-114) |
@@ -662,6 +664,9 @@ sequenceDiagram
 | `file-scan` | `bcs/file.uploaded` ที่ไฟล์ยัง `scanStatus = PENDING` (ทุกไฟล์ไม่สน kind) | สแกนไฟล์ด้วย adapter `src/integrations/scanner` (stub: สตริงทดสอบ EICAR = INFECTED · live ใน S7-22) ตั้ง `scanStatus` และปล่อย `file.scanned` (`linkKinds`) เท่านั้น | S7-06 |
 | `supplier-document-scanned` | `bcs/file.scanned` ที่ `linkKinds` มี `SUPPLIER_DOC` | เอกสาร PENDING ของไฟล์ CLEAN → `supplier_document.scanned` · INFECTED → REJECTED และอีเมลผู้ขาย (S10 S11 ฟัง kind ของตน) | S7-06 |
 | `supplier-document-expiry` | cron `TZ=Asia/Bangkok 0 7 * * *` | ทุกองค์กรที่เปิด `SUPPLIER`: เอกสาร VERIFIED ที่ถึง remindOn เตือนครั้งเดียว (อีเมลผู้ติดต่อหลัก · DIGEST จัดซื้อ) · เลยวันหมดอายุ → EXPIRED · idempotency key ต่อวันและเอกสาร (BR-SDOC-04) | S7-06 |
+| `rfx-close` | `bcs/rfx.opened` `bcs/rfx.extended` `bcs/rfx.amended` (closesAt ใหม่ · run เก่าถูกยกเลิกด้วย `cancelOn`) · ยกเลิกเมื่อ `bcs/rfx.cancelled` `bcs/rfx.closed` | `sleepUntil(closesAt)` → `rfx.close` อ่านสถานะล่าสุด: OPEN และถึงเวลา → CLOSED (`rfx.closed` · คำเชิญที่ยังไม่ยื่น EXPIRED · RFQ ราคาอย่างเดียวเปิดเผย Scorecard · อีเมล `rfx.closed` ถึงผู้ยื่น) · ไม่ถึงเวลาหรือไม่ OPEN แล้ว → ไม่ทำอะไร (`NOT_DUE`) | S10-04 |
+| `rfx-reminder` | เหมือน `rfx-close` | `sleepUntil(closesAt − 540 นาทีทำการ)` → อีเมล `rfx.reminder` ถึงคำเชิญที่ยังไม่ยื่นและไม่ปฏิเสธ ครั้งเดียวต่อคำเชิญต่อ `revisionNo` | S10-04 |
+| `rfx-invite-link` | `bcs/supplier_application.approved` | คำเชิญของใบสมัครนั้นผูก `supplierId` ของผู้ขายที่อนุมัติ (`rfx_invite.supplier_linked` · ADR-203) | S10-04 |
 
 บน staging (`APP_ENV=staging` เท่านั้น) งาน `outbox-sweeper` `consolidation` `report-schedules` และ `line-webhook-sweep` รันทุก 30 นาทีที่ :00 และ :30 แทนรอบในตาราง เพื่อให้อยู่ในโควตาฟรีของ Neon และ Inngest เกณฑ์ outbox ค้างของ `/api/health` รอเพิ่ม 29 นาที และการเตือน NFR-OBS-02 มาที่รอบที่สองติดกันที่ส่งไม่ได้ (ADR-054) · local และ production ใช้รอบในตารางเสมอ
 
@@ -5345,6 +5350,9 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | supplier_application (S7-05) | `supplier_application.invited` (kind · reinvite) `supplier_application.drafted` `supplier_application.updated` (fields · by) `supplier_application.submitted` `supplier_application.routed` (registryOutcome) `supplier_application.returned` (by) `supplier_application.approved` (supplierId · bankAccountChangeId) `supplier_application.rejected` `supplier_application.expired` `supplier_application.cancelled` · ไม่มีเลขผู้เสียภาษี เลขบัญชี หรืออีเมล · `supplier.created` schemaVersion 2 (`via: APPLICATION` · applicationId · registryFlag · phoneSource) |
 | supplier_contact (S7-04) | `supplier_contact.created` `supplier_contact.updated` (changed) `supplier_contact.deactivated` (sessionsRevoked) `supplier_contact.privacy_notice_accepted` (privacyNoticeVersion) |
 | portal_session (S7-04 · aggregate `SupplierContact`) | `portal_session.link_requested` `portal_session.otp_requested` `portal_session.otp_failed` `portal_session.otp_locked` `portal_session.signed_in` (newDevice · firstSignIn) `portal_session.signed_out` `portal_session.revoked` (reason) `portal_session.csrf_rejected` · ไม่มีรหัส OTP token อีเมล หรือ IP ดิบ (NFR-SEC-09) |
+| rfx (S10-04) | `rfx.created` (kind · sourceKind · requestLineIds · sealed · minInvites) `rfx.updated` (fields) `rfx.unsealed` (reasonCommentId · BR-RFX-06) `rfx.lines_changed` `rfx.opened` (number · closesAt · inviteCount · minInvites · fewerInvitesReasonCommentId · sealed) `rfx.amended` (revisionNo · changedFields) `rfx.extended` (from · to) `rfx.reminded` (invites · revisionNo) `rfx.closed` (bidCount · declinedCount · early) `rfx.cancelled` (reasonCommentId · requestLineIds) `rfx.reopened` (fromRfxEventId) · data เป็นรหัส id และจำนวน ไม่มีราคา |
+| rfx_invite (S10-04) | `rfx_invite.created` (supplierId หรือ applicationId · afterOpen · riskBlocked) `rfx_invite.removed` (reasonCommentId) `rfx_invite.expired` `rfx_invite.supplier_linked` (ADR-203) |
+| scorecard · bid (S10-04 · ต่อใน S10-06 S10-08) | `scorecard.updated` (criteria · evaluatorMemberIds) `scorecard.locked` `scorecard.revealed` (priceOnly) · `bid.disqualified` (reasonCommentId) |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` `approval_task.followed_up` (NEW-124 · actor คือผู้กดส่ง · data มีผู้รับ ทาง ความสัมพันธ์กับเอกสาร ไม่มีข้อความ) |
 | approval_step | `approval_step.completed` (S6 · ขั้นหลาย slot ของคณะกรรมการและผู้ตรวจได้ผลแล้ว: outcome quorum ผลต่อ slot · BR-WF-01) |
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` · S6-15: `budget.transferred_out` `budget.transferred_in` · S6-16: `budget.overrun_funded` `budget.overrun_returned` · S6-18: `budget.alert_raised` (ครั้งเดียวต่อบรรทัด เกณฑ์ และปีงบ) |
@@ -5873,6 +5881,9 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `SUPPLIER_DOCUMENT_UNVERIFIED` | 422 | เอกสาร {types} ยังไม่ได้ยืนยัน จึงส่งอนุมัติไม่ได้ |
 | `FILE_NOT_SCANNED` | 409 | ไฟล์ยังอยู่ระหว่างตรวจความปลอดภัย กรุณารอสักครู่ |
 | `FILE_INFECTED` | 422 | ไฟล์นี้ไม่ผ่านการตรวจความปลอดภัย กรุณาอัปโหลดไฟล์ใหม่ |
+| `ALREADY_INVITED` | 409 | เชิญผู้ขายรายนี้ใน RFx นี้แล้ว |
+| `SUPPLIER_FLAGGED` | 422 | ผู้ขายรายนี้ถูกติดธงสถานะทะเบียน ({flag}) |
+| `SCORECARD_INCOMPLETE` | 422 | ต้องมีเกณฑ์ที่น้ำหนักรวม 100% และผู้ประเมินอย่างน้อย {min} คน |
 | `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |
 | `EXTERNAL_SERVICE_ERROR` | 502 | ระบบภายนอกไม่ตอบสนอง ({service}) |
 | `INTERNAL` | 500 | เกิดข้อผิดพลาด (รหัสอ้างอิง {requestId}) |

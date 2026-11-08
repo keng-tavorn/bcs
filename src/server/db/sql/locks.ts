@@ -56,6 +56,11 @@ const LOCKABLE = [
   'SupplierApplication',
   // S7-06: a document verified, rejected or superseded one change at a time
   'SupplierDocument',
+  // S10: an RFx changed one command at a time (its lines, invites, open, close); an invite removed once; a scorecard
+  // counted once when the last evaluator submits (BR-RFX-18)
+  'RfxEvent',
+  'RfxInvite',
+  'Scorecard',
 ] as const
 export type LockableTable = (typeof LOCKABLE)[number]
 /** Tables whose key is not "id": a budget line's balance is keyed by the line (§6.2) */

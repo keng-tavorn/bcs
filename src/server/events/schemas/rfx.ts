@@ -1,0 +1,51 @@
+import { z } from 'zod'
+import { BASIS_POINTS_WHOLE } from '@/lib/constants'
+import { defineEvents } from '../registry'
+
+// S10 sourcing (docs/sub-specs/S10.md "event"): codes, ids and counts — never a price of a sealed RFx, a supplier's text or a
+// contact's e-mail (BR-RFX-06 · NFR-SEC-09).
+
+const ISO = z.iso.datetime({ offset: true })
+const fields = z.array(z.string().max(40))
+
+defineEvents('RfxEvent', {
+  'rfx.created': {
+    schema: z.object({ kind: z.enum(['RFQ', 'RFP', 'RFI']), sourceKind: z.enum(['REQUEST_LINES', 'NEED']), categoryCode: z.string(), requestLineIds: z.array(z.uuid()), sealed: z.boolean(), minInvites: z.int().min(1) }),
+  },
+  'rfx.updated': { schema: z.object({ fields: fields.min(1), reasonCommentId: z.uuid().optional() }) },
+  // BR-RFX-06: prices seen before the close, with the reason as a comment
+  'rfx.unsealed': { schema: z.object({ reasonCommentId: z.uuid() }) },
+  'rfx.lines_changed': { schema: z.object({ added: z.int().min(0), removed: z.int().min(0), requestLineIds: z.array(z.uuid()), minInvites: z.int().min(1) }) },
+  'rfx.opened': {
+    schema: z.object({ number: z.string(), closesAt: ISO, questionCutoffAt: ISO, inviteCount: z.int().min(1), minInvites: z.int().min(1), fewerInvitesReasonCommentId: z.uuid().nullable(), sealed: z.boolean() }),
+  },
+  'rfx.amended': { schema: z.object({ revisionNo: z.int().min(2), changedFields: fields.min(1), closesAt: ISO.nullable() }) },
+  'rfx.extended': { schema: z.object({ from: ISO, to: ISO, closesAt: ISO }) },
+  'rfx.reminded': { schema: z.object({ invites: z.int().min(1), revisionNo: z.int().min(1), closesAt: ISO }) },
+  'rfx.closed': { schema: z.object({ bidCount: z.int().min(0), declinedCount: z.int().min(0), early: z.boolean() }) },
+  'rfx.cancelled': { schema: z.object({ reasonCommentId: z.uuid(), requestLineIds: z.array(z.uuid()) }) },
+  'rfx.reopened': { schema: z.object({ fromRfxEventId: z.uuid(), requestLineIds: z.array(z.uuid()) }) },
+})
+
+defineEvents('RfxInvite', {
+  'rfx_invite.created': {
+    schema: z.object({ rfxEventId: z.uuid(), supplierId: z.uuid().nullable(), applicationId: z.uuid().nullable(), afterOpen: z.boolean(), riskBlocked: z.boolean().nullable() }),
+  },
+  'rfx_invite.removed': { schema: z.object({ rfxEventId: z.uuid(), reasonCommentId: z.uuid() }) },
+  'rfx_invite.expired': { schema: z.object({ rfxEventId: z.uuid() }) },
+  // ADR-203: the application of an invite was approved and became this supplier
+  'rfx_invite.supplier_linked': { schema: z.object({ rfxEventId: z.uuid(), applicationId: z.uuid(), supplierId: z.uuid() }) },
+})
+
+defineEvents('Scorecard', {
+  'scorecard.updated': {
+    schema: z.object({ rfxEventId: z.uuid(), criteria: z.array(z.object({ code: z.string(), weightBp: z.int().min(0).max(BASIS_POINTS_WHOLE), kind: z.enum(['PRICE', 'QUALITY']) })).min(1), evaluatorMemberIds: z.array(z.uuid()) }),
+  },
+  'scorecard.locked': { schema: z.object({ rfxEventId: z.uuid() }) },
+  // S10-04 reveals an RFQ priced only at its close; S10-08 adds the ranking of the evaluators' scores
+  'scorecard.revealed': { schema: z.object({ rfxEventId: z.uuid(), priceOnly: z.boolean() }) },
+})
+
+defineEvents('Bid', {
+  'bid.disqualified': { schema: z.object({ rfxEventId: z.uuid(), reasonCommentId: z.uuid() }) },
+})

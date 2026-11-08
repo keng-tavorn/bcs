@@ -282,3 +282,6 @@ export const SOURCING_DEFAULT_WEIGHTS_BP = {
   RFQ: { PRICE: 7_000, DELIVERY: 2_000, QUALITY: 1_000 },
   RFP: { PRICE: 4_000, TECHNICAL: 4_000, SUPPORT: 2_000 },
 } as const // TODO(OQ-206)
+/** S10: the longest description of an RFx (characters), and of an amendment's summary or a criterion's guidance */
+export const RFX_LONG_TEXT_MAX = 4_000
+export const RFX_SUMMARY_MAX = 1_000

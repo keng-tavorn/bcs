@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { assignSupplier } from '@/server/services/procurement'
+import { cancelRequest } from '@/server/services/requests'
 import {
   addRfxLines,
   amendRfx,
@@ -316,5 +317,42 @@ describe('[BR-NOTI-11] rfx-reminder: one business day before the close, to the i
     ok(await extendRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), closesAt: '2026-11-06T10:00:00Z' }, key()))
     expect(await remindRfxAt(org.organizationId, rfxEventId, '2026-11-04T09:00:00.000Z', new Date('2026-11-04T11:00:00Z'))).toBe(0)
     expect(await prisma.supplierNotice.count({ where: { organizationId: org.organizationId, subjectId: rfxEventId, templateKey: 'rfx.reminder' } })).toBe(2)
+  })
+})
+
+describe('[BR-SOD-14] [INV-RFX-03] after the review of S10-04', () => {
+  it('rfx.open checks the evaluators again: a line added later whose requester is an evaluator stops the open', async () => {
+    const { rfxEventId } = ok(await createRfx(proc(), { kind: 'RFQ', title: 'ผู้ประเมินเป็นผู้ขอ', description: 'ทดสอบ', source: { kind: 'REQUEST_LINES', requestLineIds: await poolLines('STEEL', [{ quantity: '1', unitPrice: '100.00' }]) } }, key()))
+    for (const s of [await supplier('ก'), await supplier('ข'), await supplier('ค')]) ok(await inviteToRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), supplierId: s.id }, key()))
+    // req_con requested the first line, so is refused at once; dm_con is fine until a line of theirs arrives
+    expect(await setScorecard(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), criteria: CRITERIA, evaluatorMemberIds: [org.member.req_con!, org.member.dm_it!] }, key())).toMatchObject({ ok: false, error: { code: 'SOD_VIOLATION', details: { rule: 'BR-SOD-14' } } })
+    ok(await setScorecard(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), criteria: CRITERIA, evaluatorMemberIds: [org.member.dm_proc!, org.member.dm_it!] }, key()))
+    const [later] = await poolLines('STEEL', [{ quantity: '1', unitPrice: '100.00' }])
+    // the line of dm_it: the request was made by req_con, so make dm_it its requester for this case
+    const request = await prisma.requestLine.findUniqueOrThrow({ where: { id: later! }, select: { requestId: true } })
+    await prisma.request.update({ where: { id: request.requestId }, data: { requesterMemberId: org.member.dm_it! } })
+    ok(await addRfxLines(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), source: { kind: 'REQUEST_LINES', requestLineIds: [later!] } }, key()))
+    expect(await openRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), closesAt: '2026-11-05T02:00:00Z' }, key())).toMatchObject({ ok: false, error: { code: 'SOD_VIOLATION', details: { rule: 'BR-SOD-14', memberId: org.member.dm_it } } })
+  })
+
+  it('a request with a line held in an RFx is not cancelled until the line leaves it (LINE_IN_RFX)', async () => {
+    const lines = await poolLines('STEEL', [{ quantity: '1', unitPrice: '100.00' }])
+    const { rfxEventId } = ok(await createRfx(proc(), { kind: 'RFQ', title: 'ถือบรรทัด', description: 'ทดสอบ', source: { kind: 'REQUEST_LINES', requestLineIds: lines } }, key()))
+    const { requestId } = await prisma.requestLine.findUniqueOrThrow({ where: { id: lines[0]! }, select: { requestId: true } })
+    expect(await cancelRequest(org.ctxOf('req_con', MON), { requestId }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { reason: 'LINE_IN_RFX' } } })
+    ok(await cancelRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), reason: 'คำขอจะถูกยกเลิก' }, key()))
+    expect(await cancelRequest(org.ctxOf('req_con', MON), { requestId }, key())).toMatchObject({ ok: true })
+  })
+
+  it('an extension e-mails rfx.extended (not an amendment); a reopened RFx is sealed again as the organization sets', async () => {
+    const { rfxEventId } = await readyRfq()
+    ok(await updateRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), sealed: false, unsealReason: 'ราคากลางเปิดเผย' }, key()))
+    ok(await openRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), closesAt: '2026-11-05T02:00:00Z' }, key()))
+    ok(await extendRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), closesAt: '2026-11-06T02:00:00Z' }, key()))
+    expect(await prisma.supplierNotice.count({ where: { organizationId: org.organizationId, subjectId: rfxEventId, templateKey: 'rfx.extended' } })).toBe(3)
+    expect(await prisma.supplierNotice.count({ where: { organizationId: org.organizationId, subjectId: rfxEventId, templateKey: 'rfx.amended' } })).toBe(0)
+    expect(await closeRfxAt(org.organizationId, rfxEventId, '2026-11-06T02:00:00.000Z', new Date('2026-11-06T02:00:00Z'))).toEqual({ closed: true })
+    const reopened = ok(await reopenRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), reason: 'ไม่มีผู้ยื่น' }, key()))
+    expect(await prisma.rfxEvent.findUniqueOrThrow({ where: { id: reopened.rfxEventId } })).toMatchObject({ sealed: true })
   })
 })

@@ -9,6 +9,7 @@ export const SOURCING_SUPPLIER_TEMPLATES = {
   invited: 'rfx.invited',
   reminder: 'rfx.reminder',
   amended: 'rfx.amended',
+  extended: 'rfx.extended',
   closed: 'rfx.closed',
   cancelled: 'rfx.cancelled',
 } as const
@@ -67,6 +68,14 @@ registerSupplierTemplate(SOURCING_SUPPLIER_TEMPLATES.amended, (d, c) =>
       `${c.organizationName} amended ${str(d.number)} "${titleEn(d)}" (revision ${str(d.revisionNo)}): ${str(d.summaryEn) || str(d.summary)}`,
       `Bids close ${atEn(d.closesAt)}; a bid sent before this revision must be confirmed or sent again on the portal ${str(d.loginUrl)}.`,
     ],
+  ),
+)
+
+registerSupplierTemplate(SOURCING_SUPPLIER_TEMPLATES.extended, (d, c) =>
+  supplierMail(
+    `${str(d.number)} ขยายเวลาปิดรับเป็น ${at(d.closesAt)} / Closing time extended`,
+    [`เรียน ${c.supplierName}`, `${c.organizationName} ขยายเวลาปิดรับข้อเสนอของ ${str(d.number)} "${str(d.title)}" จาก ${at(d.previousClosesAt)} เป็น ${at(d.closesAt)} เงื่อนไขอื่นไม่เปลี่ยน`, `เข้าพอร์ทัลได้ที่ ${str(d.loginUrl)}`],
+    [`${c.organizationName} extended the close of ${str(d.number)} "${titleEn(d)}" from ${atEn(d.previousClosesAt)} to ${atEn(d.closesAt)}; nothing else changed.`, `Sign in at ${str(d.loginUrl)}.`],
   ),
 )
 

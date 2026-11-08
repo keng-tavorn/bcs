@@ -9,7 +9,7 @@ import { timerStep, type TimerStep } from './approval-task-sla'
 // its supplier. A later close (rfx.extended or rfx.amended) starts a new run with the new time and cancels the old one;
 // every command reads the latest state first, so a run that slips past its cancel does nothing.
 
-const RfxTimeEvent = z.object({ organizationId: z.uuid(), aggregateId: z.uuid(), data: z.object({ closesAt: z.string() }).loose() })
+const RfxTimeEvent = z.object({ eventId: z.uuid().optional(), organizationId: z.uuid(), aggregateId: z.uuid(), data: z.object({ closesAt: z.string() }).loose() })
 const SAME_RFX = 'async.data.aggregateId == event.data.aggregateId'
 const TRIGGERS = [{ event: 'bcs/rfx.opened' }, { event: 'bcs/rfx.extended' }, { event: 'bcs/rfx.amended' }] as const
 const CANCEL_ON = [
@@ -35,10 +35,10 @@ export function rfxReminderHandler(clock: Clock) {
   return async (event: { data: unknown }, step: TimerStep) => {
     const payload = RfxTimeEvent.safeParse(event.data)
     if (!payload.success) return { reminded: 0 }
-    const { organizationId, aggregateId, data } = payload.data
+    const { eventId, organizationId, aggregateId, data } = payload.data
     const at = await step.run('plan', () => rfxReminderAt(organizationId, data.closesAt))
     await step.sleepUntil('until-reminder', at)
-    return { reminded: await step.run('remind', () => remindRfxAt(organizationId, aggregateId, data.closesAt, clock.now())) }
+    return { reminded: await step.run('remind', () => remindRfxAt(organizationId, aggregateId, data.closesAt, clock.now(), eventId ?? data.closesAt)) }
   }
 }
 

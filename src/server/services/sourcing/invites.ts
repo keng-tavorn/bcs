@@ -111,8 +111,9 @@ export async function sendInvitation(
   ctx: Ctx,
   rfx: RfxMailFacts,
   invite: { readonly id: string; readonly contactId: string; readonly supplierId: string | null; readonly applicationId: string | null },
+  knownOrgCode?: string,
 ): Promise<{ readonly linkId: string } & Effects> {
-  const orgCode = await orgCodeOf(tx, ctx.organizationId)
+  const orgCode = knownOrgCode ?? (await orgCodeOf(tx, ctx.organizationId))
   const link = await issueRfxLink(tx, ctx, { orgCode, contactId: invite.contactId, supplierId: invite.supplierId, applicationId: invite.applicationId, closesAt: rfx.closesAt! })
   await tx.rfxInvite.update({ where: { id: invite.id }, data: { linkId: link.linkId } })
   const out = effects()

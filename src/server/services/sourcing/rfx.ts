@@ -23,7 +23,7 @@ import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from 
 import { enabledModules, requireModule } from '../modules'
 import { issueDocumentNumber } from '../numbering'
 import { freeLines } from '../procurement/pool'
-import { absorb, effects, inviteContactOf, mailInvites, sendInvitation, supplierSnapshot, type Effects, type RfxMailFacts } from './invites'
+import { absorb, effects, inviteContactOf, mailInvites, orgCodeOf, sendInvitation, supplierSnapshot, type Effects, type RfxMailFacts } from './invites'
 
 // The life of an RFx (S10-04 · ADR-201 · BR-RFX-01 to 03 05 16 18 · FR-SRC-201 AC1 AC2 AC3 AC5 AC6): PROCUREMENT makes an
 // RFQ RFP or RFI from lines of the pool that have no supplier yet (one category, priced before VAT) or from a need,
@@ -168,13 +168,15 @@ async function planLines(tx: TenantTx, ctx: Ctx, source: SourceInput, holdingRfx
     return { categoryCode: source.categoryCode, lines }
   }
   const ids = [...new Set(source.requestLineIds)]
+  const owners = await tx.requestLine.findMany({ where: { id: { in: ids } }, select: { requestId: true } })
+  if (owners.length !== ids.length) return fail('NOT_FOUND', 'request line not found')
+  // the requests of the lines are locked as procurement.assign_supplier and request.cancel lock them, and the hold is
+  // read after the lock, so two of them never pass each other on one line (INV-RFX-03)
+  await lockRowsForUpdate(tx, 'Request', ctx.organizationId, [...new Set(owners.map((r) => r.requestId))])
   const rows = await tx.requestLine.findMany({
     where: { id: { in: ids } },
     select: { id: true, requestId: true, catalogItemId: true, rfxEventId: true, request: { select: { requesterMemberId: true, chargedDepartmentId: true, deliverySiteId: true } } },
   })
-  if (rows.length !== ids.length) return fail('NOT_FOUND', 'request line not found')
-  // the requests of the lines are locked as procurement.assign_supplier locks them, so the two never pass each other
-  await lockRowsForUpdate(tx, 'Request', ctx.organizationId, [...new Set(rows.map((r) => r.requestId))])
   const held = rows.filter((r) => r.rfxEventId && r.rfxEventId !== holdingRfxId).map((r) => r.id)
   if (held.length) {
     const numbers = await tx.rfxEvent.findMany({ where: { id: { in: rows.filter((r) => held.includes(r.id)).map((r) => r.rfxEventId!) } }, select: { number: true, id: true } })
@@ -672,13 +674,17 @@ export const openRfxCommand = defineCommand({
       if (!card || !valid?.ok || card.evaluators.length < card.minEvaluators) {
         return fail('SCORECARD_INCOMPLETE', 'the scorecard needs its criteria and evaluators', { min: card?.minEvaluators ?? settings.minEvaluators, evaluators: card?.evaluators.length ?? 0, weights: valid?.ok ?? false })
       }
-      // the opener is a creator too (BR-SOD-14): an evaluator who opens the RFx may not score it
-      const opener = memberOf(ctx)!
-      if (card.evaluators.some((e) => e.memberId === opener)) {
-        return {
-          ok: false,
-          error: { code: 'SOD_VIOLATION', message: 'an evaluator may not open the RFx they score', details: { rule: 'BR-SOD-14', memberId: opener } },
-          auditEvents: [{ type: 'security.sod_blocked', aggregateType: 'Security', aggregateId: rfx.id, data: { rule: 'BR-SOD-14', action: 'rfx.open', subjectType: 'RFX_EVENT', subjectId: rfx.id, actorMemberId: opener } }],
+      // BR-SOD-14 again with the lines and people of now: lines added after the scorecard bring their requesters, and the
+      // opener is a creator too
+      const conflicts = await scoringConflicts(tx, { ...rfx, openedById: memberOf(ctx) })
+      for (const e of card.evaluators) {
+        const sod = checkSod({ kind: 'SCORE_RFX', actorMemberId: e.memberId, ...conflicts }, { approverMayReceive: false, requesterMayReceive: true })
+        if (!sod.ok) {
+          return {
+            ok: false,
+            error: { code: 'SOD_VIOLATION', message: 'an evaluator may not score this RFx', details: { rule: sod.rule, memberId: e.memberId } },
+            auditEvents: [{ type: 'security.sod_blocked', aggregateType: 'Security', aggregateId: rfx.id, data: { rule: sod.rule, action: 'rfx.open', subjectType: 'RFX_EVENT', subjectId: rfx.id, actorMemberId: e.memberId } }],
+          }
         }
       }
       scorecardId = card.id
@@ -699,7 +705,8 @@ export const openRfxCommand = defineCommand({
       data: { number, closesAt: closesAt.toISOString(), questionCutoffAt: cutoff.toISOString(), inviteCount: invites.length, minInvites: rfx.minInvites, fewerInvitesReasonCommentId: reasonCommentId, sealed: rfx.sealed },
     })
     if (scorecardId) out.events.push({ type: 'scorecard.locked', aggregateType: 'Scorecard', aggregateId: scorecardId, data: { rfxEventId: rfx.id } })
-    for (const i of invites) absorb(out, await sendInvitation(tx, ctx, mailFacts(opened), i))
+    const orgCode = await orgCodeOf(tx, ctx.organizationId)
+    for (const i of invites) absorb(out, await sendInvitation(tx, ctx, mailFacts(opened), i, orgCode))
     return { ok: true, result: { rfxEventId: rfx.id, number, questionCutoffAt: cutoff.toISOString(), version: opened.version }, ...out }
   },
 })
@@ -801,7 +808,7 @@ export const extendRfxCommand = defineCommand({
     const extended = await tx.rfxEvent.update({ where: { id: rfx.id }, data: { closesAt, questionCutoffAt: moved.questionCutoffAt, version: { increment: 1 } } })
     const out = effects()
     out.events.push({ type: 'rfx.extended', aggregateType: 'RfxEvent', aggregateId: rfx.id, data: { from: rfx.closesAt!.toISOString(), to: closesAt.toISOString(), closesAt: closesAt.toISOString() } })
-    absorb(out, await mailInvites(tx, ctx, mailFacts(extended), ['INVITED', 'VIEWED', 'BID_SUBMITTED', 'WITHDRAWN'], SOURCING_SUPPLIER_TEMPLATES.amended, `x${extended.version}`, { summary: 'เลื่อนวันปิดรับข้อเสนอ', summaryEn: 'The close was moved later' }))
+    absorb(out, await mailInvites(tx, ctx, mailFacts(extended), ['INVITED', 'VIEWED', 'BID_SUBMITTED', 'WITHDRAWN'], SOURCING_SUPPLIER_TEMPLATES.extended, `x${extended.version}`, { previousClosesAt: rfx.closesAt!.toISOString() }))
     return { ok: true, result: { rfxEventId: rfx.id, closesAt: closesAt.toISOString(), version: extended.version }, ...out }
   },
 })
@@ -935,7 +942,8 @@ export const reopenRfxCommand = defineCommand({
     const cancelled = await cancelInTx(tx, ctx, rfx, input.reason)
     if (isFail(cancelled)) return cancelled
     const { id: _id, number: _n, status: _s, openedById: _o, openedAt: _oa, closesAt: _c, questionCutoffAt: _q, closedAt: _ca, scorecardId: _sc, awardDecisionId: _a, cancelReason: _cr, cancelledAt: _cat, version: _v, createdAt: _cr2, updatedAt: _u, revisionNo: _r, ...copy } = rfx
-    const fresh = await tx.rfxEvent.create({ data: { ...copy, createdById: memberOf(ctx)!, sourceDepartmentIds: rfx.sourceDepartmentIds }, select: { id: true } })
+    // sealed as the organization's setting: prices seen early again need their own reason (BR-RFX-06)
+    const fresh = await tx.rfxEvent.create({ data: { ...copy, sealed: (await settingsOf(tx, ctx)).sealedBids, createdById: memberOf(ctx)!, sourceDepartmentIds: rfx.sourceDepartmentIds }, select: { id: true } })
     for (const l of lines) {
       const { id: _lid, rfxEventId: _e, createdAt: _lc, updatedAt: _lu, sources, ...lineCopy } = l
       const row = await tx.rfxLine.create({ data: { ...lineCopy, rfxEventId: fresh.id }, select: { id: true } })
@@ -1036,8 +1044,10 @@ export const remindRfxCommand = defineCommand({
   },
 })
 
-export async function remindRfxAt(organizationId: string, rfxEventId: string, closesAt: string, now: Date): Promise<number> {
-  const done = await runCommand(systemCtx(organizationId, now, 'rfx-reminder'), remindRfxCommand, { rfxEventId, closesAt }, { idempotencyKey: `rfx-reminder:remind:${rfxEventId}:${closesAt}` })
+export async function remindRfxAt(organizationId: string, rfxEventId: string, closesAt: string, now: Date, runOf = closesAt): Promise<number> {
+  // one key per run (the event that started it), so an amendment that keeps the close reminds for its new revision; the
+  // e-mail itself goes once per invite and revision (dedupeKey of mailInvites)
+  const done = await runCommand(systemCtx(organizationId, now, 'rfx-reminder'), remindRfxCommand, { rfxEventId, closesAt }, { idempotencyKey: `rfx-reminder:remind:${rfxEventId}:${runOf}` })
   return done.ok ? done.data.reminded : 0
 }
 

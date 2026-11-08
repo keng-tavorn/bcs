@@ -814,6 +814,9 @@ export const cancelCommand = defineCommand({
     if (request.status === 'APPROVED' && (await tx.poLineSource.count({ where: { requestLine: { requestId: request.id }, poLine: { po: { status: { notIn: ['REJECTED', 'CANCELLED'] } } } } }))) {
       return fail('INVALID_STATE_TRANSITION', 'a line of the request is on a purchase order', { from: request.status, command: 'request.cancel', reason: 'ON_PO' })
     }
+    // S10 (INV-RFX-03): a line held in an RFx that has not ended leaves it first (rfx.removeLine or rfx.cancel)
+    const inRfx = await tx.requestLine.findFirst({ where: { requestId: request.id, rfxEventId: { not: null } }, select: { rfxEvent: { select: { id: true, number: true } } } })
+    if (inRfx) return fail('INVALID_STATE_TRANSITION', 'a line of the request is in an RFx', { from: request.status, command: 'request.cancel', reason: 'LINE_IN_RFX', rfx: inRfx.rfxEvent!.number ?? inRfx.rfxEvent!.id })
     const closed = await closeRoute(tx, { type: 'REQUEST', id: request.id }, 'CANCELLED', 'REQUEST_CANCELLED')
     // S6-16 (BR-BUD-15): an over-budget approval waiting is cancelled, one approved and not used goes back
     const overruns = await settleOverrunsOfCancelledRequest(tx, ctx, request.id)

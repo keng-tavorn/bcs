@@ -24,7 +24,9 @@ from p1_suppliers import SUPPLIERS, SUPPLIER_PAYMENT, ITEMS  # noqa: E402
 from p1_history import build, doc_samples  # noqa: E402
 from p1_texts import (README, INPUTS, QUESTIONS_Q, QUESTIONS_B, SCENARIOS,  # noqa: E402
                       README_BLANK, BLANK_LABELS, BLANK_CLEAR_KEYS, BLANK_TEXT_COLUMNS)
-from p1_demo import COLUMNS as DEMO_COLUMNS, SCENES as DEMO_SCENES  # noqa: E402
+from p1_demo import COLUMNS as DEMO_COLUMNS, SCENES as DEMO_SCENES, P2_COLUMNS as DEMO_P2_COLUMNS, SCENES_P2 as DEMO_P2_SCENES  # noqa: E402
+from p1_suppliers_portal import (CONTACT_COLUMNS, SUPPLIER_CONTACTS, DOC_TYPE_COLUMNS, DOC_TYPES, DOCUMENT_COLUMNS, SUPPLIER_DOCUMENTS,  # noqa: E402
+                                 APPLICATION_COLUMNS, SUPPLIER_APPLICATIONS)
 
 REAL, DEFAULT, SYNTH = 'real', 'default', 'synthetic'
 FILL = {REAL: '1F3864', DEFAULT: '7F7F7F', SYNTH: 'BF8F00'}
@@ -189,6 +191,10 @@ def main():
           ('form', 'แบบ: PND3_53 = ภ.ง.ด.3 หรือ 53 ตามผู้รับ · PND53'), ('legalRefTh', 'อ้างอิง'), ('note', 'หมายเหตุ (รอผู้ทำบัญชีของลูกค้ายืนยัน BR-WHT-01)')], WHT_TYPES)
     t(sheet('CompanyBankAccounts'), REAL, [('code', 'รหัส'), ('bankCode', 'รหัสธนาคาร'), ('branchTh', 'สาขา'), ('accountType', 'CURRENT SAVINGS'),
           ('accountNo', 'เลขบัญชี (สังเคราะห์)'), ('purposeTh', 'ใช้ทำอะไร'), ('fileFormat', 'รูปแบบไฟล์จ่ายเงิน')], none(COMPANY_BANK_ACCOUNTS))
+    # S7-13: the supplier portal of phase 2 — contacts and document types are the customer's to give (real); the
+    # documents on file and the applications are BCS's synthetic history
+    t(sheet('Supplier_Contacts'), REAL, CONTACT_COLUMNS, none(SUPPLIER_CONTACTS))
+    t(sheet('Supplier_Document_Types'), DEFAULT, DOC_TYPE_COLUMNS, DOC_TYPES)
     if not blank:  # the synthetic sheets (gold headers) are BCS's test data, never asked from the customer
         hist_cols = [('ref', 'รหัส'), ('daysAgo', 'กี่วันก่อนวัน seed'), ('requester', 'ผู้ขอ'), ('chargedDept', 'แผนกเจ้าของงบ'), ('requestType', 'ประเภท'),
                      ('title', 'เรื่อง (ไม่ซ้ำ)'), ('site', 'สถานที่ส่ง'), ('supplier', 'ผู้ขาย'), ('budgetKey', 'กุญแจงบ (seed เลือกปีงบตามวันที่)'),
@@ -211,6 +217,9 @@ def main():
         t(sheet('Scenarios'), SYNTH, [('id', 'รหัส'), ('area', 'เรื่อง'), ('descriptionTh', 'สถานการณ์'), ('where', 'อยู่ตรงไหนในข้อมูล'), ('usedBy', 'ใช้ทดสอบ')],
               [(f'SC-{i:02d}',) + s for i, s in enumerate(SCENARIOS, 1)])
         t(sheet('Demo_Script_P1'), SYNTH, DEMO_COLUMNS, DEMO_SCENES)
+        t(sheet('Supplier_Documents'), SYNTH, DOCUMENT_COLUMNS, SUPPLIER_DOCUMENTS)
+        t(sheet('Supplier_Applications'), SYNTH, APPLICATION_COLUMNS, SUPPLIER_APPLICATIONS)
+        t(sheet('Demo_Script_P2'), SYNTH, DEMO_P2_COLUMNS, DEMO_P2_SCENES)
     deterministic(wb, out)
 
     if not blank:
@@ -219,6 +228,7 @@ def main():
             st[h['status']] = st.get(h['status'], 0) + 1
         print(f'เขียน {out}')
         print(f'  ผู้ใช้ {len(USERS)} · หน่วยงาน {len(DEPARTMENTS)} · ผู้ขาย {len(SUPPLIERS)} · รายการสินค้า {len(ITEMS)} · บรรทัดงบ {len(budget_rows())}')
+        print(f'  พอร์ทัลผู้ขาย: ผู้ติดต่อ {len(SUPPLIER_CONTACTS)} · ประเภทเอกสาร {len(DOC_TYPES)} · เอกสาร {len(SUPPLIER_DOCUMENTS)} · ใบสมัคร {len(SUPPLIER_APPLICATIONS)} · ฉากระยะ 2 {len(DEMO_P2_SCENES)}')
         print(f'  ประวัติ {len(history)} คำขอ ({", ".join(f"{k} {v}" for k, v in sorted(st.items()))}) · เอกสาร AI {len(samples)} ฉบับ')
     else:
         print(f'เขียนแบบฟอร์มว่าง {out}')

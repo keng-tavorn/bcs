@@ -47,8 +47,8 @@ let budgetLineId: string
 
 beforeAll(async () => {
   org = await createDoaOrg()
-  for (const module of ['SUPPLIER', 'SOURCING'] as const) {
-    await prisma.orgModule.create({ data: { organizationId: org.organizationId, module, enabled: true, enabledAt: new Date('2026-01-01T00:00:00Z'), contractRef: 'TEST-S10', reason: 'องค์กรทดสอบจัดหา' } })
+  for (const key of ['SUPPLIER', 'SOURCING'] as const) {
+    await prisma.orgModule.create({ data: { organizationId: org.organizationId, module: key, enabled: true, enabledAt: new Date('2026-01-01T00:00:00Z'), contractRef: 'TEST-S10', reason: 'องค์กรทดสอบจัดหา' } })
   }
   // two evaluators beside the creator (BR-SOD-14): another member of procurement and one of IT
   await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.dm_proc!, role: 'PROCUREMENT', grantedAt: new Date('2026-01-01T00:00:00Z') } })
@@ -199,11 +199,11 @@ describe('[FR-SRC-201/AC3] rfx.open: the close on the business calendar, the sco
     const event = await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, aggregateId: rfxEventId, type: 'rfx.opened' } })
     const payload = { data: { organizationId: org.organizationId, aggregateId: rfxEventId, data: event.data } }
     const slept: string[] = []
-    const step = (now: Date) => ({ run: <T,>(_id: string, fn: () => Promise<T>) => fn(), sleepUntil: async (_id: string, at: string) => void slept.push(at), sleep: async () => {} })
+    const step = () => ({ run: <T,>(_id: string, fn: () => Promise<T>) => fn(), sleepUntil: async (_id: string, at: string) => void slept.push(at), sleep: async () => {} })
     // the run woke a minute early (clock skew): nothing happens
-    expect(await rfxCloseHandler({ now: () => new Date('2026-11-05T01:59:00Z') })(payload, step(MON))).toEqual({ closed: false, reason: 'NOT_DUE' })
+    expect(await rfxCloseHandler({ now: () => new Date('2026-11-05T01:59:00Z') })(payload, step())).toEqual({ closed: false, reason: 'NOT_DUE' })
     expect(slept).toEqual(['2026-11-05T02:00:00.000Z'])
-    expect(await rfxCloseHandler({ now: () => new Date('2026-11-05T02:00:00Z') })(payload, step(MON))).toEqual({ closed: true })
+    expect(await rfxCloseHandler({ now: () => new Date('2026-11-05T02:00:00Z') })(payload, step())).toEqual({ closed: true })
     const rfx = await prisma.rfxEvent.findUniqueOrThrow({ where: { id: rfxEventId }, include: { invites: true } })
     expect(rfx).toMatchObject({ status: 'CLOSED', closedAt: new Date('2026-11-05T02:00:00Z') })
     expect(rfx.invites.map((i) => i.status)).toEqual(['EXPIRED', 'EXPIRED', 'EXPIRED'])

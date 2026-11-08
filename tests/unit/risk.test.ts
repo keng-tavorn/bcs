@@ -14,6 +14,7 @@ import {
   type RiskQuestionDef,
   type RiskTierDef,
 } from '@/core/risk'
+import { normalizeScope as supplierDocsNormalizeScope } from '@/core/supplier-docs'
 
 // src/core/risk (spec §7.24 · S11-03): the branches golden risk-tier.yaml leaves out. Thresholds here are test data of
 // the organization, as in the golden file; the engine holds none (BR-RSK-02).
@@ -106,9 +107,14 @@ describe('[BR-RSK-05] answers from evidence', () => {
     expect(evidenceSource(q('RQ-X', { evidenceScopeRequired: true, evidenceScope: null }), { workScopes: ['ISO 27001'], document: doc, today })).toEqual({ source: 'NONE', reason: 'SCOPE_MISMATCH' })
     expect(evidenceSource(scoped, { workScopes: ['ISO 9001'], document: doc, today })).toEqual({ source: 'NONE', reason: 'SCOPE_MISMATCH' })
   })
-  it('normalizeScope trims and lowers case but keeps inner spaces, as S7 compares scopes', () => {
+  it('normalizeScope is the one of S7 (BR-SDOC ข้อ 03): trims, lowers case and makes runs of white space one space', () => {
+    expect(normalizeScope).toBe(supplierDocsNormalizeScope)
     expect(normalizeScope('  ISO 27001 ')).toBe('iso 27001')
-    expect(normalizeScope('iso  27001')).not.toBe(normalizeScope('ISO 27001'))
+    expect(normalizeScope(`iso ${'\t'} 27001`)).toBe(normalizeScope('ISO 27001'))
+  })
+  it('a document whose scope differs only by white space and case still answers the question', () => {
+    const scoped = q('RQ-IS-01', { evidenceScopeRequired: true, evidenceScope: 'ISO 27001' })
+    expect(evidenceSource(scoped, { workScopes: ['iso  27001'], document: { ...doc, scope: ' ISO' + String.fromCharCode(0xa0) + '27001' }, today })).toEqual({ source: 'EVIDENCE', optionCode: 'Y' })
   })
 })
 

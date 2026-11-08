@@ -1363,11 +1363,13 @@ def run_duplicates(d):
 def run_risk_tier(d):
     # BR-RSK-01 BR-RSK-03 to BR-RSK-06 (§7.24 · S11-03): the inherent tier from screening and high-risk categories, the
     # question set by appliesWhen, points and tier (highest of points band, inherent tier, minTier of an answer), an answer
-    # from evidence (VERIFIED, not expired, scope equal to the question's and a work scope after trim + lower case) and
+    # from evidence (VERIFIED, not expired, scope equal to the question's and a work scope after S7's normalizeScope) and
     # completeness (EVIDENCE does not count for a tier that requires explicit answers); compared as whole objects
     order = ["LOW", "MEDIUM", "HIGH"]; top = lambda *ts: max(ts, key=order.index)
     tiers = {t["code"]: t for t in d["tiers"]}; pol, df, qs = d["policy"], d["defaults"], d["questions"]
-    norm = lambda s: s.strip().lower()
+    import unicodedata
+    # normalizeScope of S7 (BR-SDOC ข้อ 03, run_supplier_docs): NFC, trimmed, lower case, runs of white space one space
+    norm = lambda s: " ".join(unicodedata.normalize("NFC", s).split()).lower()
     def inherent(sc, cats):
         t = "LOW"
         for f, v in sc.items():

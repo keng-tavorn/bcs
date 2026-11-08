@@ -1,17 +1,13 @@
+import { normalizeScope } from '../supplier-docs'
 import type { AnswerSource } from './score'
 import type { RiskQuestionDef } from './types'
 
 // BR-RSK-05: a question answered by a supplier document of a linked type, and BR-RSK-13: the status of an assessment on a
 // day. Dates are calendar days in Asia/Bangkok written YYYY-MM-DD, so they order as text. Pure.
 
-/**
- * The scope of a document or of the work, as S7 compares it when a document supersedes another (BR-SDOC ข้อ 03): trim
- * and lower case, inner spaces kept. S7-03 exports this from src/core/supplier-docs; until S7-25 brings it to main the
- * rule is written here once, and S11-03 then imports S7's (the item waits for it).
- */
-export function normalizeScope(scope: string): string {
-  return scope.trim().toLowerCase()
-}
+// The scope of a document or of the work is compared after S7's normalizeScope (BR-SDOC ข้อ 03: NFC, trimmed, lower case,
+// runs of white space one space), the one definition S7 S10 and S11 share (SEAM-S7xS11-X-13)
+export { normalizeScope }
 
 /** A SupplierDocument of a type whose linkedRiskQuestionCodes holds the question (S7) */
 export interface EvidenceDocument {

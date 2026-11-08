@@ -6,7 +6,8 @@ import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { listPortalTodos } from '@/server/portal/queries'
 import { getPortalInvoice, listPortalInvoicePos, listPortalInvoices, listPortalPayments, portalInvoicesShown } from '@/server/portal/queries-invoices'
 import { portalCtx } from '@/server/portal/session'
-import { confirmInvoiceCoding, createInvoice, submitInvoice, updateInvoice } from '@/server/services/ap'
+import { readDocument } from '@/server/services/ai/agents/document'
+import { cancelInvoice, confirmInvoiceCoding, createInvoice, createInvoiceFromPortal, submitInvoice, updateInvoice } from '@/server/services/ap'
 import { rejectInvoice } from '@/server/services/ap/exceptions'
 import { uploadInvoiceFile, uploadPortalInvoiceFile } from '@/server/services/ap/files'
 import { whtCertificateUrlForContact } from '@/server/services/ap/portal'
@@ -105,6 +106,42 @@ describe('[FR-AP-101/AC7] [BR-SUP-15] the contact sends an invoice on the portal
     expect((await getPortalInvoice(c.ctx, sent.invoiceId))?.editable).toBe(false)
     // FINANCE still edits it as any draft
     expect(await updateInvoice(fin(ap), { invoiceId: sent.invoiceId, version: coded.version, statedVat: '35.00', supplierInvoiceNo: 'EDIT-FIN' }, key())).toMatchObject({ ok: true })
+  })
+
+  it('a numbered draft (sent, then reopened) stays FINANCE’s even with no line coded; a cancelled draft tells its reason', async () => {
+    const po = await sentPo(ap, [{ quantity: '2', unitPrice: '100.00' }])
+    await receive(ap, po, { 0: '2' })
+    const c = await contactOf(ap.supplierId)
+    const sent = await sendOnPortal(c.ctx, po.id, { no: `NUM-${randomUUID().slice(0, 6)}`, vat: '14.00' })
+    await prisma.invoice.update({ where: { id: sent.invoiceId }, data: { number: `AP-T-${randomUUID().slice(0, 6)}` } })
+    expect(await updateInvoice(c.ctx, { invoiceId: sent.invoiceId, version: sent.version, statedVat: '0.00' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { reason: 'CODING_CONFIRMED' } } })
+    expect((await getPortalInvoice(c.ctx, sent.invoiceId))?.editable).toBe(false)
+    const po2 = await sentPo(ap, [{ quantity: '1', unitPrice: '100.00' }])
+    const other = await sendOnPortal(c.ctx, po2.id, { no: `CXL-${randomUUID().slice(0, 6)}`, vat: '7.00' })
+    ok(await cancelInvoice(fin(ap), { invoiceId: other.invoiceId, version: other.version, reason: 'แนบไฟล์ผิดใบ' }, key()))
+    expect(await getPortalInvoice(c.ctx, other.invoiceId)).toMatchObject({ stage: 'CANCELLED', rejectReason: 'แนบไฟล์ผิดใบ' })
+  })
+
+  it('[BR-PORTAL-07] a file the scan found infected: flagged in FINANCE’s list, the invoice not submitted, the AI never reads an unscanned file', async () => {
+    const po = await sentPo(ap, [{ quantity: '1', unitPrice: '700.00' }])
+    await receive(ap, po, { 0: '1' })
+    const c = await contactOf(ap.supplierId)
+    const sent = await sendOnPortal(c.ctx, po.id, { no: `INF-${randomUUID().slice(0, 6)}`, vat: '49.00' })
+    // the Document Agent does not read a portal file before the scan called it clean
+    expect(await readDocument(fin(ap), { fileId: sent.fileId, purpose: 'INVOICE', subject: { type: 'PURCHASE_ORDER', id: po.id } }, key())).toMatchObject({ ok: false, error: { code: 'AI_FILE_UNSUPPORTED', details: { reason: 'NOT_AVAILABLE' } } })
+    await prisma.fileObject.update({ where: { id: sent.fileId }, data: { scanStatus: 'INFECTED' } })
+    expect(ok(await listApInvoices(fin(ap), { tab: 'draft', channel: 'PORTAL' })).rows.find((r) => r.id === sent.invoiceId)).toMatchObject({ scanInfected: true, scanPending: false })
+    const lines = await prisma.invoiceLine.findMany({ where: { invoiceId: sent.invoiceId }, include: { poLine: { include: { budgetLine: true } } } })
+    const coded = ok(await confirmInvoiceCoding(fin(ap), { invoiceId: sent.invoiceId, version: sent.version, lines: lines.map((l) => ({ invoiceLineId: l.id, accountCode: '510101', costCenterId: l.poLine.budgetLine.costCenterId })) }, key()))
+    expect(await submitInvoice(fin(ap), { invoiceId: sent.invoiceId, version: coded.version }, key())).toMatchObject({ ok: false, error: { code: 'FILE_INFECTED' } })
+  })
+
+  it('[BR-PORTAL-04] at most 20 drafts a day per supplier through the portal’s adapter', async () => {
+    const supplier = await otherSupplier()
+    const c = await contactOf(supplier.id)
+    // AP_NOW is 10:00 of 12 Oct in Bangkok: the day's window starts at its midnight there (17:00 UTC the day before)
+    await prisma.portalRateLimit.create({ data: { organizationId: ap.org.organizationId, scopeKind: 'SUPPLIER', scopeKey: supplier.id, bucket: 'INVOICE', windowStart: new Date(Date.UTC(2026, 9, 11, 17)), count: 20 } })
+    expect(await createInvoiceFromPortal(c.ctx, { poId: randomUUID(), sourceFileId: randomUUID() }, key())).toMatchObject({ ok: false, error: { code: 'RATE_LIMITED' } })
   })
 
   it('[INV-SUP-01] another supplier’s PO or invoice is not found; a member’s file is not the contact’s; FINANCE cannot take the contact’s file', async () => {
@@ -255,5 +292,8 @@ describe('[FR-PAY-103/AC8] the supplier reads its payments masked and downloads 
     expect(await whtCertificateUrlForContact(c.ctx, { certificateId: cert.id }, key())).toMatchObject({ ok: true, data: { url: expect.stringContaining('50twi') } })
     expect(await prisma.event.count({ where: { organizationId, type: 'file.downloaded', aggregateId: pdf.id, actorType: 'SUPPLIER' } })).toBe(1)
     expect(await whtCertificateUrlForContact(theirs.ctx, { certificateId: cert.id }, key())).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
+    // a contact procurement closed to the portal reads no certificate, as it sends no invoice
+    await prisma.supplierContact.update({ where: { id: c.id }, data: { portalEnabled: false } })
+    expect(await whtCertificateUrlForContact(c.ctx, { certificateId: cert.id }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
   })
 })

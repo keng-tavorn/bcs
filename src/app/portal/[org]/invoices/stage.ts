@@ -20,6 +20,6 @@ export function invoiceStageText(t: PortalT, row: Pick<PortalInvoiceRow, 'stage'
     case 'REJECTED':
       return t('invoices.stage.REJECTED', { reason: row.rejectReason ?? '-' })
     default:
-      return t('invoices.stage.CANCELLED')
+      return row.rejectReason ? t('invoices.stage.CANCELLED_REASON', { reason: row.rejectReason }) : t('invoices.stage.CANCELLED')
   }
 }

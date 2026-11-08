@@ -2689,6 +2689,7 @@
       "limited": "Showing the latest {shown}. Search to find others.",
       "noDue": "Not set",
       "noSupplierNo": "Supplier's invoice number not entered yet",
+      "scanInfected": "File failed the security check: ask the supplier for another",
       "scanPending": "File waiting for scan",
       "supplierNo": "Supplier's invoice no. {no}"
     },
@@ -9005,6 +9006,7 @@
       "sent": "Invoice sent. Finance will check it and its status will show here.",
       "stage": {
         "CANCELLED": "Cancelled",
+        "CANCELLED_REASON": "Cancelled: {reason}",
         "DRAFT": "With finance, waiting for checks",
         "IN_REVIEW": "A difference was found, being checked",
         "PAID": "Paid {date}",

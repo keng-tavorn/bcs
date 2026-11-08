@@ -176,7 +176,6 @@ async function createFromPortal(tx: TenantTx, input: z.infer<typeof CreateInput>
   if (!input.sourceFileId) return fail('VALIDATION_FAILED', 'attach the invoice’s file', { field: 'sourceFileId', reason: 'FILE_REQUIRED' })
   const file = await readStoredInvoiceFile(tx, { organizationId: ctx.organizationId, memberId: null, fileId: input.sourceFileId, poId: input.poId, keyPrefix: portalInvoiceFilePrefix(ctx.organizationId, input.poId, who.contactId) })
   if (!file.ok) return fail('VALIDATION_FAILED', 'the invoice file must be one you uploaded for this purchase order, unchanged', { field: 'sourceFileId', reason: file.reason })
-  if (!(await withinInvoiceDraftLimit(ctx.organizationId, who.supplierId, ctx.now))) return fail('RATE_LIMITED', 'too many invoices today')
   const locked = await lockPoForDraft(tx, ctx, input.poId, 'invoice.create')
   if (!locked.ok) return locked
   const draft = await draftOnPo(tx, ctx, locked.po, { channel: 'PORTAL', file: file.file, inboundEmailId: null, createdById: null, createdByContactId: who.contactId })
@@ -256,7 +255,8 @@ export const updateInvoiceCommand = defineCommand({
     const locked = await lockedInvoice(tx, ctx, input.invoiceId, 'invoice.update', input.version)
     if (!locked.ok) return locked
     const invoice = locked.invoice
-    if (contact && invoice.lines.some((l) => l.codingConfirmedAt !== null)) return fail('INVALID_STATE_TRANSITION', 'finance has confirmed the coding of this invoice: ask finance to change it', { from: invoice.status, reason: 'CODING_CONFIRMED' })
+    // once FINANCE has confirmed the coding or numbered it (sent, even if reopened since), it is FINANCE's for good
+    if (contact && (invoice.number !== null || invoice.lines.some((l) => l.codingConfirmedAt !== null))) return fail('INVALID_STATE_TRANSITION', 'finance has confirmed the coding of this invoice: ask finance to change it', { from: invoice.status, reason: 'CODING_CONFIRMED' })
     const changed: string[] = []
     const sources = { ...((invoice.fieldSources as Record<string, string> | null) ?? {}) }
     const data: Record<string, unknown> = {}
@@ -426,6 +426,8 @@ export const submitInvoiceCommand = defineCommand({
     if (!(INVOICEABLE_PO_STATUSES as readonly string[]).includes(po.status)) return fail('INVALID_STATE_TRANSITION', `an invoice is not submitted on a ${po.status} purchase order`, { from: po.status, command: 'invoice.submit' })
     if (!invoice.supplierInvoiceNoNormalized) return fail('VALIDATION_FAILED', 'the supplier’s invoice number is needed', { field: 'supplierInvoiceNo', reason: 'REQUIRED' })
     if (!invoice.invoiceDate) return fail('VALIDATION_FAILED', 'the invoice date is needed', { field: 'invoiceDate', reason: 'REQUIRED' })
+    // S7-12 (BR-PORTAL ข้อ 07): an invoice whose paper the central scan found infected is not sent on to payment
+    if (invoice.sourceFileId && (await tx.fileObject.count({ where: { id: invoice.sourceFileId, scanStatus: 'INFECTED' } })) > 0) return fail('FILE_INFECTED', 'the invoice’s file failed the security check: ask the supplier for another', { field: 'sourceFileId' })
     if (invoice.invoiceDate.toISOString().slice(0, 10) > taxDateOf(ctx.now)) return fail('VALIDATION_FAILED', 'the invoice date is after today', { field: 'invoiceDate', reason: 'IN_THE_FUTURE' })
     if (invoice.lines.length === 0) return fail('VALIDATION_FAILED', 'an invoice needs at least one line', { field: 'lines', reason: 'REQUIRED' })
     if (invoice.netSatang <= 0n) return fail('VALIDATION_FAILED', 'an amount before VAT above zero is needed', { field: 'lines', reason: 'AMOUNT_NOT_POSITIVE' })
@@ -639,6 +641,16 @@ export function createDraftFromReading(ctx: Ctx, input: z.input<typeof ReadingIn
   return runCommand(ctx, createDraftFromReadingCommand, input, options)
 }
 
+/**
+ * S7-12: the portal's adapter of invoice.create — at most PORTAL_INVOICE_DRAFTS_PER_DAY drafts a day per supplier
+ * (BR-PORTAL ข้อ 04), counted here before the command (as the uploads of documents are), so a refused or retried
+ * command does not hold a second connection inside its transaction
+ */
+export async function createInvoiceFromPortal(ctx: Ctx, input: z.input<typeof CreateInput>, options: RunOptions) {
+  if (ctx.actor.type !== 'SUPPLIER' || ctx.channel !== 'PORTAL' || !ctx.actor.supplierId) return { ok: false as const, error: { code: 'FORBIDDEN' as const, message: 'not a portal request' } }
+  if (!(await withinInvoiceDraftLimit(ctx.organizationId, ctx.actor.supplierId, ctx.now))) return { ok: false as const, error: { code: 'RATE_LIMITED' as const, message: 'too many invoices today' } }
+  return runCommand(ctx, createInvoiceCommand, input, options)
+}
 export function createInvoice(ctx: Ctx, input: z.input<typeof CreateInput>, options: RunOptions) {
   return runCommand(ctx, createInvoiceCommand, input, options)
 }

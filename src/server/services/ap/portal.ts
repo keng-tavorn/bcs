@@ -62,7 +62,8 @@ export async function portalInvoiceContact(tx: TenantTx, ctx: Ctx): Promise<Port
 
 /** A PO of the contact's own supplier that takes an invoice (BR-MATCH-05); another supplier's is not found (INV-SUP-01) */
 export async function ownInvoiceablePo(tx: TenantTx, supplierId: string, poId: string): Promise<boolean> {
-  return (await tx.purchaseOrder.count({ where: { id: poId, supplierId, status: { in: [...INVOICEABLE_PO_STATUSES] } } })) > 0
+  // and on the track of tier-2 invoices, or on none yet (BR-IVC-06 · the list of /portal/<org>/invoices/new says the same)
+  return (await tx.purchaseOrder.count({ where: { id: poId, supplierId, status: { in: [...INVOICEABLE_PO_STATUSES] }, OR: [{ invoiceTrack: 'MATCHING' }, { invoiceTrack: null }] } })) > 0
 }
 
 /** Counts one draft of the supplier today (Bangkok); true while within PORTAL_INVOICE_DRAFTS_PER_DAY (BR-PORTAL ข้อ 04) */
@@ -101,9 +102,9 @@ const whtDownloadCommand = defineCommand({
     const supplierOn = await requireModule(ctx, 'SUPPLIER', tx)
     if (!supplierOn.ok) return { ok: false, error: supplierOn.error }
     if (!(await portalInvoicesOn(ctx, tx))) return fail('MODULE_DISABLED', 'payments are not shown on the portal', { module: 'PAY', setting: 'supplier.portalInvoice' })
-    const contact = await tx.supplierContact.findUnique({ where: { id: ctx.actor.supplierContactId }, select: { status: true, supplierId: true, supplier: { select: { status: true } } } })
+    const contact = await tx.supplierContact.findUnique({ where: { id: ctx.actor.supplierContactId }, select: { status: true, portalEnabled: true, supplierId: true, supplier: { select: { status: true } } } })
     const allowed = portalAuthorize(ctx, 'portal.invoice.view', { supplierStatus: contact?.supplier?.status ?? null, payModule: true, portalInvoice: true })
-    if (!contact || contact.status !== 'ACTIVE' || contact.supplierId !== ctx.actor.supplierId || !allowed.ok) return fail('FORBIDDEN', 'a contact reads its own supplier’s certificates only', { action: 'portal.invoice.view' })
+    if (!contact || contact.status !== 'ACTIVE' || !contact.portalEnabled || contact.supplierId !== ctx.actor.supplierId || !allowed.ok) return fail('FORBIDDEN', 'a contact reads its own supplier’s certificates only', { action: 'portal.invoice.view' })
     // another supplier's certificate is not found, as one that does not exist (INV-SUP-01)
     const cert = await tx.whtCertificate.findFirst({ where: { id: input.certificateId, supplierId: ctx.actor.supplierId }, select: { fileId: true, file: { select: { storageKey: true, fileName: true, status: true } } } })
     if (!cert?.fileId || !cert.file || cert.file.status !== 'AVAILABLE') return fail('NOT_FOUND', 'certificate not found')

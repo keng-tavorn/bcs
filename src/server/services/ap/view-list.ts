@@ -61,6 +61,8 @@ export interface ApInvoiceRowDto {
   readonly possibleDuplicate: boolean
   /** S7-12: its file came from the supplier portal and waits for the central scan (FINANCE opens it once clean) */
   readonly scanPending: boolean
+  /** S7-12: the scan found its file infected — it is not submitted (FILE_INFECTED); ask the supplier for another */
+  readonly scanInfected: boolean
   readonly createdAt: Date
 }
 
@@ -162,6 +164,7 @@ export async function listApInvoices(ctx: Ctx, filter: { tab?: ApListTab | null;
       openExceptions: r.exceptions.length,
       possibleDuplicate: r.exceptions.some((e) => e.type === 'POSSIBLE_DUPLICATE' && e.status === 'OPEN'),
       scanPending: r.sourceFile?.scanStatus === 'PENDING',
+      scanInfected: r.sourceFile?.scanStatus === 'INFECTED',
       createdAt: r.createdAt,
     })),
   })

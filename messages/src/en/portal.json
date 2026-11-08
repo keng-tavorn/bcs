@@ -332,7 +332,8 @@
       "PAID": "Paid {date}",
       "PAID_NO_DATE": "Paid",
       "REJECTED": "Rejected: {reason}",
-      "CANCELLED": "Cancelled"
+      "CANCELLED": "Cancelled",
+      "CANCELLED_REASON": "Cancelled: {reason}"
     },
     "timeline": {
       "sent": "Sent {at}",

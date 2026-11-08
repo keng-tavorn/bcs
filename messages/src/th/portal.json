@@ -332,7 +332,8 @@
       "PAID": "จ่ายแล้ว {date}",
       "PAID_NO_DATE": "จ่ายแล้ว",
       "REJECTED": "ปฏิเสธ: {reason}",
-      "CANCELLED": "ยกเลิก"
+      "CANCELLED": "ยกเลิก",
+      "CANCELLED_REASON": "ยกเลิก: {reason}"
     },
     "timeline": {
       "sent": "ส่งเมื่อ {at}",

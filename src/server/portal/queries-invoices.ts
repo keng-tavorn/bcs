@@ -65,6 +65,7 @@ const ROW_SELECT = {
   status: true,
   dueDate: true,
   rejectReason: true,
+  cancelReason: true,
   channel: true,
   po: { select: { number: true } },
   lines: { select: { codingConfirmedAt: true } },
@@ -80,6 +81,7 @@ type RowSource = {
   status: string
   dueDate: Date | null
   rejectReason: string | null
+  cancelReason: string | null
   channel: string
   po: { number: string | null }
   lines: ReadonlyArray<{ codingConfirmedAt: Date | null }>
@@ -98,9 +100,11 @@ function rowOf(r: RowSource): PortalInvoiceRow {
     stage,
     dueDate: day(r.dueDate),
     paidOn: day(r.paymentDocuments.map((d) => d.item.paidOn).find((d) => d !== null)),
-    rejectReason: stage === 'REJECTED' ? r.rejectReason : null,
+    // a draft from the portal FINANCE refuses before sending it is cancelled (never rejected): its reason is the supplier's too
+    rejectReason: stage === 'REJECTED' ? r.rejectReason : stage === 'CANCELLED' && r.channel === 'PORTAL' ? r.cancelReason : null,
     fromPortal: r.channel === 'PORTAL',
-    editable: stage === 'DRAFT' && r.channel === 'PORTAL' && r.lines.every((l) => l.codingConfirmedAt === null),
+    // until FINANCE confirms its coding or numbers it (invoice.update says the same)
+    editable: stage === 'DRAFT' && r.channel === 'PORTAL' && r.number === null && r.lines.every((l) => l.codingConfirmedAt === null),
   }
 }
 

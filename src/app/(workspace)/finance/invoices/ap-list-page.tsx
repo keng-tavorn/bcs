@@ -176,7 +176,7 @@ function rowView(t: ApListT, locale: Locale, row: ApInvoiceRowDto, quickHref: st
     due: row.dueDate ? day(locale, row.dueDate) : t('list.noDue'),
     status: row.status,
     statusLabel: t(`status.${row.status}` as 'status.DRAFT'),
-    notes: [row.channel === 'EMAIL' ? t('list.fromEmail') : row.channel === 'PORTAL' ? t('list.fromPortal') : null, row.scanPending ? t('list.scanPending') : null, row.openExceptions > 0 ? t('list.exceptions', { count: row.openExceptions }) : null].filter((n): n is string => n !== null),
+    notes: [row.channel === 'EMAIL' ? t('list.fromEmail') : row.channel === 'PORTAL' ? t('list.fromPortal') : null, row.scanPending ? t('list.scanPending') : row.scanInfected ? t('list.scanInfected') : null, row.openExceptions > 0 ? t('list.exceptions', { count: row.openExceptions }) : null].filter((n): n is string => n !== null),
     duplicate: row.possibleDuplicate ? t('list.duplicate') : null,
   }
 }

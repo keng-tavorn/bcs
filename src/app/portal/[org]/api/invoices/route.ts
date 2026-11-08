@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { portalRequest, postSession } from '@/server/portal/http'
-import { createInvoice, updateInvoice } from '@/server/services/ap'
+import { createInvoiceFromPortal, updateInvoice } from '@/server/services/ap'
 import { uploadPortalInvoiceFile } from '@/server/services/ap/files'
 import { field, forbiddenCsrf, formOf, notFound, seeOther } from '../../_lib/respond'
 import { headerOf } from './form'
@@ -25,7 +25,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
   if (!header.ok) return back(header.reason)
   const stored = await uploadPortalInvoiceFile(state.ctx, { poId, fileName: file.name, content: new Uint8Array(await file.arrayBuffer()) }, { idempotencyKey: `${key}:file` })
   if (!stored.ok) return back(typeof stored.error.details?.reason === 'string' ? stored.error.details.reason : stored.error.code)
-  const created = await createInvoice(state.ctx, { poId, sourceFileId: stored.data.fileId }, { idempotencyKey: `${key}:create` })
+  const created = await createInvoiceFromPortal(state.ctx, { poId, sourceFileId: stored.data.fileId }, { idempotencyKey: `${key}:create` })
   if (!created.ok) return back(typeof created.error.details?.reason === 'string' ? created.error.details.reason : created.error.code)
   const { invoiceId } = created.data
   const updated = await updateInvoice(state.ctx, { invoiceId, version: 0, ...header.data }, { idempotencyKey: `${key}:update` })

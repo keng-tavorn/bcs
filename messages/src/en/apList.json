@@ -54,7 +54,8 @@
     "fromEmail": "Came by e-mail",
     "limited": "Showing the latest {shown}. Search to find others.",
     "fromPortal": "From the supplier portal",
-    "scanPending": "File waiting for scan"
+    "scanPending": "File waiting for scan",
+    "scanInfected": "File failed the security check: ask the supplier for another"
   },
   "empty": {
     "draft": "No draft invoices yet",

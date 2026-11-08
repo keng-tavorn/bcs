@@ -204,8 +204,40 @@ SUPPLIER_APPLICATIONS = [
 # ---------- Demo_Script_P2 (rows of S7: scenes 1–8) ----------
 
 
+def _ack_po():
+    """Scene 5 on the seed alone (ADR-191): the newest PO of Request_History at a project site still waiting for its goods
+    (ORDERED), asked for by the project's manager, that no scene of phase 1 uses, of a supplier with a portal contact. Who
+    hears of the acknowledgement (BR-SUP-14 · sentRecipients): the requester and the RECEIVER members of the requester's
+    department; of a new date, the buyer too — proc_officer, who makes the POs of the history"""
+    from p1_demo import SCENES as P1_SCENES
+    from p1_history import build
+    from p1_org import USERS
+    used = {s.get('historyRef') for s in P1_SCENES if s.get('historyRef')}
+    rows, _ = build()
+    rows = [h for h in rows if h['status'] == 'ORDERED' and h['requester'].startswith('pm_') and h['ref'] not in used and h['supplier'] in PRIMARY_CONTACT]
+    if not rows:
+        raise ValueError('scene 5 needs a PO of Request_History at a project site, ORDERED, asked for by its manager')
+    h = min(rows, key=lambda x: (x['daysAgo'], x['ref']))
+    dept = next(u['department'] for u in USERS if u['code'] == h['requester'])
+    receivers = sorted(u['code'] for u in USERS if u['department'] == dept and 'RECEIVER' in (u['roles'] or '').split(','))
+    digest = sorted({h['requester'], *receivers})
+    return h, digest, sorted({*digest, 'proc_officer'})
+
+
+def _paid_of(supplier):
+    """Scene 6's page of payments (ADR-191): the row of Request_History the history paid this supplier for"""
+    from p1_history import build
+    rows, _ = build()
+    paid = [h for h in rows if h['supplier'] == supplier and h['paymentStatus'] == 'PAID']
+    if not paid:
+        raise ValueError(f'scene 6 needs a row of Request_History paid to {supplier}')
+    return min(paid, key=lambda x: (x['daysAgo'], x['ref']))['ref']
+
+
 def demo_p2_rows():
     """The scenes of S7 in the shared sheet Demo_Script_P2: dicts of p1_demo.P2_COLUMNS (expectJson as dicts)"""
+    ack, told_digest, told_now = _ack_po()
+    money = lambda v: f'{v:.2f}'
     return [
         dict(scene=1, core='Y', stage='S7', titleTh='เชิญผู้ขายรายใหม่ ผู้ขายสมัครเองบนมือถือ และอนุมัติผ่าน DOA', actor='proc_sub1', others='proc_mat1 · dm_proc · fin_ap1 · cfo',
              portalActor=None, supplier=None, module='SUPPLIER',
@@ -214,13 +246,13 @@ def demo_p2_rows():
                          'linkDays': 7, 'otpMinutes': 10, 'steps': 6, 'documents': {'COMPANY_CERT': {'issuedOn': '2026-10-20', 'expiresOn': '2027-04-17', 'remindOn': '2027-03-18'}},
                          'bank': {'bankCode': '004', 'last4': '0016'}, 'rule': 'SA-01', 'approver': 'dm_proc', 'bankRule': 'BA-01', 'bankApprover': 'cfo',
                          'numbersFromScreen': ['SUP', 'supplierCode', 'BAC']},
-             minutes=8, stepsTh='proc_sub1 เปิด /suppliers/invite กรอกชื่อ เลขผู้เสียภาษี สาขา หมวด และอีเมลผู้ติดต่อ → ผู้ขายเปิดลิงก์บนมือถือ กรอกรหัส 6 หลัก กรอกใบสมัคร 6 ขั้น อัปโหลดหนังสือรับรอง ภ.พ.20 และหน้าสมุดบัญชี → ส่ง → proc_sub1 ยืนยันเอกสาร → proc_mat1 ส่งอนุมัติ → dm_proc อนุมัติจากการ์ด LINE → fin_ap1 รับเรื่องบัญชี โทรยืนยัน ส่งอนุมัติ → cfo อนุมัติพร้อม PIN',
+             minutes=8, stepsTh='proc_sub1 เปิด /suppliers/invite กรอกชื่อ เลขผู้เสียภาษี สาขา หมวด และอีเมลผู้ติดต่อ → ผู้ขายเปิดลิงก์บนมือถือ กรอกรหัส 6 หลัก กรอกใบสมัคร 6 ขั้น อัปโหลดหนังสือรับรอง ภ.พ.20 และหน้าสมุดบัญชี → ส่ง → proc_sub1 ยืนยันเอกสาร → proc_mat1 ส่งอนุมัติ → dm_proc อนุมัติจากการ์ด LINE → fin_ap1 รับเรื่องบัญชี โทรยืนยัน แนบหน้าสมุดบัญชีเป็นหลักฐาน (S7-29) ส่งอนุมัติ → cfo อนุมัติพร้อม PIN',
              notes='เลขใบสมัคร รหัสผู้ขายใหม่ และเลขคำขอบัญชีอ่านจากหน้าจอ (ต่อจากข้อมูลใน seed)'),
         dict(scene=2, core='Y', stage='S7', titleTh='ใบสมัครค้าง: เตือนผู้ขาย ส่งต่อจัดซื้อ และหมดอายุ', actor='proc_mat1', others=None,
              portalActor='bpk@supplier.simec.local', supplier='SA-06', module='SUPPLIER',
-             expectJson={'application': 'SA-06', 'missing': ['VAT_CERT', 'BANK_BOOK'], 'remindAfterBusinessDays': 3, 'escalateAfterBusinessDays': 10, 'expireAfterDays': 30,
+             expectJson={'application': 'SA-06', 'missing': ['VAT_CERT'], 'notSent': ['VAT_CERT', 'BANK_BOOK'], 'remindAfterBusinessDays': 3, 'escalateAfterBusinessDays': 10, 'expireAfterDays': 30,
                          'escalatedTo': 'proc_mat1', 'badge': 'ค้างเกินกำหนด'},
-             minutes=3, stepsTh='proc_mat1 เปิด /suppliers/applications เห็นใบของ หจก. บ้านโป่งเหล็กกล้าค้าเหล็ก ติดแถบค้างเกินกำหนด → เปิดดูรายการที่ยังขาด 2 รายการ → ดูอีเมลเตือนใน Mailpit',
+             minutes=3, stepsTh='proc_mat1 เปิด /suppliers/applications เห็นใบของ หจก. บ้านโป่งเหล็กกล้าค้าเหล็ก ติดแถบค้างเกินกำหนด → เปิดดูรายการที่ยังขาดก่อนส่ง (ภ.พ.20 · หน้าสมุดบัญชีไม่บังคับ BR-SUP ข้อ 11) → ดูอีเมลเตือนใน Mailpit',
              notes='วันที่เตือนและส่งต่อนับจากวันเชิญในข้อมูล (สัมพัทธ์กับวัน seed)'),
         dict(scene=3, core='N', stage='S7', titleTh='ผู้ขายซ้ำ: เลขผู้เสียภาษีและสาขาเดียวกัน', actor='proc_mat1', others=None, portalActor=None, supplier='SP0196', module='SUPPLIER',
              expectJson={'taxId': SUPPLIERS[195]['taxId'], 'branch': '00003', 'error': 'DUPLICATE_SUPPLIER', 'reason': 'DUPLICATE_TAXID', 'otherBranch': '00004',
@@ -231,18 +263,18 @@ def demo_p2_rows():
              expectJson={'docType': 'COMPANY_CERT', 'expiresInDays': 7, 'reminded': True, 'expiringSuppliers': len(EXPIRING), 'newCopy': {'validityDays': COMPANY_CERT_DAYS}, 'oldCopy': 'SUPERSEDED'},
              minutes=3, stepsTh='ผู้ติดต่อของ SP0105 เปิดอีเมลเตือน → พอร์ทัล เอกสาร → อัปโหลดหนังสือรับรองฉบับใหม่ → proc_sub1 ยืนยัน → ฉบับเดิมเป็น SUPERSEDED',
              notes='หนังสือรับรองของ SP0105 หมดอายุอีก 7 วันนับจากวัน seed (sub-spec เขียนวันตายตัว 2026-05-20 · ไฟล์ใช้วันสัมพัทธ์เพื่อให้จำนวนใกล้หมดอายุคงที่)'),
-        dict(scene=5, core='Y', stage='S7', titleTh='ผู้ขายรับทราบ PO และแจ้งวันส่ง', actor='pm_p07', others='store_p07 · proc_sub1', portalActor=PRIMARY_CONTACT['SP0105'],
-             supplier='SP0105', module='SUPPLIER',
-             expectJson={'po': {'net': '2080000.00', 'vat': '145600.00', 'gross': '2225600.00', 'fromP1Scene': 1}, 'ack': {'deliverInDays': 6}, 'move': {'byDays': 2, 'reason': 'โรงงานผลิตไม่ทันรอบแรก'},
-                         'toldDigest': ['pm_p07', 'store_p07'], 'toldNow': ['pm_p07', 'store_p07', 'proc_sub1']},
-             minutes=3, stepsTh='ผู้ติดต่อของ SP0105 เปิด /portal/pos → PO งานถนนช่วงที่ 2 → รับทราบและแจ้งวันส่ง → เลื่อนวันพร้อมเหตุผล → pm_p07 เห็นแถบบนหน้า PO',
-             notes='PO มาจากฉาก 1 ของ Demo_Script_P1'),
+        dict(scene=5, core='Y', stage='S7', titleTh='ผู้ขายรับทราบ PO และแจ้งวันส่ง', actor=ack['requester'], others=' · '.join(c for c in told_now if c != ack['requester']),
+             portalActor=PRIMARY_CONTACT[ack['supplier']], supplier=ack['supplier'], module='SUPPLIER',
+             expectJson={'po': {'fromHistory': ack['ref'], 'net': money(ack['net']), 'vat': money(ack['vat']), 'gross': money(ack['gross'])}, 'ack': {'deliverInDays': 6},
+                         'move': {'byDays': 2, 'reason': 'โรงงานผลิตไม่ทันรอบแรก'}, 'toldDigest': told_digest, 'toldNow': told_now},
+             minutes=3, stepsTh=f'ผู้ติดต่อของ {ack["supplier"]} เปิด /portal/pos บนมือถือ → PO ของ {ack["ref"]} ({ack["title"]}) → รับทราบและแจ้งวันส่ง → เลื่อนวันพร้อมเหตุผล → {ack["requester"]} เห็นในไทม์ไลน์ของ PO',
+             notes='PO ของ Request_History ที่ยังรอของ (ADR-191) · วัน demo จริงที่เล่นระยะ 1 ก่อน ใช้ PO ของฉาก 1 ของ Demo_Script_P1 แทนได้'),
         dict(scene=6, core='Y', stage='S7', titleTh='ผู้ขายยื่นใบแจ้งหนี้ผ่านพอร์ทัลและดูสถานะการจ่าย', actor='fin_ap1', others=None, portalActor=PRIMARY_CONTACT['SP0029'],
              supplier='SP0029', module='PAY',
              expectJson={'invoiceNo': 'S00277/A', 'poFromHistory': 'H144', 'channel': 'PORTAL', 'listFilter': 'PORTAL', 'stages': ['DRAFT', 'READY'],
-                         'payments': {'run': 'PAY-2569-00001', 'transfer': '100580.00', 'wht': '0.00', 'fromP1Scene': 11}},
-             minutes=4, stepsTh='ผู้ติดต่อของ SP0029 เปิด /portal/invoices/new เลือก PO ของ H144 แนบ PDF กรอกเลขที่ วันที่ VAT → fin_ap1 กรองช่องทาง จากพอร์ทัล ยืนยันรหัสบัญชีและส่งจับคู่ → ผู้ขายเห็น พร้อมจ่าย ครบกำหนด → หน้า การจ่ายเงิน เห็นรอบของฉาก 11 ระยะ 1',
-             notes='หน้าการจ่ายเงินต้องเล่นหลังฉาก 11 ของ Demo_Script_P1'),
+                         'payments': {'paidFromHistory': _paid_of('SP0029'), 'numbersFromScreen': ['PAY']}},
+             minutes=4, stepsTh='ผู้ติดต่อของ SP0029 เปิด /portal/invoices/new เลือก PO ของ H144 แนบ PDF กรอกเลขที่ วันที่ VAT → fin_ap1 กรองช่องทาง จากพอร์ทัล ยืนยันรหัสบัญชีและส่งจับคู่ → ผู้ขายเห็น พร้อมจ่าย ครบกำหนด → หน้า การจ่ายเงิน เห็นรอบที่ประวัติจ่ายผู้ขายรายนี้ (เลขรอบอ่านจากหน้าจอ)',
+             notes='หน้าการจ่ายเงินเห็นรอบที่ประวัติจ่ายผู้ขายรายนี้ (ADR-191) · เล่นหลังฉาก 11 ของ Demo_Script_P1 จะเห็นรอบของฉากนั้นเพิ่ม'),
         dict(scene=7, core='N', stage='S7', titleTh='KPI G-7 ระยะเวลาขึ้นทะเบียนผู้ขาย', actor='dm_proc', others=None, portalActor=None, supplier=None, module='SUPPLIER',
              expectJson={'g7Median': '3.6', 'approved': [a['expectedG7Days'] for a in SUPPLIER_APPLICATIONS if a['status'] == 'APPROVED'], 'afterScene1Median': '2.1'},
              minutes=2, stepsTh='dm_proc เปิด /reports/suppliers เห็นมัธยฐาน 3.6 วันทำการ แยกสมัครเองและกรอกแทน',

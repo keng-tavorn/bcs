@@ -98,6 +98,7 @@
     "PAYMENT_RUN": "payment runs",
     "BANK_ACCOUNT_CHANGE": "bank account changes",
     "SUPPLIER_APPLICATION": "supplier applications",
+    "AWARD_DECISION": "sourcing awards",
     "RISK_OVERRIDE": "supplier risk overrides"
   },
   "values": {
@@ -140,6 +141,7 @@
       "PAYMENT_RUN": "Payment run",
       "BANK_ACCOUNT_CHANGE": "Bank account change",
       "SUPPLIER_APPLICATION": "Supplier application",
+      "AWARD_DECISION": "Sourcing award",
       "RISK_OVERRIDE": "Supplier risk override",
       "unknown": "Document not found"
     },

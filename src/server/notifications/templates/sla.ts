@@ -47,6 +47,7 @@ export const SUBJECT_NAME = {
   PAYMENT_RUN: { th: 'รอบจ่าย', en: 'Payment run' },
   BANK_ACCOUNT_CHANGE: { th: 'การเปลี่ยนบัญชีธนาคาร', en: 'Bank account change' },
   SUPPLIER_APPLICATION: { th: 'ใบสมัครผู้ขาย', en: 'Supplier application' },
+  AWARD_DECISION: { th: 'ผลการจัดหา', en: 'Sourcing award' },
 } as const satisfies Record<ApprovalSubject, Text>
 const nameOfSubject = (type: unknown): Text | undefined => (Object.hasOwn(SUBJECT_NAME, str(type)) ? SUBJECT_NAME[str(type) as ApprovalSubject] : undefined)
 

@@ -3,7 +3,16 @@ import { AI_CREDIT_DEFAULTS } from './ai-config'
 import { BcsGoSettingsSchema, ChatIntakeSettingsSchema } from './s17-settings'
 import { BP_WHOLE } from './constants'
 import AP_DEFAULTS from './ap-defaults.json'
-import { BASIS_POINTS_WHOLE, BUDGET_ALERT_DEFAULT_BP, BUDGET_ALERT_MAX_BP, SETTINGS_MAX_DAYS, SETTINGS_MAX_MINUTES } from './constants'
+import {
+  BASIS_POINTS_WHOLE,
+  BUDGET_ALERT_DEFAULT_BP,
+  BUDGET_ALERT_MAX_BP,
+  SETTINGS_MAX_DAYS,
+  SETTINGS_MAX_MINUTES,
+  SOURCING_DEFAULT_WEIGHTS_BP,
+  SOURCING_MIN_INVITES_THRESHOLD_GROSS,
+  SOURCING_PRICE_ANOMALY_BP,
+} from './constants'
 
 // Organization.settings (spec §6.2, Appendix A "ค่าตั้งต้นขององค์กร"): every save must pass this schema
 // (FR-PLT-001 AC2). Defaults for the demo org live in prisma/seed/org-settings.demo.yaml; each comment names
@@ -63,6 +72,33 @@ const SupplierSettingsSchema = z
   })
   .strict()
 
+// S10 (docs/sub-specs/S10.md "Entity และ migration"): set by seed (Settings sheet, S10-14); the defaults are those of the
+// open questions, in sourcingSettingsOf
+const sourcingKindDays = z.object({ RFQ: positiveDays.optional(), RFP: positiveDays.optional(), RFI: positiveDays.optional() }).strict()
+/** The default weights of a scorecard: criterion code → basis points, one PRICE criterion, Σ = 10000 (BR-RFX-09) */
+const sourcingWeightsBp = z
+  .record(z.string().regex(/^[A-Z][A-Z0-9_]{0,19}$/, 'a criterion code of up to 20 capital letters, digits or _'), basisPoints)
+  .refine((weights) => 'PRICE' in weights, 'a PRICE criterion')
+  .refine((weights) => Object.values(weights).reduce((sum, bp) => sum + bp, 0) === BASIS_POINTS_WHOLE, 'the weights add up to 10000')
+const SourcingSettingsSchema = z
+  .object({
+    minOpenBusinessDays: sourcingKindDays.optional(),
+    questionCutoffBusinessDays: z.number().int().min(0).max(SETTINGS_MAX_DAYS).optional(),
+    bidValidityDays: positiveDays.optional(),
+    sealedBids: z.boolean().optional(),
+    allowVatInclusiveBids: z.boolean().optional(),
+    /** The amount with VAT above which an RFx invites at least minInvitesAboveThreshold suppliers (BR-RFX-01) */
+    minInvitesThresholdGross: bahtAmount.optional(),
+    minInvitesAboveThreshold: z.number().int().min(1).max(50).optional(),
+    minEvaluators: z.number().int().min(1).max(20).optional(),
+    priceAnomalyBp: basisPoints.optional(),
+    preferredSupplierDays: positiveDays.optional(),
+    agreementFromAwardDays: positiveDays.optional(),
+    aiAssist: z.boolean().optional(),
+    defaultWeightsBp: z.object({ RFQ: sourcingWeightsBp.optional(), RFP: sourcingWeightsBp.optional() }).strict().optional(),
+  })
+  .strict()
+
 // S11 (docs/sub-specs/S11.md "Entity และ migration" · BR-RSK-10 · BR-AI-33 · BR-RSK-20): only the keys that do not decide
 // the PO gate. The screening map, the high-risk categories, the registry and medium-overdue blocks and the chat button are
 // the organization's RiskPolicy row, and the thresholds its RiskTier rows (BR-RSK-02), with 4-eyes and events; the
@@ -97,6 +133,7 @@ export const OrgSettingsSchema = z
     numbering: z
       .object({
         AP: numberingRule.optional(),
+        AWD: numberingRule.optional(),
         BAC: numberingRule.optional(),
         BT: numberingRule.optional(),
         GR: numberingRule,
@@ -104,6 +141,7 @@ export const OrgSettingsSchema = z
         PAY: numberingRule.optional(),
         PO: numberingRule,
         PR: numberingRule,
+        RFX: numberingRule.optional(),
         RO: numberingRule.optional(),
         RQ: numberingRule,
         RSA: numberingRule.optional(),
@@ -182,6 +220,8 @@ export const OrgSettingsSchema = z
     // S7: suppliers and the supplier portal (docs/sub-specs/S7.md); every key optional, missing reads as the default of
     // supplierSettingsOf below, so an organization saved before S7 parses as it is
     supplier: SupplierSettingsSchema.optional(),
+    // S10: sourcing (docs/sub-specs/S10.md); every key optional, missing reads as the default of sourcingSettingsOf
+    sourcing: SourcingSettingsSchema.optional(),
     // S11: supplier risk (docs/sub-specs/S11.md); every key optional, missing reads as the default of riskSettingsOf
     // below, so an organization saved before S11 parses as it is
     risk: RiskSettingsSchema.optional(),
@@ -352,6 +392,54 @@ export function supplierSettingsOf(settings: unknown): SupplierSettings {
   const supplier = settings !== null && typeof settings === 'object' ? (settings as { supplier?: unknown }).supplier : undefined
   const parsed = OrgSettingsSchema.shape.supplier.safeParse(supplier)
   return { ...DEFAULT_SUPPLIER, ...(parsed.success ? parsed.data : {}) }
+}
+
+/** The S10 settings of an organization: how long an RFx stays open, who is invited and scores, and what an award leaves */
+export interface SourcingSettings {
+  readonly minOpenBusinessDays: { readonly RFQ: number; readonly RFP: number; readonly RFI: number }
+  readonly questionCutoffBusinessDays: number
+  readonly bidValidityDays: number
+  readonly sealedBids: boolean
+  readonly allowVatInclusiveBids: boolean
+  readonly minInvitesThresholdGross: string
+  readonly minInvitesAboveThreshold: number
+  readonly minEvaluators: number
+  readonly priceAnomalyBp: number
+  readonly preferredSupplierDays: number
+  readonly agreementFromAwardDays: number
+  readonly aiAssist: boolean
+  readonly defaultWeightsBp: { readonly RFQ: Readonly<Record<string, number>>; readonly RFP: Readonly<Record<string, number>> }
+}
+
+const DEFAULT_SOURCING: SourcingSettings = {
+  minOpenBusinessDays: { RFQ: 3, RFP: 10, RFI: 5 },
+  questionCutoffBusinessDays: 2,
+  bidValidityDays: 30,
+  sealedBids: true, // TODO(OQ-201)
+  allowVatInclusiveBids: false, // TODO(OQ-212)
+  // the same amount as quoteThresholdGross of the Settings sheet (the sheet's key is not in this schema)
+  minInvitesThresholdGross: SOURCING_MIN_INVITES_THRESHOLD_GROSS, // TODO(OQ-08)
+  minInvitesAboveThreshold: 3,
+  minEvaluators: 2, // TODO(OQ-206)
+  priceAnomalyBp: SOURCING_PRICE_ANOMALY_BP, // TODO(OQ-208)
+  preferredSupplierDays: 365, // TODO(OQ-210)
+  agreementFromAwardDays: 365, // TODO(OQ-210)
+  aiAssist: true, // TODO(OQ-209)
+  defaultWeightsBp: SOURCING_DEFAULT_WEIGHTS_BP, // TODO(OQ-206)
+}
+
+/** settings.sourcing of stored settings, each missing key read as its default (the days per kind and weights per kind too) */
+export function sourcingSettingsOf(settings: unknown): SourcingSettings {
+  const sourcing = settings !== null && typeof settings === 'object' ? (settings as { sourcing?: unknown }).sourcing : undefined
+  const parsed = OrgSettingsSchema.shape.sourcing.safeParse(sourcing)
+  const set = (parsed.success ? parsed.data : undefined) ?? {}
+  const { minOpenBusinessDays, defaultWeightsBp, ...flat } = set
+  return {
+    ...DEFAULT_SOURCING,
+    ...flat,
+    minOpenBusinessDays: { ...DEFAULT_SOURCING.minOpenBusinessDays, ...minOpenBusinessDays },
+    defaultWeightsBp: { ...DEFAULT_SOURCING.defaultWeightsBp, ...defaultWeightsBp },
+  }
 }
 
 /** The S11 settings of an organization that do not decide the PO gate: the override's longest life, AI help, answering in the portal, retention */

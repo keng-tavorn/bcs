@@ -29,6 +29,7 @@
     "signIn": "Sign in again, then open the link from the e-mail",
     "sod": "Separation of duties does not let you decide this task. Open it in BCS",
     "subject": {
+      "AWARD_DECISION": "sourcing award",
       "BANK_ACCOUNT_CHANGE": "bank account change",
       "BUDGET_OVERRUN": "over-budget approval",
       "BUDGET_TRANSFER": "budget transfer",
@@ -667,6 +668,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order (PO)",
       "PURCHASE_REQUEST": "Purchase request (PR)",
+      "RFX_AWARD": "Sourcing award approval",
       "SUPPLIER_APPROVAL": "New supplier approval"
     },
     "download": "Download {name} as YAML",
@@ -966,6 +968,7 @@
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order (PO)",
         "PURCHASE_REQUEST": "Purchase request (PR)",
+        "RFX_AWARD": "Sourcing award approval",
         "SUPPLIER_APPROVAL": "New supplier approval"
       },
       "effectiveApplied": "Took effect {time}",
@@ -3106,6 +3109,7 @@
       "RETURN": "returned for changes"
     },
     "document": {
+      "AWARD_DECISION": "Sourcing award",
       "BANK_ACCOUNT_CHANGE": "Bank account change",
       "BUDGET_LINE": "Budget line {label}",
       "BUDGET_OVERRUN": "Over-budget approval",
@@ -3901,6 +3905,7 @@
     },
     "stillPending": "Not finished yet. Press \"Look again\" in a moment.",
     "subjectType": {
+      "AWARD_DECISION": "Sourcing award",
       "BANK_ACCOUNT_CHANGE": "Supplier bank account change",
       "BUDGET_OVERRUN": "Over-budget approval",
       "BUDGET_TRANSFER": "Budget transfer",
@@ -4363,6 +4368,7 @@
       "OWN": "Showing your tasks and the documents you requested"
     },
     "subject": {
+      "AWARD_DECISION": "Sourcing award",
       "BANK_ACCOUNT_CHANGE": "Bank account change",
       "BUDGET_OVERRUN": "Over-budget approval",
       "BUDGET_TRANSFER": "Budget transfer",
@@ -5331,6 +5337,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order (PO)",
       "PURCHASE_REQUEST": "Purchase request (PR)",
+      "RFX_AWARD": "Sourcing award approval",
       "SUPPLIER_APPROVAL": "New supplier approval"
     },
     "errors": {
@@ -6662,6 +6669,7 @@
       "info": "Waiting for requester ({count})",
       "infoBadge": "Waiting for requester",
       "kind": {
+        "AWARD_DECISION": "Sourcing award",
         "BANK_ACCOUNT_CHANGE": "Bank account change",
         "BUDGET_OVERRUN": "Over-budget approval",
         "BUDGET_TRANSFER": "Budget transfer",
@@ -6897,6 +6905,7 @@
       "capped": "Showing the first {shown} of {total}",
       "channelOf": "Decisions by {channel}",
       "document": {
+        "AWARD_DECISION": "Sourcing award",
         "BANK_ACCOUNT_CHANGE": "Bank account change",
         "BUDGET_LINE": "Budget line {label}",
         "BUDGET_OVERRUN": "Over-budget approval",
@@ -7046,6 +7055,7 @@
         "RETURN": "Returned for changes"
       },
       "document": {
+        "AWARD_DECISION": "Sourcing award",
         "BANK_ACCOUNT_CHANGE": "Bank account change",
         "BUDGET_OVERRUN": "Over-budget approval",
         "BUDGET_TRANSFER": "Budget transfer",
@@ -7089,6 +7099,7 @@
       "unknownHint": "Go back to the KPI page and press the value of the measure you want."
     },
     "kinds": {
+      "AWARD_DECISION": "sourcing awards",
       "BANK_ACCOUNT_CHANGE": "bank account changes",
       "BUDGET_OVERRUN": "over-budget approvals",
       "BUDGET_TRANSFER": "budget transfers",
@@ -9972,6 +9983,7 @@
     "home": "Back to home",
     "intro": "The reports the system offers: choose a period, see the result within your access, export it to Excel and have it e-mailed on a schedule.",
     "kinds": {
+      "AWARD_DECISION": "sourcing awards",
       "BANK_ACCOUNT_CHANGE": "bank account changes",
       "BUDGET_OVERRUN": "over-budget approvals",
       "BUDGET_TRANSFER": "budget transfers",
@@ -10885,6 +10897,7 @@
           "NET": "before VAT"
         },
         "document": {
+          "AWARD_DECISION": "sourcing award",
           "BANK_ACCOUNT_CHANGE": "bank account change",
           "BUDGET_OVERRUN": "over-budget approval",
           "BUDGET_TRANSFER": "budget transfer",
@@ -12296,6 +12309,7 @@
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order (PO)",
         "PURCHASE_REQUEST": "Purchase request (PR)",
+        "RFX_AWARD": "Sourcing award approval",
         "SUPPLIER_APPROVAL": "New supplier approval"
       },
       "doaEffective": "In effect from",

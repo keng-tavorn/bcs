@@ -617,6 +617,120 @@ export const PORTAL_SESSION_MACHINE = machine<PortalSessionState, PortalSessionC
   { from: ['ACTIVE'], command: 'portal_session.revoke', to: 'REVOKED' },
 ])
 
+// ---------- S10 sourcing (docs/sub-specs/S10.md "State machine") ----------
+
+export const RFX_EVENT_STATES = ['DRAFT', 'OPEN', 'CLOSED', 'EVALUATING', 'AWARDED', 'CONCLUDED', 'CANCELLED'] as const
+export type RfxEventState = (typeof RFX_EVENT_STATES)[number]
+export const RFX_EVENT_COMMANDS = [
+  'rfx.update',
+  'rfx.addLines',
+  'rfx.removeLine',
+  'rfx.invite',
+  'rfx.uninvite',
+  'rfx.setScorecard',
+  'rfx.open',
+  'rfx.amend',
+  'rfx.extend',
+  // the job at closesAt, or procurement once every invite has answered (BR-RFX-02)
+  'rfx.close',
+  'rfx.closeEarly',
+  // the first score.save, or an evaluator added after the close
+  'rfx.evaluate',
+  'rfx.conclude',
+  // in the transaction of the award's final approval (BR-RFX-13)
+  'rfx.award',
+  'rfx.cancel',
+] as const
+export type RfxEventCommand = (typeof RFX_EVENT_COMMANDS)[number]
+
+// Inviting and removing an invite go on while OPEN, before closesAt (the service checks the time); concluding is for an
+// RFI and awarding for an RFQ or RFP (the service checks the kind) (BR-RFX-01 to 05)
+export const RFX_EVENT_MACHINE = machine<RfxEventState, RfxEventCommand>('RfxEvent', RFX_EVENT_STATES, RFX_EVENT_COMMANDS, [
+  { from: ['DRAFT'], command: 'rfx.update', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'rfx.addLines', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'rfx.removeLine', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'rfx.invite', to: 'DRAFT' },
+  { from: ['OPEN'], command: 'rfx.invite', to: 'OPEN' },
+  { from: ['DRAFT'], command: 'rfx.uninvite', to: 'DRAFT' },
+  { from: ['OPEN'], command: 'rfx.uninvite', to: 'OPEN' },
+  { from: ['DRAFT'], command: 'rfx.setScorecard', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'rfx.open', to: 'OPEN' },
+  { from: ['OPEN'], command: 'rfx.amend', to: 'OPEN' },
+  { from: ['OPEN'], command: 'rfx.extend', to: 'OPEN' },
+  { from: ['OPEN'], command: 'rfx.close', to: 'CLOSED' },
+  { from: ['OPEN'], command: 'rfx.closeEarly', to: 'CLOSED' },
+  { from: ['CLOSED'], command: 'rfx.evaluate', to: 'EVALUATING' },
+  { from: ['CLOSED'], command: 'rfx.conclude', to: 'CONCLUDED' },
+  { from: ['CLOSED', 'EVALUATING'], command: 'rfx.award', to: 'AWARDED' },
+  { from: ['DRAFT', 'OPEN', 'CLOSED', 'EVALUATING'], command: 'rfx.cancel', to: 'CANCELLED' },
+])
+
+export const RFX_INVITE_STATES = ['INVITED', 'VIEWED', 'DECLINED', 'BID_SUBMITTED', 'WITHDRAWN', 'EXPIRED', 'REMOVED'] as const
+export type RfxInviteState = (typeof RFX_INVITE_STATES)[number]
+export const RFX_INVITE_COMMANDS = ['portal.rfx.view', 'portal.rfx.decline', 'bid.submit', 'bid.withdraw', 'rfx_invite.expire', 'rfx.uninvite'] as const
+export type RfxInviteCommand = (typeof RFX_INVITE_COMMANDS)[number]
+
+// A withdrawn bid may be submitted again until the close; a submitted one may be submitted again with new values
+export const RFX_INVITE_MACHINE = machine<RfxInviteState, RfxInviteCommand>('RfxInvite', RFX_INVITE_STATES, RFX_INVITE_COMMANDS, [
+  { from: ['INVITED'], command: 'portal.rfx.view', to: 'VIEWED' },
+  { from: ['INVITED', 'VIEWED'], command: 'portal.rfx.decline', to: 'DECLINED' },
+  { from: ['INVITED', 'VIEWED', 'BID_SUBMITTED', 'WITHDRAWN'], command: 'bid.submit', to: 'BID_SUBMITTED' },
+  { from: ['BID_SUBMITTED'], command: 'bid.withdraw', to: 'WITHDRAWN' },
+  { from: ['INVITED', 'VIEWED'], command: 'rfx_invite.expire', to: 'EXPIRED' },
+  { from: ['INVITED', 'VIEWED', 'DECLINED', 'BID_SUBMITTED', 'WITHDRAWN'], command: 'rfx.uninvite', to: 'REMOVED' },
+])
+
+export const BID_STATES = ['DRAFT', 'SUBMITTED', 'WITHDRAWN', 'DISQUALIFIED'] as const
+export type BidState = (typeof BID_STATES)[number]
+export const BID_COMMANDS = ['bid.save', 'bid.submit', 'bid.withdraw', 'bid.disqualify', 'bid.confirmNetPrices'] as const
+export type BidCommand = (typeof BID_COMMANDS)[number]
+
+// bid.disqualify is refused while the RFx has an open award (AWARD_OPEN · BR-RFX-10); the service checks it
+export const BID_MACHINE = machine<BidState, BidCommand>('Bid', BID_STATES, BID_COMMANDS, [
+  { from: ['DRAFT', 'WITHDRAWN'], command: 'bid.save', to: 'DRAFT' },
+  { from: ['DRAFT', 'SUBMITTED', 'WITHDRAWN'], command: 'bid.submit', to: 'SUBMITTED' },
+  { from: ['SUBMITTED'], command: 'bid.withdraw', to: 'WITHDRAWN' },
+  { from: ['SUBMITTED'], command: 'bid.disqualify', to: 'DISQUALIFIED' },
+  // the winner of a bid that included VAT (OQ-212)
+  { from: ['SUBMITTED'], command: 'bid.confirmNetPrices', to: 'SUBMITTED' },
+])
+
+export const SCORECARD_STATES = ['DRAFT', 'LOCKED', 'REVEALED'] as const
+export type ScorecardState = (typeof SCORECARD_STATES)[number]
+export const SCORECARD_COMMANDS = ['rfx.setScorecard', 'scorecard.lock', 'scorecard.assignEvaluators', 'scorecard.recuse', 'score.save', 'score.submit', 'scorecard.reveal', 'scorecard.recompute'] as const
+export type ScorecardCommand = (typeof SCORECARD_COMMANDS)[number]
+
+// Locked at rfx.open; revealed in the transaction of the last evaluator's score.submit (BR-RFX-09 · BR-RFX-18); a bid
+// disqualified after the reveal recomputes the ranking (BR-RFX-10)
+export const SCORECARD_MACHINE = machine<ScorecardState, ScorecardCommand>('Scorecard', SCORECARD_STATES, SCORECARD_COMMANDS, [
+  { from: ['DRAFT'], command: 'rfx.setScorecard', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'scorecard.lock', to: 'LOCKED' },
+  { from: ['LOCKED'], command: 'scorecard.assignEvaluators', to: 'LOCKED' },
+  { from: ['LOCKED'], command: 'scorecard.recuse', to: 'LOCKED' },
+  { from: ['LOCKED'], command: 'score.save', to: 'LOCKED' },
+  { from: ['LOCKED'], command: 'score.submit', to: 'LOCKED' },
+  { from: ['LOCKED'], command: 'scorecard.reveal', to: 'REVEALED' },
+  { from: ['REVEALED'], command: 'scorecard.recompute', to: 'REVEALED' },
+])
+
+export const AWARD_DECISION_STATES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'RETURNED', 'REJECTED', 'CANCELLED'] as const
+export type AwardDecisionState = (typeof AWARD_DECISION_STATES)[number]
+export const AWARD_DECISION_COMMANDS = ['award.update', 'award.submit', 'award.final_approval', 'approval.reject', 'approval.return', 'award.cancel', 'award.releasePo'] as const
+export type AwardDecisionCommand = (typeof AWARD_DECISION_COMMANDS)[number]
+
+// Approved through RFX_AWARD (BR-DOA-27); a returned award goes again on a new route (BR-DOA-09); a winning bid that
+// included VAT releases its PO after the winner confirms its prices before VAT (OQ-212)
+export const AWARD_DECISION_MACHINE = machine<AwardDecisionState, AwardDecisionCommand>('AwardDecision', AWARD_DECISION_STATES, AWARD_DECISION_COMMANDS, [
+  { from: ['DRAFT'], command: 'award.update', to: 'DRAFT' },
+  { from: ['RETURNED'], command: 'award.update', to: 'RETURNED' },
+  { from: ['DRAFT', 'RETURNED'], command: 'award.submit', to: 'PENDING_APPROVAL' },
+  { from: ['PENDING_APPROVAL'], command: 'award.final_approval', to: 'APPROVED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.return', to: 'RETURNED' },
+  { from: ['DRAFT', 'RETURNED', 'PENDING_APPROVAL'], command: 'award.cancel', to: 'CANCELLED' },
+  { from: ['APPROVED'], command: 'award.releasePo', to: 'APPROVED' },
+])
+
 // S11 (docs/sub-specs/S11.md "State machine" · §6.4): the questionnaire version, the assessment, the reviewer's task,
 // the override and the reassessment. Opening an assessment, drafting a questionnaire, requesting an override and
 // scheduling a review create rows; they are not transitions. Submit takes one of two commands: to IN_REVIEW when a
@@ -790,6 +904,12 @@ export const MACHINES = [
   SUPPLIER_APPLICATION_MACHINE,
   SUPPLIER_DOCUMENT_MACHINE,
   PORTAL_SESSION_MACHINE,
+  // S10
+  RFX_EVENT_MACHINE,
+  RFX_INVITE_MACHINE,
+  BID_MACHINE,
+  SCORECARD_MACHINE,
+  AWARD_DECISION_MACHINE,
   // S11
   RISK_QUESTIONNAIRE_MACHINE,
   RISK_ASSESSMENT_MACHINE,

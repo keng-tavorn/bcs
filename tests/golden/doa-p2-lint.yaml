@@ -5,3 +5,4 @@ fixtures: [fixtures/org-p1.yaml, fixtures/doa-versions-p2.yaml]
 cases:
   - { id: GC-DOA-73, title: เปิด SUPPLIER แต่ไม่มีข้อ SA และ BA, fn: lintDoaVersion, input: { base: 1, modules: [SUPPLIER], removeRules: [SA-01, BA-01] }, expect: { errors: [{ code: DOA_LINT_MISSING_DOCTYPE, documentType: BANK_ACCOUNT_CHANGE }, { code: DOA_LINT_MISSING_DOCTYPE, documentType: SUPPLIER_APPROVAL }], warnings: [] } }
   - { id: GC-DOA-74, title: ชนิดที่ไม่มียอดไม่มีตารางผลที่ขอบ, fn: boundaryTable, input: { base: 1, documentType: SUPPLIER_APPROVAL }, expect: { rows: [] } }
+  - { id: GC-DOA-80, title: เปิด SOURCING แต่ไม่มีข้อ RA, fn: lintDoaVersion, input: { base: 1, modules: [SUPPLIER, SOURCING], removeRules: [RA-01, RA-02, RA-03] }, expect: { errors: [{ code: DOA_LINT_MISSING_DOCTYPE, documentType: RFX_AWARD }], warnings: [] } }

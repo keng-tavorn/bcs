@@ -181,7 +181,8 @@
         "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
         "PAYMENT_RUN": "รอบจ่ายเงิน",
         "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
-        "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย"
+        "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
+        "AWARD_DECISION": "ผลการจัดหา"
       },
       "basis": {
         "GROSS": "รวม VAT",

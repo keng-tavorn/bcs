@@ -80,6 +80,7 @@
     "PAYMENT_RUN": "payment runs",
     "BANK_ACCOUNT_CHANGE": "bank account changes",
     "SUPPLIER_APPLICATION": "supplier applications",
+    "AWARD_DECISION": "sourcing awards",
     "RISK_OVERRIDE": "supplier risk overrides"
   },
   "units": {

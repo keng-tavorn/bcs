@@ -88,6 +88,16 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   PortalOtpChallenge: { codeHash: 'a'.repeat(64), requestIpHash: 'b'.repeat(64), userAgentHash: 'c'.repeat(64), expiresAt: new Date('2099-01-01T00:00:00Z') },
   PortalSession: { sessionHash: () => createHash('sha256').update(randomUUID()).digest('hex'), csrfTokenHash: 'a'.repeat(64), ipHash: 'b'.repeat(64), userAgentHash: 'c'.repeat(64), expiresAt: new Date('2099-01-01T00:00:00Z') },
   SupplierApplication: { branchCode: '00000' }, // supplier_application_shape: a five-digit branch
+  // S10: bid_shape and award_decision_shape (gross = net + vat, an award's amount positive); rfx_amendment_shape (a
+  // revision from 2); score_criterion_shape (a code of up to 20 characters, each row its own) and score_criterion_one_price
+  // (QUALITY, so rows sharing a scorecard never meet the one-PRICE partial unique); preferred_supplier_shape (validTo >
+  // validFrom, MANUAL needs no award)
+  Bid: { netSatang: 1n, vatSatang: 0n, grossSatang: 1n },
+  BidLine: { offered: true, unitPriceSatang: 1n }, // bid_line_shape: an offered line has its price
+  AwardDecision: { netSatang: 1n, vatSatang: 0n, grossSatang: 1n },
+  RfxAmendment: { revisionNo: 2 },
+  ScoreCriterion: { code: () => `C${randomUUID().slice(0, 8)}`, kind: 'QUALITY' },
+  PreferredSupplier: { source: 'MANUAL', validTo: new Date('2026-10-06T00:00:00Z') },
   // S11: risk_tier_shape (LOW starts at 0) · risk_question_shape (an RQ code, at least two options) · review_task_shape
   // (a task answers at least one rule and shows at least one part)
   RiskTier: { minPoints: 0 },
@@ -111,6 +121,8 @@ const OPTIONAL_PARENTS: Record<string, ReadonlySet<string>> = {
   SupplierContact: new Set(['supplier']),
   SupplierDocument: new Set(['supplier']),
   SupplierNotice: new Set(['supplier']),
+  // S10's rfx_invite_shape: an invite names a supplier or an application
+  RfxInvite: new Set(['supplier']),
   // S11's risk_answer_shape: an EXPLICIT answer names who gave it
   RiskAnswer: new Set(['answeredByMember']),
 }

@@ -8801,6 +8801,11 @@
           "OTHER": "Document",
           "VAT_CERT": "VAT registration"
         },
+        "docCheck": {
+          "BANK_UNKNOWN": "The AI read a bank name that is not in the list of banks. Choose the bank yourself in the bank step.",
+          "DOC_DATE_FUTURE": "The date of issue the AI read is in the future. Check the date on the document.",
+          "DOC_EXPIRED": "The AI read the date of issue and found this document expired. Check the date and send a new one if needed."
+        },
         "done": "The AI values were taken. Check the rest of the form.",
         "field": {
           "accountName": "Account name",
@@ -8812,11 +8817,11 @@
           "nameTh": "Name (Thai)",
           "taxId": "Taxpayer ID"
         },
-        "intro": "Check each value against the document, tick the right ones and take them. A value you do not tick leaves what you typed. You always type the account number yourself.",
+        "intro": "Check each value against the document, tick the right ones and take them. Once you press a button, the values you did not take leave this list and what you typed stays. You always type the account number yourself.",
         "mustConfirm": "confirm one by one",
         "no": "Not VAT registered",
         "takeRest": "Confirm all the other values",
-        "takeTicked": "Take the ticked values",
+        "takeTicked": "Take only the ticked values",
         "taken": "Taken",
         "title": "Values the AI read from your documents",
         "yes": "VAT registered"
@@ -11560,6 +11565,11 @@
           "COMPANY_CERT": "Company certificate",
           "OTHER": "Document",
           "VAT_CERT": "VAT registration"
+        },
+        "docCheck": {
+          "BANK_UNKNOWN": "Bank name not in the list",
+          "DOC_DATE_FUTURE": "Date of issue read is in the future",
+          "DOC_EXPIRED": "Expired by the date of issue the AI read"
         },
         "field": {
           "accountName": "Account name",

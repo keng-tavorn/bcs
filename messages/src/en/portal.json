@@ -207,14 +207,14 @@
     },
     "ai": {
       "title": "Values the AI read from your documents",
-      "intro": "Check each value against the document, tick the right ones and take them. A value you do not tick leaves what you typed. You always type the account number yourself.",
+      "intro": "Check each value against the document, tick the right ones and take them. Once you press a button, the values you did not take leave this list and what you typed stays. You always type the account number yourself.",
       "byAi": "Filled by AI, please check",
       "confidence": "AI {percent}% sure",
       "mustConfirm": "confirm one by one",
       "taken": "Taken",
       "yes": "VAT registered",
       "no": "Not VAT registered",
-      "takeTicked": "Take the ticked values",
+      "takeTicked": "Take only the ticked values",
       "takeRest": "Confirm all the other values",
       "done": "The AI values were taken. Check the rest of the form.",
       "doc": {
@@ -236,6 +236,11 @@
       "check": {
         "WARN": "This value differs from the registry or what was typed. Check it again.",
         "FAIL": "This value failed a check (invalid number, not the application's, or an expired document). Do not take it until the document is checked."
+      },
+      "docCheck": {
+        "DOC_EXPIRED": "The AI read the date of issue and found this document expired. Check the date and send a new one if needed.",
+        "DOC_DATE_FUTURE": "The date of issue the AI read is in the future. Check the date on the document.",
+        "BANK_UNKNOWN": "The AI read a bank name that is not in the list of banks. Choose the bank yourself in the bank step."
       }
     }
   },

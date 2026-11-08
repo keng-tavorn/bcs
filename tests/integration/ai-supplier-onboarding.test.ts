@@ -219,6 +219,68 @@ describe('[FR-AI-304/AC2] [FR-AI-304/AC3] the reading, checked, and taken in one
   })
 })
 
+describe('[FR-AI-304/AC2] the reading as the review of S7-14 found it should be', () => {
+  type Made = Awaited<ReturnType<typeof application>>
+  async function readingOf(over: Record<string, unknown> | ((a: Made) => Record<string, unknown>), before?: (a: Made) => Promise<void>) {
+    const a = await application()
+    const bytes = PNG(`review-${randomUUID()}`)
+    answerFor(bytes, read({ nameTh: a.name, taxId: a.app.taxId, ...(typeof over === 'function' ? over(a) : over) }))
+    const doc = await upload(a.ctx, a.app.id, 'COMPANY_CERT', bytes)
+    await requestSupplierDocumentRead(org.organizationId, doc.documentId, NOW)
+    const actionId = (await prisma.agentAction.findFirstOrThrow({ where: { subjectId: a.app.id } })).id
+    if (before) await before(a)
+    const outcome = await readOf(actionId)
+    return { a, actionId, outcome, action: await prisma.agentAction.findUniqueOrThrow({ where: { id: actionId } }) }
+  }
+  const checksOf = (action: { verification: unknown }) => Object.fromEntries(((action.verification as { checks?: { code: string; result: string }[] } | null)?.checks ?? []).map((c) => [c.code, c.result]))
+
+  it('[BR-AI-29] the registries as the routing kept them (registryData = { mode, rd, dbd }): the name read is compared with DBD’s', async () => {
+    const r = await readingOf({}, async (a) => {
+      const record = { nameTh: 'บริษัท ชื่ออื่นตามทะเบียน จำกัด', address: '1 ถนนทะเบียน' }
+      await prisma.supplierApplication.update({ where: { id: a.app.id }, data: { registryData: { mode: 'stub', rd: { status: 'FOUND', record }, dbd: { status: 'FOUND', record } } } })
+    })
+    expect(r.outcome).toBe('DRAFT')
+    expect(checksOf(r.action)).toMatchObject({ REGISTRY_NAME_MISMATCH: 'WARN' })
+  })
+
+  it('[BR-AI-18] [OQ-186] a bank book sent as a company certificate: no bank, no account name, no number kept off it', async () => {
+    const r = await readingOf({ docType: 'BANK_BOOK', bankName: 'ธนาคารกสิกรไทย', accountName: 'บริษัท ทดสอบ จำกัด', documentNumber: '1234567890' })
+    expect(r.outcome).toBe('DRAFT')
+    const review = r.action.review as { proposed: Record<string, string> }
+    expect(review.proposed).not.toHaveProperty('bankCode')
+    expect(review.proposed).not.toHaveProperty('accountName')
+    expect((r.action.output as { reading: Record<string, unknown> }).reading).toMatchObject({ bankName: null, accountName: null, documentNumber: null })
+    expect(JSON.stringify(r.action.output)).not.toContain('1234567890')
+  })
+
+  it('a date that is no date (day and month swapped) is read without a crash and without its date checks; an expired certificate is shown above the values', async () => {
+    const swapped = await readingOf({ issuedOn: '2026-25-10' })
+    expect(swapped.outcome).toBe('DRAFT')
+    expect(checksOf(swapped.action)).not.toHaveProperty('DOC_EXPIRED')
+    const expired = await readingOf({ issuedOn: '2026-01-05' })
+    expect(checksOf(expired.action)).toMatchObject({ DOC_EXPIRED: 'FAIL' })
+    expect((await listPortalAiReadings(expired.a.ctx))[0]?.documentChecks).toEqual(['DOC_EXPIRED'])
+    expect((await listApplicationAiReadings(org.ctxOf('proc_officer', NOW), expired.a.app.id))[0]?.documentChecks).toEqual(['DOC_EXPIRED'])
+  })
+
+  it('values proposed as the form takes them: the tax id as 13 digits, a branch that is not 5 digits not proposed', async () => {
+    const dashed = (d: string) => `${d[0]}-${d.slice(1, 5)}-${d.slice(5, 10)}-${d.slice(10, 12)}-${d[12]}`
+    const r = await readingOf((a) => ({ taxId: dashed(a.app.taxId!), branchCode: 'สำนักงานใหญ่' }))
+    expect(r.outcome).toBe('DRAFT')
+    const review = r.action.review as { proposed: Record<string, string> }
+    expect(review.proposed.taxId).toBe(r.a.app.taxId)
+    expect(review.proposed).not.toHaveProperty('branchCode')
+  })
+
+  it('an application sent or closed before the run: the AI is not called and the action fails SUBJECT_CLOSED with no credits', async () => {
+    const r = await readingOf({}, async (a) => {
+      await prisma.supplierApplication.update({ where: { id: a.app.id }, data: { status: 'CANCELLED' } })
+    })
+    expect(r.outcome).toBe('FAILED')
+    expect(r.action).toMatchObject({ status: 'FAILED', errorCode: 'SUBJECT_CLOSED', costCredits: 0, model: null })
+  })
+})
+
 describe('[FR-AI-304/AC4] the AI never decides; only the supplier’s own subject takes a contact', () => {
   it('a contact cannot take AI values into a document that does not let a supplier (a request)', async () => {
     const a = await application()

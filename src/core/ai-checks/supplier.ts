@@ -1,4 +1,5 @@
-import { MS_PER_DAY } from '../money/constants'
+import { BANKS } from '../bankfile/banks'
+import { addDays, isIsoDate } from '../supplier-docs'
 import { normalizeSupplierName } from '../supplier-onboarding'
 import { isValidThaiTaxId, normalizeTaxId } from '../thai/taxid'
 import { fieldConfidence } from './confidence'
@@ -6,11 +7,12 @@ import { fieldConfidence } from './confidence'
 // The checks of what the Supplier Onboarding Agent read off a supplier's document (BR-AI-29 · golden ai-supplier-verify ·
 // FR-AI-304 AC2): the tax id by its check digit and against the application (never the one the AI read as the truth), the
 // name after BR-SUP-09's normalization against the registry when it answered, the address against what was typed (or
-// the registry's), the date of issue not in the future and the document not past its validity today. A check never stops
+// the registry's), the date of issue not in the future and the document not past its validity today, the bank read found
+// in the list of banks (BANK_UNKNOWN · a bank book only when the customer lets the AI read one, OQ-186). A check never stops
 // the application: it caps the confidence of its field (BR-AI-16) so the person confirms it one by one (BR-AI-30).
 // Which documents are read at all is decided per document from its type and the application's payee (shouldReadDocument).
 
-export type SupplierCheckCode = 'TAXID_CHECKSUM' | 'TAXID_MISMATCH' | 'REGISTRY_NAME_MISMATCH' | 'REGISTRY_ADDRESS_MISMATCH' | 'DOC_DATE_FUTURE' | 'DOC_EXPIRED'
+export type SupplierCheckCode = 'TAXID_CHECKSUM' | 'TAXID_MISMATCH' | 'REGISTRY_NAME_MISMATCH' | 'REGISTRY_ADDRESS_MISMATCH' | 'DOC_DATE_FUTURE' | 'DOC_EXPIRED' | 'BANK_UNKNOWN'
 export type CheckOutcome = 'PASS' | 'WARN' | 'FAIL'
 export type PayeeKind = 'JURISTIC' | 'INDIVIDUAL' | 'FOREIGN'
 
@@ -44,21 +46,27 @@ export interface SupplierCheck {
   readonly result: CheckOutcome
 }
 
-/** The field each check speaks for (its outcome caps that field's confidence) */
-const FIELD_OF: Readonly<Record<SupplierCheckCode, keyof SupplierReading>> = {
+/** The field each check speaks for (its outcome caps that field's confidence; the screens show it beside that field) */
+export const SUPPLIER_CHECK_FIELD: Readonly<Record<SupplierCheckCode, keyof SupplierReading>> = {
   TAXID_CHECKSUM: 'taxId',
   TAXID_MISMATCH: 'taxId',
   REGISTRY_NAME_MISMATCH: 'nameTh',
   REGISTRY_ADDRESS_MISMATCH: 'registeredAddress',
   DOC_DATE_FUTURE: 'issuedOn',
   DOC_EXPIRED: 'issuedOn',
+  BANK_UNKNOWN: 'bankName',
 }
 
-const ISO = /^\d{4}-\d{2}-\d{2}$/
 const text = (v: string) => v.normalize('NFC').replace(/\s+/g, ' ').trim()
-/** YYYY-MM-DD plus whole days, by the calendar (no time zone: the dates are Bangkok's already) */
-function addDays(iso: string, days: number): string {
-  return new Date(Date.parse(`${iso}T00:00:00Z`) + days * MS_PER_DAY).toISOString().slice(0, 10)
+
+/**
+ * The bank of a name read off a bank book, by the list of banks (ADR-131): its Thai name inside the text, or its short
+ * name as a word of it (BBL, KBANK, …); null when none matches (BANK_UNKNOWN: the bank is not filled in)
+ */
+export function bankCodeOfName(name: string): string | null {
+  const compact = name.normalize('NFC').replace(/\s+/g, '')
+  const words = name.toUpperCase().split(/[^A-Z]+/)
+  return BANKS.find((b) => compact.includes(b.nameTh.replace(/\s+/g, '')) || words.includes(b.shortName))?.code ?? null
 }
 
 /** BR-AI-29: every check that has something to compare, in a fixed order */
@@ -79,10 +87,12 @@ export function checkSupplierReading(reading: SupplierReading, ctx: SupplierChec
   if (reading.registeredAddress && typedAddress) {
     checks.push({ code: 'REGISTRY_ADDRESS_MISMATCH', result: text(reading.registeredAddress) === text(typedAddress) ? 'PASS' : 'WARN' })
   }
-  if (reading.issuedOn && ISO.test(reading.issuedOn)) {
+  // a date written that is no date (2026-25-10: day and month swapped) has nothing to compare; its confidence stays the model's
+  if (reading.issuedOn && isIsoDate(reading.issuedOn)) {
     checks.push({ code: 'DOC_DATE_FUTURE', result: reading.issuedOn > ctx.today ? 'FAIL' : 'PASS' })
     if (ctx.validityDays !== null) checks.push({ code: 'DOC_EXPIRED', result: addDays(reading.issuedOn, ctx.validityDays - 1) < ctx.today ? 'FAIL' : 'PASS' })
   }
+  if (reading.bankName) checks.push({ code: 'BANK_UNKNOWN', result: bankCodeOfName(reading.bankName) ? 'PASS' : 'WARN' })
   return checks
 }
 
@@ -91,7 +101,7 @@ export function fieldOutcomes(checks: readonly SupplierCheck[]): Readonly<Partia
   const rank: Record<CheckOutcome, number> = { PASS: 0, WARN: 1, FAIL: 2 }
   const out: Partial<Record<keyof SupplierReading, CheckOutcome>> = {}
   for (const c of checks) {
-    const field = FIELD_OF[c.code]
+    const field = SUPPLIER_CHECK_FIELD[c.code]
     const now = out[field]
     if (!now || rank[c.result] > rank[now]) out[field] = c.result
   }

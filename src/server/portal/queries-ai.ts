@@ -8,7 +8,8 @@ import { portalWhere } from './db'
 // the confidence and the check of each, which wait one by one, and which the person took in already. Nothing when the
 // AI read nothing (AI off, supplier.aiAssist N, a type the AI does not read): the form is filled by hand (EG-1).
 
-export type { AiReading as PortalAiReading, AiReadingField as PortalAiField } from '@/server/services/suppliers/ai-assist'
+export type { AiReading as PortalAiReading, AiReadingField as PortalAiField, DocumentCheck as PortalAiDocumentCheck } from '@/server/services/suppliers/ai-assist'
+export { SUPPLIER_ASSIST_PATHS as PORTAL_AI_PATHS } from '@/server/services/suppliers/ai-assist'
 
 export async function listPortalAiReadings(ctx: Ctx): Promise<AiReading[]> {
   if (ctx.actor.type !== 'SUPPLIER') throw new Error('a portal query needs a portal context')

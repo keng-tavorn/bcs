@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { getTranslations } from 'next-intl/server'
-import type { PortalAiReading } from '@/server/portal/queries-ai'
+import { PORTAL_AI_PATHS, type PortalAiReading } from '@/server/portal/queries-ai'
 import { PortalButton, PortalNotice, portalCheckboxClass } from '@/ui/portal/frame'
 
 // S7-14 (FR-AI-304 AC2 AC3 · BR-AI-30): beside the form, what the AI read off the supplier's documents — each value with
@@ -9,10 +9,9 @@ import { PortalButton, PortalNotice, portalCheckboxClass } from '@/ui/portal/fra
 // form; a value not taken stays as typed. No account number is ever read (BR-AI-18).
 
 type T = Awaited<ReturnType<typeof getTranslations<'portal'>>>
-const PATHS = ['nameTh', 'nameEn', 'taxId', 'branchCode', 'address', 'isVatRegistered', 'bankCode', 'accountName'] as const
 const DOC_TYPES = ['COMPANY_CERT', 'VAT_CERT', 'BANK_BOOK'] as const
 
-export function AiReadingPanel({ t, readings, action, csrf, step }: { readonly t: T; readonly readings: readonly PortalAiReading[]; readonly action: string; readonly csrf: string; readonly step: string }) {
+export function AiReadingPanel({ t, readings, action, csrf, step, version }: { readonly t: T; readonly readings: readonly PortalAiReading[]; readonly action: string; readonly csrf: string; readonly step: string; readonly version: number }) {
   const open = readings.filter((r) => r.fields.some((f) => !f.confirmed))
   if (open.length === 0) return null
   return (
@@ -27,13 +26,20 @@ export function AiReadingPanel({ t, readings, action, csrf, step }: { readonly t
           <input type="hidden" name="key" value={randomUUID()} />
           <input type="hidden" name="step" value={step} />
           <input type="hidden" name="agentActionId" value={r.agentActionId} />
+          {/* the application as this page showed it: a change made since (procurement on behalf) is CONFLICT_VERSION */}
+          <input type="hidden" name="version" value={version} />
           <p className="font-medium">
             {r.documentTypeCode && (DOC_TYPES as readonly string[]).includes(r.documentTypeCode) ? t(`apply.ai.doc.${r.documentTypeCode as (typeof DOC_TYPES)[number]}`) : t('apply.ai.doc.OTHER')}
             {r.fileName ? ` · ${r.fileName}` : ''}
           </p>
+          {r.documentChecks.map((code) => (
+            <PortalNotice key={code} tone={code === 'BANK_UNKNOWN' ? 'warning' : 'danger'}>
+              {t(`apply.ai.docCheck.${code}`)}
+            </PortalNotice>
+          ))}
           <ul className="flex flex-col gap-2">
             {r.fields
-              .filter((f) => (PATHS as readonly string[]).includes(f.path))
+              .filter((f) => (PORTAL_AI_PATHS as readonly string[]).includes(f.path))
               .map((f) => (
                 <li key={f.path} className="flex items-start gap-3">
                   {f.confirmed ? (
@@ -41,9 +47,9 @@ export function AiReadingPanel({ t, readings, action, csrf, step }: { readonly t
                   ) : (
                     <input id={`take-${r.agentActionId}-${f.path}`} type="checkbox" name="take" value={f.path} className={portalCheckboxClass} />
                   )}
-                  <label htmlFor={`take-${r.agentActionId}-${f.path}`} className="flex flex-col gap-0.5">
+                  <label htmlFor={f.confirmed ? undefined : `take-${r.agentActionId}-${f.path}`} className="flex flex-col gap-0.5">
                     <span>
-                      <span className="font-medium">{t(`apply.ai.field.${f.path as (typeof PATHS)[number]}`)}</span>
+                      <span className="font-medium">{t(`apply.ai.field.${f.path as (typeof PORTAL_AI_PATHS)[number]}`)}</span>
                       {': '}
                       {f.path === 'isVatRegistered' ? (f.value === 'true' ? t('apply.ai.yes') : t('apply.ai.no')) : f.value}
                     </span>

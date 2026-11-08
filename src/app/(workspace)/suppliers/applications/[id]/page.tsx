@@ -190,6 +190,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
                 field: (path) => t(`detail.ai.field.${path as 'nameTh'}`),
                 doc: (code) => (code === 'COMPANY_CERT' || code === 'VAT_CERT' || code === 'BANK_BOOK' ? t(`detail.ai.doc.${code}`) : t('detail.ai.doc.OTHER')),
                 check: (result) => t(`detail.ai.check.${result}`),
+                docCheck: (code) => t(`detail.ai.docCheck.${code}`),
                 yesNo: (value) => (value ? t('detail.ai.yes') : t('detail.ai.no')),
               }}
             />

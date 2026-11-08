@@ -1,3 +1,4 @@
+import { SUPPLIER_CHECK_FIELD, type SupplierCheckCode } from '@/core/ai-checks/supplier'
 import type { TenantTx } from '@/server/db/tenant'
 import { registerAssistSubject } from '../ai/assist-contract'
 
@@ -32,17 +33,23 @@ export interface AiReadingField {
   readonly confirmed: boolean
 }
 
+/** A check on the document as a whole, shown above its values: its date of issue, its validity, the bank read (BR-AI-29) */
+export const DOCUMENT_CHECKS = ['DOC_DATE_FUTURE', 'DOC_EXPIRED', 'BANK_UNKNOWN'] as const
+export type DocumentCheck = (typeof DOCUMENT_CHECKS)[number]
+
 export interface AiReading {
   readonly agentActionId: string
   readonly documentTypeCode: string | null
   readonly fileName: string | null
   readonly createdAt: string
+  /** The checks on the document that did not pass (WARN or FAIL), none of them beside a value */
+  readonly documentChecks: readonly DocumentCheck[]
   readonly fields: readonly AiReadingField[]
 }
 
 /** The field of the application each field read fills, for the confidence and the checks (reverse of the agent's map) */
 const READ_FIELD: Readonly<Record<string, string>> = { address: 'registeredAddress', bankCode: 'bankName' }
-const CHECK_FIELD: Readonly<Record<string, string>> = { TAXID_CHECKSUM: 'taxId', TAXID_MISMATCH: 'taxId', REGISTRY_NAME_MISMATCH: 'nameTh', REGISTRY_ADDRESS_MISMATCH: 'registeredAddress', DOC_DATE_FUTURE: 'issuedOn', DOC_EXPIRED: 'issuedOn' }
+const isDocumentCheck = (code: string): code is DocumentCheck => (DOCUMENT_CHECKS as readonly string[]).includes(code)
 
 /** A DRAFT reading of SUPPLIER_DOC_READ as the screens show it (the portal's panel, the application's page) */
 export function aiReadingOf(
@@ -53,7 +60,7 @@ export function aiReadingOf(
   const confidence = (a.fieldConfidence ?? {}) as Record<string, number>
   const checks = ((a.verification as { checks?: { code: string; result: string }[] } | null)?.checks ?? []).filter((c) => c.result !== 'PASS')
   const worst = (field: string): 'WARN' | 'FAIL' | null => {
-    const mine = checks.filter((c) => CHECK_FIELD[c.code] === field)
+    const mine = checks.filter((c) => !isDocumentCheck(c.code) && SUPPLIER_CHECK_FIELD[c.code as SupplierCheckCode] === field)
     return mine.some((c) => c.result === 'FAIL') ? 'FAIL' : mine.length ? 'WARN' : null
   }
   const doc = docOf.get((a.inputRefs as { documentId?: string } | null)?.documentId ?? '')
@@ -64,6 +71,7 @@ export function aiReadingOf(
     documentTypeCode: doc?.documentTypeCode ?? null,
     fileName: doc?.file.fileName ?? null,
     createdAt: a.createdAt.toISOString(),
+    documentChecks: [...new Set(checks.map((c) => c.code).filter(isDocumentCheck))],
     fields: Object.entries(review.proposed ?? {}).map(([path, value]) => {
       const read = READ_FIELD[path] ?? path
       return { path, value, confidencePercent: Math.floor((confidence[read] ?? 0) / 100), check: worst(read), mustConfirm: required.has(path), confirmed: confirmed.has(path) }

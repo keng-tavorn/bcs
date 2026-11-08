@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkSupplierReading, fieldOutcomes, shouldReadDocument, supplierFieldConfidence, type SupplierCheckContext } from '@/core/ai-checks/supplier'
+import { bankCodeOfName, checkSupplierReading, fieldOutcomes, shouldReadDocument, SUPPLIER_CHECK_FIELD, supplierFieldConfidence, type SupplierCheckContext } from '@/core/ai-checks/supplier'
 
 // BR-AI-29 BR-AI-30 (FR-AI-304 AC2 · S7-14): the checks of what the Supplier Onboarding Agent read, the confidence each
 // field keeps after its check, and which documents the agent reads at all. The golden cases GC-AI-92 to GC-AI-95 hold the
@@ -73,5 +73,26 @@ describe('[FR-AI-304/AC1] which documents the agent reads (GC-AI-95)', () => {
     expect(shouldReadDocument({ aiReadable: true, aiReadablePayeeTypes: ['JURISTIC'] }, 'INDIVIDUAL')).toEqual({ read: false, reason: 'PAYEE_TYPE_EXCLUDED' })
     expect(shouldReadDocument({ aiReadable: true, aiReadablePayeeTypes: ['JURISTIC'] }, 'JURISTIC')).toEqual({ read: true })
     expect(shouldReadDocument({ aiReadable: true, aiReadablePayeeTypes: [] }, 'FOREIGN')).toEqual({ read: true })
+  })
+})
+
+describe('[FR-AI-304/AC2] a date that is no date, and the bank read (S7-14 review)', () => {
+  it('a date with the shape of one but no such day (day and month swapped, the 30th of February) is not compared and never throws', () => {
+    for (const issuedOn of ['2026-25-10', '2026-13-01', '2026-02-30']) {
+      const checks = checkSupplierReading({ issuedOn }, ctx)
+      expect(checks.map((c) => c.code)).toEqual([])
+    }
+  })
+
+  it('[BR-AI-29] the bank read is found in the list by its Thai name or its short name as a word; otherwise BANK_UNKNOWN WARN on bankName', () => {
+    expect(bankCodeOfName('ธนาคาร กสิกรไทย จำกัด (มหาชน)')).toBe('004')
+    expect(bankCodeOfName('KBANK สาขาราชบุรี')).toBe('004')
+    expect(bankCodeOfName('BAYER BANKING')).toBeNull()
+    expect(bankCodeOfName('ธนาคารแห่งหนึ่ง')).toBeNull()
+    expect(codes(checkSupplierReading({ bankName: 'ธนาคารไทยพาณิชย์' }, ctx))).toEqual({ BANK_UNKNOWN: 'PASS' })
+    const unknown = checkSupplierReading({ bankName: 'ธนาคารแห่งหนึ่ง' }, ctx)
+    expect(codes(unknown)).toEqual({ BANK_UNKNOWN: 'WARN' })
+    expect(fieldOutcomes(unknown)).toEqual({ bankName: 'WARN' })
+    expect(SUPPLIER_CHECK_FIELD.BANK_UNKNOWN).toBe('bankName')
   })
 })

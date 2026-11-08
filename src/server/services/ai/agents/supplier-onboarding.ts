@@ -1,6 +1,6 @@
-import { checkSupplierReading, shouldReadDocument, supplierFieldConfidence, type SupplierReading } from '@/core/ai-checks/supplier'
-import { BANKS } from '@/core/bankfile/banks'
+import { bankCodeOfName, checkSupplierReading, shouldReadDocument, supplierFieldConfidence, type SupplierReading } from '@/core/ai-checks/supplier'
 import { dateIn } from '@/core/supplier-docs'
+import { normalizeTaxId } from '@/core/thai/taxid'
 import { AI_FILE_MEDIA_TYPES, getAiClient, type AiFileMediaType } from '@/integrations/ai'
 import { readObject } from '@/integrations/storage'
 import { AI_LIMITS, modelForPurpose } from '@/lib/ai-config'
@@ -73,12 +73,16 @@ export async function requestSupplierDocumentRead(organizationId: string, docume
   return started.ok ? 'REQUESTED' : `SKIPPED_${started.error.code}`
 }
 
-/** The bank of a name read off a bank book, by the list of banks (ADR-131); none when it does not match one */
-function bankCodeOf(name: string | null): string | null {
-  if (!name) return null
-  const n = name.replace(/\s+/g, '')
-  const hit = BANKS.find((b) => n.includes(b.nameTh.replace(/\s+/g, '')) || n.toUpperCase().includes(b.shortName))
-  return hit?.code ?? null
+/** The document type whose bank and account name the AI may read, when the customer lets it (BR-AI-29 · OQ-186 (ข)) */
+const BANK_BOOK = 'BANK_BOOK'
+const BRANCH = /^\d{5}$/
+
+/** What the registries answered, as the routing kept it on the application (registryData = { mode, rd, dbd }) */
+function keptRegistry(data: unknown): { name: string | null; address: string | null } | null {
+  type Answer = { readonly status?: string; readonly record?: { readonly nameTh?: string | null; readonly address?: string | null } }
+  const d = (data && typeof data === 'object' ? data : {}) as { readonly rd?: Answer; readonly dbd?: Answer }
+  const record = [d.dbd, d.rd].find((a) => a?.status === 'FOUND' && a.record)?.record
+  return record ? { name: record.nameTh ?? null, address: record.address ?? null } : null
 }
 
 /** The value the application's form takes for a field read, by its path (src/server/services/suppliers/ai-assist.ts) */
@@ -108,41 +112,57 @@ export async function runSupplierDocumentRead(organizationId: string, agentActio
     return r.ok ? (r.data.status === 'DRAFT' ? ('DRAFT' as const) : ('FAILED' as const)) : ('SKIPPED' as const)
   }
   const refs = (action.inputRefs ?? {}) as { fileId?: string; documentId?: string }
-  const file = refs.fileId ? await db.fileObject.findFirst({ where: { id: refs.fileId, status: 'AVAILABLE', scanStatus: 'CLEAN' }, select: { storageKey: true, mimeType: true } }) : null
-  const doc = refs.documentId ? await db.supplierDocument.findFirst({ where: { id: refs.documentId }, select: { documentType: { select: { validityDays: true } } } }) : null
-  const app = await db.supplierApplication.findFirst({ where: { id: action.subjectId }, select: { taxId: true, branchCode: true, payeeType: true, nameTh: true, address: true, registryData: true } })
+  const [file, doc, app] = await Promise.all([
+    refs.fileId ? db.fileObject.findFirst({ where: { id: refs.fileId, status: 'AVAILABLE', scanStatus: 'CLEAN' }, select: { storageKey: true, mimeType: true } }) : null,
+    refs.documentId ? db.supplierDocument.findFirst({ where: { id: refs.documentId }, select: { status: true, documentTypeCode: true, documentType: { select: { validityDays: true } } } }) : null,
+    db.supplierApplication.findFirst({ where: { id: action.subjectId }, select: { status: true, taxId: true, branchCode: true, payeeType: true, nameTh: true, address: true, registryData: true } }),
+  ])
   if (!file || !doc || !app) return finish({ outcome: 'FAILED', model: null, errorCode: 'FILE_GONE', usage: noTokens, latencyMs: null })
+  // sent, cancelled or expired since it was asked for, or the document replaced or decided: nobody would take the reading,
+  // so the AI is not called (no credits)
+  if (!OPEN.has(app.status) || doc.status !== 'PENDING') return finish({ outcome: 'FAILED', model: null, errorCode: 'SUBJECT_CLOSED', usage: noTokens, latencyMs: null })
 
   const bytes = await readObject(file.storageKey)
   const answer = await getAiClient(getEnv()).extract({ purpose: PURPOSE, model, schema: SupplierDocumentReading, files: [{ bytes, mediaType: file.mimeType as AiFileMediaType }] })
   if (!answer.ok) return finish({ outcome: 'FAILED', model: answer.model ?? null, errorCode: answer.errorCode, usage: answer.usage, latencyMs: answer.latencyMs })
 
-  const { confidence: given, docType: _docType, ...rest } = answer.output
-  const reading: SupplierReading = Object.fromEntries(Object.entries(rest).map(([k, v]) => [k, v === '' ? null : v])) as SupplierReading
+  const { confidence: given, docType, ...rest } = answer.output
+  const read = Object.fromEntries(Object.entries(rest).map(([k, v]) => [k, v === '' ? null : v])) as SupplierReading
+  // BR-AI-29 · OQ-186: the bank and the account name only off a document of the type BANK_BOOK (a bank book sent as another
+  // type is not read for them), and never a number off a bank book (its "document number" is the account's · BR-AI-18)
+  const bankBook = doc.documentTypeCode === BANK_BOOK
+  const reading: SupplierReading = {
+    ...read,
+    ...(bankBook ? {} : { bankName: null, accountName: null }),
+    ...(bankBook || docType === BANK_BOOK ? { documentNumber: null } : {}),
+  }
   // what the registries say (BR-SUP ข้อ 11): kept on the application once it was routed, else asked now by its tax id
-  const kept = app.registryData && typeof app.registryData === 'object' ? (app.registryData as { name?: string | null; nameTh?: string | null; address?: string | null }) : null
+  const kept = keptRegistry(app.registryData)
   const asked = !kept && app.taxId && app.payeeType !== 'FOREIGN' ? (await checkRegistry(app.taxId, app.branchCode)).proposal : null
   const registry = kept ?? (asked?.outcome === 'FOUND' ? { name: asked.nameTh, address: asked.address } : null)
   const checks = checkSupplierReading(reading, {
     application: { taxId: app.taxId, branchCode: app.branchCode, payeeType: app.payeeType, nameTh: app.nameTh, address: app.address },
-    registry: registry ? { name: registry.name ?? registry.nameTh ?? null, address: registry.address ?? null } : null,
+    registry,
     validityDays: doc.documentType.validityDays,
     today: dateIn(now, TIMEZONE),
   })
   const setting = await db.aiAgentSetting.findFirst({ where: { agent: action.agent }, select: { minConfidenceBp: true } })
   const confidence = supplierFieldConfidence(reading, Object.fromEntries(given.map((c) => [c.field, c.value])), checks, setting?.minConfidenceBp ?? 0)
 
-  // the values proposed for the application, by its paths; a field that waits one by one is required (BR-AI-16 BR-AI-30)
+  // the values proposed for the application, by its paths, as its form takes them (a tax id as its 13 digits, a branch of
+  // 5 digits or none); a field that waits one by one is required (BR-AI-16 BR-AI-30)
   const proposed: Record<string, string> = {}
   const requiredPaths: string[] = []
   for (const [field, path] of Object.entries(FORM_PATH) as Array<[keyof SupplierReading, string]>) {
     const value = reading[field]
     if (value === null || value === undefined || value === '') continue
-    proposed[path] = typeof value === 'boolean' ? String(value) : String(value)
+    const formValue = field === 'taxId' ? normalizeTaxId(String(value)) : String(value).trim()
+    if (formValue === '' || (field === 'branchCode' && !BRANCH.test(formValue))) continue
+    proposed[path] = formValue
     if (confidence[field]?.mustConfirm ?? true) requiredPaths.push(path)
   }
-  // a bank read off a bank book (only when the customer lets the AI read one · OQ-186): its code by the list, or nothing
-  const bankCode = bankCodeOf(reading.bankName ?? null)
+  // a bank read off a bank book: its code by the list, or nothing (BANK_UNKNOWN WARN)
+  const bankCode = reading.bankName ? bankCodeOfName(reading.bankName) : null
   if (bankCode) {
     proposed.bankCode = bankCode
     requiredPaths.push('bankCode')

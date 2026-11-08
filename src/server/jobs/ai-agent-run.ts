@@ -46,9 +46,13 @@ const DocumentEvent = z.object({ organizationId: z.uuid(), aggregateId: z.uuid()
 
 // S7-14 (FR-AI-304 AC1 · BR-AI-29): a document of an application scanned clean is read by the Supplier Onboarding Agent
 // when every rule lets it (the type and the payee, supplier.aiAssist, the gates of BR-AI-11); otherwise skipped, the
-// application goes on by hand (EG-1). The reading itself runs in job ai-agent-run.
-export const supplierDocumentAi = inngest.createFunction({ id: 'supplier-document-ai', triggers: [{ event: 'bcs/supplier_document.scanned' }] }, async ({ event, step }) => {
-  const payload = DocumentEvent.safeParse(event.data)
-  if (!payload.success) return 'IGNORED'
-  return step.run('request', () => requestSupplierDocumentRead(payload.data.organizationId, payload.data.aggregateId, systemClock.now()))
-})
+// application goes on by hand (EG-1). The reading itself runs in job ai-agent-run. One run at a time per application, so
+// the count of BR-AI-29's 10 a minute sees the requests before it (files scanned together would all pass it otherwise).
+export const supplierDocumentAi = inngest.createFunction(
+  { id: 'supplier-document-ai', concurrency: { limit: 1, key: 'event.data.data.applicationId' }, triggers: [{ event: 'bcs/supplier_document.scanned' }] },
+  async ({ event, step }) => {
+    const payload = DocumentEvent.safeParse(event.data)
+    if (!payload.success) return 'IGNORED'
+    return step.run('request', () => requestSupplierDocumentRead(payload.data.organizationId, payload.data.aggregateId, systemClock.now()))
+  },
+)

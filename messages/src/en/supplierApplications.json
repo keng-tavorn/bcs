@@ -135,6 +135,11 @@
       "check": {
         "WARN": "Differs from the registry or what was typed",
         "FAIL": "Failed a check"
+      },
+      "docCheck": {
+        "DOC_EXPIRED": "Expired by the date of issue the AI read",
+        "DOC_DATE_FUTURE": "Date of issue read is in the future",
+        "BANK_UNKNOWN": "Bank name not in the list"
       }
     }
   },

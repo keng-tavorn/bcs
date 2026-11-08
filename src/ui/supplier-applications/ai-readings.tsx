@@ -9,6 +9,8 @@ export interface AiReading {
   readonly agentActionId: string
   readonly documentTypeCode: string | null
   readonly fileName: string | null
+  /** Checks on the document as a whole that did not pass: its date, its validity, the bank read */
+  readonly documentChecks: readonly ('DOC_DATE_FUTURE' | 'DOC_EXPIRED' | 'BANK_UNKNOWN')[]
   readonly fields: readonly { readonly path: string; readonly value: string; readonly confidencePercent: number; readonly check: 'WARN' | 'FAIL' | null; readonly mustConfirm: boolean; readonly confirmed: boolean }[]
 }
 
@@ -20,6 +22,7 @@ export interface AiReadingsLabels {
   readonly field: (path: string) => string
   readonly doc: (code: string | null) => string
   readonly check: (result: 'WARN' | 'FAIL') => string
+  readonly docCheck: (code: 'DOC_DATE_FUTURE' | 'DOC_EXPIRED' | 'BANK_UNKNOWN') => string
   readonly yesNo: (value: boolean) => string
 }
 
@@ -32,6 +35,15 @@ export function AiReadings({ readings, labels }: { readonly readings: readonly A
             {labels.doc(r.documentTypeCode)}
             {r.fileName ? ` · ${r.fileName}` : ''}
           </p>
+          {r.documentChecks.length ? (
+            <ul className="flex flex-wrap gap-2">
+              {r.documentChecks.map((code) => (
+                <li key={code}>
+                  <Badge variant={code === 'BANK_UNKNOWN' ? 'outline' : 'destructive'}>{labels.docCheck(code)}</Badge>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-[minmax(10rem,auto)_1fr]">
             {r.fields.map((f) => (
               <div key={f.path} className="contents">

@@ -93,7 +93,7 @@ export default async function PortalApplyPage({ params, searchParams }: { params
       <h2 className="text-lg font-semibold">{t(`apply.steps.${step}`)}</h2>
       {one(q.ai) === 'taken' ? <PortalNotice tone="success">{t('apply.ai.done')}</PortalNotice> : null}
       {/* S7-14: what the AI read off the documents, beside the fields it fills (company · tax) and the documents */}
-      {step === 'company' || step === 'tax' || step === 'documents' ? <AiReadingPanel t={t} readings={await listPortalAiReadings(ctx)} action={`/portal/${org.code}/api/application/ai`} csrf={session.csrf} step={step} /> : null}
+      {step === 'company' || step === 'tax' || step === 'documents' ? <AiReadingPanel t={t} readings={await listPortalAiReadings(ctx)} action={`/portal/${org.code}/api/application/ai`} csrf={session.csrf} step={step} version={app.version} /> : null}
       {step === 'company' ? <CompanyStep t={t} app={app} formId={formId} action={`/portal/${org.code}/api/application`} hidden={hidden} /> : null}
       {step === 'tax' ? <TaxStep t={t} app={app} formId={formId} action={`/portal/${org.code}/api/application`} hidden={hidden} /> : null}
       {step === 'contact' ? <ContactStep t={t} organization={org.nameTh} formId={formId} action={`/portal/${org.code}/api/profile`} csrf={session.csrf} locale={home.contact.locale} contacts={await listPortalContacts(ctx)} me={ctx.actor.type === 'SUPPLIER' ? ctx.actor.supplierContactId : ''} /> : null}

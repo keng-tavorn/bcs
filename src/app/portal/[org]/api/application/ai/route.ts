@@ -8,6 +8,8 @@ import { field, forbiddenCsrf, formOf, notFound, seeOther } from '../../../_lib/
 // document into its application — the ones it ticked (take=<path>), and with the button rest=1 every other value that
 // need not be confirmed one by one — with its CSRF token. The answer is the step it came from.
 
+const SHOWN = ['CONFLICT_VERSION', 'INVALID_STATE_TRANSITION', 'DUPLICATE_SUPPLIER', 'DUPLICATE_REASON_REQUIRED', 'TAXID_CHECKSUM', 'FORBIDDEN'] as const
+
 export async function POST(request: Request, { params }: { params: Promise<{ org: string }> }) {
   const req = await portalRequest(request, (await params).org)
   if (!req) return notFound()
@@ -19,12 +21,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
   const app = await getPortalApplication(state.ctx)
   if (!app) return seeOther(req.org, '/apply', { error: 'FORBIDDEN' })
   const paths = form.getAll('take').filter((v): v is string => typeof v === 'string')
+  // the version the page showed, as the form of the application does: a change made since is CONFLICT_VERSION
+  const version = Number(field(form, 'version'))
   const r = await takeAiReading(
     state.ctx,
-    { applicationId: app.id, expectedVersion: app.version, agentActionId: field(form, 'agentActionId'), paths: paths as never, rest: field(form, 'rest') === '1' },
+    { applicationId: app.id, expectedVersion: Number.isInteger(version) ? version : -1, agentActionId: field(form, 'agentActionId'), paths: paths as never, rest: field(form, 'rest') === '1' },
     { idempotencyKey: field(form, 'key') || randomUUID() },
   )
   if (r.ok) return seeOther(req.org, '/apply', { step, ai: 'taken' })
-  const reason = typeof r.error.details?.reason === 'string' ? r.error.details.reason : r.error.code
-  return seeOther(req.org, '/apply', { step, error: reason === 'NOTHING_TAKEN' ? 'AI_NOTHING_TAKEN' : 'VALIDATION_FAILED' })
+  if (r.error.details?.reason === 'NOTHING_TAKEN') return seeOther(req.org, '/apply', { step, error: 'AI_NOTHING_TAKEN' })
+  // the refusals the page explains (the application changed, was sent, a duplicate, a tax id that fails its check)
+  return seeOther(req.org, '/apply', { step, error: (SHOWN as readonly string[]).includes(r.error.code) ? r.error.code : 'VALIDATION_FAILED' })
 }

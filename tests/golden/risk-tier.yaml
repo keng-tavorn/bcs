@@ -1,0 +1,51 @@
+# tests/golden/risk-tier.yaml
+suite: risk-tier
+# เกณฑ์และคำถามเป็น fixture ของ suite (ค่า demo ของ SIMEC ตามชีต Risk_Tiers และ Risk_Questionnaire · OQ-221 OQ-222) ไม่ใช่ค่าในโค้ด
+tiers: [{ code: LOW, minPoints: 0, reviewMonths: 36, reminderDaysBefore: 30, blocksPo: false, requiresExplicitAnswers: false }, { code: MEDIUM, minPoints: 20, reviewMonths: 24, reminderDaysBefore: 30, blocksPo: false, requiresExplicitAnswers: false }, { code: HIGH, minPoints: 40, reviewMonths: 12, reminderDaysBefore: 30, blocksPo: true, requiresExplicitAnswers: true }]
+# policy = แถว RiskPolicy ที่ยืนยันแล้ว (ไม่ใช่ settings · BR-RSK-02) · highRiskCategories เหลือ PROF ตามรอบตรวจ (IT SUBCON ทำให้ผู้ขาย 25 รายในประวัติเป็น HIGH ตั้งแต่ PO แรก)
+policy: { screeningTierMap: { processesPersonalData: HIGH, accessesSystems: MEDIUM, accessesPremises: MEDIUM }, highRiskCategories: [PROF], registryFlagBlocks: true, mediumOverdueBlocks: false, overrideChatButton: false }
+questions:
+  - { code: RQ-GEN-01, domain: GENERAL, options: { A: 0, B: 5, C: 10 } }
+  - { code: RQ-GEN-02, domain: GENERAL, options: { A: 0, B: 5, C: 10 } }
+  - { code: RQ-GEN-03, domain: GENERAL, options: { Y: 0, N: 8 } }
+  - { code: RQ-PRV-01, domain: PRIVACY, appliesWhen: { field: processesPersonalData, op: eq, value: "Y" }, options: { A: 5, B: 10, C: 15 }, minTier: { C: HIGH } }
+  - { code: RQ-PRV-02, domain: PRIVACY, appliesWhen: { field: processesPersonalData, op: eq, value: "Y" }, options: { Y: 0, N: 12 } }
+  - { code: RQ-PRV-03, domain: PRIVACY, appliesWhen: { field: processesPersonalData, op: eq, value: "Y" }, options: { N: 0, Y: 10 } }
+  - { code: RQ-IS-01, domain: INFOSEC, appliesWhen: { field: accessesSystems, op: eq, value: "Y" }, options: { Y: 0, N: 12 }, evidenceOption: Y, evidenceScopeRequired: true, evidenceScope: "ISO 27001" }
+  - { code: RQ-IS-02, domain: INFOSEC, appliesWhen: { field: accessesSystems, op: eq, value: "Y" }, options: { Y: 0, N: 8 } }
+  - { code: RQ-IS-03, domain: INFOSEC, appliesWhen: { field: accessesSystems, op: eq, value: "Y" }, options: { Y: 0, N: 6 } }
+  - { code: RQ-PRM-01, domain: PREMISES, appliesWhen: { field: accessesPremises, op: eq, value: "Y" }, options: { Y: 0, N: 8 } }
+  - { code: RQ-PRM-02, domain: PREMISES, appliesWhen: { field: accessesPremises, op: eq, value: "Y" }, options: { Y: 0, N: 6 }, evidenceOption: Y, evidenceScopeRequired: true, evidenceScope: "ISO 45001" }
+  - { code: RQ-FIN-01, domain: FINANCE, appliesWhen: { field: $inherentTier, op: eq, value: HIGH }, options: { Y: 0, N: 10 } }
+defaults: { screening: { processesPersonalData: "N", accessesSystems: "N", accessesPremises: "N" }, categoryCodes: [MAT], payeeType: JURISTIC, today: "2026-11-01" }
+cases:
+  # S11-03 · ชุดคำถามและระดับตั้งต้น (BR-RSK-01 BR-RSK-03)
+  - { id: GC-RSK-01, title: ไม่เข้าคัดกรองข้อใด ได้เฉพาะคำถามทั่วไป, fn: selectQuestions, input: {}, expect: { inherentTier: LOW, questions: [RQ-GEN-01, RQ-GEN-02, RQ-GEN-03] } }
+  - { id: GC-RSK-02, title: ประมวลผลข้อมูลส่วนบุคคลและเข้าระบบ ได้ 10 ข้อรวมคำถามการเงินของระดับสูง, fn: selectQuestions, input: { screening: { processesPersonalData: "Y", accessesSystems: "Y", accessesPremises: "N" }, categoryCodes: [PROF] }, expect: { inherentTier: HIGH, questions: [RQ-GEN-01, RQ-GEN-02, RQ-GEN-03, RQ-PRV-01, RQ-PRV-02, RQ-PRV-03, RQ-IS-01, RQ-IS-02, RQ-IS-03, RQ-FIN-01] } }
+  - { id: GC-RSK-03, title: ระดับตั้งต้นเมื่อไม่เข้าข้อใด, fn: inherentTier, input: {}, expect: LOW }
+  - { id: GC-RSK-04, title: เข้าระบบอย่างเดียว, fn: inherentTier, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" } }, expect: MEDIUM }
+  - { id: GC-RSK-05, title: ประมวลผลข้อมูลส่วนบุคคล, fn: inherentTier, input: { screening: { processesPersonalData: "Y", accessesSystems: "N", accessesPremises: "N" } }, expect: HIGH }
+  - { id: GC-RSK-06, title: หมวดเสี่ยงสูง (PROF) โดยไม่เข้าคัดกรอง, fn: inherentTier, input: { categoryCodes: [PROF] }, expect: HIGH }
+  # S11-03 · คะแนนและระดับ (BR-RSK-04) · เท่าขอบนับระดับนั้น
+  - { id: GC-RSK-07, title: ตอบดีทุกข้อ ศูนย์คะแนน, fn: scoreAssessment, input: { answers: { RQ-GEN-01: A, RQ-GEN-02: A, RQ-GEN-03: Y } }, expect: { inherentTier: LOW, points: 0, tierByPoints: LOW, minTierFloor: LOW, tier: LOW } }
+  - { id: GC-RSK-08, title: 18 คะแนน ต่ำกว่าขอบ MEDIUM, fn: scoreAssessment, input: { answers: { RQ-GEN-01: C, RQ-GEN-02: A, RQ-GEN-03: N } }, expect: { inherentTier: LOW, points: 18, tierByPoints: LOW, minTierFloor: LOW, tier: LOW } }
+  - { id: GC-RSK-09, title: 20 คะแนนเท่าขอบพอดี เป็น MEDIUM, fn: scoreAssessment, input: { answers: { RQ-GEN-01: C, RQ-GEN-02: C, RQ-GEN-03: Y } }, expect: { inherentTier: LOW, points: 20, tierByPoints: MEDIUM, minTierFloor: LOW, tier: MEDIUM } }
+  - { id: GC-RSK-10, title: 23 คะแนน, fn: scoreAssessment, input: { answers: { RQ-GEN-01: B, RQ-GEN-02: C, RQ-GEN-03: N } }, expect: { inherentTier: LOW, points: 23, tierByPoints: MEDIUM, minTierFloor: LOW, tier: MEDIUM } }
+  - { id: GC-RSK-11, title: เข้าระบบ 36 คะแนน ยัง MEDIUM, fn: scoreAssessment, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, answers: { RQ-GEN-01: C, RQ-GEN-02: C, RQ-GEN-03: N, RQ-IS-01: Y, RQ-IS-02: N, RQ-IS-03: Y } }, expect: { inherentTier: MEDIUM, points: 36, tierByPoints: MEDIUM, minTierFloor: LOW, tier: MEDIUM } }
+  - { id: GC-RSK-12, title: 40 คะแนนเท่าขอบ HIGH พอดี, fn: scoreAssessment, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, answers: { RQ-GEN-01: C, RQ-GEN-02: C, RQ-GEN-03: N, RQ-IS-01: N, RQ-IS-02: Y, RQ-IS-03: Y } }, expect: { inherentTier: MEDIUM, points: 40, tierByPoints: HIGH, minTierFloor: LOW, tier: HIGH } }
+  - { id: GC-RSK-13, title: คะแนนต่ำแต่ตัวเลือกบังคับระดับ HIGH, fn: scoreAssessment, input: { screening: { processesPersonalData: "Y", accessesSystems: "N", accessesPremises: "N" }, answers: { RQ-GEN-01: A, RQ-GEN-02: A, RQ-GEN-03: Y, RQ-PRV-01: C, RQ-PRV-02: Y, RQ-PRV-03: N, RQ-FIN-01: Y } }, expect: { inherentTier: HIGH, points: 15, tierByPoints: LOW, minTierFloor: HIGH, tier: HIGH } }
+  # S11-03 · ตอบด้วยหลักฐาน (BR-RSK-05) · document = แถวจาก supplierDocumentStatus ของ S7
+  - { id: GC-RSK-14, title: ใบรับรองใช้ได้และขอบเขตตรง, fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2027-03-31", scope: "ISO 27001" } }, expect: { source: EVIDENCE, optionCode: Y } }
+  - { id: GC-RSK-15, title: หมดอายุวันนี้พอดียังใช้ได้, fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2026-11-01", scope: "ISO 27001" } }, expect: { source: EVIDENCE, optionCode: Y } }
+  - { id: GC-RSK-16, title: หมดอายุเมื่อวาน, fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2026-10-31", scope: "ISO 27001" } }, expect: { source: NONE, reason: EXPIRED } }
+  - { id: GC-RSK-17, title: ขอบเขตไม่ครอบงานที่จ้าง, fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2027-03-31", scope: "ISO 9001" } }, expect: { source: NONE, reason: SCOPE_MISMATCH } }
+  - { id: GC-RSK-18, title: ยังไม่ยืนยัน, fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], document: { status: PENDING, expiresOn: "2027-03-31", scope: "ISO 27001" } }, expect: { source: NONE, reason: NOT_VERIFIED } }
+  - { id: GC-RSK-19, title: ขอบเขตตรงหลัง normalize ทั้งสองฝั่ง (trim และตัวพิมพ์เล็ก กติกาเดียวกับ BR-SDOC ข้อ 03 ของ S7), fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2027-03-31", scope: "  iso 27001 " } }, expect: { source: EVIDENCE, optionCode: Y } }
+  # S11-03 · ความสมบูรณ์ (BR-RSK-06) · sources = ที่มาของคำตอบต่อข้อ
+  - { id: GC-RSK-20, title: ระดับ HIGH ข้อที่ตอบด้วยหลักฐานต้องยืนยันเอง, fn: assessmentCompleteness, input: { tier: HIGH, screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, sources: { RQ-GEN-01: EXPLICIT, RQ-GEN-02: EXPLICIT, RQ-GEN-03: EXPLICIT, RQ-IS-01: EVIDENCE, RQ-IS-02: EXPLICIT, RQ-IS-03: EXPLICIT } }, expect: { complete: false, missing: [RQ-IS-01] } }
+  - { id: GC-RSK-21, title: ระดับ MEDIUM หลักฐานนับเป็นคำตอบ, fn: assessmentCompleteness, input: { tier: MEDIUM, screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, sources: { RQ-GEN-01: EXPLICIT, RQ-GEN-02: EXPLICIT, RQ-GEN-03: EXPLICIT, RQ-IS-01: EVIDENCE, RQ-IS-02: EXPLICIT, RQ-IS-03: EXPLICIT } }, expect: { complete: true, missing: [] } }
+  - { id: GC-RSK-22, title: ขาดคำตอบหนึ่งข้อ, fn: assessmentCompleteness, input: { tier: MEDIUM, screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, sources: { RQ-GEN-01: EXPLICIT, RQ-GEN-02: EXPLICIT, RQ-IS-01: EVIDENCE, RQ-IS-02: EXPLICIT, RQ-IS-03: EXPLICIT } }, expect: { complete: false, missing: [RQ-GEN-03] } }
+  # รอบตรวจของขั้น · คำตอบที่ยืนยันจากหลักฐานแล้ว (EXPLICIT + evidenceDocumentId) ถูกคำนวณซ้ำด้วย (BR-RSK-05)
+  - { id: GC-RSK-23, title: ยืนยันคำตอบหลักฐานแล้วแต่ใบรับรองหมดอายุก่อนส่ง คำตอบถูกล้าง, fn: evidenceSource, input: { question: RQ-IS-01, workScopes: ["ISO 27001"], current: { source: EXPLICIT, optionCode: Y, evidenceDocumentId: D1 }, document: { id: D1, status: VERIFIED, expiresOn: "2026-10-31", scope: "ISO 27001" } }, expect: { source: NONE, reason: EXPIRED, clearAnswer: true, event: EVIDENCE_REVOKED } }
+  # รอบตรวจไขว้รอยต่อ (SEAM-S7xS11-X-09) · ISO_CERT ผูกสองคำถาม (RQ-IS-01 RQ-PRM-02) ใบฉบับเดียวเติมได้เฉพาะคำถามที่ scope ตรง
+  - { id: GC-RSK-24, title: ใบ ISO 27001 ไม่เติมคำถาม ISO 45001 ของประเภทเอกสารเดียวกัน, fn: evidenceSource, input: { question: RQ-PRM-02, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2027-03-31", scope: "ISO 27001" } }, expect: { source: NONE, reason: SCOPE_MISMATCH } }

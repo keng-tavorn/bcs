@@ -172,6 +172,15 @@ export const PERMISSIONS = {
   // and PROCUREMENT that runs it
   'sourcing.view': [anyMember('OWN'), anyMember('ASSIGNED'), ...roles(['PROCUREMENT', 'FINANCE', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'sourcing.manage': PROCUREMENT_ONLY,
+  // S11-04 (BR-RSK-02 · ADR-229): the tiers, the gate policy and the questionnaire versions, proposed by one administrator
+  // and confirmed or published by another; ORG_ADMIN loses them once the DOA administrators are separated (below)
+  'admin.riskTiers': DOA_ADMINS,
+  // S11-05 (FR-RSK-201 · FR-RSK-204 · BR-RSK-14): reading a risk file; PROCUREMENT opens, fills in, cancels; the evidence is
+  // downloaded by fewer. The holder of a reviewer's slot (ASSIGNED, own domain) and the REVIEWER_* roles come with S11-06
+  'risk.assessment.view': roles(['PROCUREMENT', 'FINANCE', 'EXECUTIVE', 'AUDITOR'], 'ORG'),
+  'risk.assessment.manage': PROCUREMENT_ONLY,
+  'risk.evidence.view': roles(['PROCUREMENT', 'FINANCE', 'AUDITOR'], 'ORG'),
+  'admin.riskQuestionnaire': DOA_ADMINS,
   // S6-10 (FR-INT-102, BR-PRC-06 · OQ-114): every member searches the catalogue; PROCUREMENT keeps it and its agreed prices
   'catalog.view': [anyMember('ORG')],
   'catalog.manage': PROCUREMENT_ONLY,
@@ -237,4 +246,6 @@ export const CAPABILITIES = Object.keys(PERMISSIONS) as Capability[]
  * S6-09 (BR-WF-17 · OQ-109): what ORG_ADMIN no longer gets once the DOA version in effect separates the DOA
  * administrators (sodPolicy.doaAdminSeparated); DOA_ADMIN keeps them. The table above stays the same (OQ-34).
  */
-export const DOA_ADMIN_SEPARABLE: ReadonlySet<Capability> = new Set(CAPABILITIES.filter((c) => c.startsWith('admin.doa.') || c.startsWith('admin.workflow.')))
+export const DOA_ADMIN_SEPARABLE: ReadonlySet<Capability> = new Set(
+  CAPABILITIES.filter((c) => c.startsWith('admin.doa.') || c.startsWith('admin.workflow.') || c === 'admin.riskTiers' || c === 'admin.riskQuestionnaire'),
+)

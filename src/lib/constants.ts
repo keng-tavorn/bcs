@@ -285,3 +285,17 @@ export const SOURCING_DEFAULT_WEIGHTS_BP = {
 /** S10: the longest description of an RFx (characters), and of an amendment's summary or a criterion's guidance */
 export const RFX_LONG_TEXT_MAX = 4_000
 export const RFX_SUMMARY_MAX = 1_000
+// S11-04 (BR-RSK-01 · BR-RSK-02): the size of what an administrator types into the risk questionnaire and the tiers —
+// limits of input, not thresholds (the thresholds are the organization's RiskTier rows)
+/** Characters of a question or of the reason of a change */
+export const RISK_TEXT_MAX = 1000
+/** Characters of a question's help */
+export const RISK_HELP_MAX = 2000
+/** Points of one option of a question */
+export const RISK_OPTION_POINTS_MAX = 1000
+/** The largest lower bound of a tier an administrator may type */
+export const RISK_TIER_POINTS_MAX = 1_000_000
+/** S11-05 (FR-RSK-204 AC4 · BR-RSK-18): the evidence files of one risk answer */
+export const RISK_EVIDENCE_FILES_PER_QUESTION = 5
+/** S11-05 (docs/sub-specs/S11.md job risk-assessment-sla): a business day counted as 540 business minutes (08:30–17:30) */
+export const BUSINESS_DAY_MINUTES = 540

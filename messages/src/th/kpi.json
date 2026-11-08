@@ -98,7 +98,8 @@
     "PAYMENT_RUN": "รอบจ่าย",
     "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
     "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
-    "AWARD_DECISION": "ผลการจัดหา"
+    "AWARD_DECISION": "ผลการจัดหา",
+    "RISK_OVERRIDE": "การอนุมัติข้ามด่านความเสี่ยง"
   },
   "values": {
     "noneYet": "ยังไม่มีข้อมูลในช่วงนี้",
@@ -141,6 +142,7 @@
       "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
       "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
       "AWARD_DECISION": "ผลการจัดหา",
+      "RISK_OVERRIDE": "การอนุมัติข้ามด่านความเสี่ยง",
       "unknown": "เอกสารที่ไม่พบ"
     },
     "decision": {

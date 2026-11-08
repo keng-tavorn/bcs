@@ -45,7 +45,8 @@
   "privacy": {
     "title": "Privacy notice",
     "accept": "I have read it",
-    "2026-11-01": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them. You may ask its procurement team for a copy, a correction or deletion of your data."
+    "2026-11-01": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them. You may ask its procurement team for a copy, a correction or deletion of your data.",
+    "2026-11-08": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to assess supplier risk, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them.\n\nEvidence files of a risk questionnaire that you mark as holding no personal data and readable by the AI assistant are sent to an outside AI provider to draft answers for you to check. Files you do not mark are never sent.\n\nYou may ask its procurement team for a copy, a correction or deletion of your data."
   },
   "errors": {
     "RATE_LIMITED": "Too many requests. Please try again in a moment.",
@@ -58,5 +59,113 @@
     "VALIDATION_FAILED": "Please check what you typed.",
     "PRIVACY_NOTICE_OUTDATED": "Please read and acknowledge the current privacy notice first.",
     "FAILED": "That did not work. Please try again."
+  },
+  "risk": {
+    "list": {
+      "title": "Supplier risk assessments",
+      "intro": "The assessments this organization's procurement team sent your company to answer. Those you can still answer are at the top.",
+      "empty": "There is no risk assessment for your company yet. When the procurement team sends one, you will get an e-mail with a link and see it on this page.",
+      "answer": "Answer assessment {number}",
+      "view": "View assessment {number}",
+      "noNumber": "No number yet",
+      "status": "Status: {status}",
+      "tier": "Result: {tier}",
+      "openedAt": "Sent to you on {date}",
+      "validUntil": "Result valid until {date}",
+      "back": "Back to the portal's home"
+    },
+    "status": {
+      "DRAFT": "Waiting for your answers",
+      "IN_REVIEW": "Sent, being checked by procurement",
+      "RETURNED": "Returned to you for changes",
+      "COMPLETED": "Assessment complete",
+      "SUPERSEDED": "Replaced by a newer assessment",
+      "CANCELLED": "Cancelled"
+    },
+    "tier": {
+      "LOW": "Low risk",
+      "MEDIUM": "Medium risk",
+      "HIGH": "High risk"
+    },
+    "domain": {
+      "GENERAL": "General",
+      "PRIVACY": "Personal data",
+      "INFOSEC": "Information security",
+      "PREMISES": "Access to the organization's premises",
+      "FINANCE": "Finance",
+      "OTHER": "Other questions"
+    },
+    "scan": {
+      "PENDING": "Being checked for viruses",
+      "CLEAN": "Checked, no virus found",
+      "INFECTED": "A virus was found and the file was removed. Please attach a new file."
+    },
+    "assessment": {
+      "title": "Risk assessment {number}",
+      "titleNoNumber": "Risk assessment",
+      "notFound": "This assessment was not found. The link may be wrong, or the assessment is not your company's.",
+      "status": "Status: {status}",
+      "progress": "{answered} of {total} questions answered",
+      "intro": "Choose the answer that fits your company for each question, then press the save button at the end of the page. You can save and come back later. When every question is answered, press the send button.",
+      "returned": "Message from procurement",
+      "readOnly": "This assessment was sent or is closed. You can see the answers but not change them.",
+      "optional": "Optional",
+      "missingMark": "This question still needs an answer or a confirmation before you send.",
+      "fromEvidence": "This answer comes from a certificate procurement has checked. You cannot change it, but you can confirm it.",
+      "confirmEvidence": "Confirm this answer",
+      "onBehalf": "Procurement filled in this answer for you",
+      "note": "Note (optional)",
+      "answer": "Answer: {option}",
+      "notAnswered": "Not answered yet",
+      "noteValue": "Note: {note}",
+      "save": "Save answers",
+      "saveHint": "This button saves the answers and notes of every question on this page.",
+      "sendTitle": "Send the assessment",
+      "sendHint": "Save your answers before sending: answers not saved are not sent. Once sent, it cannot be changed unless procurement returns it to you.",
+      "send": "Send the assessment",
+      "missingTitle": "Questions that still need an answer or a confirmation",
+      "saved": "Your answers are saved.",
+      "unchanged": "No answer changed, so nothing new was saved.",
+      "sent": "The assessment is sent. Thank you. If anything needs changing, procurement will return it to you.",
+      "back": "Back to the assessments"
+    },
+    "evidence": {
+      "title": "Files supporting the answer",
+      "none": "No file yet",
+      "file": "File (PDF, JPG, PNG or WebP, up to 20 MB)",
+      "aiReadable": "This file has no personal data; the AI assistant may read it",
+      "aiHint": "Files you tick for the AI assistant are sent to an outside processor. If you are not sure, leave it unticked.",
+      "upload": "Attach this file",
+      "uploadHint": "Save your answers before attaching a file: answers not saved are lost when a file is attached.",
+      "full": "This question has its {max} files already.",
+      "answerFirst": "Answer this question and save it first; then you can attach files.",
+      "uploaded": "The file is attached. Procurement can open it once the virus check is done."
+    },
+    "errors": {
+      "FORBIDDEN": "You cannot do this. The assessment may have been sent or closed.",
+      "NOT_FOUND": "This assessment was not found.",
+      "CONFLICT_VERSION": "The assessment changed after you opened this page. The page now shows the latest version; please check the answers and try again.",
+      "INVALID_STATE_TRANSITION": "This assessment was sent or is closed, so it cannot be changed or sent again.",
+      "VALIDATION_FAILED": "Please check the answers or the file.",
+      "RISK_ANSWERS_INCOMPLETE": "It cannot be sent yet: some questions still need an answer or a confirmation.",
+      "AI_REVIEW_PENDING": "Some answers the AI assistant drafted have not been checked yet. Please check them before sending.",
+      "RATE_LIMITED": "Too many files at once. Please try again in a moment.",
+      "PRIVACY_NOTICE_OUTDATED": "Please read and acknowledge the current privacy notice before attaching files.",
+      "MODULE_DISABLED": "This organization does not use supplier risk assessments yet.",
+      "NOT_CONFIGURED": "This organization has not finished setting up its risk assessments. Please contact procurement.",
+      "FAILED": "That did not work. Please try again."
+    },
+    "reasons": {
+      "QUESTION_NOT_IN_SET": "A question is not part of this assessment. Please open the page again and answer once more.",
+      "OPTION_UNKNOWN": "An answer is not one of the question's choices. Please choose again.",
+      "EVIDENCE_LOCKED": "An answer from a certificate cannot be changed; you can only confirm it.",
+      "ANSWER_FIRST": "Answer this question and save it first; then you can attach files.",
+      "TOO_MANY_FILES": "At most {max} files a question.",
+      "TYPE_NOT_ALLOWED": "Only PDF, JPG, PNG or WebP files.",
+      "TOO_LARGE": "The file is larger than 20 MB.",
+      "EMPTY": "No file was chosen, or the file is empty. Please choose a file again.",
+      "PORTAL_ANSWERING_OFF": "This organization's procurement team fills in the assessment for its suppliers. Please contact procurement."
+    },
+    "privacyLink": "Read the privacy notice"
   }
 }

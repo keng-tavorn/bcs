@@ -38,6 +38,8 @@
     "calendar": "Business calendar",
     "numbering": "Document numbers",
     "supplierDocumentTypes": "Supplier document types",
+    "riskTiers": "Supplier risk tiers",
+    "riskQuestionnaire": "Supplier risk questionnaire",
     "requestTypes": "Request types",
     "line": "LINE settings",
     "doa": "Approval authority (DOA)",

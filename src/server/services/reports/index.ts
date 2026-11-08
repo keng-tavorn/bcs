@@ -102,6 +102,7 @@ const KIND_TH: Readonly<Record<string, string>> = {
   BANK_ACCOUNT_CHANGE: 'การเปลี่ยนบัญชีธนาคาร',
   SUPPLIER_APPLICATION: 'ใบสมัครผู้ขาย',
   AWARD_DECISION: 'ผลการจัดหา',
+  RISK_OVERRIDE: 'การอนุมัติข้ามด่านความเสี่ยง',
 }
 const LINE_PREFIX = 'DECISIONS_ON_LINE_'
 /** A KPI measure code in Thai; a code without words stays the code */

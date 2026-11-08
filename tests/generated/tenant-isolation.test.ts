@@ -98,6 +98,11 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   RfxAmendment: { revisionNo: 2 },
   ScoreCriterion: { code: () => `C${randomUUID().slice(0, 8)}`, kind: 'QUALITY' },
   PreferredSupplier: { source: 'MANUAL', validTo: new Date('2026-10-06T00:00:00Z') },
+  // S11: risk_tier_shape (LOW starts at 0) · risk_question_shape (an RQ code, at least two options) · review_task_shape
+  // (a task answers at least one rule and shows at least one part)
+  RiskTier: { minPoints: 0 },
+  RiskQuestion: { code: 'RQ-GEN-01', options: [{ code: 'Y', points: 0 }, { code: 'N', points: 1 }] },
+  ReviewTask: { ruleCodes: ['RR-01'], riskDomains: ['PRIVACY'] },
 }
 // Relations that need their own parent row instead of the shared one: delegation_not_self (delegator <> delegate)
 const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
@@ -118,6 +123,8 @@ const OPTIONAL_PARENTS: Record<string, ReadonlySet<string>> = {
   SupplierNotice: new Set(['supplier']),
   // S10's rfx_invite_shape: an invite names a supplier or an application
   RfxInvite: new Set(['supplier']),
+  // S11's risk_answer_shape: an EXPLICIT answer names who gave it
+  RiskAnswer: new Set(['answeredByMember']),
 }
 // Columns that must name an existing row without a relation in the schema: ledger_event_exists (INV-BUD-04)
 const EXISTING_ROWS: Record<string, Record<string, string>> = {

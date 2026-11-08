@@ -1360,6 +1360,59 @@ def run_duplicates(d):
         out.append((c["id"], got == c["expect"], got))
     use_fixtures()
     return out
+def run_risk_tier(d):
+    # BR-RSK-01 BR-RSK-03 to BR-RSK-06 (§7.24 · S11-03): the inherent tier from screening and high-risk categories, the
+    # question set by appliesWhen, points and tier (highest of points band, inherent tier, minTier of an answer), an answer
+    # from evidence (VERIFIED, not expired, scope equal to the question's and a work scope after S7's normalizeScope) and
+    # completeness (EVIDENCE does not count for a tier that requires explicit answers); compared as whole objects
+    order = ["LOW", "MEDIUM", "HIGH"]; top = lambda *ts: max(ts, key=order.index)
+    tiers = {t["code"]: t for t in d["tiers"]}; pol, df, qs = d["policy"], d["defaults"], d["questions"]
+    import unicodedata
+    # normalizeScope of S7 (BR-SDOC ข้อ 03, run_supplier_docs): NFC, trimmed, lower case, runs of white space one space
+    norm = lambda s: " ".join(unicodedata.normalize("NFC", s).split()).lower()
+    def inherent(sc, cats):
+        t = "LOW"
+        for f, v in sc.items():
+            if v == "Y": t = top(t, pol["screeningTierMap"][f])
+        return "HIGH" if set(cats) & set(pol["highRiskCategories"]) else t
+    def holds(w, env):
+        if "all" in w: return all(holds(x, env) for x in w["all"])
+        if "any" in w: return any(holds(x, env) for x in w["any"])
+        if w["op"] == "anyIn": return bool(set(env["$category"]) & set(w["value"]))
+        if w["op"] == "eq": return str(env.get(w["field"])) == str(w["value"])
+        raise ValueError(f"op {w['op']} not used by risk-tier")
+    out = []
+    for c in d["cases"]:
+        i = c["input"]; sc = i.get("screening", df["screening"]); cats = i.get("categoryCodes", df["categoryCodes"])
+        it = inherent(sc, cats); env = {**sc, "$category": cats, "$payeeType": i.get("payeeType", df["payeeType"]), "$inherentTier": it}
+        qset = [q for q in qs if not q.get("appliesWhen") or holds(q["appliesWhen"], env)]
+        fn = c["fn"]
+        if fn == "inherentTier": got = it
+        elif fn == "selectQuestions": got = {"inherentTier": it, "questions": [q["code"] for q in qset]}
+        elif fn == "scoreAssessment":
+            ans = i["answers"]; picked = [(q, ans[q["code"]]) for q in qset if ans.get(q["code"]) in q["options"]]
+            pts = sum(q["options"][a] for q, a in picked)
+            floor = top("LOW", *[q.get("minTier", {}).get(a, "LOW") for q, a in picked])
+            band = max((t for t in d["tiers"] if t["minPoints"] <= pts), key=lambda t: t["minPoints"])["code"]
+            got = {"inherentTier": it, "points": pts, "tierByPoints": band, "minTierFloor": floor, "tier": top(band, it, floor)}
+        elif fn == "evidenceSource":
+            q = next(x for x in qs if x["code"] == i["question"]); doc = i["document"]; cur = i.get("current") or {}
+            held = bool(cur.get("evidenceDocumentId")); today = i.get("today", df["today"]); scope = norm(doc.get("scope") or "")
+            if "evidenceOption" not in q: why = "NOT_LINKED"
+            elif doc["status"] != "VERIFIED": why = "NOT_VERIFIED"
+            elif doc.get("expiresOn") and doc["expiresOn"] < today: why = "EXPIRED"
+            elif q.get("evidenceScopeRequired") and not (scope and scope == norm(q["evidenceScope"]) and scope in [norm(w) for w in i["workScopes"]]): why = "SCOPE_MISMATCH"
+            else: why = None
+            if why: got = {"source": "NONE", "reason": why, **({"clearAnswer": True, "event": "EVIDENCE_REVOKED"} if held else {})}
+            else: got = {"source": cur["source"] if held else "EVIDENCE", "optionCode": q["evidenceOption"]}
+        elif fn == "assessmentCompleteness":
+            src = i["sources"]; strict = tiers[i["tier"]]["requiresExplicitAnswers"]
+            ok_ = lambda s: s not in (None, "NONE") and not (strict and s == "EVIDENCE")
+            miss = [q["code"] for q in qset if q.get("required", True) and not ok_(src.get(q["code"]))]
+            got = {"complete": not miss, "missing": miss}
+        else: raise ValueError(f"fn {fn}")
+        out.append((c["id"], got == c["expect"], got))
+    return out
 def run_retention(d):  # BR-RET-01 แบ่งงวด · BR-RET-03 เงินประกัน (largest remainder สองส่วน) · BR-WHT-05 ภาษีตอนจ่าย (S8-09)
     out = []
     for c in d["cases"]:
@@ -2552,6 +2605,41 @@ def run_supplier_documents(d):
     for c in d["cases"]:
         got = fns[c["fn"]](c["input"]); out.append((c["id"], got == c["expect"], got))
     return out
+RISK_DOMAINS = ["GENERAL", "PRIVACY", "INFOSEC", "PREMISES", "FINANCE"]
+def run_risk_review(d):
+    # BR-RSK-07 (§7.24 · S11-06): the RISK_ASSESSMENT rules of the workflow version in effect whose condition holds on the
+    # screening answers, $tier $inherentTier $category $payeeType; each its own slot of quorum ALL in sortOrder; the reviewer
+    # by BR-WF-08 (wf_one), the opener and who filled in for the supplier conflicted (BR-SOD-16); a delegation counts only
+    # when it limits neither document types nor amount (BR-DLG-01), and a delegate who conflicts leaves it with the delegator
+    global HOLD
+    use_fixtures(d["fixtures"]); base, out = dict(HOLD), []
+    wfs = [golden["tests/golden/" + f][0] for f in d["fixtures"] if "risk-reviewers" in f]
+    for c in d["cases"]:
+        i = {**d["defaults"], **c["input"]}; at = dt(i["at"]); vac = set(i.get("vacate", []))
+        vs = sorted([v for w in wfs for v in w["versions"] if dt(v["effectiveFrom"]) <= at], key=lambda v: dt(v["effectiveFrom"]))
+        cats = i.get("categoryCodes", [])
+        facts = {"fields": {**i["screening"], "$tier": i["tier"], "$inherentTier": i.get("inherentTier", i["tier"]), "$payeeType": i.get("payeeType")}, "category": cats, "lineCategories": cats}
+        rules = [r for r in (vs[-1]["rules"] if vs else []) if r.get("scope") == "RISK_ASSESSMENT" and wf_holds(r["when"], facts)]
+        conf = {i["openedBy"], *i.get("conflictMemberIds", [])}
+        acting = {x["from"]: x["to"] for x in i.get("delegations", []) if not x.get("documentTypes") and x.get("maxAmount") is None}
+        slots, got = [], None
+        for r in rules:
+            who, fb = wf_one(r, r["reviewers"][0], conf, vac)
+            if who is None: got = {"error": "REVIEWER_NOT_FOUND", "rule": r["code"]}; break
+            held = acting.get(who, who)
+            if held in conf: held = who
+            into = next((s for s in slots if s["reviewers"] == [held]), None)
+            if into:
+                into["rules"].append(r["code"]); into["domains"] = [x for x in RISK_DOMAINS if x in into["domains"] + r["riskDomains"]]; continue
+            s = {"rules": [r["code"]], "reviewers": [held]}
+            if fb: s["fallback"] = fb
+            if held != who: s["principal"] = who
+            s["domains"] = [x for x in RISK_DOMAINS if x in r["riskDomains"]]
+            slots.append(s)
+        if got is None: got = {"review": {"quorum": "ALL", "slots": slots} if slots else None}
+        out.append((c["id"], got == c["expect"], got))
+    HOLD = base; use_fixtures()
+    return out
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
     "ai-credits": run_ai_credits,
@@ -2597,6 +2685,8 @@ RUNNERS = {
     "retention": run_retention,
     "rfx-award": run_rfx_award,
     "rfx-scoring": run_rfx_scoring,
+    "risk-review": run_risk_review,
+    "risk-tier": run_risk_tier,
     "savings": run_savings,
     "sla": run_sla,
     "sod": run_sod,

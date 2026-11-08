@@ -38,6 +38,8 @@
     "calendar": "ปฏิทินทำการและวันหยุด",
     "numbering": "รูปแบบเลขเอกสาร",
     "supplierDocumentTypes": "ประเภทเอกสารผู้ขาย",
+    "riskTiers": "เกณฑ์ความเสี่ยงคู่ค้า",
+    "riskQuestionnaire": "แบบประเมินความเสี่ยงคู่ค้า",
     "requestTypes": "ประเภทคำขอ",
     "line": "ตั้งค่า LINE",
     "doa": "อำนาจอนุมัติ (DOA)",

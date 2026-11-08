@@ -71,7 +71,9 @@ export default defineConfig({
       reuseExistingServer: false,
       // The phase-1 seed with its history takes 4 to 11 minutes before the build starts (P1-08, slower under load)
       timeout: E2E_PHASE1_WORKBOOK ? 1_800_000 : 600_000,
-      env: e2eEnv(),
+      // next build's type check of the whole app outgrew Node's default 4 GB heap once S7 S10 S11 met (S7-17); a
+      // NODE_OPTIONS the caller set wins
+      env: { NODE_OPTIONS: process.env.NODE_OPTIONS ?? '--max-old-space-size=8192', ...e2eEnv() },
     },
   ],
 })

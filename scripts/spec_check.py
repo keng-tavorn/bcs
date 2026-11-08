@@ -532,6 +532,7 @@ def run_sod(d):
             elif subj == "PAYMENT_RUN" and i["actor"] == i.get("requester"): rule = "BR-SOD-09"
             elif subj == "PAYMENT_RUN" and i["actor"] in i.get("invoiceRecorders", []): rule = "BR-SOD-04"
             elif subj == "PAYMENT_RUN" and sod_recent_change(i): rule = "BR-SOD-10"
+            elif subj == "BANK_ACCOUNT_CHANGE" and i.get("source") == "PORTAL" and i["actor"] in [i.get("submittedBy"), i.get("callVerifiedBy")]: rule = "BR-SOD-12"
             elif subj == "BANK_ACCOUNT_CHANGE" and i["actor"] == i.get("requester"): rule = "BR-SOD-05"
             elif i["actor"] == i.get("requester"): rule = "BR-SOD-01"
             elif subj == "PURCHASE_ORDER" and i["actor"] == i.get("poCreator"): rule = "BR-SOD-03"

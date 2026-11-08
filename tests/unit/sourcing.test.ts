@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BusinessCalendar } from '@/core/sla'
+import { awardDecisionSodExtra, checkSod } from '@/core/sod'
+import { OrgSettingsSchema, sourcingSettingsOf } from '@/lib/org-settings'
 import {
   awardAmount,
   businessDayMinutes,
@@ -138,5 +140,71 @@ describe('G-8 (BR-RFX-15) edges', () => {
     expect(formatTenths(137)).toBe('13.7')
     expect(() => formatTenths(-1)).toThrow(RangeError)
     expect(() => formatTenths(0.5)).toThrow(RangeError)
+  })
+})
+
+describe('[BR-SOD-14] an evaluator never created the RFx nor requested a source line', () => {
+  const policy = { approverMayReceive: false, requesterMayReceive: true }
+  const action = (actorMemberId: string) => ({ kind: 'SCORE_RFX' as const, actorMemberId, rfxCreatorMemberIds: ['creator', 'opener'], sourceRequesterMemberIds: ['req-1', 'req-2'] })
+  it('the creator or the opener → SOD_VIOLATION BR-SOD-14', () => {
+    expect(checkSod(action('creator'), policy)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-14' })
+    expect(checkSod(action('opener'), policy)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-14' })
+  })
+  it('a requester of a source line → SOD_VIOLATION BR-SOD-14; anyone else may score', () => {
+    expect(checkSod(action('req-2'), policy)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-14' })
+    expect(checkSod(action('evaluator'), policy)).toEqual({ ok: true })
+  })
+})
+
+describe('[BR-SOD-13] the people of an award besides its submitter', () => {
+  it('one BR-SOD-13 list of the creators, evaluators (recused too), source requesters and on-behalf recorders, each once', () => {
+    expect(
+      awardDecisionSodExtra({
+        rfxCreatorMemberIds: ['creator', 'creator'],
+        evaluatorMemberIds: ['eval-1', 'eval-recused'],
+        sourceRequesterMemberIds: ['req-1', 'eval-1'],
+        recordedOnBehalfMemberIds: ['creator', 'recorder'],
+      }),
+    ).toEqual([{ rule: 'BR-SOD-13', memberIds: ['creator', 'eval-1', 'eval-recused', 'req-1', 'recorder'] }])
+  })
+  it('an RFx from a need has no source requester and no bid recorded on behalf: the list is the creators and evaluators', () => {
+    expect(awardDecisionSodExtra({ rfxCreatorMemberIds: ['creator'], evaluatorMemberIds: [], sourceRequesterMemberIds: [], recordedOnBehalfMemberIds: [] })).toEqual([{ rule: 'BR-SOD-13', memberIds: ['creator'] }])
+  })
+})
+
+describe('[FR-PLT-001/AC2] the sourcing settings of S10: every key optional, missing reads as its OQ default', () => {
+  it('an organization saved before S10 parses as it is and reads the defaults', () => {
+    expect(OrgSettingsSchema.shape.sourcing.safeParse(undefined).success).toBe(true)
+    expect(sourcingSettingsOf({})).toEqual({
+      minOpenBusinessDays: { RFQ: 3, RFP: 10, RFI: 5 },
+      questionCutoffBusinessDays: 2,
+      bidValidityDays: 30,
+      sealedBids: true,
+      allowVatInclusiveBids: false,
+      minInvitesThresholdGross: '100000.00',
+      minInvitesAboveThreshold: 3,
+      minEvaluators: 2,
+      priceAnomalyBp: 2000,
+      preferredSupplierDays: 365,
+      agreementFromAwardDays: 365,
+      aiAssist: true,
+      defaultWeightsBp: { RFQ: { PRICE: 7000, DELIVERY: 2000, QUALITY: 1000 }, RFP: { PRICE: 4000, TECHNICAL: 4000, SUPPORT: 2000 } },
+    })
+  })
+  it('a set key wins, the days of the other kinds and the weights of the other kind keep their defaults', () => {
+    const s = sourcingSettingsOf({ sourcing: { minOpenBusinessDays: { RFP: 7 }, sealedBids: false, defaultWeightsBp: { RFQ: { PRICE: 10000 } } } })
+    expect(s.minOpenBusinessDays).toEqual({ RFQ: 3, RFP: 7, RFI: 5 })
+    expect(s.sealedBids).toBe(false)
+    expect(s.defaultWeightsBp).toEqual({ RFQ: { PRICE: 10000 }, RFP: { PRICE: 4000, TECHNICAL: 4000, SUPPORT: 2000 } })
+  })
+  it('refuses weights that do not add up to 10000, weights without PRICE, an unknown key and a money amount that is not baht', () => {
+    const parse = (sourcing: unknown) => OrgSettingsSchema.shape.sourcing.safeParse(sourcing).success
+    expect(parse({ defaultWeightsBp: { RFQ: { PRICE: 7000, QUALITY: 2000 } } })).toBe(false)
+    expect(parse({ defaultWeightsBp: { RFP: { TECHNICAL: 10000 } } })).toBe(false)
+    expect(parse({ quoteThresholdGross: '100000.00' })).toBe(false)
+    expect(parse({ minInvitesThresholdGross: '100000' })).toBe(false)
+    expect(parse({ minInvitesThresholdGross: '250000.00', priceAnomalyBp: 1500, minEvaluators: 3 })).toBe(true)
+    // a malformed block reads as the defaults rather than failing the page that reads it
+    expect(sourcingSettingsOf({ sourcing: { minEvaluators: 0 } }).minEvaluators).toBe(2)
   })
 })

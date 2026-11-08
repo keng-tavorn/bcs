@@ -6992,6 +6992,7 @@
         "RETURN": "Returned for changes"
       },
       "document": {
+        "AWARD_DECISION": "Sourcing award",
         "BANK_ACCOUNT_CHANGE": "Bank account change",
         "BUDGET_OVERRUN": "Over-budget approval",
         "BUDGET_TRANSFER": "Budget transfer",
@@ -7034,6 +7035,7 @@
       "unknownHint": "Go back to the KPI page and press the value of the measure you want."
     },
     "kinds": {
+      "AWARD_DECISION": "sourcing awards",
       "BANK_ACCOUNT_CHANGE": "bank account changes",
       "BUDGET_OVERRUN": "over-budget approvals",
       "BUDGET_TRANSFER": "budget transfers",
@@ -9807,6 +9809,7 @@
     "home": "Back to home",
     "intro": "The reports the system offers: choose a period, see the result within your access, export it to Excel and have it e-mailed on a schedule.",
     "kinds": {
+      "AWARD_DECISION": "sourcing awards",
       "BANK_ACCOUNT_CHANGE": "bank account changes",
       "BUDGET_OVERRUN": "over-budget approvals",
       "BUDGET_TRANSFER": "budget transfers",

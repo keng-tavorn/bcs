@@ -248,6 +248,22 @@ describe('layer boundaries', () => {
   })
 })
 
+describe('[INV-RFX-04] the sourcing services never write a PO or its lines (S10 · ADR-206)', () => {
+  const RESTRICTED = 'no-restricted-syntax'
+  it('refuses tx.purchaseOrder / poLine / poLineSource writes in src/server/services/sourcing', async () => {
+    for (const write of ['tx.purchaseOrder.create({ data: {} })', 'tx.poLine.createMany({ data: [] })', 'tx.purchaseOrder.update({ where: { id: "x" }, data: {} })', 'tx.poLineSource.deleteMany({})']) {
+      const code = `export async function f(tx: any) {\n  await ${write}\n}\n`
+      expect(await ruleIds('src/server/services/sourcing/award.ts', code), write).toContain(RESTRICTED)
+    }
+  })
+  it('allows reading a PO in sourcing, and writing one in the pool (consolidateInTx is the way in)', async () => {
+    const read = 'export async function f(tx: any) {\n  return tx.purchaseOrder.findMany({ where: { awardDecisionId: "x" } })\n}\n'
+    expect(await ruleIds('src/server/services/sourcing/award.ts', read)).not.toContain(RESTRICTED)
+    const write = 'export async function f(tx: any) {\n  await tx.purchaseOrder.create({ data: {} })\n}\n'
+    expect(await ruleIds('src/server/services/purchase-orders/canary.ts', write)).not.toContain(RESTRICTED)
+  })
+})
+
 describe('[INV-AI-05] the AI adapter and agents stay out of money, approvals, LIFF and webhooks (P-3)', () => {
   const ADAPTER = "import { getAiClient } from '@/integrations/ai'\nexport const a = getAiClient\n"
   const AGENT = "import { readDocument } from '@/server/services/ai/agents/document'\nexport const a = readDocument\n"

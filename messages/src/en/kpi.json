@@ -97,7 +97,8 @@
     "PO_CHANGE": "PO changes",
     "PAYMENT_RUN": "payment runs",
     "BANK_ACCOUNT_CHANGE": "bank account changes",
-    "SUPPLIER_APPLICATION": "supplier applications"
+    "SUPPLIER_APPLICATION": "supplier applications",
+    "AWARD_DECISION": "sourcing awards"
   },
   "values": {
     "noneYet": "No data in this period",
@@ -139,6 +140,7 @@
       "PAYMENT_RUN": "Payment run",
       "BANK_ACCOUNT_CHANGE": "Bank account change",
       "SUPPLIER_APPLICATION": "Supplier application",
+      "AWARD_DECISION": "Sourcing award",
       "unknown": "Document not found"
     },
     "decision": {

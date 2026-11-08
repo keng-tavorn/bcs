@@ -6992,6 +6992,7 @@
         "RETURN": "ตีกลับให้แก้ไข"
       },
       "document": {
+        "AWARD_DECISION": "ผลการจัดหา",
         "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
         "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
         "BUDGET_TRANSFER": "การโอนงบ",
@@ -7034,6 +7035,7 @@
       "unknownHint": "กลับไปหน้า KPI แล้วกดค่าของตัวชี้วัดที่ต้องการ"
     },
     "kinds": {
+      "AWARD_DECISION": "ผลการจัดหา",
       "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
       "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
       "BUDGET_TRANSFER": "การโอนงบ",
@@ -9807,6 +9809,7 @@
     "home": "กลับหน้าแรก",
     "intro": "รายงานที่ระบบมีให้ เลือกช่วงวันที่ ดูผลตามสิทธิ์ของคุณ ส่งออกเป็น Excel และตั้งให้ส่งทางอีเมลตามรอบได้",
     "kinds": {
+      "AWARD_DECISION": "ผลการจัดหา",
       "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
       "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
       "BUDGET_TRANSFER": "การโอนงบ",

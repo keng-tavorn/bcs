@@ -194,6 +194,15 @@ describe('[FR-SRC-201/AC3] rfx.open: the close on the business calendar, the sco
     expect(notices.every((n) => (n.data as { number: string }).number === opened.number)).toBe(true)
   })
 
+  it('[BR-RFX-09] a price-only scorecard (PRICE 10000) needs no evaluator to open; one that scores quality by hand does (S10-07)', async () => {
+    const { rfxEventId } = await readyRfq()
+    ok(await setScorecard(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), criteria: [{ code: 'PRICE', nameTh: 'ราคา', weightBp: 10000, kind: 'PRICE' }], evaluatorMemberIds: [] }, key()))
+    expect(ok(await openRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), closesAt: '2026-11-05T02:00:00Z' }, key())).number).toMatch(/^RFX-/)
+    const other = await readyRfq()
+    ok(await setScorecard(proc(), { rfxEventId: other.rfxEventId, expectedVersion: await version(other.rfxEventId), criteria: CRITERIA, evaluatorMemberIds: [] }, key()))
+    expect(await openRfx(proc(), { rfxEventId: other.rfxEventId, expectedVersion: await version(other.rfxEventId), closesAt: '2026-11-05T02:00:00Z' }, key())).toMatchObject({ ok: false, error: { code: 'SCORECARD_INCOMPLETE', details: { evaluators: 0 } } })
+  })
+
   it('rfx-close sleeps until closesAt and closes then, not a moment before; invites that did not bid expire', async () => {
     const { rfxEventId } = await readyRfq()
     ok(await openRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), closesAt: '2026-11-05T02:00:00Z' }, key()))

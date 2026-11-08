@@ -671,7 +671,9 @@ export const openRfxCommand = defineCommand({
     if (rfx.kind !== 'RFI') {
       const card = rfx.scorecardId ? await tx.scorecard.findUnique({ where: { id: rfx.scorecardId }, select: { id: true, minEvaluators: true, criteria: { select: { code: true, weightBp: true, kind: true } }, evaluators: { where: { status: 'ASSIGNED' }, select: { memberId: true } } } }) : null
       const valid = card ? validateScorecard(card.criteria) : null
-      if (!card || !valid?.ok || card.evaluators.length < card.minEvaluators) {
+      // BR-RFX-09: a price-only scorecard (PRICE 10000, nothing to score by hand) needs no evaluator; it reveals at the close
+      const priceOnly = card !== null && card.criteria.every((c) => c.kind === 'PRICE')
+      if (!card || !valid?.ok || (!priceOnly && card.evaluators.length < card.minEvaluators)) {
         return fail('SCORECARD_INCOMPLETE', 'the scorecard needs its criteria and evaluators', { min: card?.minEvaluators ?? settings.minEvaluators, evaluators: card?.evaluators.length ?? 0, weights: valid?.ok ?? false })
       }
       // BR-SOD-14 again with the lines and people of now: lines added after the scorecard bring their requesters, and the

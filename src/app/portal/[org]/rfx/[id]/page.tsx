@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { redirect } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
+import { amountToSatang } from '@/core/money/dto'
+import { formatSatang } from '@/core/money/format'
 import { RFX_QUESTION_MAX } from '@/lib/constants'
 import { portalRfx } from '@/server/portal/queries-rfx'
 import { isUuid } from '@/server/queries/requests'
@@ -20,6 +22,7 @@ import { contactLocale, dateTimeOf, dayOf, remainingText, rfxErrorText, rfxKindO
 
 const OPEN_STATES = new Set(['NOT_SUBMITTED', 'DRAFT', 'SUBMITTED', 'RECONFIRM'])
 const linkClass = 'text-primary underline underline-offset-4'
+const baht = (amount: string) => formatSatang(amountToSatang(amount))
 
 export default async function PortalRfxPage({ params, searchParams }: { params: Promise<{ org: string; id: string }>; searchParams: SearchParams }) {
   const { org: orgCode, id } = await params
@@ -133,7 +136,7 @@ export default async function PortalRfxPage({ params, searchParams }: { params: 
           </h2>
           {rfx.bid.status === 'DRAFT' ? <p>{t('rfx.detail.bidDraft')}</p> : null}
           {rfx.bid.submittedAt && rfx.bid.status !== 'DRAFT' ? <p className="tabular">{t('rfx.detail.bidSent', { count: rfx.bid.submitCount, date: dateTimeOf(locale, rfx.bid.submittedAt) })}</p> : null}
-          {sent && !rfi ? <p className="tabular">{t('rfx.detail.bidAmounts', { net: rfx.bid.net, vat: rfx.bid.vat, gross: rfx.bid.gross })}</p> : null}
+          {sent && !rfi ? <p className="tabular">{t('rfx.detail.bidAmounts', { net: baht(rfx.bid.net), vat: baht(rfx.bid.vat), gross: baht(rfx.bid.gross) })}</p> : null}
           {sent && rfx.bid.validUntil ? <p className="tabular text-ink-muted">{t('rfx.detail.bidValidUntil', { date: dayOf(locale, rfx.bid.validUntil) })}</p> : null}
         </section>
       ) : null}

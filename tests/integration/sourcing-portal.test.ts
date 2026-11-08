@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { listPortalRfx, portalRfx, portalRfxLanding, portalRfxSummary } from '@/server/portal/queries-rfx'
+import { consumePortalLink } from '@/server/portal/commands'
+import { resolvePortalOrg } from '@/server/portal/org'
 import { portalCtx } from '@/server/portal/session'
 import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import {
@@ -199,8 +201,12 @@ describe('[FR-SRC-202/AC1] the contact\'s own state through the RFx\'s life, the
     const me = await party('มาจากลิงก์')
     const { rfxEventId } = await openRfq([me])
     expect(await portalRfxLanding(me.ctx())).toBe('')
-    const invite = await prisma.rfxInvite.findFirstOrThrow({ where: { rfxEventId, supplierId: me.supplier.id } })
-    await prisma.portalInviteLink.update({ where: { id: invite.linkId! }, data: { usedAt: MON } })
+    // the link of the invite's e-mail starts the six-digit code like every portal link (its event knows RFX_INVITE)
+    const url = ((await prisma.supplierNotice.findFirstOrThrow({ where: { organizationId: org.organizationId, subjectId: rfxEventId, templateKey: 'rfx.invited' } })).data as { url: string }).url
+    const portalOrg = (await resolvePortalOrg((await prisma.organization.findUniqueOrThrow({ where: { id: org.organizationId } })).code))!
+    const used = await consumePortalLink(portalOrg, { token: url.split('/link/')[1]! }, { ip: '10.9.9.9', userAgent: 'vitest', now: MON })
+    if (!used.ok) throw new Error(JSON.stringify(used.error))
+    expect(await prisma.event.count({ where: { organizationId: org.organizationId, type: 'portal_session.otp_requested', data: { path: ['purpose'], equals: 'RFX_INVITE' } } })).toBeGreaterThanOrEqual(1)
     expect(await portalRfxLanding(me.ctx())).toBe(`/rfx/${rfxEventId}`)
   })
 })

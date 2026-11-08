@@ -1027,6 +1027,8 @@ features:
     step: S10
     evidence:
       - tests/integration/sourcing-bids.test.ts
+      - tests/integration/sourcing-portal.test.ts
       - tests/unit/sourcing-boundary.test.ts
+      - tests/e2e/rfx-portal.spec.ts
     verifiedBy: null
-    notes: "S10-06 AC1 to AC4 and AC6: bids in the portal (save, submit, withdraw, decline, view), the sealed envelope until the close, a bid recorded on behalf, disqualify · the portal pages and the BID_DOC upload come in S10-07 · AC5 the comparison table in S10-09"
+    notes: "S10-06 AC1 to AC4 and AC6: bids in the portal (save, submit, withdraw, decline, view), the sealed envelope until the close, a bid recorded on behalf, disqualify · S10-07 the portal pages on a phone (list, detail, the bid form step by step, the result, the home's row) in the contact's language, the bid's files (BID_DOC through the allowlist and the scan) · AC5 the comparison table in S10-09"

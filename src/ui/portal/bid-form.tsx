@@ -370,12 +370,16 @@ export function BidForm(props: BidFormProps) {
       </div>
 
       <section aria-label={w.actions} className="sticky bottom-0 z-20 flex flex-col gap-2 border-t border-line bg-bg pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        {/* two keys: React swaps the element rather than turning the clicked "next" into a submit during the click,
+            which the browser would then send */}
         {current.kind === 'review' ? (
-          <Button type="submit" name="action" value="submit" disabled={blocked || fileBusy}>
+          <Button key="submit" type="submit" name="action" value="submit" disabled={blocked || fileBusy}>
             {props.sent ? w.submitAgain : w.submit}
           </Button>
         ) : (
-          <Button onClick={() => go(step + 1)}>{w.next}</Button>
+          <Button key="next" onClick={() => go(step + 1)}>
+            {w.next}
+          </Button>
         )}
         <div className="flex gap-2">
           {step > 0 ? (

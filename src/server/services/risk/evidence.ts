@@ -19,7 +19,7 @@ import { requestSupplierDocumentDownload, sniffSupplierFile, type SupplierFileMi
 import { contactMay } from './assessments'
 import { RISK_SUPPLIER_TEMPLATES } from './templates'
 
-// The files behind a risk answer (S11-05 · BR-RSK-18 · BR-AI-33 · FR-RSK-204 AC4): PDF, JPEG, PNG or WebP by their bytes,
+// The files behind a risk answer (S11-05 · BR-RSK-18 · BR-AI-34 · FR-RSK-204 AC4): PDF, JPEG, PNG or WebP by their bytes,
 // at most 20 MB and RISK_EVIDENCE_FILES_PER_QUESTION per answer, kept private and PENDING until S7's central scan
 // (job file-scan on file.uploaded) calls them CLEAN; an INFECTED one loses its link (the file kept for the audit) and the
 // supplier is told to send another (riskEvidenceScanned, job risk-evidence-scanned on file.scanned). The uploader says
@@ -74,7 +74,7 @@ const uploadCommand = defineCommand({
       data: { id: fileId, organizationId: ctx.organizationId, storageKey: input.file.storageKey, fileName: input.file.fileName, mimeType: input.file.mimeType, sizeBytes: input.file.sizeBytes, sha256: input.file.sha256, status: 'AVAILABLE', uploadedById: memberId, scanStatus: 'PENDING' },
     })
     await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId, subjectType: 'RiskAnswer', subjectId: answer.id, kind: 'RISK_EVIDENCE' } })
-    // BR-AI-33: the AI reads the files of an answer only when every one of them was ticked as it was sent — one file sent
+    // BR-AI-34: the AI reads the files of an answer only when every one of them was ticked as it was sent — one file sent
     // unticked keeps them all from the AI, and a later tick never opens a file sent before without one
     const aiReadable = input.aiReadable === true && (linked === 0 || answer.evidenceAiReadable)
     if (aiReadable !== answer.evidenceAiReadable) await tx.riskAnswer.update({ where: { id: answer.id }, data: { evidenceAiReadable: aiReadable } })

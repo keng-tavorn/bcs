@@ -266,7 +266,7 @@ describe('[FR-RSK-204/AC4] [BR-RSK-18] the files behind an answer', () => {
     expect(await prisma.supplierNotice.count({ where: { subjectId: a.assessmentId, templateKey: 'supplier.risk_evidence_rejected' } })).toBe(1)
   })
 
-  it('[BR-AI-33] the AI reads the files of an answer only while every one of them was ticked as it was sent', async () => {
+  it('[BR-AI-34] the AI reads the files of an answer only while every one of them was ticked as it was sent', async () => {
     const s = await supplierWithContact('RA-AI')
     const a = ok(await openRiskAssessment(as('proc_officer'), { supplierId: s.supplierId, screening: SCREEN }, key()))
     ok(await answerRiskAssessment(s.portal(), { assessmentId: a.assessmentId, expectedVersion: await version(a.assessmentId), answers: [{ questionCode: 'RQ-GEN-01', optionCode: 'Y' }] }, key()))

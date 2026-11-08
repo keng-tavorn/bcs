@@ -4,7 +4,7 @@
 # org-s6.yaml = org-p1 + แผนก LEG QSE + dm_leg dm_qse (fixture ที่ GC-WF ใช้อยู่) · fixtures/risk-reviewers.yaml = ข้อ scope
 # RISK_ASSESSMENT ของ WF-SIMEC ฉบับ 1 (RR-01 ถึง RR-04 · OQ-223) และข้อ REQUEST หนึ่งข้อที่ต้องไม่ถูกนับ
 # input: screening tier (แช่แข็งตอนส่ง) · inherentTier (ว่าง = เท่า tier) · categoryCodes · conflictMemberIds = ผู้กรอกแทน
-# (ผู้เปิดใบคือ openedBy ของ defaults · BR-SOD ข้อ 16) · vacate = ตำแหน่งที่ว่าง · delegations = การรักษาการ (from to
+# (ผู้เปิดใบคือ openedBy ของ defaults · BR-SOD-16) · vacate = ตำแหน่งที่ว่าง · delegations = การรักษาการ (from to
 # documentTypes? maxAmount?) · expect.review = slot เรียงตาม sortOrder: rules reviewers (ผู้ถืองานหลังรักษาการ) fallback?
 # principal? domains · review null = ไม่มีข้อที่ตรง ใบเสร็จทันที
 suite: risk-review

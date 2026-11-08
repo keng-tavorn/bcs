@@ -394,7 +394,7 @@ const AnswerItem = z.strictObject({
   note: z.string().trim().max(500).nullable().optional(),
   /** The person confirms the answer a certificate gave: it becomes theirs and keeps the document (BR-RSK-05) */
   confirmEvidence: z.boolean().optional(),
-  /** The uploader allows the AI to read the files of this answer (BR-AI-33) */
+  /** The uploader allows the AI to read the files of this answer (BR-AI-34) */
   evidenceAiReadable: z.boolean().optional(),
 })
 const AnswerInput = z.strictObject({

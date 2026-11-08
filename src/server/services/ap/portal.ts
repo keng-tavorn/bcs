@@ -2,12 +2,12 @@ import { z } from 'zod'
 import { err, ok, type Result } from '@/core/result'
 import { presignDownload } from '@/integrations/storage'
 import { supplierSettingsOf } from '@/lib/org-settings'
+import { MS_PER_DAY, MS_PER_HOUR } from '@/lib/constants'
 import { PORTAL_INVOICE_DRAFTS_PER_DAY, PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import type { Ctx } from '@/server/context'
 import { countPortalScopeHit } from '@/server/db/portal'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { NotificationDraft } from '@/server/notifications/create'
-import { portalAuthorize } from '@/server/portal/authz'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { invoiceFilePrefix } from '../invoices/etax'
 import { requireModule } from '../modules'
@@ -16,7 +16,7 @@ import { fail, INVOICEABLE_PO_STATUSES, type Fail } from './common'
 // The portal's channel of a tier-2 invoice (S7-12 · BR-SUP ข้อ 15 · FR-AP-101 AC7 · FR-AP-103 AC5 · FR-PAY-103 AC8 ·
 // ADR-188): S8's own commands invoice.store_file, invoice.create and invoice.update take a supplier contact as their
 // actor, checked here instead of FINANCE's guard — the contact of an ACTIVE supplier, on its own supplier, with SUPPLIER
-// and PAY on and supplier.portalInvoice true (portalAuthorize 'portal.invoice.submit'). A file from the portal is kept
+// and PAY on and supplier.portalInvoice true (the rule of portalAuthorize 'portal.invoice.submit', asked again here). A file from the portal is kept
 // under a key of its PO and its contact, PENDING until the central scan calls it clean (BR-PORTAL ข้อ 07); FINANCE opens
 // it only then (files/getDownloadUrl). The match never reads the channel. The supplier reads its 50 ทวิ here too.
 
@@ -54,8 +54,8 @@ export async function portalInvoiceContact(tx: TenantTx, ctx: Ctx): Promise<Port
   if (!supplierId) return refused
   const contact = await tx.supplierContact.findUnique({ where: { id: ctx.actor.supplierContactId }, select: { status: true, portalEnabled: true, supplierId: true, privacyNoticeVersion: true, supplier: { select: { status: true } } } })
   if (!contact || contact.status !== 'ACTIVE' || !contact.portalEnabled || contact.supplierId !== supplierId) return refused
-  const allowed = portalAuthorize(ctx, 'portal.invoice.submit', { supplierStatus: contact.supplier?.status ?? null, payModule: true, portalInvoice: true })
-  if (!allowed.ok) return refused
+  // portal.invoice.submit: the contact's supplier is ACTIVE (PAY and portalInvoice were checked above)
+  if (contact.supplier?.status !== 'ACTIVE') return refused
   if (contact.privacyNoticeVersion !== PORTAL_PRIVACY_NOTICE_VERSION) return fail('PRIVACY_NOTICE_OUTDATED', 'the current privacy notice is not accepted yet', { version: PORTAL_PRIVACY_NOTICE_VERSION })
   return { ok: true, contactId: ctx.actor.supplierContactId, supplierId }
 }
@@ -68,9 +68,9 @@ export async function ownInvoiceablePo(tx: TenantTx, supplierId: string, poId: s
 
 /** Counts one draft of the supplier today (Bangkok); true while within PORTAL_INVOICE_DRAFTS_PER_DAY (BR-PORTAL ข้อ 04) */
 export async function withinInvoiceDraftLimit(organizationId: string, supplierId: string, now: Date): Promise<boolean> {
-  const BANGKOK_MS = 7 * 3_600_000
-  const DAY_MS = 86_400_000
-  const windowStart = new Date(Math.floor((now.getTime() + BANGKOK_MS) / DAY_MS) * DAY_MS - BANGKOK_MS)
+  // the day of Asia/Bangkok (UTC+7 all year): midnight there is 17:00 UTC the day before
+  const offset = 7 * MS_PER_HOUR
+  const windowStart = new Date(Math.floor((now.getTime() + offset) / MS_PER_DAY) * MS_PER_DAY - offset)
   return (await countPortalScopeHit(organizationId, { kind: 'SUPPLIER', key: supplierId }, 'INVOICE', windowStart)) <= PORTAL_INVOICE_DRAFTS_PER_DAY
 }
 
@@ -103,8 +103,8 @@ const whtDownloadCommand = defineCommand({
     if (!supplierOn.ok) return { ok: false, error: supplierOn.error }
     if (!(await portalInvoicesOn(ctx, tx))) return fail('MODULE_DISABLED', 'payments are not shown on the portal', { module: 'PAY', setting: 'supplier.portalInvoice' })
     const contact = await tx.supplierContact.findUnique({ where: { id: ctx.actor.supplierContactId }, select: { status: true, portalEnabled: true, supplierId: true, supplier: { select: { status: true } } } })
-    const allowed = portalAuthorize(ctx, 'portal.invoice.view', { supplierStatus: contact?.supplier?.status ?? null, payModule: true, portalInvoice: true })
-    if (!contact || contact.status !== 'ACTIVE' || !contact.portalEnabled || contact.supplierId !== ctx.actor.supplierId || !allowed.ok) return fail('FORBIDDEN', 'a contact reads its own supplier’s certificates only', { action: 'portal.invoice.view' })
+    // portal.invoice.view: an ACTIVE contact of its own ACTIVE supplier (PAY and portalInvoice were checked above)
+    if (!contact || contact.status !== 'ACTIVE' || !contact.portalEnabled || contact.supplierId !== ctx.actor.supplierId || contact.supplier?.status !== 'ACTIVE') return fail('FORBIDDEN', 'a contact reads its own supplier’s certificates only', { action: 'portal.invoice.view' })
     // another supplier's certificate is not found, as one that does not exist (INV-SUP-01)
     const cert = await tx.whtCertificate.findFirst({ where: { id: input.certificateId, supplierId: ctx.actor.supplierId }, select: { fileId: true, file: { select: { storageKey: true, fileName: true, status: true } } } })
     if (!cert?.fileId || !cert.file || cert.file.status !== 'AVAILABLE') return fail('NOT_FOUND', 'certificate not found')

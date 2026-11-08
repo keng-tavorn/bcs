@@ -1,4 +1,5 @@
 import { bankOf } from '@/core/bankfile/banks'
+import { MS_PER_DAY } from '@/lib/constants'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { portalInvoicesOn } from '@/server/services/ap/portal'
@@ -246,7 +247,7 @@ export async function listPortalPayments(ctx: Ctx): Promise<PortalPaymentRow[]> 
 /** The home's line of each invoice rejected in the last 30 days, to send again (provider of PORTAL_HOME_PROVIDERS) */
 export async function listPortalRejectedInvoiceTodos(ctx: Ctx): Promise<Array<{ kind: string; page: string; values: Record<string, string> }>> {
   if (!(await invoicingSupplier(ctx))) return []
-  const since = new Date(ctx.now.getTime() - 30 * 86_400_000)
+  const since = new Date(ctx.now.getTime() - 30 * MS_PER_DAY)
   const rows = await forTenant(ctx.organizationId).invoice.findMany({ where: { AND: [portalWhere(ctx, 'invoice'), { status: 'REJECTED', rejectedAt: { gte: since } }] }, orderBy: [{ rejectedAt: 'desc' }, { id: 'desc' }], take: 20, select: { id: true, supplierInvoiceNo: true, number: true } })
   return rows.map((r) => {
     const no = r.supplierInvoiceNo ?? r.number ?? ''

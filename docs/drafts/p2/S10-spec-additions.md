@@ -190,3 +190,14 @@
 **§11.4 (แก้แถว G-6 ถึง G-9):** G-8 = ยอดประหยัดต่อผล = ฐาน (ใบเสนอราคาแบบข้อมูลที่เลือกตาม BR-FORM-06 → ราคาประมาณของบรรทัดคำขอ → ราคาอ้างอิง) − ยอดที่มอบก่อน VAT รวมรายไตรมาส ติดลบได้ · มัธยฐาน (ตัวกลางล่าง) ของวันทำการจาก `openedAt` ถึง `decidedAt` ของผลที่ APPROVED (BR-RFX ข้อ 15) · ส่วน G-6 G-7 G-9 คงตามของ S9 S7 S11
 
 **§4.11 (ตารางโมดูล · แถว `SOURCING` และกติกาข้อ 7 · ทำใน S10-01 · ADR-202):** คอลัมน์ "ประกอบด้วย" ตัด "e-Auction" ออกจากระยะ 2 (FR-SRC-301 อยู่ S15) หรือเพิ่มวงเล็บ "(e-Auction = S15)" · ไม่เปลี่ยน "ต้องมี SUPPLIER" · กติกาข้อ 7 "เปิดโมดูลที่มีชนิดเอกสาร DOA บังคับ (`PAY` → `INVOICE_EXCEPTION` `PAYMENT_RUN` `BANK_ACCOUNT_CHANGE` · `SUPPLIER` → `SUPPLIER_APPROVAL` …)" (ถ้อยคำหลัง S7-01) ต่อท้ายในวงเล็บด้วย " · `SOURCING` → `RFX_AWARD`" ให้ตรง BR-DOA-23 ที่แก้ข้างบนและ BR-RFX ข้อ 16 (S11 ต่อท้าย `RISK` → `RISK_OVERRIDE` ในวงเล็บเดียวกัน)
+
+## G. แถว RA-01 ถึง RA-03 ของชีต DOA (ร่างใน S10-02 · seed จริงใน S10-14)
+
+ค่าเดียวกับ fixture `tests/golden/fixtures/doa-versions-p2.yaml` (ข้อมูล demo ของ SIMEC · ลูกค้ายืนยันในเส้นชัย B · OQ-207) ในรูปคอลัมน์ของชีต `DOA` ที่ `scripts/validate_inputs.py` อ่าน · S10-14 เพิ่ม `RFX_AWARD` ในเซ็ต `DOCS` ของ `validate_inputs.py` (ชนิดมียอด จึงไม่อยู่ใน `NO_AMOUNT_DOCS`) และด่านว่าเปิด `SOURCING` แล้วชีตมีข้อ RA (BR-DOA-23 BR-DOA-24)
+
+| ruleCode | documentType | gt | lte | approverKind | approverPosition | approverMember | slaBusinessHours |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| RA-01 | RFX_AWARD | 0.00 | 500000.00 | POSITION_OF_ORG | PROC_MGR | | 16 |
+| RA-02 | RFX_AWARD | 500000.00 | 5000000.00 | POSITION_OF_ORG | COO | | 16 |
+| RA-03 | RFX_AWARD | 5000000.00 | | POSITION_OF_ORG | CEO | | 24 |
+

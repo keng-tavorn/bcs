@@ -155,7 +155,8 @@ describe('[BR-DOA-26] the phase-2 type SUPPLIER_APPROVAL (S7-02 · ADR-182)', ()
 
 describe('[BR-DOA-27] the phase-2 type RFX_AWARD (S10-02 · ADR-202)', () => {
   it('has an amount with VAT, is no policy change, routes AWARD_DECISION, SOURCING requires it, and it follows SUPPLIER_APPROVAL', () => {
-    expect(DOA_DOCUMENT_TYPES.slice(DOA_DOCUMENT_TYPES.indexOf('SUPPLIER_APPROVAL'))).toEqual(['SUPPLIER_APPROVAL', 'RFX_AWARD'])
+    // right after S7's type; S11's RISK_OVERRIDE follows it (ADR-069 appends, so no test pins the end of the list)
+    expect(DOA_DOCUMENT_TYPES.indexOf('RFX_AWARD')).toBe(DOA_DOCUMENT_TYPES.indexOf('SUPPLIER_APPROVAL') + 1)
     expect(DOC_TYPE_TRAITS.RFX_AWARD).toEqual({ amount: 'REQUIRED', vat: true, governance: false, requiredWithModules: ['SOURCING'], subjects: ['AWARD_DECISION'] })
     expect(requiredDocumentTypes(['SUPPLIER', 'SOURCING'])).toEqual(['DOA_CHANGE', 'ORG_AUTHORITY_CHANGE', 'BANK_ACCOUNT_CHANGE', 'SUPPLIER_APPROVAL', 'RFX_AWARD'])
     expect(requiredDocumentTypes(['PAY', 'SUPPLIER'])).not.toContain('RFX_AWARD')

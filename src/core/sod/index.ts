@@ -181,7 +181,8 @@ export function checkSod(action: SodAction, policy: SodPolicy): SodResult {
       }
       if (action.subject === 'BANK_ACCOUNT_CHANGE') return own ? violation('BR-SOD-05') : allowed
       // S10: the submitter of an award never approves it (BR-SOD-01), nor who created the RFx, scored its bids,
-      // requested its lines or recorded a bid on a supplier's behalf (BR-SOD-13) — the list of awardDecisionSodExtra
+      // requested its lines or recorded a bid on a supplier's behalf (BR-SOD-13) — the one list of awardDecisionSodExtra,
+      // which the adapter of S10-10 hands to decide.ts as `extra`, so golden and runtime refuse the same people
       if (action.subject === 'AWARD_DECISION') {
         if (own) return violation('BR-SOD-01')
         const [extra] = awardDecisionSodExtra({

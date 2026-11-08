@@ -2467,6 +2467,41 @@ def run_supplier_documents(d):
     for c in d["cases"]:
         got = fns[c["fn"]](c["input"]); out.append((c["id"], got == c["expect"], got))
     return out
+RISK_DOMAINS = ["GENERAL", "PRIVACY", "INFOSEC", "PREMISES", "FINANCE"]
+def run_risk_review(d):
+    # BR-RSK-07 (§7.24 · S11-06): the RISK_ASSESSMENT rules of the workflow version in effect whose condition holds on the
+    # screening answers, $tier $inherentTier $category $payeeType; each its own slot of quorum ALL in sortOrder; the reviewer
+    # by BR-WF-08 (wf_one), the opener and who filled in for the supplier conflicted (BR-SOD-16); a delegation counts only
+    # when it limits neither document types nor amount (BR-DLG-01), and a delegate who conflicts leaves it with the delegator
+    global HOLD
+    use_fixtures(d["fixtures"]); base, out = dict(HOLD), []
+    wfs = [golden["tests/golden/" + f][0] for f in d["fixtures"] if "risk-reviewers" in f]
+    for c in d["cases"]:
+        i = {**d["defaults"], **c["input"]}; at = dt(i["at"]); vac = set(i.get("vacate", []))
+        vs = sorted([v for w in wfs for v in w["versions"] if dt(v["effectiveFrom"]) <= at], key=lambda v: dt(v["effectiveFrom"]))
+        cats = i.get("categoryCodes", [])
+        facts = {"fields": {**i["screening"], "$tier": i["tier"], "$inherentTier": i.get("inherentTier", i["tier"]), "$payeeType": i.get("payeeType")}, "category": cats, "lineCategories": cats}
+        rules = [r for r in (vs[-1]["rules"] if vs else []) if r.get("scope") == "RISK_ASSESSMENT" and wf_holds(r["when"], facts)]
+        conf = {i["openedBy"], *i.get("conflictMemberIds", [])}
+        acting = {x["from"]: x["to"] for x in i.get("delegations", []) if not x.get("documentTypes") and x.get("maxAmount") is None}
+        slots, got = [], None
+        for r in rules:
+            who, fb = wf_one(r, r["reviewers"][0], conf, vac)
+            if who is None: got = {"error": "REVIEWER_NOT_FOUND", "rule": r["code"]}; break
+            held = acting.get(who, who)
+            if held in conf: held = who
+            into = next((s for s in slots if s["reviewers"] == [held]), None)
+            if into:
+                into["rules"].append(r["code"]); into["domains"] = [x for x in RISK_DOMAINS if x in into["domains"] + r["riskDomains"]]; continue
+            s = {"rules": [r["code"]], "reviewers": [held]}
+            if fb: s["fallback"] = fb
+            if held != who: s["principal"] = who
+            s["domains"] = [x for x in RISK_DOMAINS if x in r["riskDomains"]]
+            slots.append(s)
+        if got is None: got = {"review": {"quorum": "ALL", "slots": slots} if slots else None}
+        out.append((c["id"], got == c["expect"], got))
+    HOLD = base; use_fixtures()
+    return out
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
     "ai-credits": run_ai_credits,
@@ -2510,6 +2545,7 @@ RUNNERS = {
     "quotations": run_quotes,
     "receiving": run_gr,
     "retention": run_retention,
+    "risk-review": run_risk_review,
     "risk-tier": run_risk_tier,
     "savings": run_savings,
     "sla": run_sla,

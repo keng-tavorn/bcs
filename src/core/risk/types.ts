@@ -13,6 +13,9 @@ export const SCREENING_FIELDS = ['processesPersonalData', 'accessesSystems', 'ac
 export type ScreeningField = (typeof SCREENING_FIELDS)[number]
 export type Screening = Readonly<Record<ScreeningField, 'Y' | 'N'>>
 
+/** What a reviewer rule of RISK_ASSESSMENT scope may name besides the screening answers (BR-RSK-07 · WF_LINT_RISK_FIELD) */
+export const RISK_REVIEW_VARIABLES = ['$tier', '$inherentTier', '$category', '$payeeType'] as const
+
 /** The values of a RiskTier row in effect (pending values never reach the engine · BR-RSK-02) */
 export interface RiskTierDef {
   readonly code: RiskTierCode

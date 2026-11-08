@@ -32,6 +32,13 @@ export interface WorkflowRuleSnapshot {
   readonly quorumCount: number | null
   readonly slaBusinessMinutes: number
   readonly sortOrder: number
+  /**
+   * S11 (ADR-222 · BR-RSK-07): a rule of RISK_ASSESSMENT scope picks the reviewers of a supplier risk assessment, never
+   * of a request; absent = REQUEST. It names no request type, so the engine never matches it for a request.
+   */
+  readonly scope?: 'REQUEST' | 'RISK_ASSESSMENT'
+  /** RISK_ASSESSMENT scope: the parts of the assessment its reviewer sees (BR-RSK-08) */
+  readonly riskDomains?: readonly string[]
 }
 
 export interface WorkflowVersionSnapshot {

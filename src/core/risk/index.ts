@@ -17,9 +17,20 @@ export {
 export { evidenceSource, normalizeScope, riskStatusAt, type CurrentAnswer, type EvidenceDocument, type EvidenceInput, type EvidenceReason, type EvidenceResult, type RiskDateStatus } from './evidence'
 export { addCalendarDays, addCalendarMonths, reviewDates, type ReviewDates } from './review'
 export { assessmentCompleteness, scoreAssessment, tierByPoints, type AnswerSource, type Completeness, type Score } from './score'
+export {
+  delegationCoversReview,
+  RISK_REVIEW_REQUEST_TYPE,
+  riskReviewers,
+  riskReviewOutcome,
+  type ReviewDecision,
+  type RiskReviewInput,
+  type RiskReviewSlot,
+  type RiskReviewStep,
+} from './reviewers'
 export { inherentTier, maxTier, questionsInSet, riskConditionHolds, selectQuestions, type QuestionSet } from './select'
 export {
   RISK_DOMAINS,
+  RISK_REVIEW_VARIABLES,
   RISK_TIER_CODES,
   SCREENING_FIELDS,
   type RiskCondition,

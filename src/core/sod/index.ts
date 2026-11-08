@@ -35,6 +35,8 @@ export const APPROVAL_SUBJECTS = [
   'BANK_ACCOUNT_CHANGE',
   // S7 (BR-DOA-26 · ADR-182): a supplier application, approved through SUPPLIER_APPROVAL
   'SUPPLIER_APPLICATION',
+  // S10 (BR-DOA-27 · ADR-202): the award of an RFx, approved through RFX_AWARD
+  'AWARD_DECISION',
 ] as const
 export type ApprovalSubject = (typeof APPROVAL_SUBJECTS)[number]
 export type OrgAuthorityChangeKind = 'POSITION_ASSIGN' | 'POSITION_END' | 'DEPARTMENT_REPARENT' | 'DELEGATION_ON_BEHALF' | 'IDENTITY_RESET'
@@ -52,6 +54,11 @@ export type SodAction =
       readonly invoiceRecorderMemberIds?: readonly string[]
       /** BR-SOD-10 (S9): the bank account changes in force of the run's accounts, and the window before its pay date */
       readonly recentBankChanges?: RecentBankChanges
+      /** BR-SOD-13 (S10): the people of an award besides its submitter (AwardDecisionPeople), for AWARD_DECISION */
+      readonly rfxCreatorMemberIds?: readonly string[]
+      readonly evaluatorMemberIds?: readonly string[]
+      readonly sourceRequesterMemberIds?: readonly string[]
+      readonly recordedOnBehalfMemberIds?: readonly string[]
     }
   | {
       readonly kind: 'POST_GR'
@@ -173,6 +180,18 @@ export function checkSod(action: SodAction, policy: SodPolicy): SodResult {
         return changedRecently(action.actorMemberId, action.recentBankChanges) ? violation('BR-SOD-10') : allowed
       }
       if (action.subject === 'BANK_ACCOUNT_CHANGE') return own ? violation('BR-SOD-05') : allowed
+      // S10: the submitter of an award never approves it (BR-SOD-01), nor who created the RFx, scored its bids,
+      // requested its lines or recorded a bid on a supplier's behalf (BR-SOD-13) — the list of awardDecisionSodExtra
+      if (action.subject === 'AWARD_DECISION') {
+        if (own) return violation('BR-SOD-01')
+        const [extra] = awardDecisionSodExtra({
+          rfxCreatorMemberIds: action.rfxCreatorMemberIds ?? [],
+          evaluatorMemberIds: action.evaluatorMemberIds ?? [],
+          sourceRequesterMemberIds: action.sourceRequesterMemberIds ?? [],
+          recordedOnBehalfMemberIds: action.recordedOnBehalfMemberIds ?? [],
+        })
+        return extra!.memberIds.includes(action.actorMemberId) ? violation('BR-SOD-13') : allowed
+      }
       if (own) return violation('BR-SOD-01')
       if (action.subject === 'PURCHASE_ORDER' && action.poCreatorMemberId === action.actorMemberId) return violation('BR-SOD-03')
       return allowed

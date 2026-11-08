@@ -29,6 +29,7 @@
     "signIn": "เข้าสู่ระบบอีกครั้ง แล้วเปิดลิงก์จากอีเมลใหม่",
     "sod": "คุณตัดสินงานนี้ไม่ได้ตามกติกาแบ่งแยกหน้าที่ โปรดเปิดงานในระบบ",
     "subject": {
+      "AWARD_DECISION": "ผลการจัดหา",
       "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
       "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
       "BUDGET_TRANSFER": "การโอนงบ",
@@ -667,6 +668,7 @@
       "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
       "PURCHASE_ORDER": "ใบสั่งซื้อ (PO)",
       "PURCHASE_REQUEST": "คำขอซื้อ (PR)",
+      "RFX_AWARD": "การอนุมัติผลการจัดหา",
       "SUPPLIER_APPROVAL": "การอนุมัติผู้ขายใหม่"
     },
     "download": "ดาวน์โหลดไฟล์ YAML ของ {name}",
@@ -966,6 +968,7 @@
         "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
         "PURCHASE_ORDER": "ใบสั่งซื้อ (PO)",
         "PURCHASE_REQUEST": "คำขอซื้อ (PR)",
+        "RFX_AWARD": "การอนุมัติผลการจัดหา",
         "SUPPLIER_APPROVAL": "การอนุมัติผู้ขายใหม่"
       },
       "effectiveApplied": "มีผลแล้วเมื่อ {time}",
@@ -3100,6 +3103,7 @@
       "RETURN": "ตีกลับให้แก้ไข"
     },
     "document": {
+      "AWARD_DECISION": "ผลการจัดหา",
       "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
       "BUDGET_LINE": "บรรทัดงบ {label}",
       "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
@@ -3852,6 +3856,7 @@
     },
     "stillPending": "ยังคำนวณไม่เสร็จ กด \"ดูผลอีกครั้ง\" ในอีกสักครู่",
     "subjectType": {
+      "AWARD_DECISION": "ผลการจัดหา",
       "BANK_ACCOUNT_CHANGE": "เปลี่ยนบัญชีธนาคารผู้ขาย",
       "BUDGET_OVERRUN": "ขออนุมัติเกินงบ",
       "BUDGET_TRANSFER": "โอนงบ",
@@ -4314,6 +4319,7 @@
       "OWN": "แสดงงานของคุณและเอกสารที่คุณขอ"
     },
     "subject": {
+      "AWARD_DECISION": "ผลการจัดหา",
       "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
       "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
       "BUDGET_TRANSFER": "การโอนงบ",
@@ -5282,6 +5288,7 @@
       "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
       "PURCHASE_ORDER": "ใบสั่งซื้อ (PO)",
       "PURCHASE_REQUEST": "ใบขอซื้อ (PR)",
+      "RFX_AWARD": "การอนุมัติผลการจัดหา",
       "SUPPLIER_APPROVAL": "การอนุมัติผู้ขายใหม่"
     },
     "errors": {
@@ -6608,6 +6615,7 @@
       "info": "รอผู้ขอตอบ ({count})",
       "infoBadge": "รอผู้ขอตอบ",
       "kind": {
+        "AWARD_DECISION": "ผลการจัดหา",
         "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
         "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
         "BUDGET_TRANSFER": "การโอนงบ",
@@ -6843,6 +6851,7 @@
       "capped": "แสดง {shown} รายการแรกจาก {total}",
       "channelOf": "การตัดสินทาง{channel}",
       "document": {
+        "AWARD_DECISION": "ผลการจัดหา",
         "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
         "BUDGET_LINE": "บรรทัดงบ {label}",
         "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
@@ -10722,6 +10731,7 @@
           "NET": "ก่อน VAT"
         },
         "document": {
+          "AWARD_DECISION": "ผลการจัดหา",
           "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
           "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
           "BUDGET_TRANSFER": "การโอนงบ",
@@ -11757,6 +11767,7 @@
         "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
         "PURCHASE_ORDER": "ใบสั่งซื้อ (PO)",
         "PURCHASE_REQUEST": "คำขอซื้อ (PR)",
+        "RFX_AWARD": "การอนุมัติผลการจัดหา",
         "SUPPLIER_APPROVAL": "การอนุมัติผู้ขายใหม่"
       },
       "doaEffective": "มีผลตั้งแต่",

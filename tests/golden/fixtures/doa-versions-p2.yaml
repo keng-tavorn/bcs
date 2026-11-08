@@ -35,3 +35,7 @@ versions:
       - { code: BA-01, documentType: BANK_ACCOUNT_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 8 }
       # S7 (BR-DOA-26 · ADR-182): no amount band
       - { code: SA-01, documentType: SUPPLIER_APPROVAL, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: PROC_MGR }, slaBusinessHours: 16 }
+      # S10 (BR-DOA-27 · ADR-202): the amount awarded with VAT on the GROSS basis · SIMEC demo bands the customer confirms (OQ-207)
+      - { code: RA-01, documentType: RFX_AWARD, priority: 100, when: { amount: { gt: "0.00", lte: "500000.00" } }, approver: { kind: POSITION_OF_ORG, position: PROC_MGR }, slaBusinessHours: 16 }
+      - { code: RA-02, documentType: RFX_AWARD, priority: 100, when: { amount: { gt: "500000.00", lte: "5000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 16 }
+      - { code: RA-03, documentType: RFX_AWARD, priority: 100, when: { amount: { gt: "5000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 24 }

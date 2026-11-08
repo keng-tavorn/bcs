@@ -208,3 +208,21 @@ describe('[FR-PLT-001/AC2] the sourcing settings of S10: every key optional, mis
     expect(sourcingSettingsOf({ sourcing: { minEvaluators: 0 } }).minEvaluators).toBe(2)
   })
 })
+
+describe('[BR-SOD-13] who may not approve an award, at decide time (checkSod DECIDE_APPROVAL of AWARD_DECISION)', () => {
+  const policy = { approverMayReceive: false, requesterMayReceive: true }
+  const people = { rfxCreatorMemberIds: ['creator'], evaluatorMemberIds: ['eval', 'recused'], sourceRequesterMemberIds: ['req'], recordedOnBehalfMemberIds: ['recorder'] }
+  const decide = (actorMemberId: string, keys: Partial<typeof people> = people) => checkSod({ kind: 'DECIDE_APPROVAL', subject: 'AWARD_DECISION', actorMemberId, requesterMemberIds: ['submitter'], ...keys }, policy)
+  it('the submitter → BR-SOD-01 first, even when also in the lists', () => {
+    expect(decide('submitter')).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-01' })
+    expect(decide('submitter', { ...people, evaluatorMemberIds: ['submitter'] })).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-01' })
+  })
+  it('the creator, an evaluator (recused too), a requester of a source line or the on-behalf recorder → BR-SOD-13', () => {
+    for (const who of ['creator', 'eval', 'recused', 'req', 'recorder']) expect(decide(who), who).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-13' })
+  })
+  it('anyone else may approve; without the lists only the submitter is refused', () => {
+    expect(decide('manager')).toEqual({ ok: true })
+    expect(decide('creator', {})).toEqual({ ok: true })
+  })
+})
+

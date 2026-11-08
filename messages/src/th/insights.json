@@ -172,6 +172,7 @@
       "PAYMENT_RUN": "รอบจ่ายเงิน",
       "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
       "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
+      "AWARD_DECISION": "ผลการจัดหา",
       "BUDGET_LINE": "บรรทัดงบ {label}",
       "SUPPLIER": "ผู้ขาย {label}",
       "unknown": "เอกสารที่ไม่พบ"

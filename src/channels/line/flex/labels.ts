@@ -23,6 +23,8 @@ export const SUBJECT_KIND: Readonly<Record<string, Text>> = {
   ...PAY_SUBJECT_KINDS,
   // S7 (BR-NOTI ข้อ 10: the kind only; a sole proprietor's name never reaches the card)
   SUPPLIER_APPLICATION: { th: 'ใบสมัครผู้ขาย', en: 'Supplier application' },
+  // S10 (BR-DOA-27: the card shows the amount awarded, how many suppliers and the winner, never a unit price · BR-NOTI-01)
+  AWARD_DECISION: { th: 'ผลการจัดหา', en: 'Sourcing award' },
 }
 const DOCUMENT: Text = { th: 'เอกสาร', en: 'Document' }
 

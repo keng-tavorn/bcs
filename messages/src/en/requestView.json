@@ -181,7 +181,8 @@
         "PO_CHANGE": "PO change",
         "PAYMENT_RUN": "payment run",
         "BANK_ACCOUNT_CHANGE": "bank account change",
-        "SUPPLIER_APPLICATION": "supplier application"
+        "SUPPLIER_APPLICATION": "supplier application",
+        "AWARD_DECISION": "sourcing award"
       },
       "basis": {
         "GROSS": "incl. VAT",

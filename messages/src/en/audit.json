@@ -33,6 +33,7 @@
     "PAYMENT_RUN": "Payment run",
     "BANK_ACCOUNT_CHANGE": "Bank account change",
     "SUPPLIER_APPLICATION": "Supplier application",
+    "AWARD_DECISION": "Sourcing award",
     "BUDGET_LINE": "Budget line {label}",
     "MEMBER": "Member {label}",
     "SUPPLIER": "Supplier {label}"

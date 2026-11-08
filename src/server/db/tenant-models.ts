@@ -127,6 +127,16 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'SupplierDocument',
   'PoAcknowledgement',
   'PortalRateLimit',
+  // S11-01
+  'RiskTier',
+  'RiskPolicy',
+  'RiskQuestionnaire',
+  'RiskQuestion',
+  'RiskAssessment',
+  'RiskAnswer',
+  'ReviewTask',
+  'RiskOverride',
+  'RiskReview',
 ])
 
 // Have an organizationId column but are platform tables reached only through platform code (spec §4.8).

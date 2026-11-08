@@ -182,6 +182,15 @@ model Organization {
   // --- S10 ---
 
   // --- S11 ---
+  riskTiers          RiskTier[]
+  riskPolicies       RiskPolicy[]
+  riskQuestionnaires RiskQuestionnaire[]
+  riskQuestions      RiskQuestion[]
+  riskAssessments    RiskAssessment[]
+  riskAnswers        RiskAnswer[]
+  reviewTasks        ReviewTask[]
+  riskOverrides      RiskOverride[]
+  riskReviews        RiskReview[]
 }
 
 enum ModuleKey {
@@ -346,6 +355,21 @@ model Member {
   // --- S10 ---
 
   // --- S11 ---
+  riskTiersUpdated            RiskTier[]          @relation("RiskTierUpdatedBy")
+  riskTiersConfirmed          RiskTier[]          @relation("RiskTierConfirmedBy")
+  riskTiersPending            RiskTier[]          @relation("RiskTierPendingBy")
+  riskPoliciesUpdated         RiskPolicy[]        @relation("RiskPolicyUpdatedBy")
+  riskPoliciesConfirmed       RiskPolicy[]        @relation("RiskPolicyConfirmedBy")
+  riskPoliciesPending         RiskPolicy[]        @relation("RiskPolicyPendingBy")
+  riskQuestionnairesSubmitted RiskQuestionnaire[] @relation("RiskQuestionnaireSubmittedBy")
+  riskQuestionnairesPublished RiskQuestionnaire[] @relation("RiskQuestionnairePublishedBy")
+  riskAssessmentsOpened       RiskAssessment[]    @relation("RiskAssessmentOpenedBy")
+  riskAssessmentsFilled       RiskAssessment[]    @relation("RiskAssessmentFilledOnBehalfBy")
+  riskAnswersGiven            RiskAnswer[]        @relation("RiskAnswerAnsweredByMember")
+  reviewTasksAssigned         ReviewTask[]        @relation("ReviewTaskAssignee")
+  reviewTasksDelegated        ReviewTask[]        @relation("ReviewTaskDelegator")
+  reviewTasksDecided          ReviewTask[]        @relation("ReviewTaskDecidedBy")
+  riskOverridesRequested      RiskOverride[]      @relation("RiskOverrideRequestedBy")
 
   @@unique([organizationId, id])
   @@unique([organizationId, userId])
@@ -623,6 +647,8 @@ enum FileLinkKind {
   BANK_PROOF
   /// S7: a SupplierDocument file and evidence the supplier uploads
   SUPPLIER_DOC
+  /// S11: a file behind a risk answer (BR-RSK-18)
+  RISK_EVIDENCE
 }
 
 model FileLink {
@@ -1188,6 +1214,7 @@ model Request {
   // --- S10 ---
 
   // --- S11 ---
+  riskAssessmentsTriggered RiskAssessment[] @relation("RiskAssessmentTriggerRequest")
 
   @@unique([organizationId, id])
   @@unique([organizationId, number])
@@ -1378,6 +1405,8 @@ enum DoaDocumentType {
   BANK_ACCOUNT_CHANGE
   /// S7: approving a new supplier (BR-DOA-26 · ADR-182)
   SUPPLIER_APPROVAL
+  /// S11: approval to issue POs to a supplier without a current risk assessment (BR-DOA-28 · ADR-226)
+  RISK_OVERRIDE
 }
 
 /// A published version never changes; the next one is a new row. versionNo is the edition (ฉบับ); `version` is the
@@ -1515,6 +1544,10 @@ model WorkflowVersion {
   testCases             WorkflowTestCase[]
   routes                ApprovalRoute[]
 
+  // --- S11 ---
+  riskAssessments RiskAssessment[] @relation("RiskAssessmentWorkflowVersion")
+  reviewTasks     ReviewTask[]     @relation("ReviewTaskWorkflowVersion")
+
   @@unique([organizationId, id])
   @@unique([organizationId, code, versionNo])
 }
@@ -1541,6 +1574,12 @@ model WorkflowRule {
 
   organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   workflowVersion WorkflowVersion @relation(fields: [organizationId, workflowVersionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  // --- S11 ---
+  /// A rule of RISK_ASSESSMENT scope picks reviewers of a risk assessment (ADR-222 · BR-RSK-07)
+  scope       WorkflowRuleScope @default(REQUEST)
+  /// The parts its reviewers see (BR-RSK-08); empty for a REQUEST rule
+  riskDomains String[]          @default([])
 
   @@unique([organizationId, id])
   @@unique([organizationId, workflowVersionId, code])
@@ -1577,6 +1616,7 @@ enum ApprovalSubjectType {
   PAYMENT_RUN
   BANK_ACCOUNT_CHANGE
   SUPPLIER_APPLICATION
+  RISK_OVERRIDE
 }
 
 enum ApprovalRouteStatus {
@@ -1634,6 +1674,7 @@ model ApprovalRoute {
   // --- S10 ---
 
   // --- S11 ---
+  riskOverrides RiskOverride[] @relation("RiskOverrideCurrentRoute")
 
   @@unique([organizationId, id])
   @@unique([organizationId, subjectType, subjectId, routeNo])
@@ -2289,6 +2330,16 @@ model Supplier {
   // --- S10 ---
 
   // --- S11 ---
+  /// Projection of the latest COMPLETED assessment and the open reviews (BR-RSK-14)
+  riskTier                RiskTierCode?
+  riskStatus              RiskStatus       @default(NOT_ASSESSED)
+  riskAssessedAt          DateTime?        @db.Timestamptz(6)
+  riskValidUntil          DateTime?        @db.Date
+  currentRiskAssessmentId String?          @db.Uuid
+  currentRiskAssessment   RiskAssessment?  @relation("SupplierCurrentRiskAssessment", fields: [organizationId, currentRiskAssessmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  riskAssessments         RiskAssessment[] @relation("RiskAssessmentSupplier")
+  riskOverrides           RiskOverride[]   @relation("RiskOverrideSupplier")
+  riskReviews             RiskReview[]     @relation("RiskReviewSupplier")
 
   @@unique([organizationId, id])
   @@unique([organizationId, code])
@@ -2532,6 +2583,12 @@ model PurchaseOrder {
   // --- S10 ---
 
   // --- S11 ---
+  /// The risk gate it passed: { tier, source, trigger, assessmentId?, overrideId?, at, warnings[] } (BR-RSK-09 · INV-RSK-01)
+  riskGate                 Json?
+  riskOverrideId           String?          @db.Uuid
+  riskOverride             RiskOverride?    @relation("PurchaseOrderRiskOverride", fields: [organizationId, riskOverrideId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  riskAssessmentsTriggered RiskAssessment[] @relation("RiskAssessmentTriggerPo")
+  riskOverridesAsked       RiskOverride[]   @relation("RiskOverridePo")
 
   @@unique([organizationId, id])
   @@unique([organizationId, number])
@@ -3282,6 +3339,8 @@ enum AiAgent {
   DOA_DRAFTER
   /// S7: Supplier Onboarding Agent (FR-AI-304 · ADR-189)
   SUPPLIER_ONBOARDING
+  /// S11: Risk Agent (FR-AI-306 · ADR-228)
+  RISK
 }
 
 enum AiPurpose {
@@ -3296,6 +3355,9 @@ enum AiPurpose {
   SAVINGS_NOTE
   /// S7: reading a supplier document (BR-AI-29)
   SUPPLIER_DOC_READ
+  /// S11: a draft answer from evidence, and a summary of a supplier's risk file (BR-AI-32 · BR-AI-33)
+  RISK_ANSWER_DRAFT
+  RISK_FILE_SUMMARY
 }
 
 /// Phase 1 opens L0 (suggests) and L1 (drafts for a person to confirm) only (§12.3, ADR-004)
@@ -3407,6 +3469,9 @@ model AgentAction {
   requestedByContact   SupplierContact?   @relation("AgentActionRequestedByContact", fields: [organizationId, requestedByContactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   appliedByContact     SupplierContact?   @relation("AgentActionAppliedByContact", fields: [organizationId, appliedByContactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   supplierDocuments    SupplierDocument[]
+
+  // --- S11 ---
+  riskAnswers RiskAnswer[] @relation("RiskAnswerAgentAction")
 
   @@unique([organizationId, id])
   @@unique([organizationId, idempotencyKey])
@@ -4559,6 +4624,8 @@ enum PortalInviteLinkPurpose {
   INVITATION
   LOGIN
   DOCUMENT_REQUEST
+  /// S11: answer the risk questionnaire (inviteLinkDays)
+  RISK_QUESTIONNAIRE
 }
 
 enum PortalOtpChannel {
@@ -4671,6 +4738,10 @@ model SupplierContact {
   agentActionsRequested AgentAction[]         @relation("AgentActionRequestedByContact")
   agentActionsApplied   AgentAction[]         @relation("AgentActionAppliedByContact")
   supplierNotices       SupplierNotice[]
+
+  // --- S11 ---
+  riskAssessmentsSubmitted RiskAssessment[] @relation("RiskAssessmentSubmittedByContact")
+  riskAnswersGiven         RiskAnswer[]     @relation("RiskAnswerAnsweredByContact")
 
   @@unique([organizationId, id])
   /// One active contact per email in an organization, one active primary contact per supplier
@@ -4917,6 +4988,9 @@ model SupplierDocument {
   supersedes        SupplierDocument[]   @relation("SupplierDocumentSupersededBy")
   agentAction       AgentAction?         @relation(fields: [organizationId, agentActionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
+  // --- S11 ---
+  riskAnswers RiskAnswer[] @relation("RiskAnswerEvidenceDocument")
+
   @@unique([organizationId, id])
   /// One VERIFIED document per owner, type and scope (BR-SDOC-03 · ADR-185)
   @@unique([organizationId, supplierId, documentTypeCode, scopeKey], map: "supplier_document_one_verified", where: raw("((status = 'VERIFIED'::\"SupplierDocumentStatus\") AND (\"supplierId\" IS NOT NULL))"))
@@ -4974,4 +5048,467 @@ model PortalIpRateLimit {
   count       Int                   @default(0)
 
   @@unique([scopeKey, bucket, windowStart])
+}
+
+// ===== S11 · supplier risk (docs/sub-specs/S11.md "Entity และ migration" · ADR-221 to ADR-229) =====
+
+enum RiskTierCode {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// The part of the questionnaire a reviewer sees (BR-RSK-08)
+enum RiskDomain {
+  GENERAL
+  PRIVACY
+  INFOSEC
+  PREMISES
+  FINANCE
+}
+
+/// Supplier.riskStatus, a projection (BR-RSK-14)
+enum RiskStatus {
+  NOT_ASSESSED
+  IN_PROGRESS
+  CURRENT
+  EXPIRING
+  OVERDUE
+  REASSESS_REQUIRED
+}
+
+/// A workflow rule picks reviewers of a request or of a risk assessment (ADR-222)
+enum WorkflowRuleScope {
+  REQUEST
+  RISK_ASSESSMENT
+}
+
+enum RiskQuestionnaireStatus {
+  DRAFT
+  PENDING_PUBLISH
+  PUBLISHED
+  SUPERSEDED
+}
+
+/// One kind in phase 2
+enum RiskQuestionKind {
+  SINGLE_CHOICE
+}
+
+/// No SUBMITTED: submit goes to IN_REVIEW or COMPLETED in the same transaction
+enum RiskAssessmentStatus {
+  DRAFT
+  IN_REVIEW
+  RETURNED
+  COMPLETED
+  SUPERSEDED
+  CANCELLED
+}
+
+enum RiskAnswerSource {
+  EXPLICIT
+  EVIDENCE
+  ON_BEHALF
+}
+
+enum ReviewTaskStatus {
+  OPEN
+  PASSED
+  RETURNED
+  CANCELLED
+}
+
+/// One value in phase 2 (BR-RSK-07)
+enum ReviewTaskQuorum {
+  ALL
+}
+
+enum ReviewTaskFallback {
+  NONE
+  VACANT
+  CONFLICT
+}
+
+enum ReviewTaskCancelWhy {
+  STEP_DECIDED
+  ASSESSMENT_CANCELLED
+  REASSIGNED
+}
+
+enum RiskOverrideStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  RETURNED
+  CANCELLED
+  EXPIRED
+}
+
+enum RiskReviewReason {
+  SCHEDULED
+  STATUS_CHANGED
+  OVERRIDE_EXPIRED
+}
+
+enum RiskReviewStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+/// The tier thresholds of an organization, three rows (LOW MEDIUM HIGH); a change waits in pending* until someone else
+/// confirms it, and the engine and the PO gate read only the confirmed columns (BR-RSK-02 · ADR-229)
+model RiskTier {
+  id                      String       @id @default(uuid(7)) @db.Uuid
+  organizationId          String       @db.Uuid
+  code                    RiskTierCode
+  nameTh                  String
+  nameEn                  String
+  /// Lower bound of the tier's points (LOW = 0)
+  minPoints               Int
+  /// Months between assessments (FR-RSK-205)
+  reviewMonths            Int
+  reminderDaysBefore      Int          @default(30)
+  /// A PO to a supplier of this tier needs a current assessment or an override (FR-RSK-203)
+  blocksPo                Boolean      @default(false)
+  /// Answers from evidence do not count instead of the supplier's own (§8.12)
+  requiresExplicitAnswers Boolean      @default(false)
+  updatedById             String       @db.Uuid
+  confirmedById           String?      @db.Uuid
+  confirmedAt             DateTime?    @db.Timestamptz(6)
+  /// { minPoints?, reviewMonths?, reminderDaysBefore?, blocksPo?, requiresExplicitAnswers? }
+  pendingChange           Json?
+  pendingById             String?      @db.Uuid
+  pendingAt               DateTime?    @db.Timestamptz(6)
+  version                 Int          @default(0)
+  createdAt               DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime     @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  updatedBy    Member       @relation("RiskTierUpdatedBy", fields: [organizationId, updatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  confirmedBy  Member?      @relation("RiskTierConfirmedBy", fields: [organizationId, confirmedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  pendingBy    Member?      @relation("RiskTierPendingBy", fields: [organizationId, pendingById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+}
+
+/// The gate policy of an organization, one row; confirmed by someone other than who proposed it (BR-RSK-02 · ADR-229)
+model RiskPolicy {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  organizationId      String    @db.Uuid
+  /// { processesPersonalData, accessesSystems, accessesPremises } → RiskTierCode (BR-RSK-03)
+  screeningTierMap    Json
+  highRiskCategories  String[]
+  registryFlagBlocks  Boolean
+  mediumOverdueBlocks Boolean
+  overrideChatButton  Boolean
+  updatedById         String    @db.Uuid
+  confirmedById       String?   @db.Uuid
+  confirmedAt         DateTime? @db.Timestamptz(6)
+  pendingChange       Json?
+  pendingById         String?   @db.Uuid
+  pendingAt           DateTime? @db.Timestamptz(6)
+  version             Int       @default(0)
+  createdAt           DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  updatedBy    Member       @relation("RiskPolicyUpdatedBy", fields: [organizationId, updatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  confirmedBy  Member?      @relation("RiskPolicyConfirmedBy", fields: [organizationId, confirmedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  pendingBy    Member?      @relation("RiskPolicyPendingBy", fields: [organizationId, pendingById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId])
+}
+
+/// A version of the questionnaire; published by someone other than who submitted it (BR-RSK-01 · BR-RSK-02)
+model RiskQuestionnaire {
+  id             String                  @id @default(uuid(7)) @db.Uuid
+  organizationId String                  @db.Uuid
+  code           String
+  versionNo      Int
+  status         RiskQuestionnaireStatus @default(DRAFT)
+  effectiveFrom  DateTime                @db.Timestamptz(6)
+  effectiveTo    DateTime?               @db.Timestamptz(6)
+  changeReason   String?
+  checksum       String?
+  submittedById  String?                 @db.Uuid
+  publishedById  String?                 @db.Uuid
+  submittedAt    DateTime?               @db.Timestamptz(6)
+  publishedAt    DateTime?               @db.Timestamptz(6)
+  version        Int                     @default(0)
+  createdAt      DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime                @updatedAt @db.Timestamptz(6)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  submittedBy  Member?          @relation("RiskQuestionnaireSubmittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  publishedBy  Member?          @relation("RiskQuestionnairePublishedBy", fields: [organizationId, publishedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  questions    RiskQuestion[]
+  assessments  RiskAssessment[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code, versionNo])
+  @@index([organizationId, status, effectiveFrom])
+}
+
+/// A question of one questionnaire version; options are [{ code, labelTh, labelEn, points, minTier?, evidence? }]
+model RiskQuestion {
+  id                    String           @id @default(uuid(7)) @db.Uuid
+  organizationId        String           @db.Uuid
+  questionnaireId       String           @db.Uuid
+  /// RQ-GEN-01 … (one format for the file, the sheet, scenes, golden and S7's linkedRiskQuestionCodes)
+  code                  String
+  domain                RiskDomain
+  textTh                String
+  textEn                String
+  helpTh                String?
+  helpEn                String?
+  kind                  RiskQuestionKind @default(SINGLE_CHOICE)
+  options               Json
+  /// A condition of §7.9 on the screening fields and $category $payeeType $isForeign $inherentTier; empty = every assessment
+  appliesWhen           Json?
+  required              Boolean          @default(true)
+  /// The document's scope must match the work's (BR-RSK-05)
+  evidenceScopeRequired Boolean          @default(false)
+  /// The scope or standard the question asks for, e.g. "ISO 27001"
+  evidenceScope         String?
+  /// The Risk Agent may read the evidence files of this question (BR-AI-33)
+  aiReadable            Boolean          @default(false)
+  sortOrder             Int              @default(0)
+  createdAt             DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime         @updatedAt @db.Timestamptz(6)
+
+  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  questionnaire RiskQuestionnaire @relation(fields: [organizationId, questionnaireId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, questionnaireId, code])
+}
+
+/// One assessment of a supplier (FR-RSK-201); the points and the tier freeze at submit (BR-RSK-04 · INV-RSK-03)
+model RiskAssessment {
+  id                   String               @id @default(uuid(7)) @db.Uuid
+  organizationId       String               @db.Uuid
+  /// RSA-{BE}-{SEQ5} at open (numbering.RSA)
+  number               String?
+  supplierId           String               @db.Uuid
+  /// The questionnaire version in force when it was opened
+  questionnaireId      String               @db.Uuid
+  triggerRequestId     String?              @db.Uuid
+  triggerPoId          String?              @db.Uuid
+  /// { processesPersonalData, accessesSystems, accessesPremises } as Y or N
+  screening            Json
+  categoryCodes        String[]
+  payeeType            PayeeType
+  /// The scopes of the work that a document's scope must match (BR-RSK-05)
+  workScopes           String[]
+  inherentTier         RiskTierCode
+  pointsTotal          Int?
+  tier                 RiskTierCode?
+  /// The thresholds at submit: minPoints of the three tiers, requiresExplicitAnswers, the policy's map and categories
+  scoringSnapshot      Json?
+  lastActivityAt       DateTime             @db.Timestamptz(6)
+  status               RiskAssessmentStatus @default(DRAFT)
+  openedById           String               @db.Uuid
+  filledOnBehalfById   String?              @db.Uuid
+  submittedAt          DateTime?            @db.Timestamptz(6)
+  submittedByContactId String?              @db.Uuid
+  completedAt          DateTime?            @db.Timestamptz(6)
+  /// The Asia/Bangkok date of completedAt
+  completedOn          DateTime?            @db.Date
+  validUntil           DateTime?            @db.Date
+  remindOn             DateTime?            @db.Date
+  returnReason         String?
+  supersededById       String?              @db.Uuid
+  /// The reviewers' workflow version used
+  workflowVersionId    String?              @db.Uuid
+  reviewRound          Int                  @default(0)
+  version              Int                  @default(0)
+  createdAt            DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime             @updatedAt @db.Timestamptz(6)
+
+  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier           Supplier          @relation("RiskAssessmentSupplier", fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  questionnaire      RiskQuestionnaire @relation(fields: [organizationId, questionnaireId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  triggerRequest     Request?          @relation("RiskAssessmentTriggerRequest", fields: [organizationId, triggerRequestId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  triggerPo          PurchaseOrder?    @relation("RiskAssessmentTriggerPo", fields: [organizationId, triggerPoId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  openedBy           Member            @relation("RiskAssessmentOpenedBy", fields: [organizationId, openedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  filledOnBehalfBy   Member?           @relation("RiskAssessmentFilledOnBehalfBy", fields: [organizationId, filledOnBehalfById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  submittedByContact SupplierContact?  @relation("RiskAssessmentSubmittedByContact", fields: [organizationId, submittedByContactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supersededBy       RiskAssessment?   @relation("RiskAssessmentSupersededBy", fields: [organizationId, supersededById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supersedes         RiskAssessment[]  @relation("RiskAssessmentSupersededBy")
+  workflowVersion    WorkflowVersion?  @relation("RiskAssessmentWorkflowVersion", fields: [organizationId, workflowVersionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  answers            RiskAnswer[]
+  reviewTasks        ReviewTask[]
+  overrides          RiskOverride[]
+  reviewsCompleted   RiskReview[]      @relation("RiskReviewCompletedByAssessment")
+  reviewsSourced     RiskReview[]      @relation("RiskReviewSourceAssessment")
+  currentOfSuppliers Supplier[]        @relation("SupplierCurrentRiskAssessment")
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  /// One open assessment per supplier, and one COMPLETED that is not superseded (INV-RSK-02)
+  @@unique([organizationId, supplierId], map: "risk_assessment_one_open", where: raw("status = ANY (ARRAY['DRAFT'::\"RiskAssessmentStatus\", 'IN_REVIEW'::\"RiskAssessmentStatus\", 'RETURNED'::\"RiskAssessmentStatus\"])"))
+  @@unique([organizationId, supplierId], map: "risk_assessment_one_completed", where: raw("status = 'COMPLETED'::\"RiskAssessmentStatus\""))
+  @@index([organizationId, supplierId, status])
+  @@index([organizationId, status, validUntil])
+}
+
+/// One answer of an assessment; frozen once the assessment is COMPLETED or SUPERSEDED (trigger risk_answer_frozen · INV-RSK-03)
+model RiskAnswer {
+  id                  String           @id @default(uuid(7)) @db.Uuid
+  organizationId      String           @db.Uuid
+  assessmentId        String           @db.Uuid
+  questionCode        String
+  optionCode          String?
+  source              RiskAnswerSource
+  /// The S7 document behind an EVIDENCE answer, kept when it is confirmed as EXPLICIT (BR-RSK-05)
+  evidenceDocumentId  String?          @db.Uuid
+  /// Copied from the option when answered
+  points              Int
+  answeredAt          DateTime         @db.Timestamptz(6)
+  answeredByContactId String?          @db.Uuid
+  answeredByMemberId  String?          @db.Uuid
+  /// The AI's value that a person confirmed (BR-AI-32)
+  agentActionId       String?          @db.Uuid
+  note                String?
+  /// The uploader ticked "this file holds no personal data, the AI may read it" (BR-AI-33)
+  evidenceAiReadable  Boolean          @default(false)
+  createdAt           DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime         @updatedAt @db.Timestamptz(6)
+
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  assessment        RiskAssessment    @relation(fields: [organizationId, assessmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  evidenceDocument  SupplierDocument? @relation("RiskAnswerEvidenceDocument", fields: [organizationId, evidenceDocumentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  answeredByContact SupplierContact?  @relation("RiskAnswerAnsweredByContact", fields: [organizationId, answeredByContactId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  answeredByMember  Member?           @relation("RiskAnswerAnsweredByMember", fields: [organizationId, answeredByMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  agentAction       AgentAction?      @relation("RiskAnswerAgentAction", fields: [organizationId, agentActionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, assessmentId, questionCode])
+}
+
+/// A reviewer's task on a risk assessment (ADR-222): not an ApprovalTask, since no DOA route stands behind it
+model ReviewTask {
+  id                String               @id @default(uuid(7)) @db.Uuid
+  organizationId    String               @db.Uuid
+  assessmentId      String               @db.Uuid
+  reviewRound       Int
+  workflowVersionId String               @db.Uuid
+  /// The RISK_ASSESSMENT-scope rules this slot answers (a merged slot keeps every rule · BR-WF-02)
+  ruleCodes         String[]
+  groupNo           Int
+  slotNo            Int
+  quorum            ReviewTaskQuorum     @default(ALL)
+  /// The parts the reviewer sees (BR-RSK-08)
+  riskDomains       String[]
+  assigneeMemberId  String               @db.Uuid
+  /// When the task fell to an acting holder (BR-DLG)
+  delegatorMemberId String?              @db.Uuid
+  fallbackUsed      ReviewTaskFallback   @default(NONE)
+  status            ReviewTaskStatus     @default(OPEN)
+  assignedAt        DateTime             @db.Timestamptz(6)
+  dueAt             DateTime             @db.Timestamptz(6)
+  remindAt          DateTime?            @db.Timestamptz(6)
+  escalateAt        DateTime?            @db.Timestamptz(6)
+  decidedAt         DateTime?            @db.Timestamptz(6)
+  decidedById       String?              @db.Uuid
+  /// The Comment (subjectType 'RiskAssessment') with the reason of a RETURN; no relation, Comment has no (organizationId, id) key
+  reasonCommentId   String?              @db.Uuid
+  cancelledWhy      ReviewTaskCancelWhy?
+  version           Int                  @default(0)
+  createdAt         DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime             @updatedAt @db.Timestamptz(6)
+
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  assessment      RiskAssessment  @relation(fields: [organizationId, assessmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  workflowVersion WorkflowVersion @relation("ReviewTaskWorkflowVersion", fields: [organizationId, workflowVersionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  assignee        Member          @relation("ReviewTaskAssignee", fields: [organizationId, assigneeMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  delegator       Member?         @relation("ReviewTaskDelegator", fields: [organizationId, delegatorMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  decidedBy       Member?         @relation("ReviewTaskDecidedBy", fields: [organizationId, decidedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, assessmentId, reviewRound, slotNo])
+  @@index([organizationId, assigneeMemberId, status])
+  @@index([organizationId, assessmentId, status])
+}
+
+/// Approval to issue POs to a supplier without a current assessment, up to a cumulative gross cap until a date (ADR-226)
+model RiskOverride {
+  id              String             @id @default(uuid(7)) @db.Uuid
+  organizationId  String             @db.Uuid
+  /// RO-{BE}-{SEQ5} at the first submit (numbering.RO)
+  number          String?
+  supplierId      String             @db.Uuid
+  /// The assessment open when it was asked
+  assessmentId    String?            @db.Uuid
+  /// The PO it was asked for; empty = any PO of the supplier within the cap and the date
+  poId            String?            @db.Uuid
+  reason          String
+  /// The gross of POs it lets out, cumulative (the DOA amount · OQ-224)
+  capGrossSatang  BigInt
+  /// The last day it may be used, inclusive
+  expiresOn       DateTime           @db.Date
+  requestedById   String             @db.Uuid
+  submittedAt     DateTime?          @db.Timestamptz(6)
+  decidedAt       DateTime?          @db.Timestamptz(6)
+  status          RiskOverrideStatus @default(DRAFT)
+  currentRouteId  String?            @db.Uuid
+  /// Distinct POs that took it (once per PO · BR-RSK-09)
+  usedCount       Int                @default(0)
+  /// Their gross, cumulative
+  usedGrossSatang BigInt             @default(0)
+  version         Int                @default(0)
+  createdAt       DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @db.Timestamptz(6)
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier       Supplier        @relation("RiskOverrideSupplier", fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  assessment     RiskAssessment? @relation(fields: [organizationId, assessmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  po             PurchaseOrder?  @relation("RiskOverridePo", fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  requestedBy    Member          @relation("RiskOverrideRequestedBy", fields: [organizationId, requestedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute   ApprovalRoute?  @relation("RiskOverrideCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  posUsing       PurchaseOrder[] @relation("PurchaseOrderRiskOverride")
+  reviewsSourced RiskReview[]    @relation("RiskReviewSourceOverride")
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  /// One open override per supplier (INV-RSK-02)
+  @@unique([organizationId, supplierId], map: "risk_override_one_open", where: raw("status = ANY (ARRAY['DRAFT'::\"RiskOverrideStatus\", 'PENDING_APPROVAL'::\"RiskOverrideStatus\", 'RETURNED'::\"RiskOverrideStatus\"])"))
+  @@index([organizationId, supplierId, status, expiresOn])
+}
+
+/// A due reassessment of a supplier: scheduled, after a registry status change, or after an override expired (FR-RSK-205)
+model RiskReview {
+  id                      String           @id @default(uuid(7)) @db.Uuid
+  organizationId          String           @db.Uuid
+  supplierId              String           @db.Uuid
+  /// The tier when it was created
+  tier                    RiskTierCode?
+  reason                  RiskReviewReason
+  dueAt                   DateTime         @db.Timestamptz(6)
+  remindedAt              DateTime?        @db.Timestamptz(6)
+  completedAt             DateTime?        @db.Timestamptz(6)
+  completedByAssessmentId String?          @db.Uuid
+  status                  RiskReviewStatus @default(OPEN)
+  sourceAssessmentId      String?          @db.Uuid
+  sourceOverrideId        String?          @db.Uuid
+  /// The registry flag behind a STATUS_CHANGED review
+  registryFlag            RegistryFlag?
+  cancelReason            String?
+  createdAt               DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime         @updatedAt @db.Timestamptz(6)
+
+  organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier              Supplier        @relation("RiskReviewSupplier", fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  completedByAssessment RiskAssessment? @relation("RiskReviewCompletedByAssessment", fields: [organizationId, completedByAssessmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  sourceAssessment      RiskAssessment? @relation("RiskReviewSourceAssessment", fields: [organizationId, sourceAssessmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  sourceOverride        RiskOverride?   @relation("RiskReviewSourceOverride", fields: [organizationId, sourceOverrideId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  /// One open review per reason per supplier
+  @@unique([organizationId, supplierId, reason], map: "risk_review_one_open", where: raw("status = 'OPEN'::\"RiskReviewStatus\""))
+  @@index([organizationId, status, dueAt])
 }

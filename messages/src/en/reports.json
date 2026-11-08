@@ -79,7 +79,8 @@
     "PO_CHANGE": "PO changes",
     "PAYMENT_RUN": "payment runs",
     "BANK_ACCOUNT_CHANGE": "bank account changes",
-    "SUPPLIER_APPLICATION": "supplier applications"
+    "SUPPLIER_APPLICATION": "supplier applications",
+    "RISK_OVERRIDE": "supplier risk overrides"
   },
   "units": {
     "percent": "{value}%",

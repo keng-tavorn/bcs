@@ -7002,6 +7002,7 @@
         "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
         "PURCHASE_ORDER": "ใบสั่งซื้อ {label}",
         "REQUEST": "คำขอ {label}",
+        "RISK_OVERRIDE": "การอนุมัติข้ามด่านความเสี่ยง",
         "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
         "VARIANCE": "ผลต่างจากการตรวจรับของ {label}",
         "WORKFLOW_VERSION": "การเปลี่ยน workflow",
@@ -7044,6 +7045,7 @@
       "PO_CHANGE": "ใบแก้ไข PO",
       "PURCHASE_ORDER": "ใบสั่งซื้อ",
       "PURCHASE_REQUEST": "คำขอซื้อ",
+      "RISK_OVERRIDE": "การอนุมัติข้ามด่านความเสี่ยง",
       "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
       "VARIANCE": "ผลต่างจากการตรวจรับ",
       "WORKFLOW_VERSION": "ฉบับผู้ตรวจคู่ขนาน"
@@ -9817,6 +9819,7 @@
       "PO_CHANGE": "ใบแก้ไข PO",
       "PURCHASE_ORDER": "ใบสั่งซื้อ",
       "PURCHASE_REQUEST": "คำขอซื้อ",
+      "RISK_OVERRIDE": "การอนุมัติข้ามด่านความเสี่ยง",
       "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
       "VARIANCE": "ผลต่างจากการตรวจรับ",
       "WORKFLOW_VERSION": "ฉบับผู้ตรวจคู่ขนาน"

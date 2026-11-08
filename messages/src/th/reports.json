@@ -79,7 +79,8 @@
     "PO_CHANGE": "ใบแก้ไข PO",
     "PAYMENT_RUN": "รอบจ่าย",
     "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
-    "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย"
+    "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
+    "RISK_OVERRIDE": "การอนุมัติข้ามด่านความเสี่ยง"
   },
   "units": {
     "percent": "{value}%",

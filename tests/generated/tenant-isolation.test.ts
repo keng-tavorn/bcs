@@ -88,6 +88,11 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   PortalOtpChallenge: { codeHash: 'a'.repeat(64), requestIpHash: 'b'.repeat(64), userAgentHash: 'c'.repeat(64), expiresAt: new Date('2099-01-01T00:00:00Z') },
   PortalSession: { sessionHash: () => createHash('sha256').update(randomUUID()).digest('hex'), csrfTokenHash: 'a'.repeat(64), ipHash: 'b'.repeat(64), userAgentHash: 'c'.repeat(64), expiresAt: new Date('2099-01-01T00:00:00Z') },
   SupplierApplication: { branchCode: '00000' }, // supplier_application_shape: a five-digit branch
+  // S11: risk_tier_shape (LOW starts at 0) · risk_question_shape (an RQ code, at least two options) · review_task_shape
+  // (a task answers at least one rule and shows at least one part)
+  RiskTier: { minPoints: 0 },
+  RiskQuestion: { code: 'RQ-GEN-01', options: [{ code: 'Y', points: 0 }, { code: 'N', points: 1 }] },
+  ReviewTask: { ruleCodes: ['RR-01'], riskDomains: ['PRIVACY'] },
 }
 // Relations that need their own parent row instead of the shared one: delegation_not_self (delegator <> delegate)
 const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
@@ -106,6 +111,8 @@ const OPTIONAL_PARENTS: Record<string, ReadonlySet<string>> = {
   SupplierContact: new Set(['supplier']),
   SupplierDocument: new Set(['supplier']),
   SupplierNotice: new Set(['supplier']),
+  // S11's risk_answer_shape: an EXPLICIT answer names who gave it
+  RiskAnswer: new Set(['answeredByMember']),
 }
 // Columns that must name an existing row without a relation in the schema: ledger_event_exists (INV-BUD-04)
 const EXISTING_ROWS: Record<string, Record<string, string>> = {

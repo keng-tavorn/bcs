@@ -29,8 +29,9 @@ const MAX_PROBLEMS = 20
  */
 export const ATTACHMENT_KINDS = ['QUOTATION', 'DELIVERY_NOTE', 'PHOTO', 'JUSTIFICATION', 'INVOICE', 'PO_PDF', 'DPA', 'ETAX', 'REGISTRY_PROOF', 'OTHER'] as const
 /** FileLink kinds of finance documents only (above), and a supplier's own documents (S7: SUPPLIER_DOC, an ID card among
- * them · BR-SDOC-07), which only the supplier portal and procurement handle */
-export const FINANCE_ONLY_KINDS = ['WHT_CERT', 'BANK_PROOF', 'SUPPLIER_DOC'] as const
+ * them · BR-SDOC-07 · S11: RISK_EVIDENCE, the files behind a risk answer · BR-RSK-18), which only the supplier portal and
+ * procurement handle */
+export const FINANCE_ONLY_KINDS = ['WHT_CERT', 'BANK_PROOF', 'SUPPLIER_DOC', 'RISK_EVIDENCE'] as const
 const SPECIAL_VARIABLES = ['$amountGross', '$amountNet', '$requestType']
 
 export type FormJson = z.output<typeof FormSchemaJson>

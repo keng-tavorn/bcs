@@ -7002,6 +7002,7 @@
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order {label}",
         "REQUEST": "Request {label}",
+        "RISK_OVERRIDE": "Supplier risk override",
         "SUPPLIER_APPLICATION": "Supplier application",
         "VARIANCE": "Receiving variance of {label}",
         "WORKFLOW_VERSION": "Workflow change",
@@ -7044,6 +7045,7 @@
       "PO_CHANGE": "PO changes",
       "PURCHASE_ORDER": "purchase orders",
       "PURCHASE_REQUEST": "purchase requests",
+      "RISK_OVERRIDE": "supplier risk overrides",
       "SUPPLIER_APPLICATION": "supplier applications",
       "VARIANCE": "receiving variances",
       "WORKFLOW_VERSION": "reviewer workflow versions"
@@ -9817,6 +9819,7 @@
       "PO_CHANGE": "PO changes",
       "PURCHASE_ORDER": "purchase orders",
       "PURCHASE_REQUEST": "purchase requests",
+      "RISK_OVERRIDE": "supplier risk overrides",
       "SUPPLIER_APPLICATION": "supplier applications",
       "VARIANCE": "receiving variances",
       "WORKFLOW_VERSION": "reviewer workflow versions"

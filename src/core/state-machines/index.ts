@@ -617,6 +617,149 @@ export const PORTAL_SESSION_MACHINE = machine<PortalSessionState, PortalSessionC
   { from: ['ACTIVE'], command: 'portal_session.revoke', to: 'REVOKED' },
 ])
 
+// S11 (docs/sub-specs/S11.md "State machine" · §6.4): the questionnaire version, the assessment, the reviewer's task,
+// the override and the reassessment. Opening an assessment, drafting a questionnaire, requesting an override and
+// scheduling a review create rows; they are not transitions. Submit takes one of two commands: to IN_REVIEW when a
+// RISK_ASSESSMENT rule matches, straight to COMPLETED when none does (BR-RSK-07); the service picks it
+export const RISK_QUESTIONNAIRE_STATES = ['DRAFT', 'PENDING_PUBLISH', 'PUBLISHED', 'SUPERSEDED'] as const
+export type RiskQuestionnaireState = (typeof RISK_QUESTIONNAIRE_STATES)[number]
+export const RISK_QUESTIONNAIRE_COMMANDS = [
+  'admin.riskQuestionnaire.updateQuestion',
+  'admin.riskQuestionnaire.removeQuestion',
+  'admin.riskQuestionnaire.reorder',
+  'admin.riskQuestionnaire.submitForPublish',
+  'admin.riskQuestionnaire.publish',
+  'admin.riskQuestionnaire.reject',
+  // the version before it, when the published one takes effect (job risk-review-daily, or at once)
+  'risk_questionnaire.supersede',
+] as const
+export type RiskQuestionnaireCommand = (typeof RISK_QUESTIONNAIRE_COMMANDS)[number]
+
+// publish by someone other than who submitted (BR-RSK-02 · ADR-229): the service refuses SAME_EDITOR before the table
+export const RISK_QUESTIONNAIRE_MACHINE = machine<RiskQuestionnaireState, RiskQuestionnaireCommand>('RiskQuestionnaire', RISK_QUESTIONNAIRE_STATES, RISK_QUESTIONNAIRE_COMMANDS, [
+  { from: ['DRAFT'], command: 'admin.riskQuestionnaire.updateQuestion', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'admin.riskQuestionnaire.removeQuestion', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'admin.riskQuestionnaire.reorder', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'admin.riskQuestionnaire.submitForPublish', to: 'PENDING_PUBLISH' },
+  { from: ['PENDING_PUBLISH'], command: 'admin.riskQuestionnaire.publish', to: 'PUBLISHED' },
+  { from: ['PENDING_PUBLISH'], command: 'admin.riskQuestionnaire.reject', to: 'DRAFT' },
+  { from: ['PUBLISHED'], command: 'risk_questionnaire.supersede', to: 'SUPERSEDED' },
+])
+
+export const RISK_ASSESSMENT_STATES = ['DRAFT', 'IN_REVIEW', 'RETURNED', 'COMPLETED', 'SUPERSEDED', 'CANCELLED'] as const
+export type RiskAssessmentState = (typeof RISK_ASSESSMENT_STATES)[number]
+export const RISK_ASSESSMENT_COMMANDS = [
+  'riskAssessment.answer',
+  'riskAssessment.fillOnBehalf',
+  // submit with reviewers to assign, and submit when no rule of the reviewers' workflow matches
+  'riskAssessment.submit',
+  'riskAssessment.submit_completed',
+  // every group of the round PASSED, or one reviewer returned it (in riskReview.decide)
+  'risk_review.all_passed',
+  'riskReview.return',
+  'riskAssessment.cancel',
+  // the supplier's next assessment COMPLETED
+  'riskAssessment.supersede',
+  // job risk-assessment-sla, and job risk-evidence-scanned on an INFECTED file (BR-RSK-18): the state stays
+  'riskAssessment.remind',
+  'riskAssessment.evidence_rejected',
+] as const
+export type RiskAssessmentCommand = (typeof RISK_ASSESSMENT_COMMANDS)[number]
+
+// COMPLETED and SUPERSEDED keep completedAt, tier and validUntil (CHECK risk_assessment_shape · INV-RSK-03), and their
+// answers are frozen (trigger risk_answer_frozen)
+export const RISK_ASSESSMENT_MACHINE = machine<RiskAssessmentState, RiskAssessmentCommand>('RiskAssessment', RISK_ASSESSMENT_STATES, RISK_ASSESSMENT_COMMANDS, [
+  { from: ['DRAFT'], command: 'riskAssessment.answer', to: 'DRAFT' },
+  { from: ['RETURNED'], command: 'riskAssessment.answer', to: 'RETURNED' },
+  { from: ['DRAFT'], command: 'riskAssessment.fillOnBehalf', to: 'DRAFT' },
+  { from: ['RETURNED'], command: 'riskAssessment.fillOnBehalf', to: 'RETURNED' },
+  { from: ['DRAFT', 'RETURNED'], command: 'riskAssessment.submit', to: 'IN_REVIEW' },
+  { from: ['DRAFT', 'RETURNED'], command: 'riskAssessment.submit_completed', to: 'COMPLETED' },
+  { from: ['IN_REVIEW'], command: 'risk_review.all_passed', to: 'COMPLETED' },
+  { from: ['IN_REVIEW'], command: 'riskReview.return', to: 'RETURNED' },
+  { from: ['DRAFT', 'RETURNED', 'IN_REVIEW'], command: 'riskAssessment.cancel', to: 'CANCELLED' },
+  { from: ['COMPLETED'], command: 'riskAssessment.supersede', to: 'SUPERSEDED' },
+  { from: ['DRAFT'], command: 'riskAssessment.remind', to: 'DRAFT' },
+  { from: ['RETURNED'], command: 'riskAssessment.remind', to: 'RETURNED' },
+  { from: ['DRAFT'], command: 'riskAssessment.evidence_rejected', to: 'DRAFT' },
+  { from: ['RETURNED'], command: 'riskAssessment.evidence_rejected', to: 'RETURNED' },
+])
+
+export const REVIEW_TASK_STATES = ['OPEN', 'PASSED', 'RETURNED', 'CANCELLED'] as const
+export type ReviewTaskState = (typeof REVIEW_TASK_STATES)[number]
+export const REVIEW_TASK_COMMANDS = [
+  // the two outcomes of riskReview.decide
+  'riskReview.pass',
+  'riskReview.return',
+  // the step decided by another slot, the assessment cancelled, or the task moved after an org change (ADR-108)
+  'reviewTask.cancel',
+  // job risk-review-task-sla: the state stays
+  'reviewTask.remind',
+  'reviewTask.overdue',
+  'reviewTask.escalate',
+] as const
+export type ReviewTaskCommand = (typeof REVIEW_TASK_COMMANDS)[number]
+
+// decided by its holder or their acting holder, never the one who opened or filled in the assessment (BR-SOD-16): the
+// service refuses before the table
+export const REVIEW_TASK_MACHINE = machine<ReviewTaskState, ReviewTaskCommand>('ReviewTask', REVIEW_TASK_STATES, REVIEW_TASK_COMMANDS, [
+  { from: ['OPEN'], command: 'riskReview.pass', to: 'PASSED' },
+  { from: ['OPEN'], command: 'riskReview.return', to: 'RETURNED' },
+  { from: ['OPEN'], command: 'reviewTask.cancel', to: 'CANCELLED' },
+  { from: ['OPEN'], command: 'reviewTask.remind', to: 'OPEN' },
+  { from: ['OPEN'], command: 'reviewTask.overdue', to: 'OPEN' },
+  { from: ['OPEN'], command: 'reviewTask.escalate', to: 'OPEN' },
+])
+
+export const RISK_OVERRIDE_STATES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'RETURNED', 'CANCELLED', 'EXPIRED'] as const
+export type RiskOverrideState = (typeof RISK_OVERRIDE_STATES)[number]
+export const RISK_OVERRIDE_COMMANDS = [
+  'riskOverride.update',
+  'riskOverride.submit',
+  'riskOverride.final_approval',
+  'approval.reject',
+  'approval.return',
+  'riskOverride.cancel',
+  // a PO passed the gate with it (po.submit, po.send, po_change): the state stays, usedCount and usedGrossSatang grow
+  'riskOverride.use',
+  // job risk-review-daily after expiresOn
+  'riskOverride.expire',
+] as const
+export type RiskOverrideCommand = (typeof RISK_OVERRIDE_COMMANDS)[number]
+
+// approval.requestInfo is refused by the subject (allowsRequestInfo: false · ADR-226); the PO gate compares expiresOn with
+// the PO's own day and does not rely on EXPIRED (BR-RSK-10)
+export const RISK_OVERRIDE_MACHINE = machine<RiskOverrideState, RiskOverrideCommand>('RiskOverride', RISK_OVERRIDE_STATES, RISK_OVERRIDE_COMMANDS, [
+  { from: ['DRAFT', 'RETURNED'], command: 'riskOverride.update', to: 'DRAFT' },
+  { from: ['DRAFT', 'RETURNED'], command: 'riskOverride.submit', to: 'PENDING_APPROVAL' },
+  { from: ['PENDING_APPROVAL'], command: 'riskOverride.final_approval', to: 'APPROVED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.return', to: 'RETURNED' },
+  { from: ['DRAFT', 'RETURNED'], command: 'riskOverride.cancel', to: 'CANCELLED' },
+  { from: ['APPROVED'], command: 'riskOverride.use', to: 'APPROVED' },
+  { from: ['APPROVED'], command: 'riskOverride.expire', to: 'EXPIRED' },
+])
+
+export const RISK_REVIEW_STATES = ['OPEN', 'DONE', 'CANCELLED'] as const
+export type RiskReviewState = (typeof RISK_REVIEW_STATES)[number]
+export const RISK_REVIEW_COMMANDS = [
+  // the supplier's next assessment COMPLETED: every reason closes together
+  'risk_review.complete',
+  // the supplier INACTIVE, or procurement with a reason
+  'riskReview.cancel',
+  // job risk-review-daily: the state stays
+  'risk_review.remind',
+  'risk_review.overdue',
+] as const
+export type RiskReviewCommand = (typeof RISK_REVIEW_COMMANDS)[number]
+
+export const RISK_REVIEW_MACHINE = machine<RiskReviewState, RiskReviewCommand>('RiskReview', RISK_REVIEW_STATES, RISK_REVIEW_COMMANDS, [
+  { from: ['OPEN'], command: 'risk_review.complete', to: 'DONE' },
+  { from: ['OPEN'], command: 'riskReview.cancel', to: 'CANCELLED' },
+  { from: ['OPEN'], command: 'risk_review.remind', to: 'OPEN' },
+  { from: ['OPEN'], command: 'risk_review.overdue', to: 'OPEN' },
+])
+
 export const MACHINES = [
   REQUEST_MACHINE,
   SUPPLIER_REQUEST_MACHINE,
@@ -647,4 +790,10 @@ export const MACHINES = [
   SUPPLIER_APPLICATION_MACHINE,
   SUPPLIER_DOCUMENT_MACHINE,
   PORTAL_SESSION_MACHINE,
+  // S11
+  RISK_QUESTIONNAIRE_MACHINE,
+  RISK_ASSESSMENT_MACHINE,
+  REVIEW_TASK_MACHINE,
+  RISK_OVERRIDE_MACHINE,
+  RISK_REVIEW_MACHINE,
 ] as const

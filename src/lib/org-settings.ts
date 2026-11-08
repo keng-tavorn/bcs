@@ -63,6 +63,19 @@ const SupplierSettingsSchema = z
   })
   .strict()
 
+// S11 (docs/sub-specs/S11.md "Entity และ migration" · BR-RSK-10 · BR-AI-33 · BR-RSK-20): only the keys that do not decide
+// the PO gate. The screening map, the high-risk categories, the registry and medium-overdue blocks and the chat button are
+// the organization's RiskPolicy row, and the thresholds its RiskTier rows (BR-RSK-02), with 4-eyes and events; the
+// defaults of these keys are those of the open questions, in riskSettingsOf
+const RiskSettingsSchema = z
+  .object({
+    overrideMaxDays: positiveDays.optional(),
+    aiAssist: z.boolean().optional(),
+    portalAnswering: z.boolean().optional(),
+    answerRetentionYears: z.number().int().min(1).max(100).optional(),
+  })
+  .strict()
+
 export const OrgSettingsSchema = z
   .object({
     locale: z.enum(['th', 'en']),
@@ -91,7 +104,9 @@ export const OrgSettingsSchema = z
         PAY: numberingRule.optional(),
         PO: numberingRule,
         PR: numberingRule,
+        RO: numberingRule.optional(),
         RQ: numberingRule,
+        RSA: numberingRule.optional(),
         SUP: numberingRule.optional(),
         WHT_CERT: numberingRule.optional(),
       })
@@ -167,6 +182,9 @@ export const OrgSettingsSchema = z
     // S7: suppliers and the supplier portal (docs/sub-specs/S7.md); every key optional, missing reads as the default of
     // supplierSettingsOf below, so an organization saved before S7 parses as it is
     supplier: SupplierSettingsSchema.optional(),
+    // S11: supplier risk (docs/sub-specs/S11.md); every key optional, missing reads as the default of riskSettingsOf
+    // below, so an organization saved before S11 parses as it is
+    risk: RiskSettingsSchema.optional(),
   })
   .strict()
 
@@ -334,4 +352,21 @@ export function supplierSettingsOf(settings: unknown): SupplierSettings {
   const supplier = settings !== null && typeof settings === 'object' ? (settings as { supplier?: unknown }).supplier : undefined
   const parsed = OrgSettingsSchema.shape.supplier.safeParse(supplier)
   return { ...DEFAULT_SUPPLIER, ...(parsed.success ? parsed.data : {}) }
+}
+
+/** The S11 settings of an organization that do not decide the PO gate: the override's longest life, AI help, answering in the portal, retention */
+export type RiskSettings = Required<z.infer<typeof RiskSettingsSchema>>
+
+const DEFAULT_RISK: RiskSettings = {
+  overrideMaxDays: 90, // TODO(OQ-224)
+  aiAssist: true, // TODO(OQ-228)
+  portalAnswering: true,
+  answerRetentionYears: 10, // TODO(OQ-230)
+}
+
+/** settings.risk of stored settings, each missing key read as its default */
+export function riskSettingsOf(settings: unknown): RiskSettings {
+  const risk = settings !== null && typeof settings === 'object' ? (settings as { risk?: unknown }).risk : undefined
+  const parsed = OrgSettingsSchema.shape.risk.safeParse(risk)
+  return { ...DEFAULT_RISK, ...(parsed.success ? parsed.data : {}) }
 }

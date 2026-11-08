@@ -3,7 +3,8 @@ import { checkSod, paymentRunSodExtra, type ApprovalSubject, type OrgAuthorityCh
 import { loadYaml, pick } from './doa-fixtures'
 
 // tests/golden/sod.yaml (spec §7.5): GC-SOD-01 to GC-SOD-16 (GC-SOD-10 on: the payment run and the bank account change of S9),
-// GC-SOD-17 (S7) and GC-SOD-20 (S10-08: who may not score an RFx · BR-SOD-14).
+// GC-SOD-17 (S7). The runner maps SCORE_RFX (BR-SOD-14) for GC-SOD-20, which S10-10 adds with GC-SOD-19 (the ids run on
+// from S7's GC-SOD-18 · docs/sub-specs/S10.md).
 
 interface SodCase {
   id: string
@@ -59,6 +60,12 @@ describe('golden sod.yaml', () => {
 
 describe('[FR-DOA-007/AC1] separation of duties beyond the golden cases', () => {
   const policy = { approverMayReceive: false, requesterMayReceive: true }
+  it('[BR-SOD-14] who may not score an RFx: its creator and the requesters of its source lines (S10-08 · GC-SOD-20 in S10-10)', () => {
+    const conflicts = { rfxCreatorMemberIds: ['proc_officer'], sourceRequesterMemberIds: ['req_con', 'asst_con'] }
+    expect(checkSod({ kind: 'SCORE_RFX', actorMemberId: 'req_con', ...conflicts }, policy)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-14' })
+    expect(checkSod({ kind: 'SCORE_RFX', actorMemberId: 'proc_officer', ...conflicts }, policy)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-14' })
+    expect(checkSod({ kind: 'SCORE_RFX', actorMemberId: 'dm_it', ...conflicts }, policy)).toEqual({ ok: true })
+  })
   it('lets an approver receive only when the version allows it, and stops the requester when it does not', () => {
     const gr = { kind: 'POST_GR' as const, actorMemberId: 'vp_ops', requesterMemberIds: ['req_con'], approverMemberIds: ['vp_ops'] }
     expect(checkSod(gr, { ...policy, approverMayReceive: true })).toEqual({ ok: true })

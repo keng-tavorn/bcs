@@ -3842,7 +3842,7 @@ cases:
   - { id: GC-RSK-24, title: ใบ ISO 27001 ไม่เติมคำถาม ISO 45001 ของประเภทเอกสารเดียวกัน, fn: evidenceSource, input: { question: RQ-PRM-02, workScopes: ["ISO 27001"], document: { status: VERIFIED, expiresOn: "2027-03-31", scope: "ISO 27001" } }, expect: { source: NONE, reason: SCOPE_MISMATCH } }
 ```
 
-**Golden `risk-review` (S11-06 ผู้ตรวจ GC-RSK-25 ถึง GC-RSK-30 GC-RSK-31 GC-RSK-32 · S11-09 ขยาย suite เดียวกันด้วย GC-RSK-59 ถึง GC-RSK-73 และ GC-RSK-74 ถึง GC-RSK-76 · `src/core/risk`)** ผู้ตรวจของใบประเมินจากข้อ scope `RISK_ASSESSMENT` ของ `WorkflowVersion` ที่มีผล ผ่าน adapter `riskReviewers` บน `resolveReviewStep` ของ S6 โดยไม่แก้ engine (BR-RSK-07) · fixture `org-s6` (มี LEG QSE · fixture เดียวกับ GC-WF) และ `risk-reviewers` (ข้อ RR-01 ถึง RR-04 ของ WF-SIMEC ฉบับ 1 · OQ-223 · ข้อ REQUEST RV-01 อยู่ในฉบับเดียวกันเพื่อยืนยันว่าไม่ถูกนับ) · ตัวรันอ้างอิง `run_risk_review`
+**Golden `risk-review` (S11-06 ผู้ตรวจ GC-RSK-25 ถึง GC-RSK-30 GC-RSK-31 GC-RSK-32 · S11-09 ขยาย suite เดียวกันด้วย GC-RSK ข้อ 59 ถึง 76 · `src/core/risk`)** ผู้ตรวจของใบประเมินจากข้อ scope `RISK_ASSESSMENT` ของ `WorkflowVersion` ที่มีผล ผ่าน adapter `riskReviewers` บน `resolveReviewStep` ของ S6 โดยไม่แก้ engine (BR-RSK-07) · fixture `org-s6` (มี LEG QSE · fixture เดียวกับ GC-WF) และ `risk-reviewers` (ข้อ RR-01 ถึง RR-04 ของ WF-SIMEC ฉบับ 1 · OQ-223 · ข้อ REQUEST RV-01 อยู่ในฉบับเดียวกันเพื่อยืนยันว่าไม่ถูกนับ) · ตัวรันอ้างอิง `run_risk_review`
 
 วิธีคำนวณ (risk-review · ผู้ตรวจ): ข้อ scope `RISK_ASSESSMENT` ที่ `when` เป็นจริงบนคำตอบคัดกรอง `$tier` (ระดับที่แช่แข็งตอนส่ง) `$inherentTier` `$category` `$payeeType` แต่ละข้อเป็น slot quorum ALL เรียงตาม sortOrder · ผู้ตรวจตาม BR-WF-08 (POSITION_AT ไล่ขึ้นถึงราก) ผู้ดำรง DM ตาม org-s6 (dm_leg dm_it dm_qse dm_fin) · ผู้เปิดใบ (openedBy) และผู้กรอกแทน (conflictMemberIds) ขัดกัน (BR-SOD ข้อ 16) → ใช้ fallback (vp_sup · fallback CONFLICT) · ว่างทั้งผู้ตรวจและ fallback → `REVIEWER_NOT_FOUND` ของข้อนั้น · การรักษาการนับเฉพาะรายการที่ไม่มี `documentTypes` และไม่มี `maxAmount` (GC-RSK-31 จำกัด PURCHASE_ORDER งานอยู่กับ dm_it · GC-RSK-32 ไม่จำกัด vp_sup ถืองาน principal dm_it) · domains ของ slot = `riskDomains` ของข้อใน slot เรียงตาม GENERAL PRIVACY INFOSEC PREMISES FINANCE · ไม่มีข้อที่ตรง → review null (ใบ COMPLETED ทันที)
 
@@ -5866,7 +5866,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       56 ไฟล์ · 719 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       57 ไฟล์ · 727 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

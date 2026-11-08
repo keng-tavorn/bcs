@@ -372,6 +372,11 @@ export const recordBidOnBehalfCommand = defineCommand({
     if (isFail(supplier)) return supplier
     const file = await tx.fileObject.findUnique({ where: { id: input.fileId }, select: { id: true, status: true, uploadedById: true } })
     if (!file || file.status !== 'AVAILABLE' || file.uploadedById !== memberOf(ctx)) return fail('VALIDATION_FAILED', 'the bid is recorded with its file', { field: 'fileId', reason: 'FILE' })
+    // a file is the evidence of one document only
+    if (await tx.fileLink.count({ where: { fileId: file.id } })) return fail('VALIDATION_FAILED', 'the file is the evidence of another document', { field: 'fileId', reason: 'FILE_LINKED' })
+    // a bid the supplier made itself in the portal (a draft or sent) is never replaced by procurement (BR-RFX-07)
+    const own = await tx.bid.findFirst({ where: { rfxEventId: rfx.id, supplierId: supplier.id, OR: [{ submittedByContactId: { not: null } }, { submittedByMemberId: null }] }, select: { id: true } })
+    if (own) return fail('VALIDATION_FAILED', 'the supplier has its own bid in the portal', { field: 'supplierId', reason: 'BID_FROM_SUPPLIER' })
     const bid = await bidOf(tx, ctx, rfx.id, invite.id, supplier.id)
     const stepRefused = bidStep(bid.status, 'bid.submit')
     if (stepRefused) return stepRefused

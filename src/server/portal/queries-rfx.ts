@@ -63,7 +63,8 @@ export interface PortalRfxDetail extends PortalRfxRow {
 export async function portalRfx(ctx: Ctx, rfxEventId?: string): Promise<PortalRfxDetail | null> {
   const db = forTenant(ctx.organizationId)
   const invite = await db.rfxInvite.findFirst({
-    where: { AND: [portalWhere(ctx, 'rfxInvite'), rfxEventId ? { rfxEventId } : {}] },
+    // an invite of an RFx still in DRAFT leads nowhere: the contact cannot see that RFx yet
+    where: { AND: [portalWhere(ctx, 'rfxInvite'), { rfxEvent: { status: { not: 'DRAFT' } } }, rfxEventId ? { rfxEventId } : {}] },
     orderBy: [{ invitedAt: 'desc' }, { id: 'desc' }],
     select: { id: true, rfxEventId: true, status: true, needsReconfirm: true },
   })

@@ -26,7 +26,8 @@ describe('[FR-SRC-202/AC4] [INV-RFX-01] Bid and BidLine are read only where the 
       .filter((f) => !ALLOWED.some((a) => a.test(f)))
       .filter((f) => READS.some((r) => r.test(readFileSync(path.join(ROOT, f), 'utf8'))))
     expect(offenders).toEqual([])
-  })
+    // it reads every file of src: slow on a busy machine (verify runs the projects side by side)
+  }, 60_000)
 
   it('the rule catches a read (canary)', () => {
     expect(READS.some((r) => r.test('await db.bid.findMany({ where: {} })'))).toBe(true)

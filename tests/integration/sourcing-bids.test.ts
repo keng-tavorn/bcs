@@ -213,3 +213,18 @@ describe('[FR-SRC-202/AC6] [INV-RFX-02] a bid recorded on behalf; one bid per su
     expect(await prisma.event.count({ where: { organizationId: org.organizationId, type: 'scorecard.recomputed' } })).toBeGreaterThan(0)
   })
 })
+
+describe('[FR-SRC-202/AC6] after the review of S10-06: procurement never replaces a supplier\'s own bid', () => {
+  it('BID_FROM_SUPPLIER when the supplier submitted in the portal; FILE_LINKED for a file that is another document\'s evidence', async () => {
+    const { rfxEventId, parties, lines } = await openRfq()
+    ok(await submitBid(parties[0]!.ctx(), { rfxEventId, lines: priced(lines, ['23500.00', '23700.00']) }, key()))
+    const upload = () => prisma.fileObject.create({ data: { organizationId: org.organizationId, storageKey: `test/${randomUUID()}.pdf`, fileName: 'q.pdf', mimeType: 'application/pdf', sizeBytes: 1, status: 'AVAILABLE', uploadedById: org.member.proc_officer! } })
+    const file = await upload()
+    expect(await recordBidOnBehalf(proc(), { rfxEventId, supplierId: parties[0]!.supplier.id, fileId: file.id, lines: priced(lines, ['24500.00', '24500.00']) }, key())).toMatchObject({ ok: false, error: { details: { reason: 'BID_FROM_SUPPLIER' } } })
+    expect((await prisma.bid.findFirstOrThrow({ where: { rfxEventId, supplierId: parties[0]!.supplier.id } })).submittedByContactId).toBe(parties[0]!.contact.id)
+    ok(await recordBidOnBehalf(proc(), { rfxEventId, supplierId: parties[1]!.supplier.id, fileId: file.id, lines: priced(lines, ['24000.00', '24000.00']) }, key()))
+    expect(await recordBidOnBehalf(proc(), { rfxEventId, supplierId: parties[2]!.supplier.id, fileId: file.id, lines: priced(lines, ['24000.00', '24000.00']) }, key())).toMatchObject({ ok: false, error: { details: { reason: 'FILE_LINKED' } } })
+    // a bid procurement recorded may be recorded again with a new file (a corrected quotation)
+    ok(await recordBidOnBehalf(proc(), { rfxEventId, supplierId: parties[1]!.supplier.id, fileId: (await upload()).id, lines: priced(lines, ['23900.00', '24000.00']) }, key()))
+  })
+})

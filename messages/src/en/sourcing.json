@@ -55,6 +55,7 @@
       "VALIDATION_FAILED": "Something is not valid. Please check again",
       "MODULE_DISABLED": "Sourcing is not open for this organization",
       "FAILED": "That did not work. Please try again"
-    }
+    },
+    "mine": "Your scores"
   }
 }

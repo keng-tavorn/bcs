@@ -113,7 +113,7 @@ export default async function ScorePage({ params }: { params: Promise<{ id: stri
             {s.me?.status === 'SUBMITTED' && cardStatus !== 'REVEALED' ? <Notice tone="success">{t('mineSent')}</Notice> : null}
             {s.me?.status === 'RECUSED' ? <Notice tone="info">{t('mineRecused')}</Notice> : null}
             {s.me?.status === 'ASSIGNED' && scoring && quality.length ? (
-              <Panel title={t('submitTitle')} id="sheet">
+              <Panel title={t('mine')} id="sheet">
                 <ScoreForm
                   bids={s.bids.map((b) => ({ id: b.id, supplierName: b.supplierName, net: baht(b.net), partial: b.isPartial }))}
                   criteria={quality.map((c) => ({ code: c.code, name: name(c) }))}

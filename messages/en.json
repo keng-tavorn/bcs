@@ -11889,6 +11889,7 @@
       "evaluators": "Evaluators",
       "intro": "Score each bid on each criterion from 0 to 100 on your own. Other evaluators do not see your scores until everyone has sent theirs.",
       "invalid": "Type a whole number from 0 to 100",
+      "mine": "Your scores",
       "mineRecused": "You stepped aside from this evaluation",
       "mineSent": "You have sent your scores; waiting for the other evaluators",
       "net": "Before VAT",

@@ -49,10 +49,10 @@ async function open() {
     await createRfx(proc, { kind: 'RFQ', title: `เหล็กข้ออ้อย DB12 ${tag}`, description: 'ขอราคาเหล็กข้ออ้อยสำหรับสองไซต์', source: { kind: 'NEED', categoryCode: 'STEEL', lines: [{ description: 'DB12 ไซต์ 1', quantity: '8', uom: 'ตัน', refUnitPrice: '23800.00' }, { description: 'DB12 ไซต์ 9', quantity: '5', uom: 'ตัน', refUnitPrice: '23800.00' }] } }, key()),
   )
   const version = async () => (await prisma.rfxEvent.findUniqueOrThrow({ where: { id: rfxEventId } })).version
-  const parties = []
-  for (const [name, unit] of [['ชลบุรีภัณฑ์', '23150.00'], ['สหมิตรเหล็ก', '23500.00'], ['เหล็กไทยค้าส่ง', '23364.49']] as const) {
-    const supplier = await prisma.supplier.create({ data: { organizationId: org.id, code: `E2E-SC-${tag}-${parties.length}`, nameTh: `บริษัท ${name} จำกัด`, taxId: taxId(), isVatRegistered: true, branchCode: '00000', portalEnabled: true } })
-    const contact = await prisma.supplierContact.create({ data: { organizationId: org.id, supplierId: supplier.id, nameTh: `ติดต่อ ${name}`, email: `score.${tag}.${parties.length}@supplier.test`, isPrimary: true } })
+  const parties: Array<{ supplier: { id: string }; contact: Parameters<typeof portalCtx>[1]; unit: string }> = []
+  for (const [n, [name, unit]] of ([['ชลบุรีภัณฑ์', '23150.00'], ['สหมิตรเหล็ก', '23500.00'], ['เหล็กไทยค้าส่ง', '23364.49']] as const).entries()) {
+    const supplier = await prisma.supplier.create({ data: { organizationId: org.id, code: `E2E-SC-${tag}-${n}`, nameTh: `บริษัท ${name} จำกัด`, taxId: taxId(), isVatRegistered: true, branchCode: '00000', portalEnabled: true } })
+    const contact = await prisma.supplierContact.create({ data: { organizationId: org.id, supplierId: supplier.id, nameTh: `ติดต่อ ${name}`, email: `score.${tag}.${n}@supplier.test`, isPrimary: true } })
     parties.push({ supplier, contact, unit })
     ok(await inviteToRfx(proc, { rfxEventId, expectedVersion: await version(), supplierId: supplier.id }, key()))
   }

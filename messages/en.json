@@ -10143,6 +10143,10 @@
         "description": "The system's goal measures, computed from the event log and the documents: POs through BCS, approvals by the DOA, speed, budget control and approvals on LINE.",
         "name": "KPI G-1 to G-5"
       },
+      "SUP_G7": {
+        "description": "Business days new suppliers take from invitation to approval, filled in by the supplier or by procurement, with the applications waiting and the expired documents",
+        "name": "New supplier onboarding time (G-7)"
+      },
       "WF_BOTTLENECKS": {
         "description": "The positions and people with the most past-due tasks and the longest decision times",
         "name": "Approval bottlenecks"
@@ -12061,6 +12065,71 @@
     "noDate": "not given",
     "notYet": "The supplier has not acknowledged this PO on the portal yet",
     "strip": "The supplier acknowledged on {at} · delivering on {date}"
+  },
+  "supplierReport": {
+    "approved": {
+      "caption": "New supplier applications approved in this period, with the business days from invitation to approval",
+      "columns": {
+        "application": "Application",
+        "days": "Business days",
+        "decidedAt": "Approved",
+        "filledBy": "Filled in by",
+        "invitedAt": "Invited",
+        "supplier": "Supplier"
+      },
+      "emptyHint": "Try a longer period: a new supplier often takes weeks from invitation to approval.",
+      "emptyTitle": "No application approved in this period",
+      "title": "Applications approved in this period ({count})"
+    },
+    "back": "Back to reports",
+    "days": "{value} business days",
+    "expired": {
+      "caption": "Suppliers with an expired required document, by category",
+      "columns": {
+        "category": "Supplier category",
+        "suppliers": "Suppliers"
+      },
+      "emptyHint": "When a supplier’s required document expires, its category shows here.",
+      "emptyTitle": "No supplier has an expired required document",
+      "intro": "Suppliers with at least one required document expired as of today, by supplier category.",
+      "noCategory": "No category",
+      "title": "Suppliers with an expired required document"
+    },
+    "export": {
+      "hint": "An Excel file of the applications in the table above, for the same period and scope, with the file’s checksum.",
+      "title": "Export"
+    },
+    "filledBy": {
+      "onBehalf": "Procurement on its behalf",
+      "self": "The supplier"
+    },
+    "intro": "How many business days new suppliers take from invitation to approval (KPI G-7), the applications waiting past their due time, and the suppliers whose documents expired. The figures come from the system, not from AI.",
+    "median": {
+      "all": "All applications",
+      "hint": "Business days on the organization’s calendar (1 day = one working day), one decimal; with an even count, the lower middle value. New suppliers approved in this period only.",
+      "onBehalf": "Filled in by procurement",
+      "self": "Filled in by the supplier",
+      "title": "Median business days from invitation to approval (G-7)"
+    },
+    "moduleOff": "This organization has not switched on the supplier module, so this report is not available yet.",
+    "noNumber": "No number yet",
+    "noneYet": "No application approved in this period yet",
+    "overdue": {
+      "caption": "Applications past their due time",
+      "columns": {
+        "application": "Application",
+        "escalatedAt": "Passed to procurement",
+        "status": "Status",
+        "supplier": "Supplier"
+      },
+      "emptyHint": "An application shows here once it is past the time the system passes it to procurement.",
+      "emptyTitle": "No application is past its due time",
+      "intro": "Applications the supplier has not finished that the system passed to procurement because they are past due, as of now (whatever the period).",
+      "title": "Applications past their due time ({count})"
+    },
+    "periodLabel": "Approval dates",
+    "run": "Show this period",
+    "title": "Supplier report"
   },
   "suppliers": {
     "branch": {

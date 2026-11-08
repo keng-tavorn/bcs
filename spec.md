@@ -5186,7 +5186,8 @@ framework: รายงานแต่ละฉบับเป็น query ใ�
 | G-3 | มัธยฐานของ (เวลาอนุมัติ PO แรก − เวลาส่งคำขอ) · มัธยฐานของ (decidedAt − assignedAt) · งานที่ตัดสินหลัง dueAt หรือยังเปิดอยู่และเลย dueAt ÷ งานทั้งหมด | |
 | G-4 | จำนวน `approval_task.assigned` ของคำขอที่ `budgetCheck` ไม่ใช่ PASS | ต้องเป็น 0 |
 | G-5 | การตัดสินของขั้น APPROVAL ที่ channel เป็น `LINE_CHAT` หรือ `LIFF` ÷ การตัดสินของขั้น APPROVAL ทั้งหมด (การตัดสินของผู้ตรวจไม่ใช่การอนุมัติ ไม่นับ · S6 · OQ-101) | แสดงทั้งรวมและแยกตามประเภทเอกสาร · ฉาก 9 ของ demo และ D-01 ใช้ตัวเลขของคำขอซื้อ (`PURCHASE_REQUEST`) ซึ่งตรงกับบรรทัดของ `pnpm inputs:check` (ADR-038) |
-| G-6 ถึง G-9 | นิยามใน sub-spec ของ S7 ถึง S11 | |
+| G-6 · G-8 · G-9 | นิยามใน sub-spec ของ S9 · S10 · S11 | |
+| G-7 | ใบสมัคร `kind = NEW` ที่ `APPROVED` ในช่วง (ตาม `decidedAt`): วันทำการต่อใบ = `businessMinutesBetween(invitedAt, decidedAt) ÷ นาทีของวันทำการ` ปัด half-up ทศนิยม 1 ตำแหน่ง · มัธยฐาน = ตัวกลางล่าง แยก "ทุกใบ" "สมัครเอง" และ "กรอกแทน" (มี `filledOnBehalfById`) · ไม่มีใบ → null (BR-SUP ข้อ 13 · GC-SUP-30 ถึง 33) | หน้า `/reports/suppliers` และรายงาน `SUP_G7` · ขอบเขต `report.view` (หัวหน้าเห็นใบที่สมาชิกของหน่วยงานที่ตนดูแลเชิญ) · โค้ดใน `src/server/queries/supplier-kpi.ts` (S7-16) |
 | G-10 | จำนวนจุดในโค้ดที่ lint พบว่าอ้างรหัสองค์กรหรือเงื่อนไขเฉพาะลูกค้า | ต้องเป็น 0 |
 | G-11 | (ก) ฉบับ DOA และ `OrgAuthorityChange` ที่มีผลแล้วโดยไม่มี event ที่ actorType เป็น `PLATFORM_ADMIN` ในวงจรนั้น ÷ ทั้งหมด (ข) มัธยฐานเวลาทำการจาก `doa_version.drafted` ถึง `doa_version.published` | (ก) ต้องเป็น 100% |
 

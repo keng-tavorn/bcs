@@ -64,4 +64,8 @@ defineEvents('Bid', {
   },
   'bid.withdrawn': { schema: z.object({ rfxEventId: z.uuid(), withReason: z.boolean() }) },
   'bid.recorded_on_behalf': { schema: z.object({ rfxEventId: z.uuid(), memberId: z.uuid(), fileId: z.uuid() }) },
+  // S10-07 (BR-RFX-07 · BR-PORTAL-07): the supplier's files of its bid; an infected one is taken off by the scan's listener
+  'bid.file_attached': { schema: z.object({ rfxEventId: z.uuid(), fileId: z.uuid() }) },
+  'bid.file_removed': { schema: z.object({ rfxEventId: z.uuid(), fileId: z.uuid() }) },
+  'bid.file_rejected': { schema: z.object({ rfxEventId: z.uuid(), fileId: z.uuid() }) },
 })

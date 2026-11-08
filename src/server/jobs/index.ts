@@ -30,7 +30,7 @@ import { renewalReminders } from './renewal-reminders'
 import { budgetOverrunLapse } from './budget-overrun-lapse'
 import { budgetBurnAlerts } from './budget-burn-alerts'
 import { fileScan, supplierDocumentExpiry, supplierDocumentScannedJob } from './supplier-documents'
-import { rfxClose, rfxInviteLink, rfxReminder } from './rfx'
+import { bidFileScannedJob, rfxClose, rfxInviteLink, rfxReminder } from './rfx'
 import { riskAssessmentSla, riskEvidenceScannedJob } from './risk-assessments'
 import { supplierNoticeSend, supplierNoticeSweep } from './supplier-notice-send'
 
@@ -79,6 +79,7 @@ export const functions = [
   rfxClose,
   rfxReminder,
   rfxInviteLink,
+  bidFileScannedJob,
   // S8-07: the invoice inbox (ADR-123)
   invoiceInboxPoll,
   // S8-09: retentions whose day has come (ADR-124)

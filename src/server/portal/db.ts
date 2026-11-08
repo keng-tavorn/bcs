@@ -55,6 +55,12 @@ PORTAL_MODELS.push(
   { model: 'rfxQuestion', where: (a) => ({ rfxEvent: invitedTo(a), OR: [{ status: 'ANSWERED', visibility: 'ALL' }, { invite: bySupplierOrApplication(a) }] }) },
   { model: 'bid', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : NONE) },
   { model: 'bidLine', where: (a) => (a.supplierId ? { bid: { supplierId: a.supplierId } } : NONE) },
+  // S10-07: the files of an RFx (RFX_DOC) and of a bid (BID_DOC). As S11's line above, a file link names its subject by id
+  // only, so this cannot pin the supplier: every portal query of these MUST add subjectId ∈ the RFx or the own bid it
+  // read through rfxEvent or bid
+  { model: 'fileLink', where: () => ({ OR: [{ kind: 'RFX_DOC', subjectType: 'RfxEvent' }, { kind: 'BID_DOC', subjectType: 'Bid' }] }) },
+  // the lines awarded to the supplier by an approved award (the result page · never another supplier's line)
+  { model: 'awardLine', where: (a) => (a.supplierId ? { supplierId: a.supplierId, awardDecision: { status: 'APPROVED' } } : NONE) },
 )
 
 export const PORTAL_MODEL_NAMES: ReadonlySet<string> = new Set(PORTAL_MODELS.map((m) => m.model))
@@ -62,7 +68,9 @@ export const PORTAL_MODEL_NAMES: ReadonlySet<string> = new Set(PORTAL_MODELS.map
 /** The condition of the model for the actor of the portal context; throws for a model outside the registry or a non-portal ctx */
 export function portalWhere(ctx: Ctx, model: string): Readonly<Record<string, unknown>> {
   if (ctx.actor.type !== 'SUPPLIER' || ctx.channel !== 'PORTAL') throw new Error('portalWhere needs the context of a portal request')
-  const entry = PORTAL_MODELS.find((m) => m.model === model)
-  if (!entry) throw new Error(`the portal may not read ${model}`)
-  return entry.where(ctx.actor)
+  // a model appended by two steps (fileLink: S11's evidence and S10's files) reads the rows of either line
+  const entries = PORTAL_MODELS.filter((m) => m.model === model)
+  if (!entries.length) throw new Error(`the portal may not read ${model}`)
+  const actor = ctx.actor
+  return entries.length === 1 ? entries[0]!.where(actor) : { OR: entries.map((e) => e.where(actor)) }
 }

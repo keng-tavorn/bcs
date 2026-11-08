@@ -14,6 +14,7 @@ export const SOURCING_SUPPLIER_TEMPLATES = {
   bidReceived: 'rfx.bid_received',
   closed: 'rfx.closed',
   cancelled: 'rfx.cancelled',
+  fileRejected: 'rfx.file_rejected',
 } as const
 
 const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '')
@@ -112,5 +113,14 @@ registerSupplierTemplate(SOURCING_SUPPLIER_TEMPLATES.cancelled, (d, c) =>
     `${c.organizationName} ยกเลิก ${str(d.number) || str(d.title)} / Cancelled`,
     [`เรียน ${c.supplierName}`, `${c.organizationName} ยกเลิกการจัดหา "${str(d.title)}" ${str(d.number)} แล้ว ข้อเสนอที่ยื่นไว้ไม่ถูกพิจารณา`],
     [`${c.organizationName} cancelled "${titleEn(d)}" ${str(d.number)}. Bids sent for it will not be considered.`],
+  ),
+)
+
+// S10-07 (BR-PORTAL-07): a file attached to a bid that the central scan found infected is taken off the bid
+registerSupplierTemplate(SOURCING_SUPPLIER_TEMPLATES.fileRejected, (d, c) =>
+  supplierMail(
+    `${str(d.number)} ไฟล์แนบไม่ผ่านการตรวจ / An attached file was refused`,
+    [`เรียน ${c.supplierName}`, `ไฟล์ "${str(d.fileName)}" ที่แนบกับข้อเสนอ ${str(d.number)} "${str(d.title)}" ไม่ผ่านการตรวจความปลอดภัย ระบบนำออกจากข้อเสนอแล้ว กรุณาแนบไฟล์ใหม่ก่อนปิดรับในพอร์ทัล ${str(d.loginUrl)}`],
+    [`The file "${str(d.fileName)}" attached to your bid for ${str(d.number)} "${titleEn(d)}" did not pass the security check and was taken off the bid. Please attach another before the close at ${str(d.loginUrl)}.`],
   ),
 )

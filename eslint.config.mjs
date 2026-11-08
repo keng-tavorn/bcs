@@ -50,8 +50,9 @@ const coreFormatting = { to: { element: { type: 'core', captured: { module: '{th
 // Shared screen components (src/ui, not in the §4.10 table) also run the form rules the server runs: fields shown or
 // hidden as the requester types (FR-INT-002 AC1) and quotations compared (BR-FORM-06) with the same core/forms; BCS
 // Go's receiving page runs the offline queue's rules on the phone (core/offline-queue, ADR-164) and, with no signal to
-// ask the server, finds an excess beyond the tolerance as gr.post measures it (core/receiving)
-const coreForUi = { to: { element: { type: 'core', captured: { module: '{thai,money,result,forms,offline-queue,receiving}' } } } }
+// ask the server, finds an excess beyond the tolerance as gr.post measures it (core/receiving); the portal's bid form
+// shows the supplier the amounts bid.submit will compute from its prices with the same core/sourcing (S10-07 · BR-RFX-08)
+const coreForUi = { to: { element: { type: 'core', captured: { module: '{thai,money,result,forms,offline-queue,receiving,sourcing}' } } } }
 // Channels get exactly the §4.10 row: core/{thai,money} for formatting, nothing else of core
 const coreFormattingForChannels = { to: { element: { type: 'core', captured: { module: '{thai,money}' } } } }
 

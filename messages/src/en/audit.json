@@ -703,7 +703,10 @@
       "saved": "Bid draft saved",
       "submitted": "Bid submitted",
       "withdrawn": "Bid withdrawn",
-      "recorded_on_behalf": "Bid recorded for the supplier"
+      "recorded_on_behalf": "Bid recorded for the supplier",
+      "file_attached": "File attached to a bid",
+      "file_removed": "File taken off a bid",
+      "file_rejected": "Bid file refused by the scan"
     },
     "risk_tier": {
       "proposed": "New risk tier values proposed",

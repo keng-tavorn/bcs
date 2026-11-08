@@ -7,7 +7,8 @@ import { field, forbiddenCsrf, formOf, notFound, seeOther } from '../../../_lib/
 // POST /portal/<org>/api/rfx/bid (S10-06 · FR-SRC-202 AC2 AC3): the contact saves, submits or withdraws its bid
 // (action = save | submit | withdraw). Lines come as line:<rfxLineId>:price · :offered · :brand · :lead · :note; a line
 // left without a price and not ticked as offered is not offered. The answer is the RFx page with ?saved= ?sent= ?withdrawn=
-// or ?error= (and ?reason= ?lines=). Logs never carry a price (NFR-SEC-09).
+// or ?error= (and ?reason= ?lines=) — S10-07: a draft and a refusal come back to /rfx/<id>/bid. Logs never carry a price
+// (NFR-SEC-09).
 
 const intOf = (v: string): number | undefined => (/^\d{1,4}$/.test(v) ? Number(v) : undefined)
 
@@ -59,7 +60,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
       : action === 'withdraw'
         ? await withdrawBid(state.ctx, { rfxEventId }, { idempotencyKey: key })
         : await saveBid(state.ctx, content, { idempotencyKey: key })
-  if (r.ok) return seeOther(req.org, page, { [action === 'submit' ? 'sent' : action === 'withdraw' ? 'withdrawn' : 'saved']: 1 })
+  // S10-07: a sent or withdrawn bid shows on the RFx's page; a draft, and a refusal of save or submit, come back to the form
+  const formPage = `${page}/bid`
+  if (r.ok) return action === 'submit' ? seeOther(req.org, page, { sent: 1 }) : action === 'withdraw' ? seeOther(req.org, page, { withdrawn: 1 }) : seeOther(req.org, formPage, { saved: 1 })
   const details: Readonly<Record<string, unknown>> = r.error.details ?? {}
-  return seeOther(req.org, page, { error: r.error.code, reason: typeof details.reason === 'string' ? details.reason : undefined, lines: typeof details.lines === 'string' ? details.lines : undefined })
+  return seeOther(req.org, action === 'withdraw' ? page : formPage, { error: r.error.code, reason: typeof details.reason === 'string' ? details.reason : undefined, lines: typeof details.lines === 'string' ? details.lines : undefined })
 }

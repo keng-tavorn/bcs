@@ -30,7 +30,7 @@ import { gate, lockedRfx } from './rfx'
 
 type Fail = { readonly ok: false; readonly error: AppError; readonly auditEvents?: readonly EventDraft[] }
 const fail = (code: AppError['code'], message: string, details?: Record<string, unknown>): Fail => ({ ok: false, error: { code, message, ...(details ? { details } : {}) } })
-const isFail = (x: unknown): x is Fail => typeof x === 'object' && x !== null && (x as { ok?: unknown }).ok === false
+export const isFail = (x: unknown): x is Fail => typeof x === 'object' && x !== null && (x as { ok?: unknown }).ok === false
 const memberOf = (ctx: Ctx): string | null => (ctx.actor.type === 'USER' ? ctx.actor.memberId : null)
 
 const BAHT = z.string().regex(/^\d{1,13}(\.\d{1,2})?$/)
@@ -53,10 +53,10 @@ const BidContent = {
 }
 
 /** The invite statuses from which a bid can still be sent (BID_MACHINE · RFX_INVITE_MACHINE) */
-const MAY_BID = new Set(['INVITED', 'VIEWED', 'BID_SUBMITTED', 'WITHDRAWN'])
+export const MAY_BID = new Set(['INVITED', 'VIEWED', 'BID_SUBMITTED', 'WITHDRAWN'])
 
 /** The contact's invite on the RFx; an RFx the contact is not invited to does not exist for them (INV-RFX-01) */
-async function contactInvite(tx: TenantTx, ctx: Ctx, rfxEventId: string, action: string) {
+export async function contactInvite(tx: TenantTx, ctx: Ctx, rfxEventId: string, action: string) {
   if (ctx.actor.type !== 'SUPPLIER' || ctx.channel !== 'PORTAL') return fail('FORBIDDEN', 'not a portal request', { action })
   const owner = ctx.actor.supplierId ? { supplierId: ctx.actor.supplierId } : ctx.actor.applicationId ? { applicationId: ctx.actor.applicationId } : null
   const invite = owner ? await tx.rfxInvite.findFirst({ where: { rfxEventId, ...owner }, select: { id: true, status: true, supplierId: true, applicationId: true, contactId: true } }) : null
@@ -65,11 +65,12 @@ async function contactInvite(tx: TenantTx, ctx: Ctx, rfxEventId: string, action:
 }
 
 /** A bid needs an approved, ACTIVE supplier (an application's contact waits · ADR-203 · OQ-202) */
-async function biddingSupplier(tx: TenantTx, supplierId: string | null) {
+export async function biddingSupplier(tx: TenantTx, supplierId: string | null) {
   if (!supplierId) return fail('SUPPLIER_NOT_APPROVED', 'a bid is sent once the supplier is approved')
-  const supplier = await tx.supplier.findUnique({ where: { id: supplierId }, select: { id: true, status: true, isVatRegistered: true, isForeign: true } })
+  const supplier = await tx.supplier.findUnique({ where: { id: supplierId }, select: { id: true, status: true, isVatRegistered: true, isForeign: true, registryFlag: true } })
   if (!supplier || supplier.status !== 'ACTIVE') return fail('SUPPLIER_NOT_APPROVED', 'a bid is sent by an active supplier')
-  return supplier
+  // BR-RFX-07 · BR-VAT-04: a supplier whose VAT registration the register says is cancelled bids without VAT
+  return { id: supplier.id, status: supplier.status, isForeign: supplier.isForeign, isVatRegistered: supplier.isVatRegistered && supplier.registryFlag !== 'VAT_CANCELLED' }
 }
 
 function bidStep(status: string, command: BidCommand): Fail | null {
@@ -77,7 +78,7 @@ function bidStep(status: string, command: BidCommand): Fail | null {
   return t.ok ? null : fail('INVALID_STATE_TRANSITION', `${command} is not allowed from ${status}`, { from: status, command })
 }
 
-const open = (rfx: { status: string; closesAt: Date | null }, now: Date) => rfx.status === 'OPEN' && rfx.closesAt !== null && now.getTime() < rfx.closesAt.getTime()
+export const open = (rfx: { status: string; closesAt: Date | null }, now: Date) => rfx.status === 'OPEN' && rfx.closesAt !== null && now.getTime() < rfx.closesAt.getTime()
 
 type Content = { priceIncludesVat: boolean; deliveryDays?: number; promisedDeliveryOn?: string; note?: string; lines: z.infer<typeof BidLineInput>[] }
 
@@ -117,7 +118,7 @@ async function writeContent(tx: TenantTx, ctx: Ctx, rfx: { id: string; kind: str
 }
 
 /** The bid of the supplier on the RFx, made when there is none (one per supplier per RFx · INV-RFX-02) */
-async function bidOf(tx: TenantTx, ctx: Ctx, rfxEventId: string, inviteId: string, supplierId: string) {
+export async function bidOf(tx: TenantTx, ctx: Ctx, rfxEventId: string, inviteId: string, supplierId: string) {
   const found = await tx.bid.findFirst({ where: { rfxEventId, supplierId }, select: { id: true } })
   const id = found?.id ?? (await tx.bid.create({ data: { organizationId: ctx.organizationId, rfxEventId, inviteId, supplierId }, select: { id: true } })).id
   await lockRowsForUpdate(tx, 'Bid', ctx.organizationId, [id])

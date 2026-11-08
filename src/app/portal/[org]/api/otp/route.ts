@@ -3,6 +3,7 @@ import { supplierSettingsOf } from '@/lib/org-settings'
 import { verifyPortalOtp } from '@/server/portal/commands'
 import { portalRequest, sameOrigin } from '@/server/portal/http'
 import { organizationSettings } from '@/server/portal/org'
+import { portalRfxLanding } from '@/server/portal/queries-rfx'
 import { portalRiskLanding } from '@/server/portal/queries-risk'
 import { PORTAL_CSRF_COOKIE, PORTAL_PENDING_COOKIE, PORTAL_SESSION_COOKIE, portalCookieOptions, readPortalSession } from '@/server/portal/session'
 import { field, forbiddenCsrf, formOf, notFound, seeOther } from '../../_lib/respond'
@@ -32,9 +33,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
     })
   }
   const maxAgeMs = supplierSettingsOf(await organizationSettings(req.org)).sessionMaxHours * MS_PER_HOUR
-  // S11-05 (BR-RSK-17): a contact who came by a questionnaire's link lands on that questionnaire
+  // S11-05 (BR-RSK-17): a contact who came by a questionnaire's link lands on that questionnaire; S10-07: by an RFx's
+  // invite, on that RFx
   const session = await readPortalSession(req.org, r.data.sessionId, req.meta.now)
-  const res = seeOther(req.org, session ? await portalRiskLanding(session.ctx) : '')
+  const res = seeOther(req.org, session ? (await portalRiskLanding(session.ctx)) || (await portalRfxLanding(session.ctx)) : '')
   res.cookies.set(PORTAL_SESSION_COOKIE, r.data.sessionId, portalCookieOptions(req.org, { maxAgeMs }))
   res.cookies.set(PORTAL_CSRF_COOKIE, r.data.csrfToken, portalCookieOptions(req.org, { maxAgeMs, httpOnly: false }))
   res.cookies.set(PORTAL_PENDING_COOKIE, '', portalCookieOptions(req.org, { maxAgeMs: 0 }))

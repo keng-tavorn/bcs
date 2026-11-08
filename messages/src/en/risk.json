@@ -2,8 +2,18 @@
   "admin": {
     "moduleOff": "This organization has not switched on supplier risk yet. Ask the BCS team to switch it on",
     "proposedBy": "Proposed by {name} · {time}",
-    "tierName": { "LOW": "Low", "MEDIUM": "Medium", "HIGH": "High" },
-    "domain": { "GENERAL": "General", "PRIVACY": "Personal data", "INFOSEC": "Information security", "PREMISES": "Site safety", "FINANCE": "Finance" },
+    "tierName": {
+      "LOW": "Low",
+      "MEDIUM": "Medium",
+      "HIGH": "High"
+    },
+    "domain": {
+      "GENERAL": "General",
+      "PRIVACY": "Personal data",
+      "INFOSEC": "Information security",
+      "PREMISES": "Site safety",
+      "FINANCE": "Finance"
+    },
     "tiers": {
       "title": "Supplier risk tiers",
       "intro": "The lowest points of each tier, how often it is assessed again, and which tiers must be assessed before a PO. New values take effect only once another administrator confirms them",
@@ -11,7 +21,10 @@
       "list": "Risk tiers",
       "notSeeded": "This organization has no three tiers yet. The BCS team loads them from the organization's data form",
       "engineReadsEffective": "Tiers and the check before a PO use the values in effect only. A value waiting for confirmation affects no supplier yet",
-      "columns": { "tier": "Tier", "pending": "Status" },
+      "columns": {
+        "tier": "Tier",
+        "pending": "Status"
+      },
       "fields": {
         "minPoints": "Lowest points",
         "reviewMonths": "Assessed again every",
@@ -96,7 +109,12 @@
       "draftFrom": "Draft a new version of {code}",
       "empty": "No questionnaire yet",
       "emptyHint": "Create the first draft, then add questions",
-      "status": { "DRAFT": "Draft", "PENDING_PUBLISH": "Waiting to publish", "PUBLISHED": "Published", "SUPERSEDED": "Replaced" },
+      "status": {
+        "DRAFT": "Draft",
+        "PENDING_PUBLISH": "Waiting to publish",
+        "PUBLISHED": "Published",
+        "SUPERSEDED": "Replaced"
+      },
       "questions": "Questions",
       "readOnly": "This version can no longer change. Draft a new version to change questions",
       "noQuestions": "This version has no questions yet",
@@ -120,8 +138,24 @@
         "$isForeign": "Foreign supplier",
         "$inherentTier": "Starting tier"
       },
-      "ops": { "eq": "is", "ne": "is not", "in": "is one of", "anyIn": "has a category in" },
-      "values": { "Y": "Yes", "N": "No", "true": "Yes", "false": "No", "JURISTIC": "Juristic person", "INDIVIDUAL": "Individual", "FOREIGN": "Foreign", "LOW": "Low", "MEDIUM": "Medium", "HIGH": "High" },
+      "ops": {
+        "eq": "is",
+        "ne": "is not",
+        "in": "is one of",
+        "anyIn": "has a category in"
+      },
+      "values": {
+        "Y": "Yes",
+        "N": "No",
+        "true": "Yes",
+        "false": "No",
+        "JURISTIC": "Juristic person",
+        "INDIVIDUAL": "Individual",
+        "FOREIGN": "Foreign",
+        "LOW": "Low",
+        "MEDIUM": "Medium",
+        "HIGH": "High"
+      },
       "edit": "Edit",
       "editOf": "Edit question {code}",
       "up": "Up",
@@ -277,5 +311,60 @@
         "DOA_ADMIN_SEPARATED": "The organization separated its DOA administrators. Only a DOA administrator may do this"
       }
     }
+  },
+  "assessment": {
+    "title": "Supplier risk assessment",
+    "heading": "Assessment {number} · {supplier}",
+    "intro": "Questionnaire {code} version {version} · opened {opened} by {by}",
+    "status": {
+      "DRAFT": "Waiting for the supplier",
+      "IN_REVIEW": "With the reviewers",
+      "RETURNED": "Sent back to fix",
+      "COMPLETED": "Completed",
+      "SUPERSEDED": "Replaced by a newer one",
+      "CANCELLED": "Cancelled"
+    },
+    "questions": "Questions and answers",
+    "answer": "Answer: {option} ({points} points)",
+    "source": {
+      "EXPLICIT": "Answered by the supplier · {by}",
+      "ON_BEHALF": "Filled in by procurement · {by}",
+      "EVIDENCE": "Answered by the supplier's certificate"
+    },
+    "evidenceDocument": "Certificate {type}, scope {scope}, valid until {date}",
+    "note": "Note: {note}",
+    "file": "File {name} · {scan}",
+    "scan": {
+      "PENDING": "Waiting for the security check",
+      "CLEAN": "Passed the check",
+      "INFECTED": "Failed the check"
+    },
+    "notAnswered": "Not answered",
+    "notAnsweredOptional": "Not answered (optional)",
+    "work": "The work assessed",
+    "categories": "Item categories",
+    "workScopes": "Standards the work needs",
+    "inherentTier": "Starting tier",
+    "result": "Result",
+    "resultValue": "{tier} tier · {points} points",
+    "validUntil": "Valid until",
+    "manage": "Manage the assessment",
+    "fill": "Fill in for the supplier",
+    "submit": "Send the questionnaire",
+    "submitted": "Questionnaire sent",
+    "cancel": "Cancel the assessment",
+    "cancelTitle": "Cancel this assessment",
+    "cancelBody": "A cancelled assessment cannot be reopened; open a new one. Open reviewer tasks are cancelled too.",
+    "cancelReason": "Reason for cancelling",
+    "keep": "Keep it",
+    "cancelled": "Assessment cancelled",
+    "fillTitle": "Fill in for the supplier",
+    "fillBody": "Choose the answers the supplier gave. Answers filled in are recorded as procurement's, and whoever fills in cannot review this assessment.",
+    "lockedByEvidence": "Answered by a certificate; not changed here",
+    "close": "Close",
+    "save": "Save the answers",
+    "saving": "Saving…",
+    "filled": "Answers filled in were saved",
+    "missing": "Still to answer: {codes}"
   }
 }

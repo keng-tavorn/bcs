@@ -11,6 +11,6 @@ export interface Say {
   has(key: string): boolean
 }
 
-export function useSay(namespace: `risk.admin${string}`): Say {
-  return useTranslations(namespace as 'risk.admin') as unknown as Say
+export function useSay(namespace: `risk.${string}`): Say {
+  return useTranslations(namespace as 'risk') as unknown as Say
 }

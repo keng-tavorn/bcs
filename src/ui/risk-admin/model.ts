@@ -29,4 +29,6 @@ export type RiskAdminOutcome =
       readonly reason?: string
       /** RISK_LINT: the codes of what fails, for the lint panel */
       readonly lint?: readonly { readonly code: string; readonly question?: string; readonly documentType?: string; readonly reason: string }[]
+      /** RISK_ANSWERS_INCOMPLETE: the question codes still to answer */
+      readonly missing?: readonly string[]
     }

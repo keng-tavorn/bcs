@@ -15,6 +15,7 @@ export {
   type TierChange,
 } from './admin'
 export { evidenceSource, normalizeScope, riskStatusAt, type CurrentAnswer, type EvidenceDocument, type EvidenceInput, type EvidenceReason, type EvidenceResult, type RiskDateStatus } from './evidence'
+export { addCalendarDays, addCalendarMonths, reviewDates, type ReviewDates } from './review'
 export { assessmentCompleteness, scoreAssessment, tierByPoints, type AnswerSource, type Completeness, type Score } from './score'
 export { inherentTier, maxTier, questionsInSet, riskConditionHolds, selectQuestions, type QuestionSet } from './select'
 export {

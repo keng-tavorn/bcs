@@ -282,3 +282,7 @@ export const RISK_HELP_MAX = 2000
 export const RISK_OPTION_POINTS_MAX = 1000
 /** The largest lower bound of a tier an administrator may type */
 export const RISK_TIER_POINTS_MAX = 1_000_000
+/** S11-05 (FR-RSK-204 AC4 · BR-RSK-18): the evidence files of one risk answer */
+export const RISK_EVIDENCE_FILES_PER_QUESTION = 5
+/** S11-05 (docs/sub-specs/S11.md job risk-assessment-sla): a business day counted as 540 business minutes (08:30–17:30) */
+export const BUSINESS_DAY_MINUTES = 540

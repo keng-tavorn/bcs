@@ -9,7 +9,7 @@ import { newSecret, sha256Hex } from '@/server/crypto/portal'
 // POST (the GET of the link only shows a page). LOGIN lives supplier.loginLinkMinutes; a link e-mailed for work later
 // (INVITATION, DOCUMENT_REQUEST and what S10 S11 append) lives supplier.inviteLinkDays.
 
-export type LinkPurpose = 'INVITATION' | 'LOGIN' | 'DOCUMENT_REQUEST'
+export type LinkPurpose = 'INVITATION' | 'LOGIN' | 'DOCUMENT_REQUEST' | 'RISK_QUESTIONNAIRE'
 
 export interface IssuedLink {
   readonly linkId: string

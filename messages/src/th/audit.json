@@ -156,7 +156,10 @@
     "supplier_document_type": "ประเภทเอกสารผู้ขาย",
     "risk_tier": "เกณฑ์ระดับความเสี่ยง",
     "risk_policy": "นโยบายด่านความเสี่ยง",
-    "risk_questionnaire": "แบบประเมินความเสี่ยง"
+    "risk_questionnaire": "แบบประเมินความเสี่ยง",
+    "risk_assessment": "แบบประเมินความเสี่ยงคู่ค้า",
+    "review_task": "งานผู้ตรวจความเสี่ยง",
+    "risk_review": "การประเมินซ้ำ"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -221,7 +224,10 @@
     "SupplierDocumentType": "ประเภทเอกสารผู้ขาย",
     "RiskTier": "เกณฑ์ระดับความเสี่ยง",
     "RiskPolicy": "นโยบายด่านความเสี่ยง",
-    "RiskQuestionnaire": "ฉบับแบบประเมินความเสี่ยง"
+    "RiskQuestionnaire": "ฉบับแบบประเมินความเสี่ยง",
+    "RiskAssessment": "ใบประเมินความเสี่ยง",
+    "ReviewTask": "งานผู้ตรวจความเสี่ยง",
+    "RiskReview": "การประเมินซ้ำ"
   },
   "events": {
     "approval_step": {
@@ -467,7 +473,9 @@
       "registry_checked": "ตรวจผู้ขายกับทะเบียนของรัฐ",
       "registry_status_changed": "สถานะผู้ขายในทะเบียนเปลี่ยน",
       "updated": "แก้ไขข้อมูลผู้ขาย",
-      "tax_profile_updated": "แก้ข้อมูลภาษีของผู้ขาย"
+      "tax_profile_updated": "แก้ข้อมูลภาษีของผู้ขาย",
+      "risk_tier_changed": "ระดับความเสี่ยงของผู้ขายเปลี่ยน",
+      "risk_status_changed": "สถานะความเสี่ยงของผู้ขายเปลี่ยน"
     },
     "variance": {
       "approved": "อนุมัติผลต่างจากการตรวจรับ",
@@ -667,6 +675,23 @@
       "rejected": "ตีกลับฉบับแบบประเมิน",
       "published": "เผยแพร่ฉบับแบบประเมิน",
       "superseded": "ฉบับแบบประเมินถูกแทนด้วยฉบับใหม่"
+    },
+    "risk_assessment": {
+      "opened": "เปิดใบประเมินความเสี่ยง",
+      "answered": "บันทึกคำตอบแบบประเมิน",
+      "evidence_uploaded": "แนบไฟล์หลักฐานของคำตอบ",
+      "evidence_rejected": "ไฟล์หลักฐานไม่ผ่านการตรวจความปลอดภัย",
+      "submitted": "ส่งแบบประเมิน",
+      "completed": "ใบประเมินเสร็จ",
+      "superseded": "ใบประเมินถูกแทนด้วยใบใหม่",
+      "cancelled": "ยกเลิกใบประเมิน",
+      "reminded": "เตือนผู้ขายให้ตอบแบบประเมิน"
+    },
+    "review_task": {
+      "cancelled": "ยกเลิกงานผู้ตรวจความเสี่ยง"
+    },
+    "risk_review": {
+      "completed": "การประเมินซ้ำเสร็จ"
     }
   }
 }

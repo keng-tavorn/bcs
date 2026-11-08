@@ -1,10 +1,5 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
-import { z } from 'zod'
-import type { AppError } from '@/core/result'
-import { systemClock } from '@/lib/clock'
-import { ctxFromSession } from '@/server/auth/session'
 import {
   confirmRiskPolicy,
   confirmRiskTiers,
@@ -21,39 +16,14 @@ import {
   submitRiskQuestionnaire,
   updateRiskQuestion,
 } from '@/server/services/risk'
-import type { RiskAdminOutcome, RiskTierCodeUi, TierChangeInput } from '@/ui/risk-admin/model'
+import type { RiskTierCodeUi, TierChangeInput } from '@/ui/risk-admin/model'
 import type { PreviewInputUi, PreviewOutcome, QuestionUi } from '@/ui/risk-admin/questionnaire'
 import type { PolicyValuesUi } from '@/ui/risk-admin/tiers'
-import { getSession } from '../../../_lib/session'
+import { currentCtx, refused, runRiskCommand as run, BAD_KEY } from '../../risk/_outcome'
 
 // Browser-facing adapters of /admin/risk/tiers and /admin/risk/questionnaire (S11-04 · BR-RSK-02): the session, then the
 // service, which checks the RISK module and admin.riskTiers or admin.riskQuestionnaire every time (BR-AUTH-05); a refusal
 // comes back as its code and screen-safe reason only, never the service's message (§14.2).
-
-const submissionKey = z.uuid()
-const NO_SESSION: RiskAdminOutcome = { ok: false, code: 'UNAUTHENTICATED' }
-const BAD_KEY: RiskAdminOutcome = { ok: false, code: 'VALIDATION_FAILED' }
-
-async function currentCtx() {
-  return ctxFromSession(await getSession(), 'WEB', systemClock.now())
-}
-
-function refused(error: AppError): RiskAdminOutcome {
-  const details = error.details ?? {}
-  const reason = typeof details.reason === 'string' ? details.reason : undefined
-  const lint = Array.isArray(details.errors) ? (details.errors as { code: string; question?: string; documentType?: string; reason: string }[]) : undefined
-  return { ok: false, code: error.code, ...(reason ? { reason } : {}), ...(lint ? { lint } : {}) }
-}
-
-async function run<T>(key: string, call: (ctx: NonNullable<Awaited<ReturnType<typeof currentCtx>>>) => Promise<{ ok: true; data: T } | { ok: false; error: AppError }>, path: string, id?: (data: T) => string): Promise<RiskAdminOutcome> {
-  const ctx = await currentCtx()
-  if (!ctx) return NO_SESSION
-  if (!submissionKey.safeParse(key).success) return BAD_KEY
-  const r = await call(ctx)
-  if (!r.ok) return refused(r.error)
-  revalidatePath(path)
-  return { ok: true, ...(id ? { id: id(r.data) } : {}) }
-}
 
 const TIERS = '/admin/risk/tiers'
 

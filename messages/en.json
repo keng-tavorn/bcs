@@ -3081,8 +3081,11 @@
       "Request": "Request",
       "RequestType": "Request type",
       "Retention": "Performance retention",
+      "ReviewTask": "Risk reviewer task",
+      "RiskAssessment": "Risk assessment",
       "RiskPolicy": "Risk check policy",
       "RiskQuestionnaire": "Risk questionnaire version",
+      "RiskReview": "Reassessment",
       "RiskTier": "Risk tier",
       "Security": "Security",
       "Supplier": "Supplier",
@@ -3474,6 +3477,20 @@
         "release_due": "Retention due for release",
         "released": "Retention released"
       },
+      "review_task": {
+        "cancelled": "Risk reviewer task cancelled"
+      },
+      "risk_assessment": {
+        "answered": "Questionnaire answers saved",
+        "cancelled": "Risk assessment cancelled",
+        "completed": "Risk assessment completed",
+        "evidence_rejected": "Evidence file failed the security check",
+        "evidence_uploaded": "Evidence file attached to an answer",
+        "opened": "Risk assessment opened",
+        "reminded": "Supplier reminded to answer",
+        "submitted": "Questionnaire sent",
+        "superseded": "Risk assessment replaced by a newer one"
+      },
       "risk_policy": {
         "confirmed": "Risk check policy confirmed",
         "discarded": "Proposed risk check policy discarded",
@@ -3486,6 +3503,9 @@
         "submitted": "Risk questionnaire version sent for publishing",
         "superseded": "Risk questionnaire version replaced",
         "updated": "Question of a draft changed"
+      },
+      "risk_review": {
+        "completed": "Reassessment done"
       },
       "risk_tier": {
         "confirmed": "Risk tier values confirmed",
@@ -3502,6 +3522,8 @@
         "created": "Supplier added",
         "registry_checked": "Supplier checked with the government registers",
         "registry_status_changed": "Supplier's register status changed",
+        "risk_status_changed": "Supplier risk status changed",
+        "risk_tier_changed": "Supplier risk tier changed",
         "tax_profile_updated": "Supplier's tax profile changed",
         "updated": "Supplier details changed"
       },
@@ -3633,8 +3655,11 @@
       "request": "Requests",
       "request_type": "Request types",
       "retention": "Performance retention",
+      "review_task": "Risk reviewer tasks",
+      "risk_assessment": "Supplier risk assessments",
       "risk_policy": "Risk check policy",
       "risk_questionnaire": "Risk questionnaire",
+      "risk_review": "Reassessments",
       "risk_tier": "Risk tiers",
       "security": "Security",
       "supplier": "Suppliers",
@@ -5779,7 +5804,10 @@
     "RATE_LIMITED": "Too many attempts. Please try again later",
     "RETENTION_NOT_DUE": "The retention can be released from {date}",
     "REVIEWER_NOT_FOUND": "No reviewer {position} of {department} for rule {rule}. Please contact your administrator",
+    "RISK_ANSWERS_INCOMPLETE": "The risk questionnaire still lacks answers: {missing}",
+    "RISK_ASSESSMENT_OPEN": "This supplier already has an open risk assessment.",
     "RISK_POLICY_NOT_CONFIGURED": "The supplier risk policy is not confirmed yet. Please contact your administrator.",
+    "RISK_QUESTIONNAIRE_NOT_PUBLISHED": "No supplier risk questionnaire is in effect yet. Please contact your administrator.",
     "RISK_TIER_NOT_CONFIGURED": "The risk tiers are not set yet. Please contact your administrator.",
     "SOD_VIOLATION": "Not allowed because it breaks segregation of duties ({rule})",
     "STEP_UP_LOCKED": "Too many wrong PINs. Try again after {time}",
@@ -8835,8 +8863,117 @@
     },
     "privacy": {
       "2026-11-01": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them. You may ask its procurement team for a copy, a correction or deletion of your data.",
+      "2026-11-08": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to assess supplier risk, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them.\n\nEvidence files of a risk questionnaire that you mark as holding no personal data and readable by the AI assistant are sent to an outside AI provider to draft answers for you to check. Files you do not mark are never sent.\n\nYou may ask its procurement team for a copy, a correction or deletion of your data.",
       "accept": "I have read it",
       "title": "Privacy notice"
+    },
+    "risk": {
+      "assessment": {
+        "answer": "Answer: {option}",
+        "back": "Back to the assessments",
+        "confirmEvidence": "Confirm this answer",
+        "fromEvidence": "This answer comes from a certificate procurement has checked. You cannot change it, but you can confirm it.",
+        "intro": "Choose the answer that fits your company for each question, then press the save button at the end of the page. You can save and come back later. When every question is answered, press the send button.",
+        "missingMark": "This question still needs an answer or a confirmation before you send.",
+        "missingTitle": "Questions that still need an answer or a confirmation",
+        "notAnswered": "Not answered yet",
+        "notFound": "This assessment was not found. The link may be wrong, or the assessment is not your company's.",
+        "note": "Note (optional)",
+        "noteValue": "Note: {note}",
+        "onBehalf": "Procurement filled in this answer for you",
+        "optional": "Optional",
+        "progress": "{answered} of {total} questions answered",
+        "readOnly": "This assessment was sent or is closed. You can see the answers but not change them.",
+        "returned": "Message from procurement",
+        "save": "Save answers",
+        "saveHint": "This button saves the answers and notes of every question on this page.",
+        "saved": "Your answers are saved.",
+        "send": "Send the assessment",
+        "sendHint": "Save your answers before sending: answers not saved are not sent. Once sent, it cannot be changed unless procurement returns it to you.",
+        "sendTitle": "Send the assessment",
+        "sent": "The assessment is sent. Thank you. If anything needs changing, procurement will return it to you.",
+        "status": "Status: {status}",
+        "title": "Risk assessment {number}",
+        "titleNoNumber": "Risk assessment",
+        "unchanged": "No answer changed, so nothing new was saved."
+      },
+      "domain": {
+        "FINANCE": "Finance",
+        "GENERAL": "General",
+        "INFOSEC": "Information security",
+        "OTHER": "Other questions",
+        "PREMISES": "Access to the organization's premises",
+        "PRIVACY": "Personal data"
+      },
+      "errors": {
+        "AI_REVIEW_PENDING": "Some answers the AI assistant drafted have not been checked yet. Please check them before sending.",
+        "CONFLICT_VERSION": "The assessment changed after you opened this page. The page now shows the latest version; please check the answers and try again.",
+        "FAILED": "That did not work. Please try again.",
+        "FORBIDDEN": "You cannot do this. The assessment may have been sent or closed.",
+        "INVALID_STATE_TRANSITION": "This assessment was sent or is closed, so it cannot be changed or sent again.",
+        "MODULE_DISABLED": "This organization does not use supplier risk assessments yet.",
+        "NOT_CONFIGURED": "This organization has not finished setting up its risk assessments. Please contact procurement.",
+        "NOT_FOUND": "This assessment was not found.",
+        "PRIVACY_NOTICE_OUTDATED": "Please read and acknowledge the current privacy notice before attaching files.",
+        "RATE_LIMITED": "Too many files at once. Please try again in a moment.",
+        "RISK_ANSWERS_INCOMPLETE": "It cannot be sent yet: some questions still need an answer or a confirmation.",
+        "VALIDATION_FAILED": "Please check the answers or the file."
+      },
+      "evidence": {
+        "aiHint": "Files you tick for the AI assistant are sent to an outside processor. If you are not sure, leave it unticked.",
+        "aiReadable": "This file has no personal data; the AI assistant may read it",
+        "answerFirst": "Answer this question and save it first; then you can attach files.",
+        "file": "File (PDF, JPG, PNG or WebP, up to 20 MB)",
+        "full": "This question has its {max} files already.",
+        "none": "No file yet",
+        "title": "Files supporting the answer",
+        "upload": "Attach this file",
+        "uploadHint": "Save your answers before attaching a file: answers not saved are lost when a file is attached.",
+        "uploaded": "The file is attached. Procurement can open it once the virus check is done."
+      },
+      "list": {
+        "answer": "Answer assessment {number}",
+        "back": "Back to the portal's home",
+        "empty": "There is no risk assessment for your company yet. When the procurement team sends one, you will get an e-mail with a link and see it on this page.",
+        "intro": "The assessments this organization's procurement team sent your company to answer. Those you can still answer are at the top.",
+        "noNumber": "No number yet",
+        "openedAt": "Sent to you on {date}",
+        "status": "Status: {status}",
+        "tier": "Result: {tier}",
+        "title": "Supplier risk assessments",
+        "validUntil": "Result valid until {date}",
+        "view": "View assessment {number}"
+      },
+      "privacyLink": "Read the privacy notice",
+      "reasons": {
+        "ANSWER_FIRST": "Answer this question and save it first; then you can attach files.",
+        "EMPTY": "No file was chosen, or the file is empty. Please choose a file again.",
+        "EVIDENCE_LOCKED": "An answer from a certificate cannot be changed; you can only confirm it.",
+        "OPTION_UNKNOWN": "An answer is not one of the question's choices. Please choose again.",
+        "PORTAL_ANSWERING_OFF": "This organization's procurement team fills in the assessment for its suppliers. Please contact procurement.",
+        "QUESTION_NOT_IN_SET": "A question is not part of this assessment. Please open the page again and answer once more.",
+        "TOO_LARGE": "The file is larger than 20 MB.",
+        "TOO_MANY_FILES": "At most {max} files a question.",
+        "TYPE_NOT_ALLOWED": "Only PDF, JPG, PNG or WebP files."
+      },
+      "scan": {
+        "CLEAN": "Checked, no virus found",
+        "INFECTED": "A virus was found and the file was removed. Please attach a new file.",
+        "PENDING": "Being checked for viruses"
+      },
+      "status": {
+        "CANCELLED": "Cancelled",
+        "COMPLETED": "Assessment complete",
+        "DRAFT": "Waiting for your answers",
+        "IN_REVIEW": "Sent, being checked by procurement",
+        "RETURNED": "Returned to you for changes",
+        "SUPERSEDED": "Replaced by a newer assessment"
+      },
+      "tier": {
+        "HIGH": "High risk",
+        "LOW": "Low risk",
+        "MEDIUM": "Medium risk"
+      }
     },
     "title": "Supplier portal",
     "unavailable": {
@@ -10920,11 +11057,13 @@
           "OPTION_EVIDENCE": "Only one option may be chosen by evidence",
           "PENDING_CHANGED": "The proposal has changed. Reload the page and check again",
           "PENDING_CHANGE_EXISTS": "A proposal is already waiting. Confirm or discard it before proposing again",
+          "POLICY_UNREADABLE": "The policy in effect cannot be read. Please contact the BCS team",
           "RISK_LINT": "This version does not pass the checks yet. See the checks before sending",
           "SAME_EDITOR": "Whoever proposed or sent it cannot confirm or publish it. Another administrator must",
           "SCOPE_REQUIRED": "Name the standard or scope asked for",
           "SCREENING_REQUIRED": "Pick every screening answer",
-          "TIER_ORDER": "Lowest points must rise from low to high, and low starts at 0"
+          "TIER_ORDER": "Lowest points must rise from low to high, and low starts at 0",
+          "UNKNOWN_CATEGORY": "A category code the organization uses in neither its catalogue nor its POs"
         }
       },
       "moduleOff": "This organization has not switched on supplier risk yet. Ask the BCS team to switch it on",
@@ -11183,6 +11322,7 @@
         "months": "{count} months",
         "no": "No",
         "notSeeded": "This organization has no three tiers yet. The BCS team loads them from the organization's data form",
+        "numbersRequired": "Fill in the points, review months and reminder days of every tier as whole numbers",
         "points": "{count} points",
         "propose": "Propose new values",
         "proposed": "Proposed. Another administrator must confirm",
@@ -11193,6 +11333,61 @@
         "waiting": "Waiting for someone else to confirm",
         "yes": "Yes"
       }
+    },
+    "assessment": {
+      "answer": "Answer: {option} ({points} points)",
+      "cancel": "Cancel the assessment",
+      "cancelBody": "A cancelled assessment cannot be reopened; open a new one. Open reviewer tasks are cancelled too.",
+      "cancelReason": "Reason for cancelling",
+      "cancelTitle": "Cancel this assessment",
+      "cancelled": "Assessment cancelled",
+      "categories": "Item categories",
+      "close": "Close",
+      "evidenceDocument": "Certificate {type}, scope {scope}, valid until {date}",
+      "file": "File {name} · {scan}",
+      "fill": "Fill in for the supplier",
+      "fillBody": "Choose the answers the supplier gave. Answers filled in are recorded as procurement's, and whoever fills in cannot review this assessment.",
+      "fillTitle": "Fill in for the supplier",
+      "filled": "Answers filled in were saved",
+      "heading": "Assessment {number} · {supplier}",
+      "inherentTier": "Starting tier",
+      "intro": "Questionnaire {code} version {version} · opened {opened} by {by}",
+      "keep": "Keep it",
+      "lockedByEvidence": "Answered by a certificate; not changed here",
+      "manage": "Manage the assessment",
+      "missing": "Still to answer: {codes}",
+      "notAnswered": "Not answered",
+      "notAnsweredOptional": "Not answered (optional)",
+      "note": "Note: {note}",
+      "questions": "Questions and answers",
+      "result": "Result",
+      "resultValue": "{tier} tier · {points} points",
+      "save": "Save the answers",
+      "saving": "Saving…",
+      "scan": {
+        "CLEAN": "Passed the check",
+        "INFECTED": "Failed the check",
+        "PENDING": "Waiting for the security check"
+      },
+      "source": {
+        "EVIDENCE": "Answered by the supplier's certificate",
+        "EXPLICIT": "Answered by the supplier · {by}",
+        "ON_BEHALF": "Filled in by procurement · {by}"
+      },
+      "status": {
+        "CANCELLED": "Cancelled",
+        "COMPLETED": "Completed",
+        "DRAFT": "Waiting for the supplier",
+        "IN_REVIEW": "With the reviewers",
+        "RETURNED": "Sent back to fix",
+        "SUPERSEDED": "Replaced by a newer one"
+      },
+      "submit": "Send the questionnaire",
+      "submitted": "Questionnaire sent",
+      "title": "Supplier risk assessment",
+      "validUntil": "Valid until",
+      "work": "The work assessed",
+      "workScopes": "Standards the work needs"
     }
   },
   "savings": {

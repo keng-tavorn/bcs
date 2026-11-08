@@ -30,6 +30,7 @@ import { renewalReminders } from './renewal-reminders'
 import { budgetOverrunLapse } from './budget-overrun-lapse'
 import { budgetBurnAlerts } from './budget-burn-alerts'
 import { fileScan, supplierDocumentExpiry, supplierDocumentScannedJob } from './supplier-documents'
+import { riskAssessmentSla, riskEvidenceScannedJob } from './risk-assessments'
 import { supplierNoticeSend, supplierNoticeSweep } from './supplier-notice-send'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
@@ -69,6 +70,9 @@ export const functions = [
   // S7-06: the central scan of uploaded files, S7's listener of it, and the daily expiry of supplier documents
   fileScan,
   supplierDocumentScannedJob,
+  // S11-05
+  riskAssessmentSla,
+  riskEvidenceScannedJob,
   supplierDocumentExpiry,
   // S8-07: the invoice inbox (ADR-123)
   invoiceInboxPoll,

@@ -27,7 +27,7 @@ export default async function PortalHomePage({ params, searchParams }: { params:
     return (
       <PortalFrame organization={org.nameTh} title={t('privacy.title')}>
         <ErrorNotice code={one(q.error)} />
-        <p className="whitespace-pre-line">{t(`privacy.${home.privacyNoticeDue as '2026-11-01'}`)}</p>
+        <p className="whitespace-pre-line">{t(`privacy.${home.privacyNoticeDue as '2026-11-08'}`)}</p>
         <form method="post" action={`/portal/${org.code}/api/privacy`}>
           <input type="hidden" name="csrf" value={session.csrf} />
           <input type="hidden" name="version" value={home.privacyNoticeDue} />

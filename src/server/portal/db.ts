@@ -32,6 +32,14 @@ export const PORTAL_MODELS: PortalModel[] = [
   { model: 'portalInviteLink', where: (a) => ({ contactId: a.supplierContactId }) },
   { model: 'purchaseOrder', where: (a) => (a.supplierId ? { supplierId: a.supplierId, status: { in: [...PORTAL_PO_STATUSES] } } : NONE) },
   { model: 'supplierNotice', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : { contactId: a.supplierContactId }) },
+  // S11-05 (BR-RSK-17 · INV-RSK-05): the supplier's own assessments, their answers, the questions of their versions, the
+  // evidence files of their answers and the AI's proposals for them; an application (no supplier yet) has none
+  { model: 'riskAssessment', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : NONE) },
+  { model: 'riskAnswer', where: (a) => (a.supplierId ? { assessment: { supplierId: a.supplierId } } : NONE) },
+  { model: 'riskQuestion', where: (a) => (a.supplierId ? { questionnaire: { assessments: { some: { supplierId: a.supplierId } } } } : NONE) },
+  // a file link names its answer by id only (no relation): the query adds subjectId ∈ the answers it read through riskAnswer
+  { model: 'fileLink', where: (a) => (a.supplierId ? { kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer' } : NONE) },
+  { model: 'agentAction', where: (a) => (a.supplierId ? { subjectType: 'RISK_ASSESSMENT', requestedByContactId: a.supplierContactId } : NONE) },
 ]
 
 export const PORTAL_MODEL_NAMES: ReadonlySet<string> = new Set(PORTAL_MODELS.map((m) => m.model))

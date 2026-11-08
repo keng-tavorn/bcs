@@ -1,0 +1,157 @@
+import { createHash } from 'node:crypto'
+import { z } from 'zod'
+import type { AppError, Result } from '@/core/result'
+import { RISK_ASSESSMENT_MACHINE, transition } from '@/core/state-machines'
+import { deleteObject, putObject } from '@/integrations/storage'
+import { MS_PER_HOUR, RISK_EVIDENCE_FILES_PER_QUESTION, SUPPLIER_DOC_MAX_BYTES } from '@/lib/constants'
+import { newId } from '@/lib/ids'
+import { PORTAL_PRIVACY_NOTICE_VERSION, PORTAL_UPLOADS_PER_HOUR } from '@/lib/portal-limits'
+import { authorize } from '@/server/authz'
+import { systemCtx, type Ctx } from '@/server/context'
+import { countPortalScopeHit } from '@/server/db/portal'
+import { lockRowsForUpdate } from '@/server/db/sql/locks'
+import { forTenant, type TenantTx } from '@/server/db/tenant'
+import { enqueueSupplierNotice } from '@/server/notifications/supplier-notices'
+import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { requireModule } from '../modules'
+import { sniffSupplierFile, type SupplierFileMime } from '../suppliers/documents'
+import { contactMay } from './assessments'
+import { RISK_SUPPLIER_TEMPLATES } from './templates'
+
+// The files behind a risk answer (S11-05 · BR-RSK-18 · BR-AI-33 · FR-RSK-204 AC4): PDF, JPEG, PNG or WebP by their bytes,
+// at most 20 MB and RISK_EVIDENCE_FILES_PER_QUESTION per answer, kept private and PENDING until S7's central scan
+// (job file-scan on file.uploaded) calls them CLEAN; an INFECTED one loses its link (the file kept for the audit) and the
+// supplier is told to send another (riskEvidenceScanned, job risk-evidence-scanned on file.scanned). The uploader says
+// per answer whether the AI may read its files (RiskAnswer.evidenceAiReadable).
+
+type Fail = { readonly ok: false; readonly error: AppError }
+const fail = (code: AppError['code'], message: string, details?: Record<string, unknown>): Fail => ({ ok: false, error: { code, message, ...(details ? { details } : {}) } })
+const EXTENSION: Record<SupplierFileMime, string> = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
+
+const UploadInput = z.strictObject({
+  assessmentId: z.uuid(),
+  questionCode: z.string().trim().min(1).max(20),
+  aiReadable: z.boolean().optional(),
+  file: z.strictObject({ storageKey: z.string().min(1), fileName: z.string().min(1).max(200), mimeType: z.string(), sizeBytes: z.int().min(1), sha256: z.string().regex(/^[0-9a-f]{64}$/) }),
+})
+
+const uploadCommand = defineCommand({
+  name: 'riskAssessment.evidence.upload',
+  capability: 'portal.risk.evidence.upload',
+  input: UploadInput,
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ fileId: string; answerId: string }>> {
+    const on = await requireModule(ctx, 'RISK', tx)
+    if (!on.ok) return { ok: false, error: on.error }
+    await lockRowsForUpdate(tx, 'RiskAssessment', ctx.organizationId, [input.assessmentId])
+    const a = await tx.riskAssessment.findFirst({ where: { id: input.assessmentId }, select: { id: true, status: true, supplierId: true, answers: { where: { questionCode: input.questionCode }, select: { id: true } } } })
+    if (!a) return fail('NOT_FOUND', 'assessment not found')
+    if (ctx.actor.type === 'SUPPLIER') {
+      const may = await contactMay(tx, ctx, a, 'portal.risk.evidence.upload')
+      if (!may.ok) return may
+      // BR-PORTAL ข้อ 08: nothing is uploaded before the current privacy notice (which tells of the AI) is accepted
+      const contact = await tx.supplierContact.findUniqueOrThrow({ where: { id: ctx.actor.supplierContactId }, select: { privacyNoticeVersion: true } })
+      if (contact.privacyNoticeVersion !== PORTAL_PRIVACY_NOTICE_VERSION) return fail('PRIVACY_NOTICE_OUTDATED', 'the current privacy notice is not accepted yet', { version: PORTAL_PRIVACY_NOTICE_VERSION })
+    } else {
+      const may = await authorize(tx, ctx, 'risk.assessment.manage')
+      if (!may.ok) return { ok: false, error: may.error }
+    }
+    const t = transition(RISK_ASSESSMENT_MACHINE, a.status, 'riskAssessment.answer')
+    if (!t.ok) return fail('INVALID_STATE_TRANSITION', `the assessment takes no files while ${a.status}`, { from: a.status, command: 'riskAssessment.answer' })
+    const answer = a.answers[0]
+    if (!answer) return fail('VALIDATION_FAILED', 'answer the question before attaching its evidence', { reason: 'ANSWER_FIRST', questionCode: input.questionCode })
+    const linked = await tx.fileLink.count({ where: { subjectType: 'RiskAnswer', subjectId: answer.id, kind: 'RISK_EVIDENCE' } })
+    if (linked >= RISK_EVIDENCE_FILES_PER_QUESTION) return fail('VALIDATION_FAILED', `at most ${RISK_EVIDENCE_FILES_PER_QUESTION} files a question`, { reason: 'TOO_MANY_FILES', questionCode: input.questionCode })
+    const fileId = newId()
+    const memberId = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
+    await tx.fileObject.create({
+      data: { id: fileId, organizationId: ctx.organizationId, storageKey: input.file.storageKey, fileName: input.file.fileName, mimeType: input.file.mimeType, sizeBytes: input.file.sizeBytes, sha256: input.file.sha256, status: 'AVAILABLE', uploadedById: memberId, scanStatus: 'PENDING' },
+    })
+    await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId, subjectType: 'RiskAnswer', subjectId: answer.id, kind: 'RISK_EVIDENCE' } })
+    if (input.aiReadable !== undefined) await tx.riskAnswer.update({ where: { id: answer.id }, data: { evidenceAiReadable: input.aiReadable } })
+    await tx.riskAssessment.update({ where: { id: a.id }, data: { lastActivityAt: ctx.now, version: { increment: 1 } } })
+    return {
+      ok: true,
+      result: { fileId, answerId: answer.id },
+      events: [
+        { type: 'file.uploaded', aggregateType: 'File', aggregateId: fileId, data: { fileId, mimeType: input.file.mimeType, sizeBytes: input.file.sizeBytes } },
+        { type: 'risk_assessment.evidence_uploaded', aggregateType: 'RiskAssessment', aggregateId: a.id, data: { questionCode: input.questionCode, fileId, aiReadable: input.aiReadable ?? null, by: ctx.actor.type === 'SUPPLIER' ? 'CONTACT' : 'MEMBER' } },
+      ],
+    }
+  },
+})
+
+export interface UploadEvidenceInput {
+  readonly assessmentId: string
+  readonly questionCode: string
+  readonly fileName: string
+  readonly bytes: Uint8Array
+  readonly aiReadable?: boolean
+}
+
+/** One file behind an answer; the bytes are checked before anything is stored, and a refused upload keeps nothing */
+export async function uploadRiskEvidence(ctx: Ctx, input: UploadEvidenceInput, options: RunOptions): Promise<Result<{ fileId: string; answerId: string }>> {
+  if (input.bytes.byteLength === 0) return fail('VALIDATION_FAILED', 'the file is empty', { field: 'file', reason: 'EMPTY' })
+  if (input.bytes.byteLength > SUPPLIER_DOC_MAX_BYTES) return fail('VALIDATION_FAILED', 'the file is larger than 20 MB', { field: 'file', reason: 'TOO_LARGE' })
+  const mime = sniffSupplierFile(input.bytes)
+  if (!mime) return fail('VALIDATION_FAILED', 'only PDF, JPEG, PNG or WebP', { field: 'file', reason: 'TYPE_NOT_ALLOWED' })
+  if (ctx.actor.type === 'SUPPLIER' && ctx.actor.supplierId) {
+    // the portal's upload bucket of S7 (BR-PORTAL ข้อ 07): documents and evidence count together per supplier
+    const windowStart = new Date(Math.floor(ctx.now.getTime() / MS_PER_HOUR) * MS_PER_HOUR)
+    if ((await countPortalScopeHit(ctx.organizationId, { kind: 'SUPPLIER', key: ctx.actor.supplierId }, 'UPLOAD', windowStart)) > PORTAL_UPLOADS_PER_HOUR) return fail('RATE_LIMITED', 'too many files this hour')
+  }
+  const storageKey = `${ctx.organizationId}/risk-evidence/${newId()}.${EXTENSION[mime]}`
+  await putObject(storageKey, input.bytes, mime)
+  const sha256 = createHash('sha256').update(input.bytes).digest('hex')
+  const recorded = await runCommand(
+    ctx,
+    uploadCommand,
+    { assessmentId: input.assessmentId, questionCode: input.questionCode, aiReadable: input.aiReadable, file: { storageKey, fileName: input.fileName.slice(0, 200) || 'evidence', mimeType: mime, sizeBytes: input.bytes.byteLength, sha256 } },
+    options,
+  )
+  if (!recorded.ok) await deleteObject(storageKey).catch(() => undefined)
+  else {
+    // a repeated request (same key) answers the first file: the copy this one stored is not kept unlisted
+    const kept = await forTenant(ctx.organizationId).fileObject.findUnique({ where: { id: recorded.data.fileId }, select: { storageKey: true } })
+    if (kept?.storageKey !== storageKey) await deleteObject(storageKey).catch(() => undefined)
+  }
+  return recorded
+}
+
+// ---------- the scan's answer for evidence (job risk-evidence-scanned · BR-RSK-18) ----------
+
+const scannedCommand = defineCommand({
+  name: 'riskAssessment.evidence_scanned',
+  capability: 'system.risk',
+  input: z.strictObject({ fileId: z.uuid() }),
+  async execute(tx: TenantTx, input, ctx): Promise<CommandOutcome<{ outcome: 'REJECTED' }>> {
+    const link = await tx.fileLink.findFirst({ where: { fileId: input.fileId, kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer' }, select: { id: true, subjectId: true } })
+    if (!link) return fail('INVALID_STATE_TRANSITION', 'no evidence link of this file')
+    const answer = await tx.riskAnswer.findUnique({ where: { id: link.subjectId }, select: { questionCode: true, answeredByContactId: true, assessment: { select: { id: true, number: true, supplierId: true, status: true } } } })
+    if (!answer) return fail('NOT_FOUND', 'answer not found')
+    // the link goes, the file stays for the audit; the answer stays (BR-RSK-18)
+    await tx.fileLink.delete({ where: { id: link.id } })
+    const told = await enqueueSupplierNotice(tx, ctx, {
+      templateKey: RISK_SUPPLIER_TEMPLATES.evidenceRejected,
+      supplierId: answer.assessment.supplierId,
+      contactId: answer.answeredByContactId,
+      subjectType: 'RiskAssessment',
+      subjectId: answer.assessment.id,
+      dedupeKey: `risk_evidence_rejected:${input.fileId}`,
+      data: { number: answer.assessment.number, questionCode: answer.questionCode },
+    })
+    return {
+      ok: true,
+      result: { outcome: 'REJECTED' },
+      events: [{ type: 'risk_assessment.evidence_rejected', aggregateType: 'RiskAssessment', aggregateId: answer.assessment.id, data: { questionCode: answer.questionCode, fileId: input.fileId } }, ...told.events],
+      notifications: told.notifications,
+      outbox: told.outbox,
+    }
+  },
+})
+
+/** The listener of file.scanned for RISK_EVIDENCE: INFECTED → the link removed and the supplier told; CLEAN → nothing */
+export async function riskEvidenceScanned(organizationId: string, fileId: string, result: 'CLEAN' | 'INFECTED', now: Date): Promise<'REJECTED' | 'SKIPPED'> {
+  if (result === 'CLEAN') return 'SKIPPED'
+  const done = await runCommand(systemCtx(organizationId, now, 'risk-evidence-scanned'), scannedCommand, { fileId }, { idempotencyKey: `risk-evidence-scanned:${fileId}` })
+  return done.ok ? done.data.outcome : 'SKIPPED'
+}

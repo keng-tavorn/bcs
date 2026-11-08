@@ -19,6 +19,7 @@ import {
 } from '@/server/services/suppliers/documents'
 import type { DoaOrg } from '../support/doa-org'
 import { createP2Org } from '../support/p2-org'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 
 // S7-06 (ADR-185 · BR-SDOC ข้อ 01 ถึง ข้อ 06 · BR-PORTAL ข้อ 07 · FR-SUP-102 AC4 ถึง AC7 · INV-SUP-03): a supplier's
 // documents through the real bucket (RustFS) and the stub scanner — upload by the bytes, the central scan, verify once
@@ -49,7 +50,7 @@ beforeAll(async () => {
     if (!r.ok) throw new Error(JSON.stringify(r.error))
   }
   supplierId = (await prisma.supplier.create({ data: { organizationId: org.organizationId, code: 'SD-01', nameTh: 'บริษัท เอกสาร จำกัด', taxId: '0105555000011', email: 'register.sd@supplier.test' } })).id
-  contact = await prisma.supplierContact.create({ data: { organizationId: org.organizationId, supplierId, nameTh: 'ผู้ติดต่อเอกสาร', email: `sd-${randomUUID().slice(0, 6)}@supplier.test`, isPrimary: true, privacyNoticeVersion: '2026-11-01' } })
+  contact = await prisma.supplierContact.create({ data: { organizationId: org.organizationId, supplierId, nameTh: 'ผู้ติดต่อเอกสาร', email: `sd-${randomUUID().slice(0, 6)}@supplier.test`, isPrimary: true, privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION } })
 })
 
 const portal = (now = NOW) => portalCtx(org.organizationId, contact, now)
@@ -90,7 +91,7 @@ describe('[FR-SUP-102/AC4] the supplier uploads a document under its type', () =
     try {
       expect(await uploadSupplierDocument(portal(), { supplierId, documentTypeCode: 'COMPANY_CERT', issuedOn: '2026-11-03', fileName: 'c.pdf', bytes: PDF() }, key())).toMatchObject({ ok: false, error: { code: 'PRIVACY_NOTICE_OUTDATED' } })
     } finally {
-      await prisma.supplierContact.update({ where: { id: contact.id }, data: { privacyNoticeVersion: '2026-11-01' } })
+      await prisma.supplierContact.update({ where: { id: contact.id }, data: { privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION } })
     }
   })
 

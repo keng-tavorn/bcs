@@ -9,6 +9,7 @@ import { applicationSignedIn, cancelApplication, inviteSupplier, reinviteSupplie
 import { portalCtx } from '@/server/portal/session'
 import type { DoaOrg } from '../support/doa-org'
 import { createP2Org } from '../support/p2-org'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 
 // S7-05 (ADR-181 · BR-SUP ข้อ 08 ถึง ข้อ 11 · BR-SOD-11 · FR-SUP-101 AC1 AC3 AC4 · FR-SUP-102 AC1 ถึง AC3 · FR-SUP-104 AC2
 // ถึง AC5): a supplier invited, its application filled in by its contact on the portal or by procurement for it,
@@ -80,7 +81,7 @@ const version = async (id: string) => (await prisma.supplierApplication.findUniq
 
 async function signedIn(contact: { id: string; applicationId: string | null; supplierId: string | null }) {
   await forTenant(org.organizationId).$transaction((tx) => applicationSignedIn(tx, contactCtx(contact), contact))
-  await prisma.supplierContact.update({ where: { id: contact.id }, data: { privacyNoticeVersion: '2026-11-01' } })
+  await prisma.supplierContact.update({ where: { id: contact.id }, data: { privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION } })
 }
 
 /** Filled in by its contact, its company certificate uploaded, submitted */

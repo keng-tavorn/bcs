@@ -95,11 +95,16 @@ export async function reorderQuestionsAction(versionId: string, expectedVersion:
 /** The effective date is a calendar day of Asia/Bangkok: the version takes effect at its first moment (00:00 +07:00) */
 export async function submitQuestionnaireAction(versionId: string, expectedVersion: number, effectiveDate: string, changeReason: string, key: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) return BAD_KEY
-  const ctx = await currentCtx()
-  // today's date takes effect now rather than at midnight already passed
   const start = new Date(`${effectiveDate}T00:00:00+07:00`)
-  const effectiveFrom = ctx && start.getTime() < ctx.now.getTime() ? ctx.now.toISOString() : start.toISOString()
-  return run(key, (c) => submitRiskQuestionnaire(c, { versionId, expectedVersion, effectiveFrom, changeReason }, { idempotencyKey: key }), versionPath(versionId))
+  return run(
+    key,
+    (c) => {
+      // today's date takes effect now rather than at a midnight already passed: the same clock the service compares with
+      const effectiveFrom = start.getTime() < c.now.getTime() ? c.now.toISOString() : start.toISOString()
+      return submitRiskQuestionnaire(c, { versionId, expectedVersion, effectiveFrom, changeReason }, { idempotencyKey: key })
+    },
+    versionPath(versionId),
+  )
 }
 export async function publishQuestionnaireAction(versionId: string, expectedVersion: number, key: string) {
   return run(key, (ctx) => publishRiskQuestionnaire(ctx, { versionId, expectedVersion }, { idempotencyKey: key }), versionPath(versionId))

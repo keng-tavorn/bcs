@@ -85,6 +85,8 @@ beforeAll(async () => {
   await prisma.riskPolicy.create({
     data: { organizationId: id, screeningTierMap: { processesPersonalData: 'HIGH', accessesSystems: 'MEDIUM', accessesPremises: 'MEDIUM' }, highRiskCategories: ['PROF'], registryFlagBlocks: true, mediumOverdueBlocks: false, overrideChatButton: false, updatedById: org.member.admin!, confirmedById: org.member.admin2!, confirmedAt: NOW },
   })
+  // the categories the organization uses (a high-risk category must be one of them)
+  for (const [code, categoryCode] of [['CAT-PROF', 'PROF'], ['CAT-IT', 'IT']]) await prisma.catalogItem.create({ data: { organizationId: id, code: code!, nameTh: code!, uom: 'งาน', categoryCode: categoryCode! } })
   await prisma.supplierDocumentType.create({ data: { organizationId: id, code: 'ISO_CERT', nameTh: 'ใบรับรอง ISO', nameEn: 'ISO certificate', appliesTo: ['JURISTIC'], singleInstance: false, linkedRiskQuestionCodes: ['RQ-IS-01'] } })
 })
 
@@ -157,6 +159,27 @@ describe('[FR-RSK-201/AC4] [BR-RSK-02] a proposal changes no result until someon
     ok(await discardRiskPolicy(as('admin2'), { version: await policyVersion() }, key()))
     expect(ok(await tx(riskPolicyInEffect)).overrideChatButton).toBe(false)
   })
+
+  it('a high-risk category is one the organization uses; the same map in another key order is no change', async () => {
+    expect(await proposeRiskPolicy(as('admin'), { changes: { highRiskCategories: ['PROF', 'PORF'] } }, key())).toMatchObject({ ok: false, error: { details: { reason: 'UNKNOWN_CATEGORY', categories: ['PORF'] } } })
+    // jsonb keeps its own key order: the map in effect, written in another order, is not proposed again
+    const sameMap = { accessesPremises: 'MEDIUM' as const, processesPersonalData: 'HIGH' as const, accessesSystems: 'HIGH' as const }
+    expect(await proposeRiskPolicy(as('admin'), { changes: { screeningTierMap: sameMap } }, key())).toMatchObject({ ok: false, error: { details: { reason: 'NO_CHANGE' } } })
+    ok(await proposeRiskPolicy(as('admin'), { changes: { screeningTierMap: sameMap, mediumOverdueBlocks: true } }, key()))
+    expect((await prisma.riskPolicy.findFirstOrThrow({ where: { organizationId: org.organizationId } })).pendingChange).toEqual({ mediumOverdueBlocks: true })
+    ok(await discardRiskPolicy(as('admin'), { version: await policyVersion() }, key()))
+  })
+
+  it('a confirm and a discard of the same proposal at once: one wins, the other finds nothing waiting (rows locked)', async () => {
+    ok(await proposeRiskTiers(as('admin'), { changes: { LOW: { reviewMonths: 48 } } }, key()))
+    const rows = await pendingRows()
+    const [confirmed, discarded] = await Promise.all([confirmRiskTiers(as('admin2'), { rows }, key()), discardRiskTiers(as('auditor'), { rows }, key())])
+    expect([confirmed.ok, discarded.ok].filter(Boolean)).toHaveLength(1)
+    const loser = confirmed.ok ? discarded : confirmed
+    expect(loser).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { reason: 'NO_PENDING_CHANGE' } } })
+    const low = await prisma.riskTier.findFirstOrThrow({ where: { organizationId: org.organizationId, code: 'LOW' } })
+    expect(low).toMatchObject({ pendingById: null, reviewMonths: confirmed.ok ? 48 : 36 })
+  })
 })
 
 describe('[BR-RSK-02] who may set the tiers and the questionnaire (deny)', () => {
@@ -215,7 +238,9 @@ describe('[FR-RSK-201/AC4] [BR-RSK-01] [BR-RSK-05] a questionnaire version: draf
     ok(await reorderRiskQuestions(as('admin'), { versionId: firstId, expectedVersion: await v(), questionCodes: ['RQ-IS-01', 'RQ-GEN-01', 'RQ-PRV-01'] }, key()))
     expect(await reorderRiskQuestions(as('admin'), { versionId: firstId, expectedVersion: await v(), questionCodes: ['RQ-IS-01'] }, key())).toMatchObject({ ok: false, error: { details: { reason: 'NOT_A_PERMUTATION' } } })
     expect(await submitRiskQuestionnaire(as('admin'), { versionId: firstId, expectedVersion: await v(), effectiveFrom: '2026-11-01T00:00:00+07:00', changeReason: 'ฉบับแรก' }, key())).toMatchObject({ ok: false, error: { details: { reason: 'EFFECTIVE_IN_PAST' } } })
-    ok(await submitRiskQuestionnaire(as('admin'), { versionId: firstId, expectedVersion: await v(), effectiveFrom, changeReason: 'ฉบับแรก' }, key()))
+    // the time of the command itself is not in the past (the page sends today's date as ctx.now)
+    const now = new Date('2026-11-08T05:00:00Z')
+    ok(await submitRiskQuestionnaire(as('admin', now), { versionId: firstId, expectedVersion: await v(), effectiveFrom: now.toISOString(), changeReason: 'ฉบับแรก' }, key()))
     const detail = ok(await riskQuestionnaireDetail(as('admin2'), firstId))
     expect(detail).toMatchObject({ status: 'PENDING_PUBLISH', submittedByMe: false, lint: { errors: [] } })
     expect(detail.questionList.map((q) => q.code)).toEqual(['RQ-IS-01', 'RQ-GEN-01', 'RQ-PRV-01'])
@@ -265,5 +290,20 @@ describe('[FR-RSK-201/AC4] [BR-RSK-01] [BR-RSK-05] a questionnaire version: draf
     // an assessment opened under the first keeps it: the superseded version is still found at its own time
     expect((await tx((t) => questionnaireInEffect(t, later)))!.id).toBe(firstId)
     expect(await supersedeDueQuestionnaires(org.organizationId, due)).toBe(0)
+  })
+
+  it('a new draft builds on the newest published version, even one still to take effect; stored options are read as they are', async () => {
+    const later = new Date('2026-11-10T03:00:00Z')
+    const scheduled = await prisma.riskQuestionnaire.findFirstOrThrow({ where: { organizationId: org.organizationId, code: 'RQ-TEST', versionNo: 2 } })
+    // a third version drafted before the second takes effect copies the second, not the first in effect
+    await prisma.riskQuestionnaire.update({ where: { id: scheduled.id }, data: { status: 'PUBLISHED', effectiveFrom: new Date('2026-11-20T00:00:00+07:00'), effectiveTo: null } })
+    const thirdId = ok(await draftRiskQuestionnaire(as('admin', later), { code: 'RQ-TEST' }, key())).versionId
+    const third = ok(await riskQuestionnaireDetail(as('admin', later), thirdId))
+    expect(third.questionList.map((q) => q.code)).toEqual(['RQ-IS-01', 'RQ-GEN-01'])
+    // a question loaded from a sheet without English labels keeps its options for the lint and the editor
+    await prisma.riskQuestion.create({ data: { organizationId: org.organizationId, questionnaireId: thirdId, code: 'RQ-FIN-01', domain: 'FINANCE', textTh: 'งบการเงินย้อนหลัง', textEn: 'Financial statements', options: [{ code: 'Y', points: 0 }, { code: 'N', points: 8, extra: 1 }], sortOrder: 99 } })
+    const read = ok(await riskQuestionnaireDetail(as('admin', later), thirdId))
+    expect(read.questionList.find((q) => q.code === 'RQ-FIN-01')!.options.map((o) => [o.code, o.points])).toEqual([['Y', 0], ['N', 8]])
+    expect(read.lint.errors).toEqual([])
   })
 })

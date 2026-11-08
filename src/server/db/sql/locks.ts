@@ -56,6 +56,13 @@ const LOCKABLE = [
   'SupplierApplication',
   // S7-06: a document verified, rejected or superseded one change at a time
   'SupplierDocument',
+  // S11-04: a tier or the policy proposed, confirmed or discarded one change at a time; a questionnaire version changed
+  // one command at a time (BR-RSK-02)
+  'RiskTier',
+  'RiskPolicy',
+  'RiskQuestionnaire',
+  // S11-05: an assessment answered, sent, cancelled or given a file one change at a time (INV-RSK-02 · BR-RSK-19)
+  'RiskAssessment',
 ] as const
 export type LockableTable = (typeof LOCKABLE)[number]
 /** Tables whose key is not "id": a budget line's balance is keyed by the line (§6.2) */

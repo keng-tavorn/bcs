@@ -5,6 +5,7 @@ import { RISK_TIER_POINTS_MAX } from '@/lib/constants'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { DB_NULL } from '@/server/db/json'
+import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
@@ -47,7 +48,11 @@ const loadTierRows = (tx: TenantTx) => tx.riskTier.findMany({ orderBy: { minPoin
 const defOf = (r: Pick<TierRow, 'code' | TierField>): RiskTierDef => ({ code: r.code, minPoints: r.minPoints, reviewMonths: r.reviewMonths, reminderDaysBefore: r.reminderDaysBefore, blocksPo: r.blocksPo, requiresExplicitAnswers: r.requiresExplicitAnswers })
 
 /** The rows of the three tiers, or RISK_TIER_NOT_CONFIGURED: they come from the organization's data (seed), never code */
-async function threeTiers(tx: TenantTx): Promise<{ ok: true; rows: TierRow[] } | Fail> {
+async function threeTiers(tx: TenantTx, organizationId: string): Promise<{ ok: true; rows: TierRow[] } | Fail> {
+  // the three rows are one proposal: locked together (ascending id) before they are read, so a confirm, a discard and a
+  // proposal never act on what another one is changing
+  const ids = (await tx.riskTier.findMany({ select: { id: true } })).map((r) => r.id)
+  await lockRowsForUpdate(tx, 'RiskTier', organizationId, ids)
   const rows = await loadTierRows(tx)
   if (RISK_TIER_CODES.some((code) => rows.filter((r) => r.code === code).length !== 1)) return fail('RISK_TIER_NOT_CONFIGURED', 'the organization has no three risk tiers')
   return { ok: true, rows }
@@ -69,7 +74,7 @@ const proposeTiersCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ codes: RiskTierCode[] }>> {
     const who = await tiersGuard(tx, ctx)
     if (!who.ok) return who
-    const tiers = await threeTiers(tx)
+    const tiers = await threeTiers(tx, ctx.organizationId)
     if (!tiers.ok) return tiers
     if (tiers.rows.some((r) => r.pendingChange !== null)) return fail('VALIDATION_FAILED', 'a change of the tiers waits for confirmation', { reason: 'PENDING_CHANGE_EXISTS' })
     const changes = Object.fromEntries(tiers.rows.map((r) => [r.code, realChange(r, input.changes[r.code])]).filter(([, c]) => Object.keys(c as object).length > 0)) as Partial<Record<RiskTierCode, TierChange>>
@@ -91,8 +96,8 @@ const proposeTiersCommand = defineCommand({
 /** The proposal the screen showed: each pending row and its version, so a newer proposal is not confirmed unseen */
 const PendingRowsInput = z.strictObject({ rows: z.array(z.strictObject({ code: z.enum(RISK_TIER_CODES), version: z.int().min(0) })).min(1).max(3) })
 
-async function pendingTierRows(tx: TenantTx, input: z.infer<typeof PendingRowsInput>): Promise<{ ok: true; rows: TierRow[] } | Fail> {
-  const tiers = await threeTiers(tx)
+async function pendingTierRows(tx: TenantTx, organizationId: string, input: z.infer<typeof PendingRowsInput>): Promise<{ ok: true; rows: TierRow[] } | Fail> {
+  const tiers = await threeTiers(tx, organizationId)
   if (!tiers.ok) return tiers
   const pending = tiers.rows.filter((r) => r.pendingChange !== null)
   if (pending.length === 0) return fail('INVALID_STATE_TRANSITION', 'no change of the tiers waits for confirmation', { reason: 'NO_PENDING_CHANGE' })
@@ -108,7 +113,7 @@ const confirmTiersCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ codes: RiskTierCode[] }>> {
     const who = await tiersGuard(tx, ctx)
     if (!who.ok) return who
-    const tiers = await pendingTierRows(tx, input)
+    const tiers = await pendingTierRows(tx, ctx.organizationId, input)
     if (!tiers.ok) return tiers
     const pending = tiers.rows.filter((r) => r.pendingChange !== null)
     // the one who proposed does not confirm (BR-RSK-02 · CHECK risk_tier_shape)
@@ -138,7 +143,7 @@ const discardTiersCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ codes: RiskTierCode[] }>> {
     const who = await tiersGuard(tx, ctx)
     if (!who.ok) return who
-    const tiers = await pendingTierRows(tx, input)
+    const tiers = await pendingTierRows(tx, ctx.organizationId, input)
     if (!tiers.ok) return tiers
     const pending = tiers.rows.filter((r) => r.pendingChange !== null)
     const events: EventDraft[] = []
@@ -170,7 +175,19 @@ const POLICY_FIELDS = ['screeningTierMap', 'highRiskCategories', 'registryFlagBl
 
 type PolicyRow = NonNullable<Awaited<ReturnType<typeof loadPolicy>>>
 const loadPolicy = (tx: TenantTx) => tx.riskPolicy.findFirst()
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+/** The policy row, locked before it is read (one proposal, confirm or discard at a time) */
+async function lockedPolicy(tx: TenantTx, organizationId: string) {
+  const row = await tx.riskPolicy.findFirst({ select: { id: true } })
+  if (row) await lockRowsForUpdate(tx, 'RiskPolicy', organizationId, [row.id])
+  return loadPolicy(tx)
+}
+/** Values compared as data: jsonb keeps an object's keys in its own order, so keys are sorted before comparing */
+function canonical(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(canonical)
+  if (v !== null && typeof v === 'object') return Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, canonical((v as Record<string, unknown>)[k])]))
+  return v
+}
+const same = (a: unknown, b: unknown) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b))
 
 const proposePolicyCommand = defineCommand({
   name: 'admin.riskPolicy.propose',
@@ -179,22 +196,37 @@ const proposePolicyCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ fields: string[] }>> {
     const who = await tiersGuard(tx, ctx)
     if (!who.ok) return who
-    const row = await loadPolicy(tx)
+    const row = await lockedPolicy(tx, ctx.organizationId)
     if (!row) return fail('RISK_POLICY_NOT_CONFIGURED', 'the organization has no risk policy')
     if (row.pendingChange !== null) return fail('VALIDATION_FAILED', 'a change of the policy waits for confirmation', { reason: 'PENDING_CHANGE_EXISTS' })
     const pendingChange: PolicyChange = {}
     for (const f of POLICY_FIELDS) if (input.changes[f] !== undefined && !same(input.changes[f], row[f])) (pendingChange as Record<string, unknown>)[f] = input.changes[f]
     const fields = Object.keys(pendingChange)
     if (fields.length === 0) return fail('VALIDATION_FAILED', 'nothing changed', { reason: 'NO_CHANGE' })
+    // a high-risk category is one the organization uses: of its catalogue or of its PO lines (no category master yet)
+    if (pendingChange.highRiskCategories?.length) {
+      const known = await knownCategories(tx, pendingChange.highRiskCategories)
+      const unknown = pendingChange.highRiskCategories.filter((c) => !known.has(c))
+      if (unknown.length > 0) return fail('VALIDATION_FAILED', 'a category the organization does not use', { field: 'highRiskCategories', reason: 'UNKNOWN_CATEGORY', categories: unknown })
+    }
     await tx.riskPolicy.update({ where: { id: row.id }, data: { pendingChange, pendingById: who.memberId, pendingAt: ctx.now, version: { increment: 1 } } })
     return { ok: true, result: { fields }, events: [{ type: 'risk_policy.proposed', aggregateType: 'RiskPolicy', aggregateId: row.id, data: { fields, pendingChange } }] }
   },
 })
 
+/** The asked categories that appear on the organization's catalogue items or PO lines */
+async function knownCategories(tx: TenantTx, asked: readonly string[]): Promise<Set<string>> {
+  const [items, lines] = await Promise.all([
+    tx.catalogItem.findMany({ where: { categoryCode: { in: [...asked] } }, select: { categoryCode: true }, distinct: ['categoryCode'] }),
+    tx.poLine.findMany({ where: { categoryCode: { in: [...asked] } }, select: { categoryCode: true }, distinct: ['categoryCode'] }),
+  ])
+  return new Set([...items, ...lines].map((r) => r.categoryCode).filter((c): c is string => c !== null))
+}
+
 const PolicyVersionInput = z.strictObject({ version: z.int().min(0) })
 
-async function pendingPolicy(tx: TenantTx, version: number): Promise<{ ok: true; row: PolicyRow } | Fail> {
-  const row = await loadPolicy(tx)
+async function pendingPolicy(tx: TenantTx, organizationId: string, version: number): Promise<{ ok: true; row: PolicyRow } | Fail> {
+  const row = await lockedPolicy(tx, organizationId)
   if (!row) return fail('RISK_POLICY_NOT_CONFIGURED', 'the organization has no risk policy')
   if (row.pendingChange === null) return fail('INVALID_STATE_TRANSITION', 'no change of the policy waits for confirmation', { reason: 'NO_PENDING_CHANGE' })
   if (row.version !== version) return fail('CONFLICT_VERSION', 'the proposal changed since it was read', { reason: 'PENDING_CHANGED' })
@@ -208,7 +240,7 @@ const confirmPolicyCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ fields: string[] }>> {
     const who = await tiersGuard(tx, ctx)
     if (!who.ok) return who
-    const p = await pendingPolicy(tx, input.version)
+    const p = await pendingPolicy(tx, ctx.organizationId, input.version)
     if (!p.ok) return p
     if (p.row.pendingById === who.memberId) return fail('VALIDATION_FAILED', 'the member who proposed a change does not confirm it', { reason: 'SAME_EDITOR' })
     const change = PendingPolicyChange.parse(p.row.pendingChange)
@@ -232,7 +264,7 @@ const discardPolicyCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ fields: string[] }>> {
     const who = await tiersGuard(tx, ctx)
     if (!who.ok) return who
-    const p = await pendingPolicy(tx, input.version)
+    const p = await pendingPolicy(tx, ctx.organizationId, input.version)
     if (!p.ok) return p
     const fields = Object.keys(PendingPolicyChange.parse(p.row.pendingChange))
     await tx.riskPolicy.update({ where: { id: p.row.id }, data: { pendingChange: DB_NULL, pendingById: null, pendingAt: null, version: { increment: 1 } } })
@@ -268,8 +300,10 @@ export interface RiskPolicyInEffect extends RiskPolicyDef {
 export async function riskPolicyInEffect(tx: TenantTx): Promise<Result<RiskPolicyInEffect>> {
   const row = await loadPolicy(tx)
   if (!row || row.confirmedById === null) return { ok: false, error: { code: 'RISK_POLICY_NOT_CONFIGURED', message: 'the risk policy is not confirmed' } }
-  const values = PolicyValues.parse({ screeningTierMap: row.screeningTierMap, highRiskCategories: row.highRiskCategories, registryFlagBlocks: row.registryFlagBlocks, mediumOverdueBlocks: row.mediumOverdueBlocks, overrideChatButton: row.overrideChatButton })
-  return { ok: true, data: values }
+  const values = PolicyValues.safeParse({ screeningTierMap: row.screeningTierMap, highRiskCategories: row.highRiskCategories, registryFlagBlocks: row.registryFlagBlocks, mediumOverdueBlocks: row.mediumOverdueBlocks, overrideChatButton: row.overrideChatButton })
+  // a stored row the engine cannot read is not a policy in effect: refused, never a guess (BR-RSK-16)
+  if (!values.success) return { ok: false, error: { code: 'RISK_POLICY_NOT_CONFIGURED', message: 'the risk policy in effect cannot be read', details: { reason: 'POLICY_UNREADABLE' } } }
+  return { ok: true, data: values.data }
 }
 
 // ---------- /admin/risk/tiers ----------

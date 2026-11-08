@@ -39,6 +39,7 @@
       "dialogTitle": "Propose new tiers",
       "dialogDescription": "Change only what should change; only values that differ from those in effect are sent. Lowest points must rise from low to high",
       "lowFromZero": "The low tier always starts at 0 points",
+      "numbersRequired": "Fill in the points, review months and reminder days of every tier as whole numbers",
       "minPointsHint": "A total of this many points or more counts as this tier",
       "cancel": "Cancel",
       "send": "Send for confirmation",
@@ -271,6 +272,8 @@
         "SCOPE_REQUIRED": "Name the standard or scope asked for",
         "NOT_A_PERMUTATION": "The new order must name every question",
         "SCREENING_REQUIRED": "Pick every screening answer",
+        "UNKNOWN_CATEGORY": "A category code the organization uses in neither its catalogue nor its POs",
+        "POLICY_UNREADABLE": "The policy in effect cannot be read. Please contact the BCS team",
         "DOA_ADMIN_SEPARATED": "The organization separated its DOA administrators. Only a DOA administrator may do this"
       }
     }

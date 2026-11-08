@@ -1,12 +1,11 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { useFailureText, useRun } from './run'
 import { useSay } from './say'
 import { useId, useState, type FormEvent } from 'react'
 import { StatusBadge } from '../document/badges'
 import type { BadgeLook } from '../document/badge-looks'
 import { Notice } from '../form/notice'
-import { useSubmissionKey } from '../form/submission-key'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,7 +62,6 @@ export interface PolicyUi {
   readonly version: number
 }
 
-type Run = (key: string) => Promise<RiskAdminOutcome>
 export interface TierActions {
   readonly proposeTiers: (changes: Partial<Record<RiskTierCodeUi, TierChangeInput>>, key: string) => Promise<RiskAdminOutcome>
   readonly confirmTiers: (rows: { code: RiskTierCodeUi; version: number }[], key: string) => Promise<RiskAdminOutcome>
@@ -79,36 +77,7 @@ const TIER_LOOK: Record<RiskTierCodeUi, BadgeLook> = { LOW: { tone: 'neutral', i
 const CONTROL = 'h-11 bg-bg text-base lg:h-10 md:text-base'
 const FIELDS = ['minPoints', 'reviewMonths', 'reminderDaysBefore', 'blocksPo', 'requiresExplicitAnswers'] as const
 
-/** One command with this panel's submission key; a new key after each answer (spec §4.3) */
-function useRun() {
-  const router = useRouter()
-  const submission = useSubmissionKey()
-  const [pending, setPending] = useState(false)
-  async function run(call: Run): Promise<RiskAdminOutcome> {
-    setPending(true)
-    let outcome: RiskAdminOutcome
-    try {
-      outcome = await call(submission.key)
-      submission.next()
-    } catch {
-      outcome = { ok: false, code: 'NO_ANSWER' }
-    }
-    setPending(false)
-    if (outcome.ok) router.refresh()
-    return outcome
-  }
-  return { pending, run }
-}
 
-/** The words of a refusal: the reason when the screen knows it, else the code */
-function useFailureText() {
-  const t = useSay('risk.admin.errors')
-  return (o: RiskAdminOutcome) => {
-    if (o.ok) return ''
-    const key = o.reason && t.has(`reason.${o.reason}`) ? `reason.${o.reason}` : t.has(`code.${o.code}`) ? `code.${o.code}` : 'code.FAILED'
-    return t(key)
-  }
-}
 
 export function TiersPanel({ tiers, actions }: { tiers: readonly TierRowUi[]; actions: TierActions }) {
   const t = useSay('risk.admin.tiers')
@@ -258,6 +227,11 @@ function TierDialog({ tiers, propose, onClose, onSaved }: { tiers: readonly Tier
     event.preventDefault()
     setFailure(null)
     // only what differs from the value in effect is proposed
+    // an emptied number is not a value: say so instead of proposing 0
+    if (tiers.some((r) => (['minPoints', 'reviewMonths', 'reminderDaysBefore'] as const).some((f) => !Number.isInteger(values[r.code][f])))) {
+      setFailure(t('numbersRequired'))
+      return
+    }
     const changes: Partial<Record<RiskTierCodeUi, TierChangeInput>> = {}
     for (const row of tiers) {
       const diff: Record<string, number | boolean> = {}
@@ -298,10 +272,10 @@ function TierDialog({ tiers, propose, onClose, onSaved }: { tiers: readonly Tier
                       inputMode="numeric"
                       min={f === 'reviewMonths' ? 1 : 0}
                       max={f === 'reviewMonths' ? 120 : undefined}
-                      value={values[r.code][f]}
+                      value={Number.isNaN(values[r.code][f]) ? '' : values[r.code][f]}
                       disabled={f === 'minPoints' && r.code === 'LOW'}
                       aria-describedby={f === 'minPoints' ? `${id}-${r.code}-hint` : undefined}
-                      onChange={(e) => set(r.code, f, Number(e.target.value))}
+                      onChange={(e) => set(r.code, f, e.target.value.trim() === '' ? Number.NaN : Number(e.target.value))}
                       className={CONTROL}
                     />
                     {f === 'minPoints' ? (

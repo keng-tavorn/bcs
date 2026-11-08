@@ -18,6 +18,7 @@ import { RISK_QUESTIONNAIRE_MACHINE, transition, type RiskQuestionnaireState } f
 import { authorize } from '@/server/authz'
 import { systemCtx, type Ctx } from '@/server/context'
 import { DB_NULL } from '@/server/db/json'
+import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
@@ -84,7 +85,9 @@ type VersionRow = NonNullable<Awaited<ReturnType<typeof loadVersion>>>
 const loadVersion = (tx: TenantTx, id: string) => tx.riskQuestionnaire.findFirst({ where: { id }, include: { questions: { orderBy: { sortOrder: 'asc' } } } })
 
 /** The version for an edit: found, at the version the screen read, and the command allowed from its status */
-async function versionFor(tx: TenantTx, input: { versionId: string; expectedVersion: number }, command: Parameters<typeof transition<RiskQuestionnaireState, (typeof RISK_QUESTIONNAIRE_MACHINE.commands)[number]>>[2]): Promise<{ ok: true; row: VersionRow; to: RiskQuestionnaireState } | Fail> {
+async function versionFor(tx: TenantTx, organizationId: string, input: { versionId: string; expectedVersion: number }, command: Parameters<typeof transition<RiskQuestionnaireState, (typeof RISK_QUESTIONNAIRE_MACHINE.commands)[number]>>[2]): Promise<{ ok: true; row: VersionRow; to: RiskQuestionnaireState } | Fail> {
+  // one command at a time on a version: locked before it is read, so the version checked is the one written (BR-RSK-02)
+  await lockRowsForUpdate(tx, 'RiskQuestionnaire', organizationId, [input.versionId])
   const row = await loadVersion(tx, input.versionId)
   if (!row) return fail('NOT_FOUND', 'questionnaire version not found')
   if (row.version !== input.expectedVersion) return fail('CONFLICT_VERSION', 'the version changed since it was read')
@@ -125,16 +128,18 @@ const draftCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ versionId: string; versionNo: number }>> {
     const who = await questionnaireGuard(tx, ctx)
     if (!who.ok) return who
+    // drafts of the organization one at a time, so two at once do not take the same versionNo (as workflowVersion.draft)
+    await lockRowsForUpdate(tx, 'Organization', ctx.organizationId, [ctx.organizationId])
     const open = await tx.riskQuestionnaire.findFirst({ where: { code: input.code, status: { in: ['DRAFT', 'PENDING_PUBLISH'] } }, select: { versionNo: true } })
     if (open) return fail('VALIDATION_FAILED', `version ${open.versionNo} is still a draft`, { reason: 'DRAFT_EXISTS', versionNo: open.versionNo })
     const last = await tx.riskQuestionnaire.findFirst({ where: { code: input.code }, orderBy: { versionNo: 'desc' }, select: { versionNo: true } })
-    const inEffect = await questionnaireInEffect(tx, ctx.now)
-    const source = inEffect?.code === input.code ? inEffect : null
+    // the newest published version of the code, in effect or still to come: a draft builds on the latest decision
+    const source = await tx.riskQuestionnaire.findFirst({ where: { code: input.code, status: 'PUBLISHED' }, orderBy: { effectiveFrom: 'desc' }, include: { questions: { orderBy: { sortOrder: 'asc' } } } })
     const versionNo = (last?.versionNo ?? 0) + 1
     const created = await tx.riskQuestionnaire.create({ data: { organizationId: ctx.organizationId, code: input.code, versionNo, effectiveFrom: ctx.now }, select: { id: true } })
-    for (const q of source?.questions ?? []) {
-      await tx.riskQuestion.create({
-        data: {
+    if (source && source.questions.length > 0) {
+      await tx.riskQuestion.createMany({
+        data: source.questions.map((q) => ({
           organizationId: ctx.organizationId,
           questionnaireId: created.id,
           code: q.code,
@@ -151,7 +156,7 @@ const draftCommand = defineCommand({
           evidenceScope: q.evidenceScope,
           aiReadable: q.aiReadable,
           sortOrder: q.sortOrder,
-        },
+        })),
       })
     }
     return {
@@ -171,7 +176,7 @@ const updateQuestionCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ questionCode: string }>> {
     const who = await questionnaireGuard(tx, ctx)
     if (!who.ok) return who
-    const v = await versionFor(tx, input, 'admin.riskQuestionnaire.updateQuestion')
+    const v = await versionFor(tx, ctx.organizationId, input, 'admin.riskQuestionnaire.updateQuestion')
     if (!v.ok) return v
     const q = input.question
     const problem = q.appliesWhen ? riskConditionProblem(q.appliesWhen) : null
@@ -197,7 +202,7 @@ const removeQuestionCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ questionCode: string }>> {
     const who = await questionnaireGuard(tx, ctx)
     if (!who.ok) return who
-    const v = await versionFor(tx, input, 'admin.riskQuestionnaire.removeQuestion')
+    const v = await versionFor(tx, ctx.organizationId, input, 'admin.riskQuestionnaire.removeQuestion')
     if (!v.ok) return v
     const q = v.row.questions.find((x) => x.code === input.questionCode)
     if (!q) return fail('NOT_FOUND', 'question not found')
@@ -214,7 +219,7 @@ const reorderCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ count: number }>> {
     const who = await questionnaireGuard(tx, ctx)
     if (!who.ok) return who
-    const v = await versionFor(tx, input, 'admin.riskQuestionnaire.reorder')
+    const v = await versionFor(tx, ctx.organizationId, input, 'admin.riskQuestionnaire.reorder')
     if (!v.ok) return v
     const have = v.row.questions.map((q) => q.code).sort()
     if (have.join() !== input.questionCodes.slice().sort().join()) return fail('VALIDATION_FAILED', 'the order names every question of the version once', { field: 'questionCodes', reason: 'NOT_A_PERMUTATION' })
@@ -228,9 +233,24 @@ const reorderCommand = defineCommand({
 
 // ---------- .submitForPublish (lint) · .publish (someone else) · .reject ----------
 
+/**
+ * The options of a stored question as they are: every option with a code and points is kept (labels may be missing on a
+ * row loaded from a sheet), so the lint and the dry-run judge the row itself, never an empty list put in its place
+ */
+const StoredOption = z.looseObject({ code: z.string(), points: z.number(), labelTh: z.string().optional(), labelEn: z.string().optional(), minTier: z.enum(RISK_TIER_CODES).optional(), evidence: z.boolean().optional() })
+export function storedOptions(options: unknown): RiskOptionInput[] {
+  if (!Array.isArray(options)) return []
+  return options.flatMap((o) => {
+    const parsed = StoredOption.safeParse(o)
+    if (!parsed.success) return []
+    const { code, points, labelTh, labelEn, minTier, evidence } = parsed.data
+    return [{ code, points, labelTh: labelTh ?? '', labelEn: labelEn ?? '', ...(minTier ? { minTier } : {}), ...(evidence !== undefined ? { evidence } : {}) }]
+  })
+}
+
 const lintQuestionOf = (q: VersionRow['questions'][number]) => ({
   code: q.code,
-  options: z.array(OptionInput).catch([]).parse(q.options),
+  options: storedOptions(q.options),
   appliesWhen: (q.appliesWhen as RiskCondition | null) ?? null,
   evidenceScopeRequired: q.evidenceScopeRequired,
   evidenceScope: q.evidenceScope,
@@ -261,7 +281,7 @@ const submitCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ warnings: QuestionnaireLintIssue[] }>> {
     const who = await questionnaireGuard(tx, ctx)
     if (!who.ok) return who
-    const v = await versionFor(tx, input, 'admin.riskQuestionnaire.submitForPublish')
+    const v = await versionFor(tx, ctx.organizationId, input, 'admin.riskQuestionnaire.submitForPublish')
     if (!v.ok) return v
     const effectiveFrom = new Date(input.effectiveFrom)
     if (effectiveFrom.getTime() < ctx.now.getTime()) return fail('VALIDATION_FAILED', 'the effective time is in the past', { field: 'effectiveFrom', reason: 'EFFECTIVE_IN_PAST' })
@@ -306,7 +326,7 @@ const publishCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ versionNo: number; inEffect: boolean }>> {
     const who = await questionnaireGuard(tx, ctx)
     if (!who.ok) return who
-    const v = await versionFor(tx, input, 'admin.riskQuestionnaire.publish')
+    const v = await versionFor(tx, ctx.organizationId, input, 'admin.riskQuestionnaire.publish')
     if (!v.ok) return v
     // someone other than who sent it (BR-RSK-02 · CHECK risk_questionnaire_shape)
     if (v.row.submittedById === who.memberId) return fail('VALIDATION_FAILED', 'the member who sent a version does not publish it', { reason: 'SAME_EDITOR' })
@@ -338,7 +358,7 @@ const rejectCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ versionNo: number }>> {
     const who = await questionnaireGuard(tx, ctx)
     if (!who.ok) return who
-    const v = await versionFor(tx, input, 'admin.riskQuestionnaire.reject')
+    const v = await versionFor(tx, ctx.organizationId, input, 'admin.riskQuestionnaire.reject')
     if (!v.ok) return v
     if (v.row.submittedById === who.memberId) return fail('VALIDATION_FAILED', 'the member who sent a version does not decide it', { reason: 'SAME_EDITOR' })
     await tx.riskQuestionnaire.update({ where: { id: v.row.id }, data: { status: v.to, submittedById: null, submittedAt: null, checksum: null, version: { increment: 1 } } })
@@ -457,7 +477,7 @@ const viewOf = (q: VersionRow['questions'][number]): QuestionView => ({
   textEn: q.textEn,
   helpTh: q.helpTh,
   helpEn: q.helpEn,
-  options: z.array(OptionInput).catch([]).parse(q.options),
+  options: storedOptions(q.options),
   appliesWhen: (q.appliesWhen as RiskCondition | null) ?? null,
   required: q.required,
   evidenceScopeRequired: q.evidenceScopeRequired,

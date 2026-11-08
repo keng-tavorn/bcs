@@ -3,12 +3,12 @@
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useFailureText, useRun } from './run'
 import { useSay, type Say } from './say'
 import { useId, useState, type FormEvent } from 'react'
 import { StatusBadge } from '../document/badges'
 import type { BadgeLook } from '../document/badge-looks'
 import { Notice } from '../form/notice'
-import { useSubmissionKey } from '../form/submission-key'
 import { ListEmpty } from '../page/page'
 import {
   AlertDialog,
@@ -124,34 +124,7 @@ export interface QuestionnaireActions {
 const CONTROL = 'h-11 bg-bg text-base lg:h-10 md:text-base'
 const SELECT = 'w-full [&_select]:h-11 [&_select]:text-base lg:[&_select]:h-10'
 
-function useRun() {
-  const router = useRouter()
-  const submission = useSubmissionKey()
-  const [pending, setPending] = useState(false)
-  async function run(call: (key: Key) => Promise<RiskAdminOutcome>): Promise<RiskAdminOutcome> {
-    setPending(true)
-    let outcome: RiskAdminOutcome
-    try {
-      outcome = await call(submission.key)
-      submission.next()
-    } catch {
-      outcome = { ok: false, code: 'NO_ANSWER' }
-    }
-    setPending(false)
-    if (outcome.ok) router.refresh()
-    return outcome
-  }
-  return { pending, run }
-}
 
-function useFailureText() {
-  const t = useSay('risk.admin.errors')
-  return (o: RiskAdminOutcome) => {
-    if (o.ok) return ''
-    const key = o.reason && t.has(`reason.${o.reason}`) ? `reason.${o.reason}` : t.has(`code.${o.code}`) ? `code.${o.code}` : 'code.FAILED'
-    return t(key)
-  }
-}
 
 // ---------- the versions ----------
 

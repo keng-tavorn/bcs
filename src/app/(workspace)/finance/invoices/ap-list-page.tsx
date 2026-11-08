@@ -2,13 +2,13 @@ import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
 import type { Ctx } from '@/server/context'
 import { getApInvoicePage } from '@/server/services/ap/view-invoice'
-import { AP_LIST_TABS, listApInvoices, type ApInvoiceRowDto, type ApListTab } from '@/server/services/ap/view-list'
+import { AP_LIST_CHANNELS, AP_LIST_TABS, listApInvoices, type ApInvoiceRowDto, type ApListChannel, type ApListTab } from '@/server/services/ap/view-list'
 import type { ApInvoiceRowView } from '@/ui/ap/list/invoice-table'
 import { ApInvoiceTable } from '@/ui/ap/list/invoice-table'
 import { ApInvoiceTabs } from '@/ui/ap/list/invoice-tabs'
 import { InvoiceQuickView } from '@/ui/ap/list/invoice-quick-view'
 import { Notice } from '@/ui/form/notice'
-import { FilterBar, FilterSearch, FilterSummary } from '@/ui/page/filters'
+import { FilterBar, FilterSearch, FilterSelect, FilterSummary } from '@/ui/page/filters'
 import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { Button } from '@/ui/shadcn/button'
 import { downloadUrlAction } from '../../../_lib/file-actions'
@@ -31,10 +31,11 @@ const one = (value: string | string[] | undefined): string | null => (typeof val
 /** An invoice id is a UUID; anything else in the address opens nothing (and never reaches the database) */
 const VIEW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-function hrefOf(tab: ApListTab, q: string, view: string | null = null): string {
+function hrefOf(tab: ApListTab, q: string, view: string | null = null, channel: ApListChannel | null = null): string {
   const params = new URLSearchParams()
   if (tab !== 'draft') params.set('tab', tab)
   if (q) params.set('q', q)
+  if (channel) params.set('channel', channel)
   if (view) params.set('view', view)
   const query = params.toString()
   return query ? `/finance/invoices?${query}` : '/finance/invoices'
@@ -45,9 +46,12 @@ export async function ApInvoicesPage({ ctx, searchParams }: { ctx: Ctx; searchPa
   const asked = one(searchParams.tab)
   const tab = (AP_LIST_TABS as readonly string[]).includes(asked ?? '') ? (asked as ApListTab) : 'draft'
   const q = (one(searchParams.q) ?? '').trim().slice(0, SEARCH_MAX)
+  const askedChannel = one(searchParams.channel)
+  // S7-12: "จากพอร์ทัล" and the other channels an invoice came by
+  const channel = (AP_LIST_CHANNELS as readonly string[]).includes(askedChannel ?? '') ? (askedChannel as ApListChannel) : null
   const asView = one(searchParams.view)
   const viewId = asView && VIEW_ID.test(asView) ? asView : null
-  const [result, viewed] = await Promise.all([listApInvoices(ctx, { tab, q }), viewId ? getApInvoicePage(ctx, viewId) : null])
+  const [result, viewed] = await Promise.all([listApInvoices(ctx, { tab, q, channel }), viewId ? getApInvoicePage(ctx, viewId) : null])
   if (!result.ok) {
     return (
       <Page>
@@ -63,7 +67,7 @@ export async function ApInvoicesPage({ ctx, searchParams }: { ctx: Ctx; searchPa
   }
   const list = result.data
   const tabName = t(`tabs.${tab}`)
-  const rows = list.rows.map((row) => rowView(t, locale, row, hrefOf(tab, q, row.id)))
+  const rows = list.rows.map((row) => rowView(t, locale, row, hrefOf(tab, q, row.id, channel)))
 
   return (
     <Page>
@@ -99,16 +103,17 @@ export async function ApInvoicesPage({ ctx, searchParams }: { ctx: Ctx; searchPa
           label={t('filter.label')}
           submit={t('filter.submit')}
           hidden={{ tab: tab === 'draft' ? null : tab }}
-          footer={<FilterSummary count={t('filter.count', { count: list.counts[tab] })} clear={q ? { href: hrefOf(tab, ''), label: t('filter.clear') } : null} />}
+          footer={<FilterSummary count={t('filter.count', { count: list.counts[tab] })} clear={q || channel ? { href: hrefOf(tab, ''), label: t('filter.clear') } : null} />}
         >
           <FilterSearch id="ap-invoice-search" label={t('filter.search')} hint={t('filter.searchHint')} defaultValue={q} maxLength={SEARCH_MAX} />
+          <FilterSelect id="ap-invoice-channel" name="channel" label={t('filter.channel')} all={t('filter.allChannels')} defaultValue={channel ?? ''} options={AP_LIST_CHANNELS.map((c) => ({ value: c, label: t(`channel.${c}`) }))} />
         </FilterBar>
 
         <Panel label={t('tabs.label')}>
           <ApInvoiceTabs
             current={tab}
             label={t('tabs.label')}
-            tabs={AP_LIST_TABS.map((key) => ({ key, label: t('tabs.withCount', { label: t(`tabs.${key}`), count: list.counts[key] }), href: hrefOf(key, q) }))}
+            tabs={AP_LIST_TABS.map((key) => ({ key, label: t('tabs.withCount', { label: t(`tabs.${key}`), count: list.counts[key] }), href: hrefOf(key, q, null, channel) }))}
           >
             {rows.length ? (
               <>
@@ -132,8 +137,8 @@ export async function ApInvoicesPage({ ctx, searchParams }: { ctx: Ctx; searchPa
               </>
             ) : (
               <ListEmpty
-                title={q ? t('empty.noMatch') : t(`empty.${tab}`)}
-                hint={q ? t('empty.noMatchHint') : t(`empty.${tab}Hint`)}
+                title={q || channel ? t('empty.noMatch') : t(`empty.${tab}`)}
+                hint={q || channel ? t('empty.noMatchHint') : t(`empty.${tab}Hint`)}
                 actions={
                   q ? (
                     <Button asChild variant="outline" className="min-h-11 lg:min-h-10">
@@ -145,7 +150,7 @@ export async function ApInvoicesPage({ ctx, searchParams }: { ctx: Ctx; searchPa
             )}
           </ApInvoiceTabs>
         </Panel>
-        {viewed?.ok ? <InvoiceQuickView key={viewed.data.id} data={viewed.data} closeHref={hrefOf(tab, q)} openFile={downloadUrlAction} /> : null}
+        {viewed?.ok ? <InvoiceQuickView key={viewed.data.id} data={viewed.data} closeHref={hrefOf(tab, q, null, channel)} openFile={downloadUrlAction} /> : null}
       </PageBody>
     </Page>
   )
@@ -171,7 +176,7 @@ function rowView(t: ApListT, locale: Locale, row: ApInvoiceRowDto, quickHref: st
     due: row.dueDate ? day(locale, row.dueDate) : t('list.noDue'),
     status: row.status,
     statusLabel: t(`status.${row.status}` as 'status.DRAFT'),
-    notes: [row.channel === 'EMAIL' ? t('list.fromEmail') : null, row.openExceptions > 0 ? t('list.exceptions', { count: row.openExceptions }) : null].filter((n): n is string => n !== null),
+    notes: [row.channel === 'EMAIL' ? t('list.fromEmail') : row.channel === 'PORTAL' ? t('list.fromPortal') : null, row.scanPending ? t('list.scanPending') : null, row.openExceptions > 0 ? t('list.exceptions', { count: row.openExceptions }) : null].filter((n): n is string => n !== null),
     duplicate: row.possibleDuplicate ? t('list.duplicate') : null,
   }
 }

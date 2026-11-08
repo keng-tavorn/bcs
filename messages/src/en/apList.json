@@ -28,7 +28,9 @@
     "searchHint": "Invoice number, supplier's invoice number, PO number or supplier name",
     "submit": "Search invoices",
     "count": "{count} invoices in this tab",
-    "clear": "Clear search"
+    "clear": "Clear search",
+    "channel": "Channel",
+    "allChannels": "All channels"
   },
   "list": {
     "label": "Invoices in the {tab} tab",
@@ -50,7 +52,9 @@
     "exceptions": "{count} exceptions",
     "noDue": "Not set",
     "fromEmail": "Came by e-mail",
-    "limited": "Showing the latest {shown}. Search to find others."
+    "limited": "Showing the latest {shown}. Search to find others.",
+    "fromPortal": "From the supplier portal",
+    "scanPending": "File waiting for scan"
   },
   "empty": {
     "draft": "No draft invoices yet",
@@ -201,5 +205,10 @@
     "noAlerts": "No alerts",
     "activity": "Latest activity",
     "allActivity": "See all {count} activities on the full page"
+  },
+  "channel": {
+    "PORTAL": "From the portal",
+    "EMAIL": "From e-mail",
+    "UPLOAD": "Uploaded by finance"
   }
 }

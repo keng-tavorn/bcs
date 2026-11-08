@@ -26,7 +26,7 @@ export default async function PortalBankAccountPage({ params, searchParams }: { 
   const known = error && (ERRORS as readonly string[]).includes(error) ? (error as (typeof ERRORS)[number]) : null
   const stage = bank.latest?.stage
   return (
-    <PortalFrame organization={org.nameTh} title={t('title')} nav={portalNav(org.code, tp, 'bank-account', 'SUPPLIER')} navLabel={tp('nav.label')}>
+    <PortalFrame organization={org.nameTh} title={t('title')} nav={portalNav(org.code, tp, 'bank-account', 'SUPPLIER', session.invoices)} navLabel={tp('nav.label')}>
       <p className="text-ink-muted">{t('intro')}</p>
       {one(q.sent) ? <PortalNotice tone="success">{t('sent')}</PortalNotice> : null}
       {error ? <PortalNotice tone="danger">{known ? t(`errors.${known}`) : t('errors.FAILED')}</PortalNotice> : null}

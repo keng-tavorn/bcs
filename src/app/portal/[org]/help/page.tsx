@@ -12,7 +12,7 @@ export default async function PortalHelpPage({ params }: { params: Promise<{ org
   if (!session) redirect(`/portal/${org.code}/login`)
   const [t, home, help] = await Promise.all([getTranslations('portal'), getPortalHome(session.state.ctx), getPortalHelp(session.state.ctx)])
   return (
-    <PortalFrame organization={org.nameTh} title={t('help.title')} nav={portalNav(org.code, t, 'help', home.supplier ? 'SUPPLIER' : 'APPLICATION')} navLabel={t('nav.label')}>
+    <PortalFrame organization={org.nameTh} title={t('help.title')} nav={portalNav(org.code, t, 'help', home.supplier ? 'SUPPLIER' : 'APPLICATION', session.invoices)} navLabel={t('nav.label')}>
       <section aria-labelledby="how" className="flex flex-col gap-2">
         <h2 id="how" className="text-lg font-semibold">
           {t('help.howTitle')}

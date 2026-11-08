@@ -29,7 +29,7 @@ export default async function PortalDocumentsPage({ params, searchParams }: { pa
   const error = one(q.error)
   const known = error && (ERRORS as readonly string[]).includes(error) ? (error as (typeof ERRORS)[number]) : null
   return (
-    <PortalFrame organization={org.nameTh} title={t('documents.title')} nav={portalNav(org.code, tp, 'documents', contact.supplierId ? 'SUPPLIER' : 'APPLICATION')} navLabel={tp('nav.label')}>
+    <PortalFrame organization={org.nameTh} title={t('documents.title')} nav={portalNav(org.code, tp, 'documents', contact.supplierId ? 'SUPPLIER' : 'APPLICATION', session.invoices)} navLabel={tp('nav.label')}>
       {one(q.sent) ? <PortalNotice tone="success">{t('documents.uploaded')}</PortalNotice> : null}
       {error ? <PortalNotice tone="danger">{known ? t(`errors.${known}`) : t('errors.FAILED')}</PortalNotice> : null}
       {docs.ok && docs.data.rows.length ? (

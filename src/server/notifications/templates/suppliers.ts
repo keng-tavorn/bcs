@@ -44,6 +44,14 @@ export const SUPPLIER_TEMPLATES: Readonly<Record<string, Template>> = {
     title: { th: `เอกสาร ${str(d.typeName)} ของผู้ขายจะหมดอายุวันที่ ${str(d.expiresOn)}`, en: `A supplier's ${str(d.typeName)} expires on ${str(d.expiresOn)}` },
     href: d.supplierId ? `/suppliers/${str(d.supplierId)}?tab=documents` : '/suppliers',
   }),
+  // S7-12 (FR-AP-101 AC7 · BR-SUP ข้อ 15): a draft invoice a supplier sent on the portal, waiting for FINANCE (digest)
+  'invoice.portal_drafted': (d) => ({
+    title: {
+      th: d.poNumber ? `ผู้ขาย ${str(d.code)} ส่งใบแจ้งหนี้ผ่านพอร์ทัลต่อใบสั่งซื้อ ${str(d.poNumber)} รอการเงินตรวจ` : `ผู้ขาย ${str(d.code)} ส่งใบแจ้งหนี้ผ่านพอร์ทัล รอการเงินตรวจ`,
+      en: d.poNumber ? `Supplier ${str(d.code)} sent an invoice on the portal for PO ${str(d.poNumber)}, waiting for finance` : `Supplier ${str(d.code)} sent an invoice on the portal, waiting for finance`,
+    },
+    href: `/finance/invoices/${str(d.invoiceId)}`,
+  }),
   'supplier.bank_change_from_portal': (d) => ({
     title: { th: `มีคำขอบัญชีธนาคารจากผู้ขาย ${str(d.code)} รอการเงินรับเรื่อง`, en: `A bank account request from supplier ${str(d.code)} waits for finance to claim it` },
     href: `/finance/bank-accounts/changes/${str(d.changeId)}`,

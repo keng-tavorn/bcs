@@ -37,6 +37,11 @@ export const PORTAL_MODELS: PortalModel[] = [
   // S7-10: the supplier's own account in force and its requests, masked by the query (BR-SUP ข้อ 07)
   { model: 'bankAccount', where: (a) => (a.supplierId ? { supplierId: a.supplierId, ownerKind: 'SUPPLIER' } : NONE) },
   { model: 'bankAccountChange', where: (a) => (a.supplierId ? { supplierId: a.supplierId, ownerKind: 'SUPPLIER' } : NONE) },
+  // S7-12: the supplier's own invoices — sent on the portal, or numbered by FINANCE from any channel (FR-AP-103 AC5)
+  { model: 'invoice', where: (a) => (a.supplierId ? { supplierId: a.supplierId, OR: [{ channel: 'PORTAL' }, { number: { not: null } }] } : NONE) },
+  // S7-12: the supplier's own payments, paid or failed, and its 50 ทวิ (FR-PAY-103 AC8 · masked by the query)
+  { model: 'paymentRunItem', where: (a) => (a.supplierId ? { supplierId: a.supplierId, status: { in: ['PAID', 'FAILED'] } } : NONE) },
+  { model: 'whtCertificate', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : NONE) },
 ]
 
 export const PORTAL_MODEL_NAMES: ReadonlySet<string> = new Set(PORTAL_MODELS.map((m) => m.model))

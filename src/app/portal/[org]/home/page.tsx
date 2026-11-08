@@ -8,7 +8,7 @@ import { pageOrg, pageSession, portalNav, Unavailable } from '../_lib/page'
 // from the providers of PORTAL_HOME_PROVIDERS (S7: documents; S7-11 S7-12 S10 S11 add theirs), each a link to where it is
 // done. A contact of an application goes to the application; the privacy notice comes first (BR-PORTAL ข้อ 08).
 
-const KINDS = ['DOCUMENT_EXPIRING', 'DOCUMENT_EXPIRED', 'DOCUMENT_MISSING'] as const
+const KINDS = ['DOCUMENT_EXPIRING', 'DOCUMENT_EXPIRED', 'DOCUMENT_MISSING', 'INVOICE_REJECTED'] as const
 
 export default async function PortalHome({ params }: { params: Promise<{ org: string }> }) {
   const org = await pageOrg((await params).org)
@@ -21,7 +21,7 @@ export default async function PortalHome({ params }: { params: Promise<{ org: st
   if (!home.supplier) redirect(`/portal/${org.code}/apply`)
   const todos = (await listPortalTodos(ctx)).filter((x) => (KINDS as readonly string[]).includes(x.kind))
   return (
-    <PortalFrame organization={org.nameTh} title={t('home.greeting', { name: home.contact.nameTh })} nav={portalNav(org.code, t, 'home', 'SUPPLIER')} navLabel={t('nav.label')}>
+    <PortalFrame organization={org.nameTh} title={t('home.greeting', { name: home.contact.nameTh })} nav={portalNav(org.code, t, 'home', 'SUPPLIER', session.invoices)} navLabel={t('nav.label')}>
       <p>{t('home.forSupplier', { supplier: home.supplier.nameTh })}</p>
       <section aria-labelledby="todo" className="flex flex-col gap-2">
         <h2 id="todo" className="text-lg font-semibold">

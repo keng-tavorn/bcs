@@ -20,7 +20,7 @@ export default async function PortalProfilePage({ params, searchParams }: { para
   const errorText = error === 'PRIMARY_CONTACT' ? t('profile.closeLast') : error === 'CONFIRM' ? t('profile.closeConfirmNeeded') : error ? t('errors.FAILED') : null
   const owner = home.supplier?.nameTh ?? home.application?.nameTh ?? ''
   return (
-    <PortalFrame organization={org.nameTh} title={t('profile.title')} nav={portalNav(org.code, t, 'profile', home.supplier ? 'SUPPLIER' : 'APPLICATION')} navLabel={t('nav.label')}>
+    <PortalFrame organization={org.nameTh} title={t('profile.title')} nav={portalNav(org.code, t, 'profile', home.supplier ? 'SUPPLIER' : 'APPLICATION', session.invoices)} navLabel={t('nav.label')}>
       {one(q.saved) ? <PortalNotice tone="success">{t('profile.languageSaved')}</PortalNotice> : null}
       {errorText ? <PortalNotice tone="danger">{errorText}</PortalNotice> : null}
       <form method="post" action={`/portal/${org.code}/api/profile`} className="flex flex-col gap-3">

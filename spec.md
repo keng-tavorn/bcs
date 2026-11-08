@@ -5066,6 +5066,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `po.acknowledged` (S7-11 · FR-SUP-105 AC2) | ผู้ขอของ PR ต้นทาง · ผู้ตรวจรับของแผนก | ในระบบ | DIGEST | `po.acknowledged` |
 | `po.acknowledged` (S7-11 · ยืนยันกลับ) | ผู้ติดต่อที่รับทราบ | อีเมลผ่าน `SupplierNotice` | — | `supplier.po_delivery_ack` |
 | `po.delivery_date_changed` (S7-11 · FR-SUP-105 AC3) | ผู้ขอ · ผู้ตรวจรับ · จัดซื้อผู้สร้าง PO (เลขที่ PO และวันที่ ไม่มีราคา · BR-NOTI-01) | LINE → อีเมล | IMMEDIATE | `po.delivery_changed` |
+| `invoice.drafted` channel PORTAL (S7-12 · FR-AP-101 AC7 · BR-SUP-15) | FINANCE ทุกคน (รอตรวจ · รหัสผู้ขายและเลขที่ PO ไม่มียอด) | ในระบบ | DIGEST | `invoice.portal_drafted` |
 | `supplier_contact.created` · `.updated` (อีเมล) ของผู้ขาย ACTIVE (S7-04 · BR-SUP-17) | `Supplier.email` ในทะเบียน · ผู้ติดต่อหลักก่อนการเปลี่ยน (ไม่ส่งไปอีเมลใหม่ · บอกชื่อ member) | อีเมลผ่าน `SupplierNotice` | — | `supplier.contact_added` |
 | สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
 | `security.pin_locked` · `auth.2fa_reset` · `push_device.registered` (S17-10) · `auth.passkey_added` `auth.passkey_removed` และ passkey ที่ตัวนับถอยหลัง (S17-15) | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |

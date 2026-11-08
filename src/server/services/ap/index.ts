@@ -24,6 +24,7 @@ import { suggestionsFor } from './coding'
 // What the Document Agent read off an invoice, by path, for aiAssist (S13-12)
 import './ai-assist'
 import { readStoredInvoiceFile, sourceOfStoredFile } from './files'
+import { financeOfPortalDraft, ownInvoiceablePo, portalInvoiceContact, portalInvoiceFilePrefix, withinInvoiceDraftLimit } from './portal'
 import type { EtaxContentReading } from '../invoices/etax'
 
 // Tier-2 invoices (spec FR-AP-101 FR-AP-102 FR-AP-105 FR-AP-108, docs/sub-specs/S8.md, §7.18 BR-AP-01 to BR-AP-13):
@@ -65,7 +66,9 @@ export async function lockPoForDraft(tx: TenantTx, ctx: Ctx, poId: string, comma
 type PoForDraft = Extract<Awaited<ReturnType<typeof lockPoForDraft>>, { ok: true }>['po']
 
 export interface DraftSource {
-  readonly channel: 'UPLOAD' | 'EMAIL'
+  readonly channel: 'UPLOAD' | 'EMAIL' | 'PORTAL'
+  /** S7-12: the supplier contact who sent it on the portal (createdById stays null then) */
+  readonly createdByContactId?: string | null
   /** The stored file read again (./files.ts readStoredInvoiceFile), or none */
   readonly file: { readonly fileId: string; readonly reading: EtaxContentReading } | null
   readonly inboundEmailId: string | null
@@ -106,6 +109,7 @@ export async function draftOnPo(tx: TenantTx, ctx: Ctx, po: PoForDraft, source: 
       payableSatang: statedVatSatang,
       retentionBp: po.retentionBp,
       createdById: source.createdById,
+      createdByContactId: source.createdByContactId ?? null,
     },
     select: { id: true },
   })
@@ -147,6 +151,7 @@ export const createInvoiceCommand = defineCommand({
   capability: 'invoice.record',
   input: CreateInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ invoiceId: string; prefill: 'MANUAL' | 'ETAX_XML' }>> {
+    if (ctx.actor.type === 'SUPPLIER') return createFromPortal(tx, input, ctx)
     const who = await guard(tx, ctx, 'invoice.record')
     if (!who.ok) return who
     const file = input.sourceFileId ? await readStoredInvoiceFile(tx, { organizationId: ctx.organizationId, memberId: who.memberId, fileId: input.sourceFileId, poId: input.poId }) : null
@@ -158,6 +163,26 @@ export const createInvoiceCommand = defineCommand({
     return { ok: true, result: { invoiceId: draft.invoiceId, prefill: draft.prefill }, events: [draft.event] }
   },
 })
+
+/**
+ * S7-12 (FR-AP-101 AC7 · BR-SUP ข้อ 15): the draft a supplier contact sends on the portal — a PO of its own supplier, the
+ * file it uploaded for that PO (required), at most PORTAL_INVOICE_DRAFTS_PER_DAY drafts a day; the same draft as
+ * FINANCE's from the same file (draftOnPo), channel PORTAL, and FINANCE told in its digest.
+ */
+async function createFromPortal(tx: TenantTx, input: z.infer<typeof CreateInput>, ctx: Ctx): Promise<CommandOutcome<{ invoiceId: string; prefill: 'MANUAL' | 'ETAX_XML' }>> {
+  const who = await portalInvoiceContact(tx, ctx)
+  if (!who.ok) return who
+  if (!(await ownInvoiceablePo(tx, who.supplierId, input.poId))) return fail('NOT_FOUND', 'purchase order not found')
+  if (!input.sourceFileId) return fail('VALIDATION_FAILED', 'attach the invoice’s file', { field: 'sourceFileId', reason: 'FILE_REQUIRED' })
+  const file = await readStoredInvoiceFile(tx, { organizationId: ctx.organizationId, memberId: null, fileId: input.sourceFileId, poId: input.poId, keyPrefix: portalInvoiceFilePrefix(ctx.organizationId, input.poId, who.contactId) })
+  if (!file.ok) return fail('VALIDATION_FAILED', 'the invoice file must be one you uploaded for this purchase order, unchanged', { field: 'sourceFileId', reason: file.reason })
+  if (!(await withinInvoiceDraftLimit(ctx.organizationId, who.supplierId, ctx.now))) return fail('RATE_LIMITED', 'too many invoices today')
+  const locked = await lockPoForDraft(tx, ctx, input.poId, 'invoice.create')
+  if (!locked.ok) return locked
+  const draft = await draftOnPo(tx, ctx, locked.po, { channel: 'PORTAL', file: file.file, inboundEmailId: null, createdById: null, createdByContactId: who.contactId })
+  if (!draft.ok) return draft
+  return { ok: true, result: { invoiceId: draft.invoiceId, prefill: draft.prefill }, events: [draft.event], notifications: await financeOfPortalDraft(tx, draft.invoiceId, who.supplierId, locked.po.number) }
+}
 
 /** A file is the paper of one invoice only, tier 1 or tier 2; run under the PO's lock */
 async function fileInUse(tx: TenantTx, fileId: string): Promise<boolean> {
@@ -216,11 +241,22 @@ export const updateInvoiceCommand = defineCommand({
   capability: 'invoice.record',
   input: UpdateInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ invoiceId: string; version: number }>> {
-    const who = await guard(tx, ctx, 'invoice.record')
-    if (!who.ok) return who
+    // S7-12 (BR-SUP ข้อ 15): a supplier contact edits a draft of its own from the portal until FINANCE confirms its coding
+    const contact = ctx.actor.type === 'SUPPLIER' ? await portalInvoiceContact(tx, ctx) : null
+    if (contact && !contact.ok) return contact
+    if (contact) {
+      // another supplier's invoice, or one that did not come from the portal, is not found (INV-SUP-01)
+      if ((await tx.invoice.count({ where: { id: input.invoiceId, supplierId: contact.supplierId, channel: 'PORTAL' } })) === 0) return fail('NOT_FOUND', 'invoice not found')
+      if (input.aiAssist) return fail('FORBIDDEN', 'only a person of the organization confirms what the AI filled in')
+      if (input.isFinal !== undefined) return fail('VALIDATION_FAILED', 'finance decides whether an invoice is the last of its PO', { field: 'isFinal', reason: 'NOT_FOR_SUPPLIER' })
+    } else {
+      const who = await guard(tx, ctx, 'invoice.record')
+      if (!who.ok) return who
+    }
     const locked = await lockedInvoice(tx, ctx, input.invoiceId, 'invoice.update', input.version)
     if (!locked.ok) return locked
     const invoice = locked.invoice
+    if (contact && invoice.lines.some((l) => l.codingConfirmedAt !== null)) return fail('INVALID_STATE_TRANSITION', 'finance has confirmed the coding of this invoice: ask finance to change it', { from: invoice.status, reason: 'CODING_CONFIRMED' })
     const changed: string[] = []
     const sources = { ...((invoice.fieldSources as Record<string, string> | null) ?? {}) }
     const data: Record<string, unknown> = {}

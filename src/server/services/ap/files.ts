@@ -4,13 +4,17 @@ import { amountToSatang } from '@/core/money/dto'
 import { err, ok, type Result } from '@/core/result'
 import { MAX_UPLOAD_BYTES } from '@/lib/constants'
 import { newId } from '@/lib/ids'
-import { putObject, readObject } from '@/integrations/storage'
+import { deleteObject, putObject, readObject } from '@/integrations/storage'
+import { MS_PER_HOUR } from '@/lib/constants'
+import { PORTAL_UPLOADS_PER_HOUR } from '@/lib/portal-limits'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
+import { countPortalScopeHit } from '@/server/db/portal'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
-import { defineCommand, runCommand, type CommandOutcome } from '../_pipeline'
+import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { invoiceFilePrefix, readEtaxContent, type EtaxContentReading } from '../invoices/etax'
 import { requireModule } from '../modules'
+import { ownInvoiceablePo, portalInvoiceContact, portalInvoiceFilePrefix } from './portal'
 
 // The file of a tier-2 invoice (BR-AP-01, BR-IVC-07): FINANCE uploads a PDF, XML, JPEG or PNG for one PO; it is kept
 // under the same PO-bound storage key as the tier-1 e-Tax reader (invoiceFilePrefix), so the file stays with the PO it
@@ -44,6 +48,7 @@ export const storeInvoiceFileCommand = defineCommand({
   capability: 'invoice.record',
   input: StoreInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ fileId: string }>> {
+    if (ctx.actor.type === 'SUPPLIER') return storePortalFile(tx, input, ctx)
     const allowed = await authorize(tx, ctx, 'invoice.record')
     if (!allowed.ok) return { ok: false, error: allowed.error }
     if (allowed.data.kind !== 'member') return { ok: false, error: { code: 'FORBIDDEN', message: 'members only' } }
@@ -57,6 +62,49 @@ export const storeInvoiceFileCommand = defineCommand({
     return { ok: true, result: { fileId }, events: [{ type: 'file.uploaded', aggregateType: 'File', aggregateId: fileId, data: { fileId, mimeType: input.mimeType, sizeBytes: input.sizeBytes } }] }
   },
 })
+
+/**
+ * S7-12 (FR-AP-101 AC7 · BR-SUP ข้อ 15 · BR-PORTAL ข้อ 07): the same command with a supplier contact as its actor — a PO of
+ * its own supplier that takes an invoice, a key under the PO and the contact, kept PENDING until the central scan (the
+ * event file.uploaded starts job file-scan) and opened by FINANCE only once clean.
+ */
+async function storePortalFile(tx: TenantTx, input: z.infer<typeof StoreInput>, ctx: Ctx): Promise<CommandOutcome<{ fileId: string }>> {
+  const who = await portalInvoiceContact(tx, ctx)
+  if (!who.ok) return who
+  if (!(await ownInvoiceablePo(tx, who.supplierId, input.poId))) return { ok: false, error: { code: 'NOT_FOUND', message: 'purchase order not found' } }
+  if (input.mimeType === 'application/xml') return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'a supplier sends a PDF, JPEG or PNG file', details: { field: 'file', reason: 'TYPE_NOT_ALLOWED' } } }
+  if (!input.key.startsWith(portalInvoiceFilePrefix(ctx.organizationId, input.poId, who.contactId))) return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'the file key is not of this purchase order', details: { field: 'key' } } }
+  const fileId = newId()
+  await tx.fileObject.create({
+    data: { id: fileId, organizationId: ctx.organizationId, storageKey: input.key, fileName: input.fileName, mimeType: input.mimeType, sizeBytes: input.sizeBytes, sha256: input.sha256, status: 'AVAILABLE', uploadedById: null, scanStatus: 'PENDING' },
+  })
+  return { ok: true, result: { fileId }, events: [{ type: 'file.uploaded', aggregateType: 'File', aggregateId: fileId, data: { fileId, mimeType: input.mimeType, sizeBytes: input.sizeBytes } }] }
+}
+
+/**
+ * S7-12: a supplier contact uploads the file of its invoice for a PO of its own (PDF, JPEG or PNG by its bytes, 20 MB at
+ * most, PORTAL_UPLOADS_PER_HOUR files an hour per supplier · BR-PORTAL ข้อ 04 ข้อ 07). The object of a refused command is
+ * deleted with it.
+ */
+export async function uploadPortalInvoiceFile(ctx: Ctx, input: { poId: string; fileName: string; content: Uint8Array }, options: RunOptions): Promise<Result<{ fileId: string }>> {
+  if (ctx.actor.type !== 'SUPPLIER' || ctx.channel !== 'PORTAL' || !ctx.actor.supplierId) return err('FORBIDDEN', 'not a portal request')
+  if (!z.uuid().safeParse(input.poId).success) return err('NOT_FOUND', 'purchase order not found')
+  if (input.content.length === 0 || input.content.length > MAX_UPLOAD_BYTES) return err('VALIDATION_FAILED', 'the file is empty or too large', { field: 'file', reason: input.content.length ? 'TOO_LARGE' : 'EMPTY' })
+  const mimeType = invoiceFileType(input.content)
+  if (!mimeType || mimeType === 'application/xml') return err('VALIDATION_FAILED', 'an invoice file is a PDF, JPEG or PNG file', { field: 'file', reason: 'TYPE_NOT_ALLOWED' })
+  const windowStart = new Date(Math.floor(ctx.now.getTime() / MS_PER_HOUR) * MS_PER_HOUR)
+  if ((await countPortalScopeHit(ctx.organizationId, { kind: 'SUPPLIER', key: ctx.actor.supplierId }, 'UPLOAD', windowStart)) > PORTAL_UPLOADS_PER_HOUR) return err('RATE_LIMITED', 'too many files this hour')
+  const key = `${portalInvoiceFilePrefix(ctx.organizationId, input.poId, ctx.actor.supplierContactId)}${newId()}`
+  await putObject(key, input.content, mimeType)
+  const sha256 = createHash('sha256').update(input.content).digest('hex')
+  const fileName = input.fileName.replace(/[\\/\u0000-\u001f]/g, ' ').trim().slice(0, 200) || 'invoice'
+  const stored = await runCommand(ctx, storeInvoiceFileCommand, { poId: input.poId, key, fileName, mimeType: mimeType as z.infer<typeof StoreInput>['mimeType'], sizeBytes: input.content.length, sha256 }, options)
+  if (!stored.ok) {
+    await deleteObject(key).catch(() => undefined)
+    return stored
+  }
+  return ok({ fileId: stored.data.fileId })
+}
 
 /** FR-AP-101 AC1: FINANCE uploads an invoice's file for a PO; the draft is made from it with invoice.create */
 export async function uploadInvoiceFile(ctx: Ctx, input: { poId: string; fileName: string; content: Uint8Array }): Promise<Result<{ fileId: string }>> {
@@ -96,13 +144,15 @@ const notFound = (error: unknown): boolean => {
  */
 export async function readStoredInvoiceFile(
   tx: Pick<TenantTx, 'fileObject'>,
-  input: { readonly organizationId: string; readonly memberId: string | null; readonly fileId: string; readonly poId: string },
+  input: { readonly organizationId: string; readonly memberId: string | null; readonly fileId: string; readonly poId: string; readonly keyPrefix?: string },
 ): Promise<{ readonly ok: true; readonly file: { readonly fileId: string; readonly reading: EtaxContentReading } } | { readonly ok: false; readonly reason: StoredFileRefusal }> {
   const file = await tx.fileObject.findFirst({
     where: { id: input.fileId, status: 'AVAILABLE', ...(input.memberId ? { uploadedById: input.memberId } : {}) },
     select: { id: true, storageKey: true, sha256: true },
   })
   if (!file) return { ok: false, reason: 'FILE' }
+  // a portal contact's file is under its own prefix of the PO (S7-12), never FINANCE's or the inbox's
+  if (input.keyPrefix !== undefined && !file.storageKey.startsWith(input.keyPrefix)) return { ok: false, reason: 'FILE_OTHER_PO' }
   if (!file.storageKey.startsWith(invoiceFilePrefix(input.organizationId, input.poId)) && !file.storageKey.startsWith(inboxFilePrefix(input.organizationId))) return { ok: false, reason: 'FILE_OTHER_PO' }
   let bytes: Uint8Array
   try {

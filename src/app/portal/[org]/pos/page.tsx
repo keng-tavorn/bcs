@@ -22,7 +22,7 @@ export default async function PortalPosPage({ params }: { params: Promise<{ org:
   if (home.privacyNoticeDue) redirect(`/portal/${org.code}`)
   if (!home.supplier) redirect(`/portal/${org.code}/apply`)
   return (
-    <PortalFrame organization={org.nameTh} title={t('pos.title')} nav={portalNav(org.code, t, 'pos', 'SUPPLIER')} navLabel={t('nav.label')}>
+    <PortalFrame organization={org.nameTh} title={t('pos.title')} nav={portalNav(org.code, t, 'pos', 'SUPPLIER', session.invoices)} navLabel={t('nav.label')}>
       <p className="text-ink-muted">{t('pos.intro')}</p>
       {pos.length ? (
         <ul className="flex flex-col divide-y divide-line border-y border-line">

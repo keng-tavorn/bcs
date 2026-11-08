@@ -25,7 +25,7 @@ export default async function PortalPoPage({ params, searchParams }: { params: P
   const [t, home, po, q] = await Promise.all([getTranslations('portal'), getPortalHome(ctx), getPortalPo(ctx, id), searchParams])
   if (home.privacyNoticeDue) redirect(`/portal/${org.code}`)
   if (!home.supplier) redirect(`/portal/${org.code}/apply`)
-  const nav = portalNav(org.code, t, 'pos', 'SUPPLIER')
+  const nav = portalNav(org.code, t, 'pos', 'SUPPLIER', session.invoices)
   const back = (
     <a href={`/portal/${org.code}/pos`} className="inline-flex min-h-11 items-center text-primary underline underline-offset-4 hover:no-underline">
       {t('pos.back')}

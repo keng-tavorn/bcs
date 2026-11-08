@@ -2551,6 +2551,11 @@
       "retentions": "Retentions",
       "wht": "Withholding tax"
     },
+    "channel": {
+      "EMAIL": "From e-mail",
+      "PORTAL": "From the portal",
+      "UPLOAD": "Uploaded by finance"
+    },
     "empty": {
       "all": "No invoices yet",
       "allHint": "Start by recording a new invoice, or fetch the mail in the inbox.",
@@ -2585,6 +2590,8 @@
       "UNAUTHENTICATED": "Please sign in again"
     },
     "filter": {
+      "allChannels": "All channels",
+      "channel": "Channel",
       "clear": "Clear search",
       "count": "{count} invoices in this tab",
       "label": "Search invoices",
@@ -2677,10 +2684,12 @@
       "duplicate": "Possible duplicate",
       "exceptions": "{count} exceptions",
       "fromEmail": "Came by e-mail",
+      "fromPortal": "From the supplier portal",
       "label": "Invoices in the {tab} tab",
       "limited": "Showing the latest {shown}. Search to find others.",
       "noDue": "Not set",
       "noSupplierNo": "Supplier's invoice number not entered yet",
+      "scanPending": "File waiting for scan",
       "supplierNo": "Supplier's invoice no. {no}"
     },
     "metaTitle": "Invoices",
@@ -8929,10 +8938,94 @@
       "todo": {
         "DOCUMENT_EXPIRED": "{type} has expired: send a new copy",
         "DOCUMENT_EXPIRING": "{type} expires on {date}: send a new copy",
-        "DOCUMENT_MISSING": "No {type} yet: send it"
+        "DOCUMENT_MISSING": "No {type} yet: send it",
+        "INVOICE_REJECTED": "Invoice {type} was rejected: see why and send it again"
       },
       "todoEmpty": "Nothing to do now. When a document is about to expire or new work comes, it shows here and we e-mail you.",
       "todoTitle": "To do"
+    },
+    "invoices": {
+      "back": "Back to invoices",
+      "choosePo": "Choose a purchase order",
+      "date": "Invoice date",
+      "detail": "PO {po} · dated {date}",
+      "editIntro": "You can change it until finance confirms its accounts. Leave a quantity empty for a line not on this invoice.",
+      "editLines": "Purchase order lines",
+      "editTitle": "Change the invoice",
+      "empty": "No invoices yet. Once you send one, its status shows here.",
+      "errors": {
+        "AMOUNT": "Enter amounts as numbers with at most 2 decimals",
+        "CODING_CONFIRMED": "Finance has confirmed this invoice and it cannot be changed. Contact finance.",
+        "CONFLICT_VERSION": "This invoice was just changed. Open the page again and retry.",
+        "DISCOUNT_ABOVE_AMOUNT": "The discount is above the invoice amount",
+        "FAILED": "That did not work. Please try again.",
+        "FILE_REQUIRED": "Attach the invoice file",
+        "INVALID_STATE_TRANSITION": "This invoice can no longer be changed or sent",
+        "INVOICE_DATE": "Enter the invoice date",
+        "INVOICE_NO": "Enter the invoice number",
+        "LINE": "Enter each line’s quantity and price as numbers",
+        "NOT_A_PO_LINE": "Every line must be a line of this purchase order",
+        "NOT_FOUND": "Purchase order not found",
+        "NO_LINES": "Enter a quantity for at least one line",
+        "QUANTITY_NOT_POSITIVE": "A quantity must be above zero",
+        "RATE_LIMITED": "Too many invoices or files for now. Try again later.",
+        "TOO_LARGE": "The file is larger than 20 MB",
+        "TYPE_NOT_ALLOWED": "The file must be a PDF, JPEG or PNG",
+        "VALIDATION_FAILED": "Please check what you entered"
+      },
+      "file": "Invoice file",
+      "fileHint": "PDF, JPEG or PNG up to 20 MB. The file is checked for safety before finance opens it.",
+      "fileScanned": "File: {name}",
+      "fileScanning": "File: {name} (being checked for safety)",
+      "gross": "Total {amount} THB",
+      "includesVat": "Prices on the invoice include VAT",
+      "intro": "Your invoices and where each one stands. Send a new one for a purchase order sent to you.",
+      "line": "{qty} {uom} × {price} = {net} THB",
+      "lines": "Lines",
+      "locked": "Finance is checking this invoice. To change it, contact finance.",
+      "net": "Before VAT {amount} THB",
+      "new": "Send a new invoice",
+      "newIntro": "Choose the purchase order, attach the invoice file, then enter its number, date and VAT as printed. The lines start from what is not invoiced yet; you can change them on the next page until finance confirms it.",
+      "newTitle": "Send an invoice",
+      "noLines": "No lines yet. Enter quantities of the purchase order lines below.",
+      "noNumber": "Invoice",
+      "noPos": "No purchase order can take an invoice yet",
+      "notFound": "Invoice not found",
+      "off": "This organization does not take invoices on the portal yet. Send them by e-mail as before.",
+      "po": "Purchase order",
+      "poLine": "{no}. {description} (ordered {qty} {uom})",
+      "poOption": "{number} · sent {date} · {amount} THB",
+      "qty": "Quantity",
+      "received": "received as {number}",
+      "required": "required",
+      "row": "PO {po} · dated {date} · total {amount} THB",
+      "save": "Save changes",
+      "saved": "Changes saved",
+      "send": "Send invoice",
+      "sent": "Invoice sent. Finance will check it and its status will show here.",
+      "stage": {
+        "CANCELLED": "Cancelled",
+        "DRAFT": "With finance, waiting for checks",
+        "IN_REVIEW": "A difference was found, being checked",
+        "PAID": "Paid {date}",
+        "PAID_NO_DATE": "Paid",
+        "READY": "Ready to pay, due {date}",
+        "READY_NO_DATE": "Ready to pay",
+        "REJECTED": "Rejected: {reason}"
+      },
+      "supplierNo": "Your invoice number",
+      "timeline": {
+        "paid": "Paid on {date}",
+        "ready": "Ready to pay since {at}",
+        "received": "Received as {number} on {at}",
+        "rejected": "Rejected on {at}",
+        "sent": "Sent {at}"
+      },
+      "title": "Invoices",
+      "unitPrice": "Unit price (THB)",
+      "vat": "VAT (THB)",
+      "vatAmount": "VAT {amount} THB",
+      "vatHint": "As printed on the invoice; 0 if none"
     },
     "link": {
       "intro": "Press the button to get a six-digit code by e-mail. This link works once.",
@@ -8953,7 +9046,9 @@
       "documents": "Documents",
       "help": "Help",
       "home": "Home",
+      "invoices": "Invoices",
       "label": "Portal sections",
+      "payments": "Payments",
       "pos": "Purchase orders",
       "profile": "My account"
     },
@@ -8963,6 +9058,21 @@
       "intro": "We sent a six-digit code to your e-mail. It works for 10 minutes, on this device only.",
       "submit": "Sign in",
       "title": "Enter your code"
+    },
+    "payments": {
+      "account": "To {bank} account ending {last4}",
+      "amounts": "Invoices {payable} THB · withholding tax {wht} THB",
+      "empty": "No payments yet",
+      "error": "The file could not be opened. Please try again.",
+      "failed": "Transfer failed",
+      "intro": "What was transferred to you, or failed. Only the last four digits of the account are shown.",
+      "invoices": "Invoices: {list}",
+      "paid": "Transferred {date}",
+      "reason": "Reason: {reason}",
+      "run": "run {number}",
+      "title": "Payments",
+      "transfer": "Transferred {amount} THB",
+      "wht": "Download withholding tax certificate {number}"
     },
     "pos": {
       "ack": {

@@ -14,11 +14,14 @@ export interface PortalFacts {
   readonly isPrimary?: boolean
   readonly payModule?: boolean
   readonly portalInvoice?: boolean
+  /** S11: the status of the risk assessment the contact acts on */
+  readonly riskAssessmentStatus?: string | null
 }
 
 export type PortalRule = (actor: SupplierActor, facts: PortalFacts) => boolean
 
 const EDITABLE_APPLICATION = new Set(['INVITED', 'DRAFT', 'RETURNED'])
+const EDITABLE_RISK_ASSESSMENT = new Set(['DRAFT', 'RETURNED'])
 const activeSupplier = (a: SupplierActor, f: PortalFacts) => Boolean(a.supplierId) && f.supplierStatus === 'ACTIVE'
 
 export const PORTAL_ACTIONS = new Map<string, PortalRule>([
@@ -33,6 +36,11 @@ export const PORTAL_ACTIONS = new Map<string, PortalRule>([
   ['portal.invoice.view', (a, f) => activeSupplier(a, f) && f.payModule === true && f.portalInvoice === true],
   // S7-08: the language of one's own account, or closing it (/portal/<org>/profile)
   ['portal.contact.self', (a) => Boolean(a.supplierContactId)],
+  // S11-05 (BR-RSK-17): the supplier's own assessments; answered, sent and given files while DRAFT or RETURNED only
+  ['portal.risk.view', activeSupplier],
+  ['portal.risk.answer', (a, f) => activeSupplier(a, f) && EDITABLE_RISK_ASSESSMENT.has(f.riskAssessmentStatus ?? '')],
+  ['portal.risk.submit', (a, f) => activeSupplier(a, f) && EDITABLE_RISK_ASSESSMENT.has(f.riskAssessmentStatus ?? '')],
+  ['portal.risk.evidence.upload', (a, f) => activeSupplier(a, f) && EDITABLE_RISK_ASSESSMENT.has(f.riskAssessmentStatus ?? '')],
 ])
 
 /** FORBIDDEN unless the action is known and its rule allows the contact (an unknown action is never allowed) */

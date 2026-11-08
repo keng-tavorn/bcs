@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import { prisma } from '@/server/db/client'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { inviteSupplier } from '@/server/services/suppliers/applications'
@@ -78,7 +79,7 @@ if (what === 'invite') {
   await prisma.supplier.update({ where: { id: ap.supplierId }, data: { portalEnabled: true } })
   const po = await sentPo(ap, [{ quantity: '20', unitPrice: '350.00', description: 'ปูนซีเมนต์ถุง 50 กก.' }])
   await prisma.purchaseOrder.update({ where: { id: po.id }, data: { sentAt: now } })
-  const contact = await prisma.supplierContact.create({ data: { organizationId, supplierId: ap.supplierId, nameTh: 'คุณมานะ ผู้ติดต่อ', email: `po-${randomUUID().slice(0, 8)}@supplier.test`, isPrimary: true, privacyNoticeVersion: '2026-11-01', firstSignedInAt: now } })
+  const contact = await prisma.supplierContact.create({ data: { organizationId, supplierId: ap.supplierId, nameTh: 'คุณมานะ ผู้ติดต่อ', email: `po-${randomUUID().slice(0, 8)}@supplier.test`, isPrimary: true, privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION, firstSignedInAt: now } })
   const sid = randomUUID() + randomUUID()
   const csrf = randomUUID()
   const sha = (v: string) => createHash('sha256').update(v).digest('hex')
@@ -98,7 +99,7 @@ if (what === 'invite') {
   await prisma.supplier.update({ where: { id: ap.supplierId }, data: { portalEnabled: true } })
   const po = await sentPo(ap, [{ quantity: '4', unitPrice: '25000.00', description: 'เหล็กข้ออ้อย DB16' }])
   await receive(ap, po, { 0: '4' })
-  const contact = await prisma.supplierContact.create({ data: { organizationId, supplierId: ap.supplierId, nameTh: 'คุณวิไล บัญชีผู้ขาย', email: `inv-${randomUUID().slice(0, 8)}@supplier.test`, isPrimary: true, privacyNoticeVersion: '2026-11-01', firstSignedInAt: now } })
+  const contact = await prisma.supplierContact.create({ data: { organizationId, supplierId: ap.supplierId, nameTh: 'คุณวิไล บัญชีผู้ขาย', email: `inv-${randomUUID().slice(0, 8)}@supplier.test`, isPrimary: true, privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION, firstSignedInAt: now } })
   const sid = randomUUID() + randomUUID()
   const csrf = randomUUID()
   const sha = (v: string) => createHash('sha256').update(v).digest('hex')

@@ -19,6 +19,7 @@ const DOCUMENT_TH: Record<DoaDocumentType, string> = {
   PAYMENT_RUN: 'รอบจ่ายเงิน',
   BANK_ACCOUNT_CHANGE: 'การเปลี่ยนบัญชีธนาคาร',
   SUPPLIER_APPROVAL: 'การอนุมัติผู้ขายใหม่',
+  RFX_AWARD: 'การอนุมัติผลการจัดหา',
 }
 
 const BASIS_TH: Record<AmountBasis, string> = { GROSS: 'รวม VAT', NET: 'ก่อน VAT' }

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import type { Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
@@ -26,7 +27,7 @@ beforeAll(async () => {
 })
 
 async function contactOf(supplierId: string): Promise<{ id: string; ctx: Ctx }> {
-  const c = await prisma.supplierContact.create({ data: { organizationId: ap.org.organizationId, supplierId, nameTh: 'ผู้ติดต่อ', email: `ack-${randomUUID().slice(0, 8)}@supplier.test`, isPrimary: false, privacyNoticeVersion: '2026-11-01' } })
+  const c = await prisma.supplierContact.create({ data: { organizationId: ap.org.organizationId, supplierId, nameTh: 'ผู้ติดต่อ', email: `ack-${randomUUID().slice(0, 8)}@supplier.test`, isPrimary: false, privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION } })
   return { id: c.id, ctx: portalCtx(ap.org.organizationId, c, AP_NOW) }
 }
 

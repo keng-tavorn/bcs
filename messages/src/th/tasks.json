@@ -309,7 +309,8 @@
       "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
       "PAYMENT_RUN": "รอบจ่ายเงิน",
       "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
-      "SUPPLIER_APPROVAL": "การอนุมัติผู้ขายใหม่"
+      "SUPPLIER_APPROVAL": "การอนุมัติผู้ขายใหม่",
+      "RFX_AWARD": "การอนุมัติผลการจัดหา"
     },
     "doaBand": {
       "range": "มากกว่า {from} ถึงไม่เกิน {to} บาท",

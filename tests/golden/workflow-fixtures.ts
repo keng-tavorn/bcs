@@ -10,7 +10,10 @@ type ReviewerFixture = { kind: 'POSITION_AT'; position: string; department: stri
 
 export interface WorkflowRuleFixture {
   code: string
-  requestTypes: string[]
+  /** none for a rule of RISK_ASSESSMENT scope (S11 · fixtures/risk-reviewers.yaml) */
+  requestTypes?: string[]
+  scope?: 'RISK_ASSESSMENT'
+  riskDomains?: string[]
   when: WorkflowCondition
   reviewers: ReviewerFixture[]
   fallback?: ReviewerFixture
@@ -20,7 +23,7 @@ export interface WorkflowRuleFixture {
 }
 
 interface WorkflowFile {
-  requestTypes: Record<string, string[]>
+  requestTypes?: Record<string, string[]>
   versions: Array<{ code: string; version: number; effectiveFrom: string; rules: WorkflowRuleFixture[] }>
 }
 
@@ -29,7 +32,7 @@ const reviewerOf = (r: ReviewerFixture): ReviewerSpec => (r.kind === 'MEMBER' ? 
 export function workflowRuleOf(r: WorkflowRuleFixture, sortOrder: number): WorkflowRuleSnapshot {
   return {
     code: r.code,
-    requestTypeCodes: r.requestTypes,
+    requestTypeCodes: r.requestTypes ?? [],
     when: r.when,
     reviewers: r.reviewers.map(reviewerOf),
     fallback: r.fallback ? reviewerOf(r.fallback) : null,
@@ -37,16 +40,17 @@ export function workflowRuleOf(r: WorkflowRuleFixture, sortOrder: number): Workf
     quorumCount: r.quorumCount ?? null,
     slaBusinessMinutes: r.slaBusinessHours * 60,
     sortOrder,
+    ...(r.scope ? { scope: r.scope, riskDomains: r.riskDomains ?? [] } : {}),
   }
 }
 
 /** The workflow file a golden file names on its `fixtures:` line: its request types and its versions, PUBLISHED */
-export function workflowFixture(files: readonly string[]): { requestTypes: Record<string, string[]>; versions: WorkflowVersionSnapshot[] } {
-  const file = files.find((f) => f.includes('/workflow-versions'))
+export function workflowFixture(files: readonly string[], name = '/workflow-versions'): { requestTypes: Record<string, string[]>; versions: WorkflowVersionSnapshot[] } {
+  const file = files.find((f) => f.includes(name))
   if (!file) return { requestTypes: {}, versions: [] }
   const fx = loadYaml<WorkflowFile>(file)
   return {
-    requestTypes: fx.requestTypes,
+    requestTypes: fx.requestTypes ?? {},
     versions: fx.versions.map((v) => ({ id: `${v.code}@${v.version}`, code: v.code, versionNo: v.version, status: 'PUBLISHED', effectiveFrom: new Date(v.effectiveFrom), effectiveTo: null, rules: v.rules.map(workflowRuleOf) })),
   }
 }

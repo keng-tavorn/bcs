@@ -271,3 +271,28 @@ export const OTP_CODE_SPACE = 1_000_000
 export const SUPPLIER_DOC_MAX_BYTES = 20 * 1024 * 1024
 /** The longest a supplier document type may last (BR-SDOC ข้อ 01): a hundred years */
 export const SUPPLIER_DOC_MAX_VALIDITY_DAYS = 36_500
+
+// ---------- S10 sourcing settings (src/lib/org-settings.ts · docs/sub-specs/S10.md) ----------
+/** BR-RFX-01: above this amount with VAT an RFx invites at least three suppliers; the quote threshold of OQ-08 */
+export const SOURCING_MIN_INVITES_THRESHOLD_GROSS = '100000.00' // TODO(OQ-08)
+/** BR-RFX-11: a bid line priced more than this share away from its reference is flagged (20 %) */
+export const SOURCING_PRICE_ANOMALY_BP = 2_000 // TODO(OQ-208)
+/** BR-RFX-09: the default weights of a scorecard per kind, criterion code → basis points, Σ = 10000 */
+export const SOURCING_DEFAULT_WEIGHTS_BP = {
+  RFQ: { PRICE: 7_000, DELIVERY: 2_000, QUALITY: 1_000 },
+  RFP: { PRICE: 4_000, TECHNICAL: 4_000, SUPPORT: 2_000 },
+} as const // TODO(OQ-206)
+// S11-04 (BR-RSK-01 · BR-RSK-02): the size of what an administrator types into the risk questionnaire and the tiers —
+// limits of input, not thresholds (the thresholds are the organization's RiskTier rows)
+/** Characters of a question or of the reason of a change */
+export const RISK_TEXT_MAX = 1000
+/** Characters of a question's help */
+export const RISK_HELP_MAX = 2000
+/** Points of one option of a question */
+export const RISK_OPTION_POINTS_MAX = 1000
+/** The largest lower bound of a tier an administrator may type */
+export const RISK_TIER_POINTS_MAX = 1_000_000
+/** S11-05 (FR-RSK-204 AC4 · BR-RSK-18): the evidence files of one risk answer */
+export const RISK_EVIDENCE_FILES_PER_QUESTION = 5
+/** S11-05 (docs/sub-specs/S11.md job risk-assessment-sla): a business day counted as 540 business minutes (08:30–17:30) */
+export const BUSINESS_DAY_MINUTES = 540

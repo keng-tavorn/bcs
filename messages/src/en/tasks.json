@@ -309,7 +309,8 @@
       "PO_CHANGE": "PO change",
       "PAYMENT_RUN": "Payment run",
       "BANK_ACCOUNT_CHANGE": "Bank account change",
-      "SUPPLIER_APPROVAL": "New supplier approval"
+      "SUPPLIER_APPROVAL": "New supplier approval",
+      "RFX_AWARD": "Sourcing award approval"
     },
     "doaBand": {
       "range": "above {from} up to {to} baht",

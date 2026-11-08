@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import type { Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
@@ -75,7 +76,7 @@ async function routed(options: { nameTh: string; payeeType: 'JURISTIC' | 'INDIVI
   const applicationId = invite.data.applicationId
   const contact = await prisma.supplierContact.findUniqueOrThrow({ where: { id: invite.data.contactId } })
   await forTenant(org.organizationId).$transaction((tx) => applicationSignedIn(tx, contactCtx(contact), contact))
-  await prisma.supplierContact.update({ where: { id: contact.id }, data: { privacyNoticeVersion: '2026-11-01' } })
+  await prisma.supplierContact.update({ where: { id: contact.id }, data: { privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION } })
   const ctx = contactCtx(contact)
   const u = await updateApplication(ctx, { applicationId, expectedVersion: await version(applicationId), fields: { address: '1 ถนนพระราม 4 กรุงเทพฯ', isVatRegistered: !individual } }, key())
   if (!u.ok) throw new Error(JSON.stringify(u.error))

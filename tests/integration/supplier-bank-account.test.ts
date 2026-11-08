@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import type { Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
@@ -42,7 +43,7 @@ async function supplierWith(org: DoaOrg, contact: { primary?: boolean; firstSign
   const n = randomUUID().slice(0, 8)
   const s = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `PB-${n}`, nameTh: `ผู้ขาย ${n}`, taxId: `09${Array.from({ length: 11 }, () => Math.floor(Math.random() * 10)).join('')}`, email: `pb-${n}@supplier.test`, portalEnabled: true } })
   const c = await prisma.supplierContact.create({
-    data: { organizationId: org.organizationId, supplierId: s.id, nameTh: 'ผู้ติดต่อ', email: `pbc-${n}@supplier.test`, isPrimary: contact.primary ?? true, firstSignedInAt: contact.firstSignedInAt === undefined ? OLD : contact.firstSignedInAt, privacyNoticeVersion: '2026-11-01' },
+    data: { organizationId: org.organizationId, supplierId: s.id, nameTh: 'ผู้ติดต่อ', email: `pbc-${n}@supplier.test`, isPrimary: contact.primary ?? true, firstSignedInAt: contact.firstSignedInAt === undefined ? OLD : contact.firstSignedInAt, privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION },
   })
   return { supplier: s, contact: c, ctx: portalCtx(org.organizationId, c, NOW) as Ctx }
 }

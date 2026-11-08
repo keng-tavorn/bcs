@@ -1,0 +1,13 @@
+# tests/golden/fixtures/risk-reviewers.yaml (S11-06 · BR-RSK-07 · OQ-223)
+# ข้อ scope RISK_ASSESSMENT ของ WF-SIMEC ฉบับ 1 (ค่าร่างของ SIMEC ตามชีต Risk_Reviewers · S11-12) · คนตามตำแหน่งของ org-s6
+# ข้อ REQUEST RV-01 อยู่ในฉบับเดียวกันเพื่อยืนยันว่า adapter ไม่นับข้อของคำขอ (และ resolveRequestRoute ไม่นับข้อของ RISK)
+versions:
+  - code: WF-SIMEC
+    version: 1
+    effectiveFrom: "2026-10-01T00:00:00+07:00"
+    rules:
+      - { code: RV-01, requestTypes: [IT_PURCHASE], when: {}, reviewers: [{ kind: POSITION_AT, position: DM, department: IT }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 8 }
+      - { code: RR-01, scope: RISK_ASSESSMENT, riskDomains: [PRIVACY], when: { field: processesPersonalData, op: eq, value: "Y" }, reviewers: [{ kind: POSITION_AT, position: DM, department: LEG }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 16 }
+      - { code: RR-02, scope: RISK_ASSESSMENT, riskDomains: [INFOSEC], when: { field: accessesSystems, op: eq, value: "Y" }, reviewers: [{ kind: POSITION_AT, position: DM, department: IT }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 16 }
+      - { code: RR-03, scope: RISK_ASSESSMENT, riskDomains: [PREMISES], when: { field: accessesPremises, op: eq, value: "Y" }, reviewers: [{ kind: POSITION_AT, position: DM, department: QSE }], fallback: { kind: POSITION_AT, position: VP, department: OPS }, mode: ALL, slaBusinessHours: 16 }
+      - { code: RR-04, scope: RISK_ASSESSMENT, riskDomains: [FINANCE], when: { field: $tier, op: eq, value: HIGH }, reviewers: [{ kind: POSITION_AT, position: DM, department: FIN }], fallback: { kind: POSITION_AT, position: CFO, department: HQ }, mode: ALL, slaBusinessHours: 16 }

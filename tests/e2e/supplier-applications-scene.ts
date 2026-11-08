@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import { getEnv } from '@/lib/env'
 import { deriveSeedBackupCodes, deriveSeedTotpSecret } from '@/lib/totp'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
@@ -75,7 +76,7 @@ if (mode === 'setup') {
   const contact = await prisma.supplierContact.findFirstOrThrow({ where: { applicationId: a1!, isPrimary: true } })
   const at = now()
   await forTenant(organizationId).$transaction((tx) => applicationSignedIn(tx, portalCtx(organizationId, contact, at), contact))
-  await prisma.supplierContact.update({ where: { id: contact.id }, data: { privacyNoticeVersion: '2026-11-01' } })
+  await prisma.supplierContact.update({ where: { id: contact.id }, data: { privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION } })
   const ctx = portalCtx(organizationId, contact, at)
   const version = async () => (await prisma.supplierApplication.findUniqueOrThrow({ where: { id: a1! } })).version
   const u = await updateApplication(ctx, { applicationId: a1!, expectedVersion: await version(), fields: { address: '88 ถนนสุขุมวิท กรุงเทพฯ 10110', isVatRegistered: true } }, key())

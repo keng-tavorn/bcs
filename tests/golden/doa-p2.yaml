@@ -9,3 +9,10 @@ cases:
   - { id: GC-DOA-70, title: ผู้จัดการจัดซื้อเชิญเอง ไม่มีช่วงถัดไป, input: { requester: dm_proc }, expect: { error: NO_HIGHER_AUTHORITY } }
   - { id: GC-DOA-71, title: ผู้กรอกแทนเป็นผู้จัดการจัดซื้อ, input: { alsoConflicting: [dm_proc] }, expect: { error: NO_HIGHER_AUTHORITY } }
   - { id: GC-DOA-72, title: ชนิดที่ไม่มียอดแต่ส่งยอดมา, input: { amount: "1.00" }, expect: { error: VALIDATION_FAILED } }
+  # S10 (BR-DOA-27): requester = who submits the award · department = the RFx's (PROC) · alsoConflicting = who created the
+  # RFx, scored it or requested its lines (BR-SOD-13) · amount = the award with VAT on DOA-P2's GROSS basis
+  - { id: GC-DOA-75, title: "ผลมอบงาน 322,016.50 รวม VAT ไปผู้จัดการจัดซื้อ", input: { documentType: RFX_AWARD, amount: "322016.50" }, expect: { version: 1, rule: RA-01, approvers: [dm_proc] } }
+  - { id: GC-DOA-76, title: ผู้จัดการจัดซื้อสร้าง RFx เอง ยกไปช่วงถัดไป, input: { documentType: RFX_AWARD, amount: "322016.50", alsoConflicting: [dm_proc] }, expect: { version: 1, rule: RA-01, escalatedTo: RA-02, approvers: [coo] } }
+  - { id: GC-DOA-77, title: ขอบบนของช่วงผู้จัดการจัดซื้อ, input: { documentType: RFX_AWARD, amount: "500000.00" }, expect: { version: 1, rule: RA-01, approvers: [dm_proc] } }
+  - { id: GC-DOA-78, title: เกินขอบ 1 สตางค์ไป COO, input: { documentType: RFX_AWARD, amount: "500000.01" }, expect: { version: 1, rule: RA-02, approvers: [coo] } }
+  - { id: GC-DOA-79, title: CEO เป็นผู้ประเมินในช่วงบนสุด, input: { documentType: RFX_AWARD, amount: "5000000.01", alsoConflicting: [ceo] }, expect: { error: NO_HIGHER_AUTHORITY } }

@@ -33,6 +33,7 @@
     "PAYMENT_RUN": "Payment run",
     "BANK_ACCOUNT_CHANGE": "Bank account change",
     "SUPPLIER_APPLICATION": "Supplier application",
+    "AWARD_DECISION": "Sourcing award",
     "BUDGET_LINE": "Budget line {label}",
     "MEMBER": "Member {label}",
     "SUPPLIER": "Supplier {label}"
@@ -153,7 +154,13 @@
     "supplier_contact": "Supplier contacts",
     "supplier_application": "Supplier application",
     "supplier_document": "Supplier documents",
-    "supplier_document_type": "Supplier document types"
+    "supplier_document_type": "Supplier document types",
+    "risk_tier": "Risk tiers",
+    "risk_policy": "Risk check policy",
+    "risk_questionnaire": "Risk questionnaire",
+    "risk_assessment": "Supplier risk assessments",
+    "review_task": "Risk reviewer tasks",
+    "risk_review": "Reassessments"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -215,7 +222,13 @@
     "SupplierContact": "Supplier contact",
     "SupplierApplication": "Supplier application",
     "SupplierDocument": "Supplier documents",
-    "SupplierDocumentType": "Supplier document types"
+    "SupplierDocumentType": "Supplier document types",
+    "RiskTier": "Risk tier",
+    "RiskPolicy": "Risk check policy",
+    "RiskQuestionnaire": "Risk questionnaire version",
+    "RiskAssessment": "Risk assessment",
+    "ReviewTask": "Risk reviewer task",
+    "RiskReview": "Reassessment"
   },
   "events": {
     "approval_step": {
@@ -465,7 +478,9 @@
       "registry_checked": "Supplier checked with the government registers",
       "registry_status_changed": "Supplier's register status changed",
       "updated": "Supplier details changed",
-      "tax_profile_updated": "Supplier's tax profile changed"
+      "tax_profile_updated": "Supplier's tax profile changed",
+      "risk_tier_changed": "Supplier risk tier changed",
+      "risk_status_changed": "Supplier risk status changed"
     },
     "variance": {
       "approved": "Receiving variance approved",
@@ -649,6 +664,41 @@
     },
     "supplier_document_type": {
       "updated": "Supplier document type changed"
+    },
+    "risk_tier": {
+      "proposed": "New risk tier values proposed",
+      "confirmed": "Risk tier values confirmed",
+      "discarded": "Proposed risk tier values discarded"
+    },
+    "risk_policy": {
+      "proposed": "New risk check policy proposed",
+      "confirmed": "Risk check policy confirmed",
+      "discarded": "Proposed risk check policy discarded"
+    },
+    "risk_questionnaire": {
+      "drafted": "Risk questionnaire version drafted",
+      "updated": "Question of a draft changed",
+      "submitted": "Risk questionnaire version sent for publishing",
+      "rejected": "Risk questionnaire version sent back",
+      "published": "Risk questionnaire version published",
+      "superseded": "Risk questionnaire version replaced"
+    },
+    "risk_assessment": {
+      "opened": "Risk assessment opened",
+      "answered": "Questionnaire answers saved",
+      "evidence_uploaded": "Evidence file attached to an answer",
+      "evidence_rejected": "Evidence file failed the security check",
+      "submitted": "Questionnaire sent",
+      "completed": "Risk assessment completed",
+      "superseded": "Risk assessment replaced by a newer one",
+      "cancelled": "Risk assessment cancelled",
+      "reminded": "Supplier reminded to answer"
+    },
+    "review_task": {
+      "cancelled": "Risk reviewer task cancelled"
+    },
+    "risk_review": {
+      "completed": "Reassessment done"
     }
   }
 }

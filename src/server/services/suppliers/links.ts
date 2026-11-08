@@ -10,7 +10,7 @@ import { newSecret, sha256Hex } from '@/server/crypto/portal'
 // (INVITATION, DOCUMENT_REQUEST and what S10 S11 append) lives supplier.inviteLinkDays — as does a LOGIN link sent by
 // the system for the supplier to open later (the reminder of an application waiting: `emailedForLater`).
 
-export type LinkPurpose = 'INVITATION' | 'LOGIN' | 'DOCUMENT_REQUEST'
+export type LinkPurpose = 'INVITATION' | 'LOGIN' | 'DOCUMENT_REQUEST' | 'RISK_QUESTIONNAIRE'
 
 export interface IssuedLink {
   readonly linkId: string

@@ -31,6 +31,7 @@ import { budgetOverrunLapse } from './budget-overrun-lapse'
 import { budgetBurnAlerts } from './budget-burn-alerts'
 import { fileScan, poAckReset, supplierDocumentExpiry, supplierDocumentScannedJob } from './supplier-documents'
 import { supplierApplicationSla } from './supplier-application-sla'
+import { riskAssessmentSla, riskEvidenceScannedJob } from './risk-assessments'
 import { supplierNoticeSend, supplierNoticeSweep } from './supplier-notice-send'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
@@ -74,6 +75,9 @@ export const functions = [
   supplierDocumentExpiry,
   supplierApplicationSla,
   poAckReset,
+  // S11-05
+  riskAssessmentSla,
+  riskEvidenceScannedJob,
   // S8-07: the invoice inbox (ADR-123)
   invoiceInboxPoll,
   // S8-09: retentions whose day has come (ADR-124)

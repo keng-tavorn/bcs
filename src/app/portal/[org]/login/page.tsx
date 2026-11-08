@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import { PortalButton, PortalFrame, PortalNotice, portalInputClass } from '@/ui/portal/frame'
 import { ErrorNotice, one, pageOrg, Unavailable, type SearchParams } from '../_lib/page'
 
@@ -30,7 +31,7 @@ export default async function PortalLoginPage({ params, searchParams }: { params
         <p className="text-ink-muted">{t('privacy.short', { organization: org.nameTh })}</p>
         <details>
           <summary className="inline-flex min-h-11 cursor-pointer items-center text-primary underline underline-offset-4">{t('privacy.read')}</summary>
-          <p className="whitespace-pre-line pt-2">{t('privacy.2026-11-01')}</p>
+          <p className="whitespace-pre-line pt-2">{t(`privacy.${PORTAL_PRIVACY_NOTICE_VERSION}`)}</p>
         </details>
       </section>
     </PortalFrame>

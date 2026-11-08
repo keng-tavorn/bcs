@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import { createFixtureClient, fixtureKey, setAiClientForTests, type FixtureAnswer } from '@/integrations/ai'
 import { PROMPT_VERSIONS } from '@/lib/ai-config'
 import type { Ctx } from '@/server/context'
@@ -76,7 +77,7 @@ async function application(payeeType: 'JURISTIC' | 'INDIVIDUAL' = 'JURISTIC') {
   const contact = await prisma.supplierContact.findUniqueOrThrow({ where: { id: r.data.contactId } })
   const ctx: Ctx = portalCtx(org.organizationId, contact, NOW)
   await forTenant(org.organizationId).$transaction((tx) => applicationSignedIn(tx, ctx, contact))
-  await prisma.supplierContact.update({ where: { id: contact.id }, data: { privacyNoticeVersion: '2026-11-01' } })
+  await prisma.supplierContact.update({ where: { id: contact.id }, data: { privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION } })
   const app = await prisma.supplierApplication.findUniqueOrThrow({ where: { id: r.data.applicationId } })
   return { app, ctx, contactId: contact.id, name }
 }

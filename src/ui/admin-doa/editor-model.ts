@@ -21,6 +21,7 @@ export const DOC_TYPES = [
   'PAYMENT_RUN',
   'BANK_ACCOUNT_CHANGE',
   'SUPPLIER_APPROVAL',
+  'RFX_AWARD',
 ] as const
 export type DocType = (typeof DOC_TYPES)[number]
 /** Policy changes (BR-DOA-08 (จ)) and types without an amount (BR-DOA-22) have no band: their rules hold for any document.

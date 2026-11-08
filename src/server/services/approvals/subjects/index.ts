@@ -6,6 +6,7 @@ import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import type { SubjectFacts } from '../../sla/subject'
+import { awardDecisionSubject } from './award-decision'
 import { bankAccountChangeSubject } from './bank-account-change'
 import { budgetOverrunSubject } from './budget-overrun'
 import { budgetTransferSubject } from './budget-transfer'
@@ -97,6 +98,8 @@ export const SUBJECT_ADAPTERS: Readonly<Record<RegisteredSubject, SubjectAdapter
   BANK_ACCOUNT_CHANGE: bankAccountChangeSubject,
   // S7 (BR-DOA-26)
   SUPPLIER_APPLICATION: supplierApplicationSubject,
+  // S10 (BR-DOA-27)
+  AWARD_DECISION: awardDecisionSubject,
 }
 
 export function isRegisteredSubject(type: string): type is RegisteredSubject {

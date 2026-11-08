@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import { prisma } from '@/server/db/client'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { portalAuthorize } from '@/server/portal/authz'
@@ -39,7 +40,7 @@ beforeAll(async () => {
 async function supplierWithContacts() {
   const supplier = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `PP-${randomUUID().slice(0, 6)}`, nameTh: 'บริษัท โปรไฟล์ จำกัด', taxId: taxId(), branchCode: '00000', portalEnabled: true } })
   const contact = (primary: boolean) =>
-    prisma.supplierContact.create({ data: { organizationId: org.organizationId, supplierId: supplier.id, nameTh: primary ? 'หลัก' : 'รอง', email: `pp-${randomUUID().slice(0, 8)}@supplier.test`, isPrimary: primary, privacyNoticeVersion: '2026-11-01' } })
+    prisma.supplierContact.create({ data: { organizationId: org.organizationId, supplierId: supplier.id, nameTh: primary ? 'หลัก' : 'รอง', email: `pp-${randomUUID().slice(0, 8)}@supplier.test`, isPrimary: primary, privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION } })
   return { supplier, primary: await contact(true), other: await contact(false) }
 }
 

@@ -129,7 +129,7 @@ describe('[FR-DOA-001/AC5] YAML with a document type nobody knows', () => {
 
 describe('[BR-DOA-26] the phase-2 type SUPPLIER_APPROVAL (S7-02 · ADR-182)', () => {
   it('has no amount, no VAT, is no policy change, routes SUPPLIER_APPLICATION, and SUPPLIER requires it with BANK_ACCOUNT_CHANGE', () => {
-    expect(DOA_DOCUMENT_TYPES.at(-1)).toBe('SUPPLIER_APPROVAL')
+    expect(DOA_DOCUMENT_TYPES.indexOf('SUPPLIER_APPROVAL')).toBe(DOA_DOCUMENT_TYPES.indexOf('BANK_ACCOUNT_CHANGE') + 1)
     expect(DOC_TYPE_TRAITS.SUPPLIER_APPROVAL).toEqual({ amount: 'NONE', vat: false, governance: false, requiredWithModules: ['SUPPLIER'], subjects: ['SUPPLIER_APPLICATION'] })
     expect(DOC_TYPE_TRAITS.BANK_ACCOUNT_CHANGE.requiredWithModules).toEqual(['PAY', 'SUPPLIER'])
     expect(requiredDocumentTypes(['SUPPLIER'])).toEqual(['DOA_CHANGE', 'ORG_AUTHORITY_CHANGE', 'BANK_ACCOUNT_CHANGE', 'SUPPLIER_APPROVAL'])
@@ -152,3 +152,41 @@ describe('[BR-DOA-26] the phase-2 type SUPPLIER_APPROVAL (S7-02 · ADR-182)', ()
     expect(boundaryTable(version[0]!, 'SUPPLIER_APPROVAL')).toEqual([])
   })
 })
+
+describe('[BR-DOA-27] the phase-2 type RFX_AWARD (S10-02 · ADR-202)', () => {
+  it('has an amount with VAT, is no policy change, routes AWARD_DECISION, SOURCING requires it, and it follows SUPPLIER_APPROVAL', () => {
+    // right after S7's type; S11's RISK_OVERRIDE follows it (ADR-069 appends, so no test pins the end of the list)
+    expect(DOA_DOCUMENT_TYPES.indexOf('RFX_AWARD')).toBe(DOA_DOCUMENT_TYPES.indexOf('SUPPLIER_APPROVAL') + 1)
+    expect(DOC_TYPE_TRAITS.RFX_AWARD).toEqual({ amount: 'REQUIRED', vat: true, governance: false, requiredWithModules: ['SOURCING'], subjects: ['AWARD_DECISION'] })
+    expect(requiredDocumentTypes(['SUPPLIER', 'SOURCING'])).toEqual(['DOA_CHANGE', 'ORG_AUTHORITY_CHANGE', 'BANK_ACCOUNT_CHANGE', 'SUPPLIER_APPROVAL', 'RFX_AWARD'])
+    expect(requiredDocumentTypes(['PAY', 'SUPPLIER'])).not.toContain('RFX_AWARD')
+    expect(NO_AMOUNT_DOCUMENT_TYPES).not.toContain('RFX_AWARD')
+    expect([...DOC_TYPES]).toEqual([...DOA_DOCUMENT_TYPES])
+  })
+
+  it('YAML with RA-01..03 round-trips; an award of no amount is refused; its boundary table has the RA bands', () => {
+    const text = readFileSync(path.resolve(import.meta.dirname, '../golden/fixtures/doa-versions-p2.yaml'), 'utf8')
+    const first = parseDoaYaml(text, new Map())
+    if (!first.ok) throw new Error(JSON.stringify(first.error))
+    expect(first.data[0]!.rules.filter((r) => r.documentType === 'RFX_AWARD').map((r) => r.code)).toEqual(['RA-01', 'RA-02', 'RA-03'])
+    expect(parseDoaYaml(doaYaml(first.data, new Map()), new Map())).toEqual(first)
+    const version = versionSnapshots('fixtures/doa-versions-p2.yaml')
+    const org = orgSnapshot([], 'fixtures/org-p1.yaml')
+    const input = (netSatang: bigint, vatSatang: bigint): RouteInput => ({
+      documentType: 'RFX_AWARD',
+      amount: { netSatang, vatSatang },
+      requesterMemberId: 'proc_officer',
+      chargedDepartmentId: 'PROC',
+      conflictMemberIds: ['proc_officer'],
+      at: new Date('2026-11-08T03:00:00Z'),
+    })
+    expect(resolveRoute(input(0n, 0n), { versions: version, org, delegations: [] })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } })
+    const noAmount: RouteInput = { documentType: 'RFX_AWARD', requesterMemberId: 'proc_officer', chargedDepartmentId: 'PROC', conflictMemberIds: ['proc_officer'], at: new Date('2026-11-08T03:00:00Z') }
+    expect(resolveRoute(noAmount, { versions: version, org, delegations: [] })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } })
+    // GROSS basis: 467,289.72 + VAT 32,710.28 = 500,000.00 stays with RA-01; one satang more goes to RA-02
+    expect(resolveRoute(input(46_728_972n, 3_271_028n), { versions: version, org, delegations: [] })).toMatchObject({ ok: true, data: { ruleCode: 'RA-01' } })
+    expect(resolveRoute(input(46_728_973n, 3_271_028n), { versions: version, org, delegations: [] })).toMatchObject({ ok: true, data: { ruleCode: 'RA-02' } })
+    expect(boundaryTable(version[0]!, 'RFX_AWARD').length).toBeGreaterThan(0)
+  })
+})
+

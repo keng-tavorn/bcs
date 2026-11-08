@@ -16,7 +16,8 @@ export async function listPortalAiReadings(ctx: Ctx): Promise<AiReading[]> {
   if (!ctx.actor.applicationId) return []
   const db = forTenant(ctx.organizationId)
   const actions = await db.agentAction.findMany({
-    where: { AND: [portalWhere(ctx, 'agentAction'), { status: 'DRAFT' }] },
+    // the registry's entry also holds S11's risk proposals: this reading is of the application's documents only
+    where: { AND: [portalWhere(ctx, 'agentAction'), { purpose: 'SUPPLIER_DOC_READ', subjectType: 'SUPPLIER_APPLICATION', subjectId: ctx.actor.applicationId, status: 'DRAFT' }] },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: 20,
     select: { id: true, createdAt: true, review: true, fieldConfidence: true, verification: true, inputRefs: true },

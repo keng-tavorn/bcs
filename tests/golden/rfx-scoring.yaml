@@ -1,0 +1,137 @@
+# tests/golden/rfx-scoring.yaml
+suite: rfx-scoring
+vatRateBp: 700
+# bids: ref · includesVat · vatRegistered · lines { L*: unitPrice } · lines ของ RFx: { ref, quantity }
+cases:
+  # ---- ตารางเทียบ (BR-RFX-08) ----
+  - id: GC-SRC-01
+    title: RFQ เหล็ก DB12 สามราย หนึ่งรายยื่นรวม VAT (ฉาก 9)
+    fn: compareBids
+    input:
+      lines: [{ ref: L1, quantity: "8" }, { ref: L2, quantity: "5" }]
+      bids:
+        - { ref: SP0023, includesVat: false, vatRegistered: true, lines: { L1: "23150.00", L2: "23150.00" } }
+        - { ref: SP0029, includesVat: false, vatRegistered: true, lines: { L1: "23500.00", L2: "23500.00" } }
+        - { ref: SP0024, includesVat: true, vatRegistered: true, lines: { L1: "25000.00", L2: "25000.00" } }
+    expect:
+      bids:
+        SP0023: { net: "300950.00", vat: "21066.50", gross: "322016.50", partial: false, lineNet: { L1: "185200.00", L2: "115750.00" } }
+        SP0029: { net: "305500.00", vat: "21385.00", gross: "326885.00", partial: false, lineNet: { L1: "188000.00", L2: "117500.00" } }
+        SP0024: { net: "303738.32", vat: "21261.68", gross: "325000.00", partial: false, lineNet: { L1: "186915.89", L2: "116822.43" } }
+      lowest: [SP0023]
+      lowestNet: "300950.00"
+      lineLowest: { L1: SP0023, L2: SP0023 }
+  - id: GC-SRC-02
+    title: ใบรวม VAT ชนะเพราะยอดก่อน VAT ต่ำสุด และผู้ขายไม่จด VAT ไม่มี VAT
+    fn: compareBids
+    input:
+      lines: [{ ref: L1, quantity: "100" }, { ref: L2, quantity: "100" }]
+      bids:
+        - { ref: A, includesVat: false, vatRegistered: true, lines: { L1: "600.00", L2: "400.00" } }
+        - { ref: B, includesVat: true, vatRegistered: true, lines: { L1: "600.00", L2: "460.00" } }
+        - { ref: C, includesVat: false, vatRegistered: false, lines: { L1: "590.00", L2: "405.00" } }
+    expect:
+      bids:
+        A: { net: "100000.00", vat: "7000.00", gross: "107000.00", partial: false, lineNet: { L1: "60000.00", L2: "40000.00" } }
+        B: { net: "99065.42", vat: "6934.58", gross: "106000.00", partial: false, lineNet: { L1: "56074.77", L2: "42990.65" } }
+        C: { net: "99500.00", vat: "0.00", gross: "99500.00", partial: false, lineNet: { L1: "59000.00", L2: "40500.00" } }
+      lowest: [B]
+      lowestNet: "99065.42"
+      lineLowest: { L1: B, L2: A }
+  - id: GC-SRC-03
+    title: ปัน VAT ของใบรวม VAT ต่อบรรทัดด้วย largest remainder รวมเท่ายอดก่อน VAT พอดี
+    fn: compareBids
+    input:
+      lines: [{ ref: L1, quantity: "1" }, { ref: L2, quantity: "1" }, { ref: L3, quantity: "1" }]
+      bids: [{ ref: E, includesVat: true, vatRegistered: true, lines: { L1: "33333.00", L2: "33333.00", L3: "33334.00" } }]
+    expect:
+      bids: { E: { net: "93457.94", vat: "6542.06", gross: "100000.00", partial: false, lineNet: { L1: "31152.34", L2: "31152.33", L3: "31153.27" } } }
+      lowest: [E]
+      lowestNet: "93457.94"
+      lineLowest: { L1: E, L2: E, L3: E }
+  - id: GC-SRC-04
+    title: ใบที่เสนอไม่ครบไม่เข้าอันดับยอดรวม แต่เข้าเทียบต่อบรรทัด
+    fn: compareBids
+    input:
+      lines: [{ ref: L1, quantity: "100" }, { ref: L2, quantity: "100" }]
+      bids:
+        - { ref: A, includesVat: false, vatRegistered: true, lines: { L1: "600.00", L2: "400.00" } }
+        - { ref: D, includesVat: false, vatRegistered: true, lines: { L1: "550.00" } }
+    expect:
+      bids:
+        A: { net: "100000.00", vat: "7000.00", gross: "107000.00", partial: false, lineNet: { L1: "60000.00", L2: "40000.00" } }
+        D: { net: "55000.00", vat: "3850.00", gross: "58850.00", partial: true, lineNet: { L1: "55000.00" } }
+      lowest: [A]
+      lowestNet: "100000.00"
+      lineLowest: { L1: D, L2: A }
+  # ---- คะแนน (BR-RFX-09 BR-RFX-10) ----
+  - { id: GC-SRC-05, title: คะแนนราคาจากยอดก่อน VAT ต่ำสุดหารยอดของราย, fn: priceScoreBp, input: { lowestNet: "300950.00", nets: { SP0023: "300950.00", SP0029: "305500.00", SP0024: "303738.32" } }, expect: { SP0023: 10000, SP0029: 9851, SP0024: 9908 } }
+  - { id: GC-SRC-06, title: ค่าเฉลี่ยผู้ประเมินสองคนเป็น bp, fn: criterionScoreBp, input: { scores: [81, 82] }, expect: 8150 }
+  - { id: GC-SRC-07, title: สามคนปัด half-up ครั้งเดียว, fn: criterionScoreBp, input: { scores: [81, 82, 82] }, expect: 8167 }
+  - id: GC-SRC-08
+    title: คะแนนรวมถ่วงน้ำหนักและอันดับของฉาก 9
+    fn: rankBids
+    input:
+      weights: { PRICE: 6000, DELIVERY: 2500, QUALITY: 1500 }
+      lowestNet: "300950.00"
+      bids:
+        - { ref: SP0023, net: "300950.00", submittedAt: "2026-11-04T07:00:00Z", scores: { DELIVERY: [85, 90], QUALITY: [90, 90] } }
+        - { ref: SP0029, net: "305500.00", submittedAt: "2026-11-03T09:00:00Z", scores: { DELIVERY: [90, 90], QUALITY: [90, 90] } }
+        - { ref: SP0024, net: "303738.32", submittedAt: "2026-11-05T08:00:00Z", scores: { DELIVERY: [70, 75], QUALITY: [80, 80] } }
+    expect:
+      totals: { SP0023: { priceBp: 10000, DELIVERY: 8750, QUALITY: 9000, totalBp: 9538, total: "95.38" }, SP0029: { priceBp: 9851, DELIVERY: 9000, QUALITY: 9000, totalBp: 9511, total: "95.11" }, SP0024: { priceBp: 9908, DELIVERY: 7250, QUALITY: 8000, totalBp: 8957, total: "89.57" } }
+      ranking: [SP0023, SP0029, SP0024]
+      topIsLowest: true
+  - id: GC-SRC-09
+    title: รายเดิมที่แพงกว่าชนะด้วยคะแนนคุณภาพ (ไม่ใช่ราคาต่ำสุด → ผลต้องแสดงป้าย)
+    fn: rankBids
+    input:
+      weights: { PRICE: 6000, DELIVERY: 2500, QUALITY: 1500 }
+      lowestNet: "300950.00"
+      bids:
+        - { ref: SP0023, net: "300950.00", submittedAt: "2026-11-04T07:00:00Z", scores: { DELIVERY: [80, 85], QUALITY: [90, 85] } }
+        - { ref: SP0029, net: "305500.00", submittedAt: "2026-11-03T09:00:00Z", scores: { DELIVERY: [95, 90], QUALITY: [90, 95] } }
+        - { ref: SP0024, net: "303738.32", submittedAt: "2026-11-05T08:00:00Z", scores: { DELIVERY: [70, 75], QUALITY: [80, 80] } }
+    expect:
+      totals: { SP0023: { priceBp: 10000, DELIVERY: 8250, QUALITY: 8750, totalBp: 9375, total: "93.75" }, SP0029: { priceBp: 9851, DELIVERY: 9250, QUALITY: 9250, totalBp: 9611, total: "96.11" }, SP0024: { priceBp: 9908, DELIVERY: 7250, QUALITY: 8000, totalBp: 8957, total: "89.57" } }
+      ranking: [SP0029, SP0023, SP0024]
+      topIsLowest: false
+  - id: GC-SRC-10
+    title: เสมอทุกอย่าง ตัดสินด้วยเวลาที่ยื่นก่อน
+    fn: rankBids
+    input:
+      weights: { PRICE: 6000, QUALITY: 4000 }
+      lowestNet: "100000.00"
+      bids:
+        - { ref: Y, net: "100000.00", submittedAt: "2026-11-04T09:30:00Z", scores: { QUALITY: [80, 80] } }
+        - { ref: X, net: "100000.00", submittedAt: "2026-11-04T07:00:00Z", scores: { QUALITY: [80, 80] } }
+    expect: { totals: { X: { priceBp: 10000, QUALITY: 8000, totalBp: 9200, total: "92.00" }, Y: { priceBp: 10000, QUALITY: 8000, totalBp: 9200, total: "92.00" } }, ranking: [X, Y], topIsLowest: true }
+  - id: GC-SRC-11
+    title: คะแนนรวมเท่ากันหลังปัด (ต่าง 1 สตางค์) ตัดสินด้วยยอดก่อน VAT ที่ต่ำกว่า
+    fn: rankBids
+    input:
+      weights: { PRICE: 6000, QUALITY: 4000 }
+      lowestNet: "100000.00"
+      bids:
+        - { ref: Z, net: "100000.01", submittedAt: "2026-11-04T07:00:00Z", scores: { QUALITY: [80, 80] } }
+        - { ref: X, net: "100000.00", submittedAt: "2026-11-04T09:30:00Z", scores: { QUALITY: [80, 80] } }
+    expect: { totals: { X: { priceBp: 10000, QUALITY: 8000, totalBp: 9200, total: "92.00" }, Z: { priceBp: 10000, QUALITY: 8000, totalBp: 9200, total: "92.00" } }, ranking: [X, Z], topIsLowest: true }
+  - { id: GC-SRC-12, title: น้ำหนักรวมไม่ถึง 10000, fn: validateScorecard, input: { weights: { PRICE: 6000, DELIVERY: 2500, QUALITY: 1400 } }, expect: { error: VALIDATION_FAILED, reason: WEIGHTS_SUM, sum: 9900 } }
+  - { id: GC-SRC-13, title: ผู้ประเมินยังส่งไม่ครบจึงยังไม่เปิดเผย, fn: scorecardReveal, input: { minEvaluators: 2, evaluators: [{ member: proc_mat1, status: SUBMITTED }, { member: proc_mat2, status: ASSIGNED }, { member: store_p09, status: RECUSED }] }, expect: { revealed: false, missing: [proc_mat2], counted: 1 } }
+  - { id: GC-SRC-14, title: ปัดครั้งเดียวที่ท้ายของคะแนนรวม (.5 ขึ้น), fn: weightedScoreBp, input: { criteria: [{ weightBp: 5000, scoreBp: 8167 }, { weightBp: 5000, scoreBp: 8166 }] }, expect: 8167 }
+  # ---- เคสขอบที่เพิ่มในรอบตรวจ ----
+  - id: GC-SRC-37
+    title: สองใบครบที่ยอดก่อน VAT เท่ากัน เป็นต่ำสุดร่วมทั้งคู่ (BR-RFX-08) เรียงตามลำดับที่รับเข้า
+    fn: compareBids
+    input:
+      lines: [{ ref: L1, quantity: "100" }, { ref: L2, quantity: "100" }]
+      bids:
+        - { ref: A, includesVat: false, vatRegistered: true, lines: { L1: "600.00", L2: "400.00" } }
+        - { ref: B, includesVat: false, vatRegistered: true, lines: { L1: "500.00", L2: "500.00" } }
+    expect:
+      bids:
+        A: { net: "100000.00", vat: "7000.00", gross: "107000.00", partial: false, lineNet: { L1: "60000.00", L2: "40000.00" } }
+        B: { net: "100000.00", vat: "7000.00", gross: "107000.00", partial: false, lineNet: { L1: "50000.00", L2: "50000.00" } }
+      lowest: [A, B]
+      lowestNet: "100000.00"
+      lineLowest: { L1: B, L2: A }

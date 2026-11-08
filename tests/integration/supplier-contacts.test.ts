@@ -5,12 +5,13 @@ import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { enqueueSupplierNotice, registerSupplierTemplate, sendSupplierNotice, supplierMail } from '@/server/notifications/supplier-notices'
 import { portalAuthorize } from '@/server/portal/authz'
-import { PORTAL_MODEL_NAMES } from '@/server/portal/db'
+import { PORTAL_MODEL_NAMES, PORTAL_MODELS, portalWhere } from '@/server/portal/db'
 import { requireCurrentPrivacyNotice } from '@/server/portal/privacy'
 import { portalCtx } from '@/server/portal/session'
 import { createSupplierContact, deactivateSupplierContact, revokeSupplierContactSessions, updateSupplierContact } from '@/server/services/suppliers/contacts'
 import type { DoaOrg } from '../support/doa-org'
 import { createP2Org } from '../support/p2-org'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 
 // S7-04 (BR-SUP ข้อ 17 · BR-PORTAL ข้อ 03 ข้อ 05 ข้อ 08 · BR-NOTI ข้อ 09): the contacts of a supplier and who hears of
 // them, sessions revoked with a contact, the portal's action table, the privacy notice, and a supplier e-mail to the
@@ -58,7 +59,7 @@ describe('[BR-SUP-17] a contact added or re-addressed is told to the register an
   })
 
   it('an e-mail an active contact holds is refused; a changed e-mail is told, ends the sessions of the old one and starts the new-contact hold again', async () => {
-    await prisma.supplierContact.updateMany({ where: { email: 'second@supplier.test' }, data: { firstSignedInAt: new Date('2026-01-05T03:00:00Z'), privacyNoticeVersion: '2026-11-01' } })
+    await prisma.supplierContact.updateMany({ where: { email: 'second@supplier.test' }, data: { firstSignedInAt: new Date('2026-01-05T03:00:00Z'), privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION } })
     expect(await createSupplierContact(proc(), { supplierId, nameTh: 'ซ้ำ', email: 'second@supplier.test' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'EMAIL_TAKEN' } } })
     const second = await prisma.supplierContact.findFirstOrThrow({ where: { email: 'second@supplier.test' } })
     await prisma.portalSession.create({ data: { organizationId: org.organizationId, contactId: second.id, sessionHash: hex(), csrfTokenHash: hex(), lastSeenAt: NOW, expiresAt: new Date('2099-01-01'), userAgentHash: hex(), ipHash: hex() } })
@@ -109,12 +110,18 @@ describe('[FR-SUP-101/AC7] supplier.contact.manage is PROCUREMENT\'s, and the mo
     expect(portalAuthorize(applicant, 'portal.application.edit', { applicationStatus: 'RETURNED' })).toMatchObject({ ok: true })
     expect(portalAuthorize(applicant, 'portal.application.edit', { applicationStatus: 'SUBMITTED' })).toMatchObject({ ok: false })
     expect([...PORTAL_MODEL_NAMES]).toEqual(expect.arrayContaining(['supplierContact', 'supplierApplication', 'supplierDocument', 'purchaseOrder']))
+    // portalWhere takes the first entry of a model: two lanes that each append one for the same model would hide the
+    // second's condition, so a model is listed once (S7-14 and S11-05 share agentAction)
+    expect(PORTAL_MODELS.length).toBe(PORTAL_MODEL_NAMES.size)
+    const applicationId = randomUUID()
+    expect(portalWhere(portalCtx(org.organizationId, { id: randomUUID(), supplierId: null, applicationId }, NOW), 'agentAction')).toEqual({ purpose: 'SUPPLIER_DOC_READ', subjectType: 'SUPPLIER_APPLICATION', subjectId: applicationId })
+    expect(portalWhere(ctx, 'agentAction')).toEqual({ subjectType: 'RISK_ASSESSMENT', requestedByContactId: contact.id })
   })
 
   it('[BR-PORTAL-08] the privacy notice: an older version is PRIVACY_NOTICE_OUTDATED, the current one passes', () => {
     expect(requireCurrentPrivacyNotice({ privacyNoticeVersion: null })).toMatchObject({ ok: false, error: { code: 'PRIVACY_NOTICE_OUTDATED' } })
     expect(requireCurrentPrivacyNotice({ privacyNoticeVersion: '2025-01-01' })).toMatchObject({ ok: false })
-    expect(requireCurrentPrivacyNotice({ privacyNoticeVersion: '2026-11-01' })).toMatchObject({ ok: true })
+    expect(requireCurrentPrivacyNotice({ privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION })).toMatchObject({ ok: true })
   })
 })
 

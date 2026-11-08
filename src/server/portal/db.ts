@@ -21,6 +21,14 @@ export const PORTAL_PO_STATUSES = ['SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CL
 
 const bySupplierOrApplication = (a: SupplierActor) => (a.supplierId ? { supplierId: a.supplierId } : a.applicationId ? { applicationId: a.applicationId } : NONE)
 
+/** The AI results the contact may see: S7's reading of its application's documents, S11's proposals it asked for */
+function agentActionOfContact(a: SupplierActor): Readonly<Record<string, unknown>> {
+  const own: Array<Record<string, unknown>> = []
+  if (a.applicationId) own.push({ purpose: 'SUPPLIER_DOC_READ', subjectType: 'SUPPLIER_APPLICATION', subjectId: a.applicationId })
+  if (a.supplierId) own.push({ subjectType: 'RISK_ASSESSMENT', requestedByContactId: a.supplierContactId })
+  return own.length === 0 ? NONE : own.length === 1 ? own[0]! : { OR: own }
+}
+
 export const PORTAL_MODELS: PortalModel[] = [
   // S7
   { model: 'supplier', where: (a) => (a.supplierId ? { id: a.supplierId } : NONE) },
@@ -42,8 +50,18 @@ export const PORTAL_MODELS: PortalModel[] = [
   // S7-12: the supplier's own payments, paid or failed, and its 50 ทวิ (FR-PAY-103 AC8 · masked by the query)
   { model: 'paymentRunItem', where: (a) => (a.supplierId ? { supplierId: a.supplierId, status: { in: ['PAID', 'FAILED'] } } : NONE) },
   { model: 'whtCertificate', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : NONE) },
-  // S7-14: what the Supplier Onboarding Agent read off the documents of the contact's own application (BR-AI-30)
-  { model: 'agentAction', where: (a) => (a.applicationId ? { purpose: 'SUPPLIER_DOC_READ', subjectType: 'SUPPLIER_APPLICATION', subjectId: a.applicationId } : NONE) },
+  // S7-14 and S11-05: one entry per model (portalWhere takes the first) — what the Supplier Onboarding Agent read off the
+  // documents of the contact's own application (BR-AI-30), or the AI's proposals for the risk questionnaires the contact
+  // asked for (BR-RSK-17); a query of one adds its own purpose or subjectType
+  { model: 'agentAction', where: agentActionOfContact },
+  // S11-05 (BR-RSK-17 · INV-RSK-05): the supplier's own assessments, their answers, the questions of their versions, the
+  // evidence files of their answers and the AI's proposals for them; an application (no supplier yet) has none
+  { model: 'riskAssessment', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : NONE) },
+  { model: 'riskAnswer', where: (a) => (a.supplierId ? { assessment: { supplierId: a.supplierId } } : NONE) },
+  { model: 'riskQuestion', where: (a) => (a.supplierId ? { questionnaire: { assessments: { some: { supplierId: a.supplierId } } } } : NONE) },
+  // a file link names its answer by id only (no relation), so this condition cannot pin the supplier: every portal query
+  // of fileLink MUST add subjectId ∈ the answers it read through riskAnswer (review S11-05 ข้อ 6)
+  { model: 'fileLink', where: (a) => (a.supplierId ? { kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer' } : NONE) },
 ]
 
 export const PORTAL_MODEL_NAMES: ReadonlySet<string> = new Set(PORTAL_MODELS.map((m) => m.model))

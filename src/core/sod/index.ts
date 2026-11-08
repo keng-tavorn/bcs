@@ -35,6 +35,8 @@ export const APPROVAL_SUBJECTS = [
   'BANK_ACCOUNT_CHANGE',
   // S7 (BR-DOA-26 · ADR-182): a supplier application, approved through SUPPLIER_APPROVAL
   'SUPPLIER_APPLICATION',
+  // S10 (BR-DOA-27 · ADR-202): the award of an RFx, approved through RFX_AWARD
+  'AWARD_DECISION',
 ] as const
 export type ApprovalSubject = (typeof APPROVAL_SUBJECTS)[number]
 export type OrgAuthorityChangeKind = 'POSITION_ASSIGN' | 'POSITION_END' | 'DEPARTMENT_REPARENT' | 'DELEGATION_ON_BEHALF' | 'IDENTITY_RESET'
@@ -54,6 +56,11 @@ export type SodAction =
       readonly invoiceRecorderMemberIds?: readonly string[]
       /** BR-SOD-10 (S9): the bank account changes in force of the run's accounts, and the window before its pay date */
       readonly recentBankChanges?: RecentBankChanges
+      /** BR-SOD-13 (S10): the people of an award besides its submitter (AwardDecisionPeople), for AWARD_DECISION */
+      readonly rfxCreatorMemberIds?: readonly string[]
+      readonly evaluatorMemberIds?: readonly string[]
+      readonly sourceRequesterMemberIds?: readonly string[]
+      readonly recordedOnBehalfMemberIds?: readonly string[]
     }
   | {
       readonly kind: 'POST_GR'
@@ -75,6 +82,15 @@ export type SodAction =
       /** The member who would gain: the new holder, the delegate, or the member whose identity is reset */
       readonly beneficiaryMemberId: string | null
     }
+  | {
+      /** BR-SOD-14 (S10): an evaluator of an RFx's scorecard, at scorecard.assignEvaluators and score.submit */
+      readonly kind: 'SCORE_RFX'
+      readonly actorMemberId: string
+      /** Who created and who opened the RFx */
+      readonly rfxCreatorMemberIds: readonly string[]
+      /** The requesters of the RFx's source request lines */
+      readonly sourceRequesterMemberIds: readonly string[]
+    }
 
 /** A bank account change as BR-SOD-12 reads it: its source, and the members who claimed it and recorded the call */
 export interface BankChangeSod {
@@ -90,7 +106,23 @@ export interface RecentBankChanges {
   readonly changes: ReadonlyArray<{ readonly proposerMemberId: string; readonly effectiveOn: string }>
 }
 
-export type SodRule = 'BR-SOD-01' | 'BR-SOD-02' | 'BR-SOD-03' | 'BR-SOD-04' | 'BR-SOD-05' | 'BR-SOD-06' | 'BR-SOD-07' | 'BR-SOD-08' | 'BR-SOD-09' | 'BR-SOD-10' | 'BR-SOD-11' | 'BR-SOD-12'
+export type SodRule =
+  | 'BR-SOD-01'
+  | 'BR-SOD-02'
+  | 'BR-SOD-03'
+  | 'BR-SOD-04'
+  | 'BR-SOD-05'
+  | 'BR-SOD-06'
+  | 'BR-SOD-07'
+  | 'BR-SOD-08'
+  | 'BR-SOD-09'
+  | 'BR-SOD-10'
+  | 'BR-SOD-11'
+  // S7
+  | 'BR-SOD-12'
+  // S10
+  | 'BR-SOD-13'
+  | 'BR-SOD-14'
 export type SodResult = { readonly ok: true } | { readonly ok: false; readonly error: 'SOD_VIOLATION'; readonly rule: SodRule }
 
 const allowed: SodResult = { ok: true }
@@ -130,6 +162,27 @@ export function bankChangePortalConflicts(change: BankChangeSod): string[] {
   return [...new Set([change.submittedById, change.callVerifiedById].filter((m): m is string => typeof m === 'string' && m.length > 0))]
 }
 
+/** The people of an RFx's award besides its submitter (BR-SOD-13); each list may hold the same member more than once */
+export interface AwardDecisionPeople {
+  /** Who created and who opened the RFx */
+  readonly rfxCreatorMemberIds: readonly string[]
+  /** Every evaluator of its scorecard, those who recused included */
+  readonly evaluatorMemberIds: readonly string[]
+  /** The requesters of its source request lines */
+  readonly sourceRequesterMemberIds: readonly string[]
+  /** Who recorded a bid on a supplier's behalf (bid.recordOnBehalf) */
+  readonly recordedOnBehalfMemberIds: readonly string[]
+}
+
+/**
+ * Who may not approve an award besides its submitter, for the `extra` of its subject adapter (S10-10): the shared
+ * approvals/decide.ts refuses the submitter through checkSod (BR-SOD-01) and then this list (BR-SOD-13)
+ */
+export function awardDecisionSodExtra(people: AwardDecisionPeople): Array<{ rule: SodRule; memberIds: string[] }> {
+  const memberIds = [...new Set([...people.rfxCreatorMemberIds, ...people.evaluatorMemberIds, ...people.sourceRequesterMemberIds, ...people.recordedOnBehalfMemberIds])]
+  return [{ rule: 'BR-SOD-13', memberIds }]
+}
+
 export function checkSod(action: SodAction, policy: SodPolicy): SodResult {
   switch (action.kind) {
     case 'DECIDE_APPROVAL': {
@@ -153,6 +206,19 @@ export function checkSod(action: SodAction, policy: SodPolicy): SodResult {
         if (action.bankChange?.source === 'PORTAL' && bankChangePortalConflicts(action.bankChange).includes(action.actorMemberId)) return violation('BR-SOD-12')
         return own ? violation('BR-SOD-05') : allowed
       }
+      // S10: the submitter of an award never approves it (BR-SOD-01), nor who created the RFx, scored its bids,
+      // requested its lines or recorded a bid on a supplier's behalf (BR-SOD-13) — the one list of awardDecisionSodExtra,
+      // which the adapter of S10-10 hands to decide.ts as `extra`, so golden and runtime refuse the same people
+      if (action.subject === 'AWARD_DECISION') {
+        if (own) return violation('BR-SOD-01')
+        const [extra] = awardDecisionSodExtra({
+          rfxCreatorMemberIds: action.rfxCreatorMemberIds ?? [],
+          evaluatorMemberIds: action.evaluatorMemberIds ?? [],
+          sourceRequesterMemberIds: action.sourceRequesterMemberIds ?? [],
+          recordedOnBehalfMemberIds: action.recordedOnBehalfMemberIds ?? [],
+        })
+        return extra!.memberIds.includes(action.actorMemberId) ? violation('BR-SOD-13') : allowed
+      }
       if (own) return violation('BR-SOD-01')
       if (action.subject === 'PURCHASE_ORDER' && action.poCreatorMemberId === action.actorMemberId) return violation('BR-SOD-03')
       return allowed
@@ -166,5 +232,7 @@ export function checkSod(action: SodAction, policy: SodPolicy): SodResult {
       return changedRecently(action.actorMemberId, action.recentBankChanges) ? violation('BR-SOD-10') : allowed
     case 'PROPOSE_ORG_AUTHORITY_CHANGE':
       return SELF_BENEFIT_KINDS.includes(action.changeKind) && action.beneficiaryMemberId === action.actorMemberId ? violation('BR-SOD-08') : allowed
+    case 'SCORE_RFX':
+      return action.rfxCreatorMemberIds.includes(action.actorMemberId) || action.sourceRequesterMemberIds.includes(action.actorMemberId) ? violation('BR-SOD-14') : allowed
   }
 }

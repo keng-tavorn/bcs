@@ -422,10 +422,10 @@ def run_numbering(d):
 
 # DOA document types in lint order and their traits (BR-DOA-20 to BR-DOA-23 · src/core/doa/types.ts DOC_TYPE_TRAITS)
 DOC_ORDER = ("PURCHASE_REQUEST", "PURCHASE_ORDER", "GR_VARIANCE", "DOA_CHANGE", "ORG_AUTHORITY_CHANGE", "BUDGET_TRANSFER",
-             "OVER_BUDGET", "INVOICE_EXCEPTION", "PO_CHANGE", "PAYMENT_RUN", "BANK_ACCOUNT_CHANGE", "SUPPLIER_APPROVAL")
-AMOUNT_REQUIRED = {"PURCHASE_REQUEST", "PURCHASE_ORDER", "BUDGET_TRANSFER", "OVER_BUDGET", "INVOICE_EXCEPTION", "PO_CHANGE", "PAYMENT_RUN"}
+             "OVER_BUDGET", "INVOICE_EXCEPTION", "PO_CHANGE", "PAYMENT_RUN", "BANK_ACCOUNT_CHANGE", "SUPPLIER_APPROVAL", "RFX_AWARD")
+AMOUNT_REQUIRED = {"PURCHASE_REQUEST", "PURCHASE_ORDER", "BUDGET_TRANSFER", "OVER_BUDGET", "INVOICE_EXCEPTION", "PO_CHANGE", "PAYMENT_RUN", "RFX_AWARD"}
 AMOUNT_NONE = {"BANK_ACCOUNT_CHANGE", "SUPPLIER_APPROVAL"}
-MODULE_DOCS = {"PAY": ("INVOICE_EXCEPTION", "PAYMENT_RUN", "BANK_ACCOUNT_CHANGE"), "SUPPLIER": ("SUPPLIER_APPROVAL", "BANK_ACCOUNT_CHANGE")}
+MODULE_DOCS = {"PAY": ("INVOICE_EXCEPTION", "PAYMENT_RUN", "BANK_ACCOUNT_CHANGE"), "SUPPLIER": ("SUPPLIER_APPROVAL", "BANK_ACCOUNT_CHANGE"), "SOURCING": ("RFX_AWARD",)}
 DEFAULT_FIXTURES = ["fixtures/org-demo.yaml", "fixtures/doa-versions.yaml"]
 def use_fixtures(files=None):
     # Each DOA golden file names its own fixtures (`fixtures:` line · ADR-069); the helpers below read these globals
@@ -1361,6 +1361,59 @@ def run_duplicates(d):
         out.append((c["id"], got == c["expect"], got))
     use_fixtures()
     return out
+def run_risk_tier(d):
+    # BR-RSK-01 BR-RSK-03 to BR-RSK-06 (§7.24 · S11-03): the inherent tier from screening and high-risk categories, the
+    # question set by appliesWhen, points and tier (highest of points band, inherent tier, minTier of an answer), an answer
+    # from evidence (VERIFIED, not expired, scope equal to the question's and a work scope after S7's normalizeScope) and
+    # completeness (EVIDENCE does not count for a tier that requires explicit answers); compared as whole objects
+    order = ["LOW", "MEDIUM", "HIGH"]; top = lambda *ts: max(ts, key=order.index)
+    tiers = {t["code"]: t for t in d["tiers"]}; pol, df, qs = d["policy"], d["defaults"], d["questions"]
+    import unicodedata
+    # normalizeScope of S7 (BR-SDOC ข้อ 03, run_supplier_docs): NFC, trimmed, lower case, runs of white space one space
+    norm = lambda s: " ".join(unicodedata.normalize("NFC", s).split()).lower()
+    def inherent(sc, cats):
+        t = "LOW"
+        for f, v in sc.items():
+            if v == "Y": t = top(t, pol["screeningTierMap"][f])
+        return "HIGH" if set(cats) & set(pol["highRiskCategories"]) else t
+    def holds(w, env):
+        if "all" in w: return all(holds(x, env) for x in w["all"])
+        if "any" in w: return any(holds(x, env) for x in w["any"])
+        if w["op"] == "anyIn": return bool(set(env["$category"]) & set(w["value"]))
+        if w["op"] == "eq": return str(env.get(w["field"])) == str(w["value"])
+        raise ValueError(f"op {w['op']} not used by risk-tier")
+    out = []
+    for c in d["cases"]:
+        i = c["input"]; sc = i.get("screening", df["screening"]); cats = i.get("categoryCodes", df["categoryCodes"])
+        it = inherent(sc, cats); env = {**sc, "$category": cats, "$payeeType": i.get("payeeType", df["payeeType"]), "$inherentTier": it}
+        qset = [q for q in qs if not q.get("appliesWhen") or holds(q["appliesWhen"], env)]
+        fn = c["fn"]
+        if fn == "inherentTier": got = it
+        elif fn == "selectQuestions": got = {"inherentTier": it, "questions": [q["code"] for q in qset]}
+        elif fn == "scoreAssessment":
+            ans = i["answers"]; picked = [(q, ans[q["code"]]) for q in qset if ans.get(q["code"]) in q["options"]]
+            pts = sum(q["options"][a] for q, a in picked)
+            floor = top("LOW", *[q.get("minTier", {}).get(a, "LOW") for q, a in picked])
+            band = max((t for t in d["tiers"] if t["minPoints"] <= pts), key=lambda t: t["minPoints"])["code"]
+            got = {"inherentTier": it, "points": pts, "tierByPoints": band, "minTierFloor": floor, "tier": top(band, it, floor)}
+        elif fn == "evidenceSource":
+            q = next(x for x in qs if x["code"] == i["question"]); doc = i["document"]; cur = i.get("current") or {}
+            held = bool(cur.get("evidenceDocumentId")); today = i.get("today", df["today"]); scope = norm(doc.get("scope") or "")
+            if "evidenceOption" not in q: why = "NOT_LINKED"
+            elif doc["status"] != "VERIFIED": why = "NOT_VERIFIED"
+            elif doc.get("expiresOn") and doc["expiresOn"] < today: why = "EXPIRED"
+            elif q.get("evidenceScopeRequired") and not (scope and scope == norm(q["evidenceScope"]) and scope in [norm(w) for w in i["workScopes"]]): why = "SCOPE_MISMATCH"
+            else: why = None
+            if why: got = {"source": "NONE", "reason": why, **({"clearAnswer": True, "event": "EVIDENCE_REVOKED"} if held else {})}
+            else: got = {"source": cur["source"] if held else "EVIDENCE", "optionCode": q["evidenceOption"]}
+        elif fn == "assessmentCompleteness":
+            src = i["sources"]; strict = tiers[i["tier"]]["requiresExplicitAnswers"]
+            ok_ = lambda s: s not in (None, "NONE") and not (strict and s == "EVIDENCE")
+            miss = [q["code"] for q in qset if q.get("required", True) and not ok_(src.get(q["code"]))]
+            got = {"complete": not miss, "missing": miss}
+        else: raise ValueError(f"fn {fn}")
+        out.append((c["id"], got == c["expect"], got))
+    return out
 def run_retention(d):  # BR-RET-01 แบ่งงวด · BR-RET-03 เงินประกัน (largest remainder สองส่วน) · BR-WHT-05 ภาษีตอนจ่าย (S8-09)
     out = []
     for c in d["cases"]:
@@ -2295,6 +2348,144 @@ def run_chat_intake(d):
         if want["via"] is None: want.pop("via")
         out.append((c["id"], got == want, got))
     return out
+def rfx_reveal(i):  # BR-RFX-09: open when every evaluator not recused submitted and at least minEvaluators did
+    miss = [e["member"] for e in i["evaluators"] if e["status"] == "ASSIGNED"]
+    n = sum(1 for e in i["evaluators"] if e["status"] == "SUBMITTED")
+    if miss: return {"revealed": False, "missing": miss, "counted": n}
+    if n < i["minEvaluators"]: return {"revealed": False, "missing": [], "counted": n, "reason": "MIN_EVALUATORS"}
+    return {"revealed": True, "missing": [], "counted": n}
+def run_rfx_scoring(d):
+    # BR-RFX-08 to BR-RFX-10 (§7.23 · S10-03): the comparison table on amounts before VAT (VAT of a bid with VAT taken
+    # out once on the document and shared over its lines by largest remainder; not registered → rate 0), the lowest
+    # complete bids, the price score, the evaluators' average, the weighted total rounded once, and the ranking
+    R = d["vatRateBp"]; out = []
+    avg = lambda xs: rhu(sum(xs) * 100, len(xs))
+    for c in d["cases"]:
+        f, i = c["fn"], c["input"]
+        if f == "compareBids":
+            refs = [l["ref"] for l in i["lines"]]; qty = {l["ref"]: l["quantity"] for l in i["lines"]}; rows = {}
+            for b in i["bids"]:
+                r = R if b["vatRegistered"] else 0; offered = [x for x in refs if x in b["lines"]]
+                amts = [line_net(qty[x], sat(b["lines"][x])) for x in offered]; tot = sum(amts)
+                if b["includesVat"]: vat = rhu(tot * r, 10000 + r); net = tot - vat; parts = lr_split(net, amts)
+                else: net, vat, parts = tot, rhu(tot * r, 10000), amts
+                rows[b["ref"]] = {"net": net, "vat": vat, "partial": len(offered) < len(refs), "lines": dict(zip(offered, parts))}
+            full = [k for k, v in rows.items() if not v["partial"]]; low = min((rows[k]["net"] for k in full), default=None)
+            ll = {}
+            for x in refs:
+                cand = [(v["lines"][x], n, k) for n, (k, v) in enumerate(rows.items()) if x in v["lines"]]
+                if cand: ll[x] = min(cand)[2]
+            got = {"bids": {k: {"net": baht(v["net"]), "vat": baht(v["vat"]), "gross": baht(v["net"] + v["vat"]), "partial": v["partial"], "lineNet": {x: baht(a) for x, a in v["lines"].items()}} for k, v in rows.items()},
+                   "lowest": [k for k in full if rows[k]["net"] == low], "lowestNet": None if low is None else baht(low), "lineLowest": ll}
+        elif f == "priceScoreBp": got = {k: rhu(sat(i["lowestNet"]) * 10000, sat(v)) for k, v in i["nets"].items()}
+        elif f == "criterionScoreBp": got = avg(i["scores"])
+        elif f == "weightedScoreBp": got = rhu(sum(x["weightBp"] * x["scoreBp"] for x in i["criteria"]), 10000)
+        elif f == "validateScorecard":
+            s = sum(i["weights"].values())
+            got = {"error": "VALIDATION_FAILED", "reason": "PRICE_CRITERION"} if "PRICE" not in i["weights"] else {"ok": True} if s == 10000 else {"error": "VALIDATION_FAILED", "reason": "WEIGHTS_SUM", "sum": s}
+        elif f == "scorecardReveal": got = rfx_reveal(i)
+        elif f == "rankBids":
+            low = sat(i["lowestNet"]); tot = {}
+            for b in i["bids"]:
+                t = {"priceBp": rhu(low * 10000, sat(b["net"]))}
+                for k in i["weights"]:
+                    if k != "PRICE": t[k] = avg(b["scores"][k])
+                t["totalBp"] = rhu(sum(w * (t["priceBp"] if k == "PRICE" else t[k]) for k, w in i["weights"].items()), 10000)
+                t["total"] = f"{t['totalBp'] // 100}.{t['totalBp'] % 100:02d}"; tot[b["ref"]] = t
+            order = sorted(i["bids"], key=lambda b: (-tot[b["ref"]]["totalBp"], sat(b["net"]), dt(b["submittedAt"]), b["ref"]))
+            got = {"totals": tot, "ranking": [b["ref"] for b in order], "topIsLowest": sat(order[0]["net"]) == low}
+        else: got = f"ไม่รู้จัก fn {f}"
+        out.append((c["id"], got == c["expect"], got))
+    return out
+def run_rfx_award(d):
+    # BR-RFX-01 BR-RFX-02 BR-RFX-07 BR-RFX-11 to BR-RFX-15 (§7.23 · S10-03): business days of the suite's calendar as
+    # long as its opening hours, counted forward to the earliest close and back to the question cutoff; late at the
+    # closing second; VAT per supplier of an award; savings against the baseline before VAT; tenths of business days
+    # and their lower median; Thai calendar days for the preferred period and a bid's validity; price flags compared in
+    # whole numbers; the cap of a confirmed price before VAT
+    R, st, cal = d["vatRateBp"], d["settings"], d["calendar"]; wd = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
+    work = {wd[x] for x in cal["workdays"]}; hol = set(cal["holidays"]); s0, e0 = dtime.fromisoformat(cal["start"]), dtime.fromisoformat(cal["end"])
+    daymin = (e0.hour * 60 + e0.minute) - (s0.hour * 60 + s0.minute)
+    isw = lambda day: day.weekday() in work and day.isoformat() not in hol
+    win = lambda day: (datetime.combine(day, s0, BKK), datetime.combine(day, e0, BKK))
+    def add(t, m):
+        t, m = t.astimezone(BKK), timedelta(minutes=m)
+        while True:
+            a, b = win(t.date())
+            if isw(t.date()) and t < b:
+                t = max(t, a)
+                if m <= b - t: return t + m
+                m -= b - t
+            t = datetime.combine(t.date() + timedelta(days=1), dtime(0), BKK)
+    def back(t, m):
+        t, m = t.astimezone(BKK), timedelta(minutes=m)
+        while m:
+            a, b = win(t.date())
+            if isw(t.date()) and t > a:
+                t = min(t, b)
+                if m <= t - a: return t - m
+                m -= t - a
+            t = datetime.combine(t.date() - timedelta(days=1), dtime.max, BKK)
+        return t
+    def between(x, y):
+        x, y, tot, day = x.astimezone(BKK), y.astimezone(BKK), timedelta(0), x.astimezone(BKK).date()
+        while day <= y.date():
+            if isw(day):
+                a, b = win(day); lo, hi = max(a, x), min(b, y)
+                if hi > lo: tot += hi - lo
+            day += timedelta(days=1)
+        return int(tot.total_seconds() // 60)
+    thai = lambda s: dt(s).astimezone(BKK).date()
+    sbp = lambda s, base: (1 if s >= 0 else -1) * rhu(abs(s) * 10000, base)
+    tenths = lambda t: f"{t // 10}.{t % 10}"
+    out = []
+    for c in d["cases"]:
+        f, i = c["fn"], c["input"]
+        days = i.get("minOpenBusinessDays", st["minOpenBusinessDays"].get(i.get("kind"), 0))
+        if f == "earliestCloseAt": got = z(add(dt(i["openedAt"]), days * daymin))
+        elif f == "validateCloseAt":
+            e = add(dt(i["openedAt"]), days * daymin)
+            got = [{"ok": True} if dt(x) >= e else {"ok": False, "error": "VALIDATION_FAILED", "reason": "CLOSE_TOO_SOON", "earliest": z(e)} for x in i["closesAt"]]
+        elif f == "questionCutoffAt": got = z(back(dt(i["closesAt"]), st["questionCutoffBusinessDays"] * daymin))
+        elif f == "isLateBid": got = [dt(x) >= dt(i["closesAt"]) for x in i["submittedAt"]]
+        elif f == "minInvites":
+            got = []
+            for n in map(sat, i["estimatedNets"]):
+                g = n + rhu(n * R, 10000); got.append({"estimatedGross": baht(g), "minInvites": i["minInvitesAboveThreshold"] if g > sat(i["thresholdGross"]) else 1})
+        elif f == "awardAmount":
+            per = {}
+            for l in i["lines"]: p = per.setdefault(l["supplier"], [0, R if l["vatRegistered"] else 0]); p[0] += line_net(l["quantity"], sat(l["unitPrice"]))
+            vats = {k: rhu(n * r, 10000) for k, (n, r) in per.items()}; net = sum(n for n, _ in per.values()); vat = sum(vats.values())
+            got = {"net": baht(net), "vat": baht(vat), "gross": baht(net + vat), "isSplit": len(per) > 1, "perSupplier": {k: {"net": baht(n), "vat": baht(vats[k])} for k, (n, _) in per.items()}}
+        elif f == "savings":
+            base = sum(sat(p["net"]) if "net" in p else sat(p["gross"]) - rhu(sat(p["gross"]) * R, 10000 + R) for p in i["baseline"])
+            kinds = {p["kind"] for p in i["baseline"]}; s = base - sat(i["awardedNet"])
+            got = {"baselineNet": baht(base), "baselineKind": kinds.pop() if len(kinds) == 1 else "MIXED", "savings": baht(s), "savingsBp": sbp(s, base)}
+        elif f == "savingsTotal":
+            base = sum(sat(x["baselineNet"]) for x in i["items"]); s = sum(sat(x["savings"]) for x in i["items"])
+            got = {"baselineNet": baht(base), "savings": baht(s), "savingsBp": sbp(s, base)}
+        elif f == "cycleMedianDays":
+            ts = [rhu(between(dt(a["openedAt"]), dt(a["decidedAt"])) * 10, daymin) for a in i["awards"]]
+            got = {"days": [tenths(t) for t in ts], "median": tenths(sorted(ts)[(len(ts) - 1) // 2]) if ts else None}
+        elif f == "preferredWindow":
+            vf = thai(i["approvedAt"]); vt = vf + timedelta(days=st["preferredSupplierDays"])
+            got = {"validFrom": vf.isoformat(), "validTo": vt.isoformat(), "inEffect": [vf <= date.fromisoformat(x) < vt for x in i["checkDays"]]}
+        elif f == "priceAnomalyFlags":
+            ref, lim = sat(i["ref"]), sat(i["ref"]) * st["priceAnomalyBp"]; got = {}
+            for k, v in i["unitPrices"].items():
+                diff = (sat(v) - ref) * 10000
+                flag = "ABOVE_AGREEMENT" if i["refSource"] == "AGREEMENT" and sat(v) > ref else "HIGH" if diff > lim else "LOW" if -diff > lim else None
+                got[k] = {"deviationBp": (1 if diff >= 0 else -1) * (abs(diff) // ref), "flag": flag}
+        elif f == "bidValidUntil":
+            vu = thai(i["submittedAt"]) + timedelta(days=st["bidValidityDays"])
+            got = {"validUntil": vu.isoformat(), "expired": [date.fromisoformat(x) > vu for x in i["checkDays"]]}
+        elif f == "scorecardReveal": got = rfx_reveal(i)
+        elif f == "confirmedNetPriceCap":
+            q = sat(i["quotedUnitPrice"]) * 10000
+            got = [{"ok": True} if sat(x) * (10000 + i["vatRateBp"]) <= q else {"ok": False, "error": "AWARD_PRICE_EXCEEDS_BID"} for x in i["confirmedNetUnitPrices"]]
+        else: got = f"ไม่รู้จัก fn {f}"
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 def run_supplier_onboarding(d):
     # BR-SUP-09 BR-SUP-12 BR-SUP-13 BR-PORTAL-02 (S7): normalize = NFC trim lower, legal-form words (longest first; English
@@ -2484,6 +2675,41 @@ def run_ai_supplier_verify(d):
         ok = all(x in got["checks"] for x in e["checks"]) and all(conf.get(k) == v for k, v in e["confidenceBp"].items()) and sorted(e["mustConfirm"]) == got["mustConfirm"]
         out.append((c["id"], ok, got))
     return out
+RISK_DOMAINS = ["GENERAL", "PRIVACY", "INFOSEC", "PREMISES", "FINANCE"]
+def run_risk_review(d):
+    # BR-RSK-07 (§7.24 · S11-06): the RISK_ASSESSMENT rules of the workflow version in effect whose condition holds on the
+    # screening answers, $tier $inherentTier $category $payeeType; each its own slot of quorum ALL in sortOrder; the reviewer
+    # by BR-WF-08 (wf_one), the opener and who filled in for the supplier conflicted (BR-SOD-16); a delegation counts only
+    # when it limits neither document types nor amount (BR-DLG-01), and a delegate who conflicts leaves it with the delegator
+    global HOLD
+    use_fixtures(d["fixtures"]); base, out = dict(HOLD), []
+    wfs = [golden["tests/golden/" + f][0] for f in d["fixtures"] if "risk-reviewers" in f]
+    for c in d["cases"]:
+        i = {**d["defaults"], **c["input"]}; at = dt(i["at"]); vac = set(i.get("vacate", []))
+        vs = sorted([v for w in wfs for v in w["versions"] if dt(v["effectiveFrom"]) <= at], key=lambda v: dt(v["effectiveFrom"]))
+        cats = i.get("categoryCodes", [])
+        facts = {"fields": {**i["screening"], "$tier": i["tier"], "$inherentTier": i.get("inherentTier", i["tier"]), "$payeeType": i.get("payeeType")}, "category": cats, "lineCategories": cats}
+        rules = [r for r in (vs[-1]["rules"] if vs else []) if r.get("scope") == "RISK_ASSESSMENT" and wf_holds(r["when"], facts)]
+        conf = {i["openedBy"], *i.get("conflictMemberIds", [])}
+        acting = {x["from"]: x["to"] for x in i.get("delegations", []) if not x.get("documentTypes") and x.get("maxAmount") is None}
+        slots, got = [], None
+        for r in rules:
+            who, fb = wf_one(r, r["reviewers"][0], conf, vac)
+            if who is None: got = {"error": "REVIEWER_NOT_FOUND", "rule": r["code"]}; break
+            held = acting.get(who, who)
+            if held in conf: held = who
+            into = next((s for s in slots if s["reviewers"] == [held]), None)
+            if into:
+                into["rules"].append(r["code"]); into["domains"] = [x for x in RISK_DOMAINS if x in into["domains"] + r["riskDomains"]]; continue
+            s = {"rules": [r["code"]], "reviewers": [held]}
+            if fb: s["fallback"] = fb
+            if held != who: s["principal"] = who
+            s["domains"] = [x for x in RISK_DOMAINS if x in r["riskDomains"]]
+            slots.append(s)
+        if got is None: got = {"review": {"quorum": "ALL", "slots": slots} if slots else None}
+        out.append((c["id"], got == c["expect"], got))
+    HOLD = base; use_fixtures()
+    return out
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
     "ai-credits": run_ai_credits,
@@ -2528,6 +2754,10 @@ RUNNERS = {
     "quotations": run_quotes,
     "receiving": run_gr,
     "retention": run_retention,
+    "rfx-award": run_rfx_award,
+    "rfx-scoring": run_rfx_scoring,
+    "risk-review": run_risk_review,
+    "risk-tier": run_risk_tier,
     "savings": run_savings,
     "sla": run_sla,
     "sod": run_sod,

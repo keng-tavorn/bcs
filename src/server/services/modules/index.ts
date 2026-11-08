@@ -12,6 +12,7 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { openInvoiceNumbers } from '../ap/track'
 import { openPaymentDocuments } from '../payments/runs'
+import { openSourcingDocuments } from '../sourcing/usage'
 import { openSupplierDocuments } from '../suppliers/usage'
 
 // Modules (spec §4.11, FR-PLT-011, FR-ADM-006 AC1, BR-AUTH-08, ADR-034). Only the BCS team switches modules, with a
@@ -80,6 +81,8 @@ usageChecks.set('PAY', async (tx) => [...(await openInvoiceNumbers(tx)), ...(awa
 // S7 (BR-SUP ข้อ 16): SUPPLIER stays on while an application is open or a portal session is (SOURCING and RISK hold it
 // on through MODULE_REQUIRES)
 usageChecks.set('SUPPLIER', openSupplierDocuments)
+// S10: SOURCING stays on while an RFx or an award is open
+usageChecks.set('SOURCING', openSourcingDocuments)
 
 /** Each optional module registers its check when it is built (S7 onwards); tier 1 has none. */
 export function registerModuleUsageCheck(module: Module, check: ModuleUsageCheck): void {

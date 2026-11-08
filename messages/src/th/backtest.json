@@ -38,6 +38,7 @@
     "PAYMENT_RUN": "รอบจ่ายเงิน",
     "BANK_ACCOUNT_CHANGE": "เปลี่ยนบัญชีธนาคารผู้ขาย",
     "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
+    "AWARD_DECISION": "ผลการจัดหา",
     "OTHER": "เอกสาร"
   },
   "sideErrors": {

@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { portalCtx } from '@/server/portal/session'
 import type { Ctx } from '@/server/context'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 
 // INV-SUP-01 (BR-PORTAL ข้อ 05), generated from the code: every export of src/server/portal/queries*.ts (S7's file and
 // the queries-<step>.ts of S10 S11) is called as the contact of supplier A, of supplier B, of application A and of
@@ -30,11 +31,11 @@ beforeAll(async () => {
   for (const side of ['A', 'B']) {
     const nameS = `ผู้ขาย${side}-${randomUUID().slice(0, 6)}`
     const supplier = await prisma.supplier.create({ data: { organizationId: org.id, code: `PI-${side}-${randomUUID().slice(0, 4)}`, nameTh: nameS, taxId: null, isForeign: true, branchCode: '00000' } })
-    const sc = await prisma.supplierContact.create({ data: { organizationId: org.id, supplierId: supplier.id, nameTh: `ติดต่อผู้ขาย${side}-${randomUUID().slice(0, 6)}`, email: `s${side.toLowerCase()}-${randomUUID().slice(0, 6)}@supplier.test`, isPrimary: true, privacyNoticeVersion: '2026-11-01' } })
+    const sc = await prisma.supplierContact.create({ data: { organizationId: org.id, supplierId: supplier.id, nameTh: `ติดต่อผู้ขาย${side}-${randomUUID().slice(0, 6)}`, email: `s${side.toLowerCase()}-${randomUUID().slice(0, 6)}@supplier.test`, isPrimary: true, privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION } })
     parties.push({ label: `supplier ${side}`, ctx: portalCtx(org.id, sc, NOW), marks: [supplier.id, nameS, sc.id, sc.nameTh] })
     const nameA = `ผู้สมัคร${side}-${randomUUID().slice(0, 6)}`
     const application = await prisma.supplierApplication.create({ data: { organizationId: org.id, kind: 'NEW', invitedById: member.id, invitedAt: NOW, lastActivityAt: NOW, expiresAt: new Date('2026-12-07T03:00:00Z'), nameTh: nameA } })
-    const ac = await prisma.supplierContact.create({ data: { organizationId: org.id, applicationId: application.id, nameTh: `ติดต่อผู้สมัคร${side}-${randomUUID().slice(0, 6)}`, email: `a${side.toLowerCase()}-${randomUUID().slice(0, 6)}@supplier.test`, privacyNoticeVersion: '2026-11-01' } })
+    const ac = await prisma.supplierContact.create({ data: { organizationId: org.id, applicationId: application.id, nameTh: `ติดต่อผู้สมัคร${side}-${randomUUID().slice(0, 6)}`, email: `a${side.toLowerCase()}-${randomUUID().slice(0, 6)}@supplier.test`, privacyNoticeVersion: PORTAL_PRIVACY_NOTICE_VERSION } })
     parties.push({ label: `application ${side}`, ctx: portalCtx(org.id, ac, NOW), marks: [application.id, nameA, ac.id, ac.nameTh] })
   }
 })

@@ -16,7 +16,11 @@ export const PORTAL_INVOICE_DRAFTS_PER_DAY = 20
 export const PORTAL_SESSION_TOUCH_MS = MS_PER_MINUTE
 /** A device not seen this many days signing in is a new device (BR-PORTAL ข้อ 02: supplier.new_device) */
 export const PORTAL_NEW_DEVICE_DAYS = 90
-/** The privacy notice the portal shows now (BR-PORTAL ข้อ 08): its words per version are in messages portal.json */
-export const PORTAL_PRIVACY_NOTICE_VERSION = '2026-11-01'
+/**
+ * The privacy notice the portal shows now (BR-PORTAL ข้อ 08): its words per version are in messages portal.json.
+ * 2026-11-08 (S11-05 · BR-RSK-18 · BR-AI-33) adds that evidence files a contact marks readable by the AI go to an outside
+ * processor; a contact who accepted 2026-11-01 sees the new one before their next upload.
+ */
+export const PORTAL_PRIVACY_NOTICE_VERSION = '2026-11-08'
 /** How long the browser keeps the code it is asked for (the page between the link and the code) */
 export const PORTAL_PENDING_COOKIE_MS = 15 * MS_PER_MINUTE

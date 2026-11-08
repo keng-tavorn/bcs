@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
+import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import { getPortalHelp, getPortalHome } from '@/server/portal/queries'
 import { PortalFrame } from '@/ui/portal/frame'
 import { pageOrg, pageSession, portalNav, Unavailable } from '../_lib/page'
@@ -33,7 +34,7 @@ export default async function PortalHelpPage({ params }: { params: Promise<{ org
         <h2 id="privacy" className="text-lg font-semibold">
           {t('privacy.title')}
         </h2>
-        <p className="whitespace-pre-line">{t('privacy.2026-11-01')}</p>
+        <p className="whitespace-pre-line">{t(`privacy.${PORTAL_PRIVACY_NOTICE_VERSION}`)}</p>
       </section>
     </PortalFrame>
   )

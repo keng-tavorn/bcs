@@ -340,6 +340,21 @@ export default defineConfig([
     files: [`src/server/services/**/*.${CODE}`],
     rules: { 'bcs/service-tx-writes': ['error', { ...DB_WRITE_OPTIONS, allowFiles: ['src/server/services/_pipeline.ts'] }] },
   },
+  // S10 (INV-RFX-04 · ADR-206): the sourcing services never write a PO or its lines; an award's POs come from the pool's
+  // consolidateInTx with the awarded prices, so a PO has one way in
+  {
+    files: [`src/server/services/sourcing/**/*.${CODE}`],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'MemberExpression[object.type="MemberExpression"][object.property.name=/^(purchaseOrder|poLine|poLineSource)$/][property.name=/^(create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)$/]',
+          message: 'services/sourcing ห้ามเขียน PurchaseOrder PoLine ตรง — PO ของผลมอบงานสร้างผ่าน consolidateInTx เท่านั้น (INV-RFX-04 · ADR-206)',
+        },
+      ],
+    },
+  },
   // Screen text comes from next-intl messages (NFR-I18N-01, FR-PLT-002 AC2)
   {
     files: [`src/app/**/*.${CODE}`, `src/ui/**/*.${CODE}`],

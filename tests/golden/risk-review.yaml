@@ -1,0 +1,23 @@
+# tests/golden/risk-review.yaml (spec §7.24 · S11-06 · S11-09 ขยาย)
+# ผู้ตรวจของใบประเมิน (BR-RSK-07 · §8.12 FR-RSK-202): ข้อ scope RISK_ASSESSMENT ของ WorkflowVersion ที่มีผล resolve ด้วย
+# resolveReviewStep ของ S6 ผ่าน adapter riskReviewers โดยไม่แก้ engine
+# org-s6.yaml = org-p1 + แผนก LEG QSE + dm_leg dm_qse (fixture ที่ GC-WF ใช้อยู่) · fixtures/risk-reviewers.yaml = ข้อ scope
+# RISK_ASSESSMENT ของ WF-SIMEC ฉบับ 1 (RR-01 ถึง RR-04 · OQ-223) และข้อ REQUEST หนึ่งข้อที่ต้องไม่ถูกนับ
+# input: screening tier (แช่แข็งตอนส่ง) · inherentTier (ว่าง = เท่า tier) · categoryCodes · conflictMemberIds = ผู้กรอกแทน
+# (ผู้เปิดใบคือ openedBy ของ defaults · BR-SOD ข้อ 16) · vacate = ตำแหน่งที่ว่าง · delegations = การรักษาการ (from to
+# documentTypes? maxAmount?) · expect.review = slot เรียงตาม sortOrder: rules reviewers (ผู้ถืองานหลังรักษาการ) fallback?
+# principal? domains · review null = ไม่มีข้อที่ตรง ใบเสร็จทันที
+suite: risk-review
+fixtures: [fixtures/org-s6.yaml, fixtures/risk-reviewers.yaml]
+defaults: { at: "2026-11-02T03:00:00Z", openedBy: proc_officer, categoryCodes: [], payeeType: JURISTIC }
+cases:
+  # S11-06 · ผู้ตรวจจากคำตอบคัดกรอง (BR-RSK-07 · §8.12 FR-RSK-202) · ใช้ resolveReviewStep ของ S6 บน snapshot scope RISK
+  - { id: GC-RSK-25, title: เข้าทุกข้อและระดับสูง ผู้ตรวจ 4 ฝ่ายพร้อมกัน, fn: riskReviewers, input: { screening: { processesPersonalData: "Y", accessesSystems: "Y", accessesPremises: "Y" }, tier: HIGH }, expect: { review: { quorum: ALL, slots: [{ rules: [RR-01], reviewers: [dm_leg], domains: [PRIVACY] }, { rules: [RR-02], reviewers: [dm_it], domains: [INFOSEC] }, { rules: [RR-03], reviewers: [dm_qse], domains: [PREMISES] }, { rules: [RR-04], reviewers: [dm_fin], domains: [FINANCE] }] } } }
+  - { id: GC-RSK-26, title: ไม่เข้าข้อใด ไม่มีผู้ตรวจ ใบเสร็จทันที, fn: riskReviewers, input: { screening: { processesPersonalData: "N", accessesSystems: "N", accessesPremises: "N" }, tier: LOW }, expect: { review: null } }
+  - { id: GC-RSK-27, title: เข้าระบบอย่างเดียว ระดับกลาง InfoSec คนเดียว, fn: riskReviewers, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, tier: MEDIUM }, expect: { review: { quorum: ALL, slots: [{ rules: [RR-02], reviewers: [dm_it], domains: [INFOSEC] }] } } }
+  - { id: GC-RSK-28, title: ผู้กรอกแทนเป็นผู้จัดการไอที ไปสำรอง, fn: riskReviewers, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, tier: MEDIUM, conflictMemberIds: [dm_it] }, expect: { review: { quorum: ALL, slots: [{ rules: [RR-02], reviewers: [vp_sup], fallback: CONFLICT, domains: [INFOSEC] }] } } }
+  - { id: GC-RSK-29, title: ผู้ตรวจและสำรองว่าง, fn: riskReviewers, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, tier: MEDIUM, vacate: ["DM@IT", "VP@SUP"] }, expect: { error: REVIEWER_NOT_FOUND, rule: RR-02 } }
+  - { id: GC-RSK-30, title: ระดับสูงจากหมวดโดยไม่เข้าคัดกรอง มีผู้ตรวจการเงินคนเดียว, fn: riskReviewers, input: { screening: { processesPersonalData: "N", accessesSystems: "N", accessesPremises: "N" }, tier: HIGH }, expect: { review: { quorum: ALL, slots: [{ rules: [RR-04], reviewers: [dm_fin], domains: [FINANCE] }] } } }
+  # รอบตรวจของขั้น · ขอบการรักษาการของงานผู้ตรวจ (BR-RSK-07 · BR-DLG-01)
+  - { id: GC-RSK-31, title: การรักษาการที่จำกัดชนิดเอกสารไม่ครอบงานผู้ตรวจ, fn: riskReviewers, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, tier: MEDIUM, delegations: [{ from: dm_it, to: vp_sup, documentTypes: [PURCHASE_ORDER] }] }, expect: { review: { quorum: ALL, slots: [{ rules: [RR-02], reviewers: [dm_it], domains: [INFOSEC] }] } } }
+  - { id: GC-RSK-32, title: การรักษาการที่ไม่จำกัดชนิดและยอด งานไปที่ผู้รักษาการ, fn: riskReviewers, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, tier: MEDIUM, delegations: [{ from: dm_it, to: vp_sup }] }, expect: { review: { quorum: ALL, slots: [{ rules: [RR-02], reviewers: [vp_sup], principal: dm_it, domains: [INFOSEC] }] } } }

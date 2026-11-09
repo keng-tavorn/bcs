@@ -1,0 +1,1004 @@
+[
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_login-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_login-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_login",
+    "who": null,
+    "kind": "portal-out",
+    "path": "/portal/simec/login",
+    "firstLoadJs": {
+      "total": 145781,
+      "note": "145781 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 3570 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/login",
+    "h1": "เข้าพอร์ทัลผู้ขาย",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_link-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_link-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_link",
+    "who": null,
+    "kind": "portal-out",
+    "path": "/portal/simec/link/design-review-token",
+    "firstLoadJs": {
+      "total": 145073,
+      "note": "145073 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 2862 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/link/design-review-token",
+    "h1": "ยืนยันการเข้าระบบ",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_otp-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_otp-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_otp",
+    "who": null,
+    "kind": "portal-out",
+    "path": "/portal/simec/otp",
+    "firstLoadJs": {
+      "total": 145212,
+      "note": "145212 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 3001 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/otp",
+    "h1": "กรอกรหัสยืนยัน",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_unavailable-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_unavailable-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_unavailable",
+    "who": null,
+    "kind": "portal-out",
+    "path": "/portal/no-such-org/login",
+    "firstLoadJs": {
+      "total": 145083,
+      "note": "145083 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 2872 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/no-such-org/login",
+    "h1": "ยังไม่เปิดบริการ",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_home-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_home-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_home",
+    "who": "sp0029.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/home",
+    "firstLoadJs": {
+      "total": 145494,
+      "note": "145494 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 3283 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/home",
+    "h1": "สวัสดี คุณประยงค์ ชำนาญกิจ",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_pos-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_pos-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_pos",
+    "who": "sp0029.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/pos",
+    "firstLoadJs": {
+      "total": 145537,
+      "note": "145537 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 3326 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/pos",
+    "h1": "ใบสั่งซื้อ",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_po-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_po-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_po",
+    "who": "sp0029.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/pos/01a1c124-48f8-74cb-a047-a214fea26f3c",
+    "firstLoadJs": {
+      "total": 146046,
+      "note": "146046 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 3835 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/pos/01a1c124-48f8-74cb-a047-a214fea26f3c",
+    "h1": "PO-2569-00153",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_documents-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_documents-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_documents",
+    "who": "sp0029.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/documents",
+    "firstLoadJs": {
+      "total": 147365,
+      "note": "147365 bytes of 200000: 11 script files 143202 bytes over the wire and inline page data 4163 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/documents",
+    "h1": "เอกสารผู้ขาย",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_bank-account-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_bank-account-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_bank-account",
+    "who": "sp0029.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/bank-account",
+    "firstLoadJs": {
+      "total": 147656,
+      "note": "147656 bytes of 200000: 11 script files 143202 bytes over the wire and inline page data 4454 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/bank-account",
+    "h1": "บัญชีธนาคาร",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_invoices-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_invoices-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_invoices",
+    "who": "sp0029.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/invoices",
+    "firstLoadJs": {
+      "total": 145630,
+      "note": "145630 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 3419 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/invoices",
+    "h1": "ใบแจ้งหนี้",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_invoices_new-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_invoices_new-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_invoices_new",
+    "who": "sp0029.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/invoices/new",
+    "firstLoadJs": {
+      "total": 147584,
+      "note": "147584 bytes of 200000: 11 script files 143202 bytes over the wire and inline page data 4382 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/invoices/new",
+    "h1": "ส่งใบแจ้งหนี้",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_invoice-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_invoice-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_invoice",
+    "who": "sp0029.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/invoices/01a1c12b-45f0-72dc-af81-63f1bfb680b8",
+    "firstLoadJs": {
+      "total": 145607,
+      "note": "145607 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 3396 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/invoices/01a1c12b-45f0-72dc-af81-63f1bfb680b8",
+    "h1": "S00277/A",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_payments-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_payments-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_payments",
+    "who": "sp0029.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/payments",
+    "firstLoadJs": {
+      "total": 145392,
+      "note": "145392 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 3181 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/payments",
+    "h1": "การจ่ายเงิน",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_profile-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_profile-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_profile",
+    "who": "sp0029.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/profile",
+    "firstLoadJs": {
+      "total": 146014,
+      "note": "146014 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 3803 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/profile",
+    "h1": "บัญชีของฉัน",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_help-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_help-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_help",
+    "who": "sp0029.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/help",
+    "firstLoadJs": {
+      "total": 145934,
+      "note": "145934 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 3723 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/help",
+    "h1": "ช่วยเหลือ",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_apply_company-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_apply_company-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_apply_company",
+    "who": "bpk@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/apply?step=company",
+    "firstLoadJs": {
+      "total": 147478,
+      "note": "147478 bytes of 200000: 11 script files 143202 bytes over the wire and inline page data 4276 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/apply",
+    "h1": "ใบสมัครผู้ขาย",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_apply_tax-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_apply_tax-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_apply_tax",
+    "who": "bpk@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/apply?step=tax",
+    "firstLoadJs": {
+      "total": 147144,
+      "note": "147144 bytes of 200000: 11 script files 143202 bytes over the wire and inline page data 3942 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/apply",
+    "h1": "ใบสมัครผู้ขาย",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_apply_contact-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_apply_contact-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_apply_contact",
+    "who": "bpk@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/apply?step=contact",
+    "firstLoadJs": {
+      "total": 146993,
+      "note": "146993 bytes of 200000: 11 script files 143202 bytes over the wire and inline page data 3791 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/apply",
+    "h1": "ใบสมัครผู้ขาย",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_apply_bank-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_apply_bank-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_apply_bank",
+    "who": "bpk@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/apply?step=bank",
+    "firstLoadJs": {
+      "total": 147377,
+      "note": "147377 bytes of 200000: 11 script files 143202 bytes over the wire and inline page data 4175 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/apply",
+    "h1": "ใบสมัครผู้ขาย",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_apply_documents-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_apply_documents-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_apply_documents",
+    "who": "bpk@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/apply?step=documents",
+    "firstLoadJs": {
+      "total": 147693,
+      "note": "147693 bytes of 200000: 11 script files 143202 bytes over the wire and inline page data 4491 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/apply",
+    "h1": "ใบสมัครผู้ขาย",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/portal_apply_review-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/portal_apply_review-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_apply_review",
+    "who": "bpk@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/apply?step=review",
+    "firstLoadJs": {
+      "total": 147237,
+      "note": "147237 bytes of 200000: 11 script files 143202 bytes over the wire and inline page data 4035 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/apply",
+    "h1": "ใบสมัครผู้ขาย",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/proc_mat1_applications-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/proc_mat1_applications-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_mat1_applications",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/suppliers/applications",
+    "status": 200,
+    "landed": "/suppliers/applications",
+    "h1": "ใบสมัครผู้ขาย"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/proc_mat1_application_stuck-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/proc_mat1_application_stuck-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_mat1_application_stuck",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/suppliers/applications/01a1c125-508f-763c-8f02-e2a0d0c9f97d",
+    "status": 200,
+    "landed": "/suppliers/applications/01a1c125-508f-763c-8f02-e2a0d0c9f97d",
+    "h1": "ห้างหุ้นส่วนจำกัด บ้านโป่งเหล็กกล้าค้าเหล็ก"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/proc_mat1_application_edit-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/proc_mat1_application_edit-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_mat1_application_edit",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/suppliers/applications/01a1c125-508f-763c-8f02-e2a0d0c9f97d/edit",
+    "status": 200,
+    "landed": "/suppliers/applications/01a1c125-508f-763c-8f02-e2a0d0c9f97d/edit",
+    "h1": "กรอกใบสมัครแทนผู้ขาย"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/proc_mat1_suppliers-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/proc_mat1_suppliers-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_mat1_suppliers",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/suppliers",
+    "status": 200,
+    "landed": "/suppliers",
+    "h1": "ผู้ขาย"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/proc_sub1_application_approved-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/proc_sub1_application_approved-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_sub1_application_approved",
+    "who": "proc_sub1",
+    "kind": "web",
+    "path": "/suppliers/applications/01a1c129-baed-715e-867b-6a96fc7dcf48",
+    "status": 200,
+    "landed": "/suppliers/applications/01a1c129-baed-715e-867b-6a96fc7dcf48",
+    "h1": "SUP-2569-00007 · บริษัท ราชบุรีคอนสตรัคชั่น จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/proc_sub1_invite-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/proc_sub1_invite-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_sub1_invite",
+    "who": "proc_sub1",
+    "kind": "web",
+    "path": "/suppliers/invite",
+    "status": 200,
+    "landed": "/suppliers/invite",
+    "h1": "เชิญผู้ขาย"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/proc_sub1_invite_existing-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/proc_sub1_invite_existing-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_sub1_invite_existing",
+    "who": "proc_sub1",
+    "kind": "web",
+    "path": "/suppliers/invite?kind=existing",
+    "status": 200,
+    "landed": "/suppliers/invite",
+    "h1": "เชิญผู้ขาย"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/proc_mat1_supplier-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/proc_mat1_supplier-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_mat1_supplier",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/suppliers/01a1c120-aad9-769f-a2dc-131f7c763bc8",
+    "status": 200,
+    "landed": "/suppliers/01a1c120-aad9-769f-a2dc-131f7c763bc8",
+    "h1": "บริษัท บางนาวัสดุสตีล จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/proc_officer_po_acked-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/proc_officer_po_acked-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_po_acked",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/procurement/pos/01a1c124-e540-7118-a039-999c653e450e",
+    "status": 200,
+    "landed": "/procurement/pos/01a1c124-e540-7118-a039-999c653e450e",
+    "h1": "ห้างหุ้นส่วนจำกัด เกียรติไพศาลการโยธา"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/proc_officer_board_pending-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/proc_officer_board_pending-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_board_pending",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/board/pending",
+    "status": 200,
+    "landed": "/board/pending",
+    "h1": "เอกสารค้างที่ใคร"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/task_supplier_application-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/task_supplier_application-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "task_supplier_application",
+    "who": "dm_proc",
+    "kind": "web",
+    "path": "/tasks/01a1c125-4e15-74b8-aee6-6c7a7e3bfcf0",
+    "status": 200,
+    "landed": "/tasks/01a1c125-4e15-74b8-aee6-6c7a7e3bfcf0",
+    "h1": "บริษัท สุพรรณบุรีขนส่ง จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/liff_task_supplier_application-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/liff_task_supplier_application-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "liff_task_supplier_application",
+    "who": "dm_proc",
+    "kind": "liff",
+    "path": "/liff/tasks/01a1c125-4e15-74b8-aee6-6c7a7e3bfcf0",
+    "status": 200,
+    "landed": "/liff/tasks/01a1c125-4e15-74b8-aee6-6c7a7e3bfcf0",
+    "h1": "งานอนุมัติ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/fin_ap1_invoices_portal-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/fin_ap1_invoices_portal-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "fin_ap1_invoices_portal",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/finance/invoices?channel=PORTAL&tab=all",
+    "status": 200,
+    "landed": "/finance/invoices",
+    "h1": "ใบแจ้งหนี้"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/fin_ap1_bank-accounts-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/fin_ap1_bank-accounts-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "fin_ap1_bank-accounts",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/finance/bank-accounts",
+    "status": 200,
+    "landed": "/finance/bank-accounts",
+    "h1": "บัญชีธนาคาร"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/fin_ap1_bank-change_portal-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/fin_ap1_bank-change_portal-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "fin_ap1_bank-change_portal",
+    "who": "fin_ap1",
+    "kind": "web",
+    "path": "/finance/bank-accounts/changes/01a1c12a-5791-71ab-ab48-3df28ef9f0fc",
+    "status": 200,
+    "landed": "/finance/bank-accounts/changes/01a1c12a-5791-71ab-ab48-3df28ef9f0fc",
+    "h1": "เพิ่มบัญชี SP0200 · บริษัท ราชบุรีคอนสตรัคชั่น จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/dm_proc_reports_suppliers-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/dm_proc_reports_suppliers-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "dm_proc_reports_suppliers",
+    "who": "dm_proc",
+    "kind": "web",
+    "path": "/reports/suppliers",
+    "status": 200,
+    "landed": "/reports/suppliers",
+    "h1": "รายงานผู้ขาย"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/admin_supplier-document-types-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/admin_supplier-document-types-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "admin_supplier-document-types",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/supplier-document-types",
+    "status": 200,
+    "landed": "/admin/supplier-document-types",
+    "h1": "ประเภทเอกสารผู้ขาย"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s7/platform_tenant_modules-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s7/platform_tenant_modules-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "platform_tenant_modules",
+    "who": "platform",
+    "kind": "platform",
+    "path": "/platform/tenants/01a1c120-7317-76a1-a2c5-4323014c58d9/modules",
+    "status": 200,
+    "landed": "/platform/tenants/01a1c120-7317-76a1-a2c5-4323014c58d9/modules",
+    "h1": "โมดูลของ ตัวอย่าง E&C"
+  }
+]

@@ -24,6 +24,7 @@ import { E2E_BASE_URL, e2eEnv } from '../../tests/support/e2e-env'
 
 const OUT = path.resolve('docs/design-review/s7')
 const JOURNAL = path.join(OUT, 'checks.jsonl')
+const MAX_PICTURE_HEIGHT = 6000
 const WIDE = { width: 1440, height: 900 }
 const PHONE = { width: 375, height: 812 }
 
@@ -171,7 +172,11 @@ async function measure(page: Page, screen: Screen, width: number) {
     return { sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth, small: [...new Set(small)] }
   }, minimum)
   const file = path.join(OUT, `${screen.name}-${width}.png`)
-  await page.screenshot({ path: file, fullPage: true, style: screen.kind === 'liff' ? BARS_IN_PLACE : undefined })
+  // A page taller than 6000 px (/suppliers lists every supplier: 187 000 px at 375) is taken down to there: a picture
+  // of 13 MB is no use to read and too big for the repository
+  const height = await page.evaluate(() => document.documentElement.scrollHeight)
+  const clip = height > MAX_PICTURE_HEIGHT ? { x: 0, y: 0, width, height: MAX_PICTURE_HEIGHT } : undefined
+  await page.screenshot({ path: file, fullPage: true, ...(clip ? { clip } : {}), style: screen.kind === 'liff' ? BARS_IN_PLACE : undefined })
   return { picture: path.relative(process.cwd(), file).split(path.sep).join('/'), axe: blocking, sideways: found.sideways, smallText: found.small.slice(0, 20), smallTextCount: found.small.length }
 }
 

@@ -269,8 +269,11 @@ function noticeClassNames(): { readonly notices: number; readonly classNames: st
   const classNames: string[] = []
   const unreadable: string[] = []
   for (const file of filesUnder(SRC)) {
-    if (!importsOf(file).imports.includes(notice)) continue
+    // only a file that draws <Notice> can pass it a className: its text is read before its imports are resolved, which
+    // is the slow part (S7-18: resolving every file of src first passed the test's 60 s while the whole unit project ran
+    // under coverage)
     const text = readFileSync(file, 'utf8')
+    if (!/<Notice\b/.test(text) || !importsOf(file).imports.includes(notice)) continue
     for (const m of text.matchAll(/<Notice\b/g)) {
       notices++
       const values = valuesOf('className', openingTag(text, m.index), text)

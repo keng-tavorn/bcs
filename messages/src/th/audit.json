@@ -166,7 +166,8 @@
     "review_task": "งานผู้ตรวจความเสี่ยง",
     "risk_review": "การประเมินซ้ำ",
     "score": "การให้คะแนน",
-    "award": "ผลการจัดหา"
+    "award": "ผลการจัดหา",
+    "preferred_supplier": "ผู้ขายที่แนะนำ"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -239,7 +240,8 @@
     "RiskQuestionnaire": "ฉบับแบบประเมินความเสี่ยง",
     "RiskAssessment": "ใบประเมินความเสี่ยง",
     "ReviewTask": "งานผู้ตรวจความเสี่ยง",
-    "RiskReview": "การประเมินซ้ำ"
+    "RiskReview": "การประเมินซ้ำ",
+    "PreferredSupplier": "ผู้ขายที่แนะนำ"
   },
   "events": {
     "approval_step": {
@@ -713,7 +715,8 @@
       "recorded_on_behalf": "บันทึกข้อเสนอแทนผู้ขาย",
       "file_attached": "แนบไฟล์กับข้อเสนอ",
       "file_removed": "นำไฟล์ออกจากข้อเสนอ",
-      "file_rejected": "ไฟล์แนบของข้อเสนอไม่ผ่านการตรวจ"
+      "file_rejected": "ไฟล์แนบของข้อเสนอไม่ผ่านการตรวจ",
+      "net_prices_confirmed": "ผู้ขายยืนยันราคาก่อน VAT"
     },
     "risk_tier": {
       "proposed": "เสนอเกณฑ์ระดับความเสี่ยงใหม่",
@@ -761,7 +764,12 @@
       "approved": "อนุมัติผลมอบงาน",
       "returned": "ตีกลับผลมอบงาน",
       "rejected": "ไม่อนุมัติผลมอบงาน",
-      "cancelled": "ยกเลิกผลมอบงาน"
+      "cancelled": "ยกเลิกผลมอบงาน",
+      "po_created": "ออกใบสั่งซื้อจากผลมอบงาน"
+    },
+    "preferred_supplier": {
+      "created": "ตั้งผู้ขายที่แนะนำ",
+      "extended": "ขยายช่วงผู้ขายที่แนะนำ"
     }
   }
 }

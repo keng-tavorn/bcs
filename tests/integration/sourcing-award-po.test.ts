@@ -2,11 +2,13 @@ import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { awardTotals } from '@/core/sourcing'
 import { prisma } from '@/server/db/client'
+import { portalRfx } from '@/server/portal/queries-rfx'
 import { portalCtx } from '@/server/portal/session'
+import { getPurchaseOrderView } from '@/server/queries/purchase-orders'
 import { decideTask } from '@/server/services/approvals/decide'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { editDraftPo, submitPo } from '@/server/services/purchase-orders'
-import { closeRfxAt, confirmNetPrices, createAward, createRfx, inviteToRfx, openRfx, releaseAwardPo, setScorecard, submitAward, submitBid, submitScores } from '@/server/services/sourcing'
+import { awardWorkspace, closeRfxAt, confirmNetPrices, createAward, createRfx, inviteToRfx, openRfx, releaseAwardPo, setScorecard, submitAward, submitBid, submitScores } from '@/server/services/sourcing'
 import type { DoaOrg } from '../support/doa-org'
 import { createP2Org } from '../support/p2-org'
 import { p2p } from '../support/p2p'
@@ -212,8 +214,16 @@ describe('[FR-SRC-204/AC3] [INV-RFX-04] [BR-RFX-13] scene 9 approved: two draft 
       ].sort(),
     )
 
-    // the drafts keep the awarded price (INV-RFX-04) and go to DOA PURCHASE_ORDER like any PO (OQ-203): PO-01, the COO
+    // the screens: the PO page links back to the award; the award page lists its POs
     const big = pos[0]!
+    expect(await getPurchaseOrderView(proc(), big.id)).toMatchObject({ fromAward: { awardDecisionId: awardId, number: award.number, rfxEventId, rfxNumber: expect.any(String) }, supplier: { foreign: false } })
+    const workspace = ok(await awardWorkspace(proc(), rfxEventId))
+    expect(workspace.after).toMatchObject({ poStatus: 'CREATED', priceAgreements: 0, winnersToConfirm: [] })
+    expect(workspace.after!.purchaseOrders.map((p) => [p.id, p.gross, p.status])).toEqual([
+      [big.id, '198164.00', 'DRAFT'],
+      [pos[1]!.id, '123852.50', 'DRAFT'],
+    ])
+    // the drafts keep the awarded price (INV-RFX-04) and go to DOA PURCHASE_ORDER like any PO (OQ-203): PO-01, the COO
     expect(await editDraftPo(proc(), { poId: big.id, expectedVersion: big.version, lines: [{ poLineId: big.lines[0]!.id, unitPrice: '23000.00' }] }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'AWARD_PRICE' } } })
     ok(await submitPo(proc(), { poId: big.id }, key()))
     const route = await prisma.approvalRoute.findFirstOrThrow({ where: { subjectType: 'PURCHASE_ORDER', subjectId: big.id } })
@@ -252,6 +262,7 @@ describe('[INV-RFX-04] [GC-SRC-22] [BR-VAT-04] a winner not registered for VAT',
       [11_750_000n, 0n, 11_750_000n, 0],
     ])
     expect(pos.reduce((s, p) => s + p.grossSatang, 0n)).toBe(award.grossSatang)
+    expect((await getPurchaseOrderView(proc(), pos[1]!.id))!.totals).toMatchObject({ basis: 'TODAY', vatRateBp: 0, vatSatang: 0n, grossSatang: 11_750_000n })
     ok(await submitPo(proc(), { poId: pos[0]!.id }, key()))
     expect(await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: pos[0]!.id } })).toMatchObject({ status: 'PENDING_APPROVAL', vatRateBp: 0, vatSatang: 0n, grossSatang: 18_800_000n })
     expect((await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, aggregateId: pos[0]!.id, type: 'po.submitted' } })).data).toMatchObject({ vatRateBp: 0, vatSatang: '0' })
@@ -324,6 +335,17 @@ describe('[FR-SRC-204/AC10] [GC-SRC-41] [OQ-212] a winner who bid with VAT inclu
     expect(notices.map((n) => n.templateKey).sort()).toEqual(['rfx.awarded', 'rfx.net_price_confirm_requested'])
     expect(notices.find((n) => n.templateKey === 'rfx.awarded')!.data).toMatchObject({ pendingPrice: true, lines: [{ unitPrice: '' }, { unitPrice: '' }] })
 
+    expect(ok(await awardWorkspace(proc(), rfxEventId)).after).toMatchObject({ poStatus: 'PENDING_PRICE', purchaseOrders: [], winnersToConfirm: [{ supplierName: parties[2]!.supplier.nameTh, confirmed: false }] })
+    // the winner's form: its price with VAT and the highest it may give before VAT, line by line; a loser has none
+    expect((await portalRfx(parties[2]!.ctx(), rfxEventId))!.priceConfirm).toMatchObject({
+      vatRateBp: 700,
+      confirmedAt: null,
+      lines: [
+        { lineNo: 1, quotedUnitPrice: '25000.00', maxNetUnitPrice: '23364.48', confirmedNetUnitPrice: null },
+        { lineNo: 2, quotedUnitPrice: '25000.00', maxNetUnitPrice: '23364.48', confirmedNetUnitPrice: null },
+      ],
+    })
+    expect((await portalRfx(parties[0]!.ctx(), rfxEventId))!.priceConfirm).toBeNull()
     let award = await awardOf(awardId)
     expect(await releaseAwardPo(proc(), { awardDecisionId: awardId, version: award.version }, key())).toMatchObject({ ok: false, error: { code: 'PO_PENDING_PRICE' } })
     for (const code of ['fin_officer', 'req_con']) expect(await releaseAwardPo(as(code), { awardDecisionId: awardId, version: award.version }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
@@ -340,6 +362,8 @@ describe('[FR-SRC-204/AC10] [GC-SRC-41] [OQ-212] a winner who bid with VAT inclu
     expect(await prisma.notification.count({ where: { organizationId: org.organizationId, recipientMemberId: org.member.proc_officer!, templateKey: 'award.prices_confirmed', subjectId: awardId } })).toBe(1)
     expect((await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, type: 'bid.net_prices_confirmed', aggregateId: bids[2]! } })).data).toMatchObject({ awardDecisionId: awardId, lineCount: 2, netSatang: '30373824' })
 
+    expect(ok(await awardWorkspace(proc(), rfxEventId)).after!.winnersToConfirm).toEqual([{ supplierName: parties[2]!.supplier.nameTh, confirmed: true }])
+    expect((await portalRfx(winner.ctx(), rfxEventId))!.priceConfirm!.lines.map((l) => l.confirmedNetUnitPrice)).toEqual(['23364.48', '23364.48'])
     award = await awardOf(awardId)
     const released = ok(await releaseAwardPo(as('admin2'), { awardDecisionId: awardId, version: award.version }, key()))
     expect(released.purchaseOrderIds).toHaveLength(2)
@@ -354,6 +378,7 @@ describe('[FR-SRC-204/AC10] [GC-SRC-41] [OQ-212] a winner who bid with VAT inclu
     expect(pos.flatMap((p) => p.lines.map((l) => l.unitPriceSatang))).toEqual([2_336_448n, 2_336_448n])
     expect((await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, aggregateId: awardId, type: 'award.po_created' } })).data).toMatchObject({ purchaseOrderIds: released.purchaseOrderIds })
     expect(await prisma.requestLine.count({ where: { id: { in: requestLineIds }, rfxEventId: { not: null } } })).toBe(0)
+    expect((await portalRfx(winner.ctx(), rfxEventId))!.priceConfirm).toBeNull()
     // released once
     expect(await confirmNetPrices(winner.ctx(), { rfxEventId, lines: lines.map((rfxLineId) => ({ rfxLineId, unitPrice: '23000.00' })) }, key())).toMatchObject({ ok: false, error: { details: { reason: 'NOT_PENDING_PRICE' } } })
     expect(await releaseAwardPo(proc(), { awardDecisionId: awardId, version: award.version }, key())).toMatchObject({ ok: false, error: { details: { reason: 'NOT_PENDING_PRICE' } } })

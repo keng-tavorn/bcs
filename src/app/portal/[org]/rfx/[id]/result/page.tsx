@@ -1,19 +1,22 @@
+import { randomUUID } from 'node:crypto'
 import { redirect } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
 import { amountToSatang } from '@/core/money/dto'
 import { formatSatang } from '@/core/money/format'
 import { portalRfx } from '@/server/portal/queries-rfx'
 import { isUuid } from '@/server/queries/requests'
-import { PortalFrame, PortalNotice } from '@/ui/portal/frame'
-import { pageOrg, pageSession, Unavailable } from '../../../_lib/page'
-import { contactLocale } from '../../_lib/words'
+import { PortalButton, PortalFrame, PortalNotice, portalInputClass } from '@/ui/portal/frame'
+import { one, pageOrg, pageSession, Unavailable, type SearchParams } from '../../../_lib/page'
+import { contactLocale, rfxErrorText } from '../../_lib/words'
 
 // /portal/[org]/rfx/[id]/result (S10-07 · FR-SRC-204 · BR-RFX-12): the contact's own result — the lines an approved award
 // gives its supplier with the price awarded before VAT (the purchase order comes on its own · S10-11), or a thank-you
 // when it won none; never another supplier's name, price or rank. Before the result: open, or closed and under
-// evaluation; an RFI concluded, an RFx cancelled, a declined invite or no bid say so.
+// evaluation; an RFI concluded, an RFx cancelled, a declined invite or no bid say so. S10-11 (OQ-212 · GC-SRC-41): a
+// winner who bid with VAT included gives each line it won its unit price before VAT here — at most its price bid less
+// that price's VAT, shown per line — and may give them again until procurement makes the purchase order.
 
-export default async function PortalRfxResultPage({ params }: { params: Promise<{ org: string; id: string }> }) {
+export default async function PortalRfxResultPage({ params, searchParams }: { params: Promise<{ org: string; id: string }>; searchParams: SearchParams }) {
   const { org: orgCode, id } = await params
   const org = await pageOrg(orgCode)
   if (!org) return <Unavailable />
@@ -21,12 +24,15 @@ export default async function PortalRfxResultPage({ params }: { params: Promise<
   if (!session) redirect(`/portal/${org.code}/login`)
   if (!isUuid(id)) redirect(`/portal/${org.code}/rfx?error=NOT_FOUND`)
   const locale = contactLocale(session.state.contact)
-  const [t, rfx] = await Promise.all([getTranslations({ locale, namespace: 'portal' }), portalRfx(session.state.ctx, id)])
+  const [t, q, rfx] = await Promise.all([getTranslations({ locale, namespace: 'portal' }), searchParams, portalRfx(session.state.ctx, id)])
   if (!rfx) redirect(`/portal/${org.code}/rfx?error=NOT_FOUND`)
   const en = locale === 'en'
   const number = rfx.number ?? t('rfx.list.noNumber')
   const total = rfx.awardedLines.reduce((sum, l) => sum + amountToSatang(l.lineNet), 0n)
   const s = rfx.portalStatus
+  const error = one(q.error)
+  const confirm = rfx.priceConfirm
+  const lineOf = new Map(rfx.lines.map((l) => [l.id, l]))
   const message =
     s === 'AWARDED'
       ? t('rfx.result.awarded')
@@ -62,6 +68,39 @@ export default async function PortalRfxResultPage({ params }: { params: Promise<
           </ul>
           <p className="tabular font-semibold">{t('rfx.result.total', { amount: formatSatang(total) })}</p>
         </>
+      ) : null}
+      {one(q.confirmed) ? <PortalNotice tone="success">{t('rfx.result.confirmDone')}</PortalNotice> : null}
+      {error ? <PortalNotice tone="danger">{rfxErrorText(t, error, one(q.reason), one(q.lines))}</PortalNotice> : null}
+      {confirm ? (
+        <section aria-labelledby="confirm-title" className="flex flex-col gap-3">
+          <h2 id="confirm-title" className="text-lg font-semibold">
+            {t('rfx.result.confirmTitle')}
+          </h2>
+          <p>{t('rfx.result.confirmIntro', { rate: (confirm.vatRateBp / 100).toFixed(2) })}</p>
+          {confirm.confirmedAt ? <p className="text-ink-muted">{t('rfx.result.confirmAgain')}</p> : null}
+          <form method="post" action={`/portal/${org.code}/api/rfx/respond`} className="flex flex-col gap-4">
+            <input type="hidden" name="csrf" value={session.csrf} />
+            <input type="hidden" name="rfxEventId" value={rfx.id} />
+            <input type="hidden" name="action" value="confirm" />
+            <input type="hidden" name="key" value={randomUUID()} />
+            {confirm.lines.map((l) => {
+              const line = lineOf.get(l.rfxLineId)
+              const inputId = `net-${l.lineNo}`
+              return (
+                <div key={l.rfxLineId} className="flex flex-col gap-1">
+                  <label htmlFor={inputId} className="font-medium">
+                    {t('rfx.result.line', { lineNo: l.lineNo, description: line ? (en && line.descriptionEn ? line.descriptionEn : line.description) : '' })}
+                  </label>
+                  <p id={`${inputId}-hint`} className="tabular text-sm text-ink-muted">
+                    {t('rfx.result.confirmLineHint', { quoted: formatSatang(amountToSatang(l.quotedUnitPrice)), max: formatSatang(amountToSatang(l.maxNetUnitPrice)) })}
+                  </p>
+                  <input id={inputId} name={`net:${l.rfxLineId}`} required inputMode="decimal" defaultValue={l.confirmedNetUnitPrice ?? l.maxNetUnitPrice} aria-describedby={`${inputId}-hint`} className={portalInputClass} />
+                </div>
+              )
+            })}
+            <PortalButton type="submit">{t('rfx.result.confirmSend')}</PortalButton>
+          </form>
+        </section>
       ) : null}
       <a href={`/portal/${org.code}/rfx/${rfx.id}`} className="text-primary underline underline-offset-4">
         {t('rfx.bid.backToRfx')}

@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { AppError } from '@/core/result'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
-import { cancelAward, createAward, submitAward, updateAward } from '@/server/services/sourcing'
+import { cancelAward, createAward, releaseAwardPo, submitAward, updateAward } from '@/server/services/sourcing'
 import type { AwardOutcome, AwardSaveInput } from '@/ui/sourcing/award-model'
 import { getSession } from '../../../../_lib/session'
 
@@ -57,4 +57,10 @@ export async function submitAwardAction(rfxEventId: string, awardDecisionId: str
 export async function cancelAwardAction(rfxEventId: string, awardDecisionId: string, version: number, reason: string, key: string): Promise<AwardOutcome> {
   if (!uuid.safeParse(awardDecisionId).success) return { ok: false, code: 'VALIDATION_FAILED' }
   return run(rfxEventId, key, (ctx) => cancelAward(ctx, { awardDecisionId, version, reason }, { idempotencyKey: key }))
+}
+
+/** S10-11 (OQ-212): the POs of an award whose winners confirmed their prices before VAT — once per version */
+export async function releaseAwardPoAction(rfxEventId: string, awardDecisionId: string, version: number, key: string): Promise<AwardOutcome> {
+  if (!uuid.safeParse(awardDecisionId).success) return { ok: false, code: 'VALIDATION_FAILED' }
+  return run(rfxEventId, key, (ctx) => releaseAwardPo(ctx, { awardDecisionId, version }, { idempotencyKey: `award.releasePo:${awardDecisionId}:${version}` }))
 }

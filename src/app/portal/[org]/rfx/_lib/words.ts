@@ -44,11 +44,13 @@ const ERRORS = [
   'PRIVACY_NOTICE_OUTDATED',
   'MODULE_DISABLED',
 ] as const
-const REASONS = ['PRICE', 'RFI_NO_PRICE', 'TYPE_NOT_ALLOWED', 'TOO_LARGE', 'EMPTY'] as const
+const REASONS = ['PRICE', 'RFI_NO_PRICE', 'TYPE_NOT_ALLOWED', 'TOO_LARGE', 'EMPTY', 'LINES', 'NOT_PENDING_PRICE'] as const
 
 /** The words of a refusal the routes sent back in ?error= ?reason= ?lines= */
 export function rfxErrorText(t: PortalT, code: string, reason?: string, lines?: string): string {
   if (code === 'BID_INCOMPLETE') return t('rfx.errors.BID_INCOMPLETE', { lines: lines ?? '-' })
+  // S10-11 (OQ-212 · GC-SRC-41): a price before VAT plus VAT above the bid, on a line or in total
+  if (code === 'AWARD_PRICE_EXCEEDS_BID') return reason === 'TOTAL' ? t('rfx.errors.AWARD_PRICE_TOTAL') : t('rfx.errors.AWARD_PRICE_EXCEEDS_BID', { lines: lines ?? '-' })
   if (reason === 'TOO_MANY_FILES') return t('rfx.reasons.TOO_MANY_FILES', { max: BID_FILES_MAX })
   if (reason && (REASONS as readonly string[]).includes(reason)) return t(`rfx.reasons.${reason as (typeof REASONS)[number]}`)
   return (ERRORS as readonly string[]).includes(code) ? t(`rfx.errors.${code as (typeof ERRORS)[number]}`) : t('rfx.errors.FAILED')

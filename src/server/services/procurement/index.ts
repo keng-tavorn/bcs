@@ -76,7 +76,8 @@ export async function assignSupplierInTx(tx: TenantTx, ctx: Ctx, input: { readon
   const notInPool = lineIds.filter((id) => !free.has(id))
   if (notInPool.length) return fail('VALIDATION_FAILED', 'only lines in the pool get a supplier here', { field: 'requestLineIds', reason: 'LINE_NOT_IN_POOL', requestLineIds: notInPool })
   const changed = lines.filter((l) => l.supplierId !== input.supplierId)
-  if (changed.length === 0) return fail('VALIDATION_FAILED', 'nothing to change', { reason: 'NO_CHANGE' })
+  // an award's lines that have its winner already need nothing more (its approval goes on); a person asked for nothing
+  if (changed.length === 0) return input.award ? { ok: true, byRequest: new Map(), events: [] } : fail('VALIDATION_FAILED', 'nothing to change', { reason: 'NO_CHANGE' })
   await tx.requestLine.updateMany({ where: { id: { in: changed.map((l) => l.id) } }, data: { supplierId: input.supplierId } })
   const byRequest = new Map<string, string[]>()
   for (const l of changed) byRequest.set(l.requestId, [...(byRequest.get(l.requestId) ?? []), l.id])

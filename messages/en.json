@@ -3079,6 +3079,7 @@
       "PaymentRunItem": "Payment run item",
       "PoChange": "PO change",
       "PositionAssignment": "Position holding",
+      "PreferredSupplier": "Preferred supplier",
       "PriceAgreement": "Agreed price",
       "PurchaseOrder": "Purchase order",
       "PushDevice": "BCS Go phone",
@@ -3200,6 +3201,7 @@
         "approved": "Award approved",
         "cancelled": "Award cancelled",
         "created": "Award drafted",
+        "po_created": "Purchase orders made from the award",
         "rejected": "Award rejected",
         "returned": "Award returned",
         "submitted": "Award sent for approval",
@@ -3228,6 +3230,7 @@
         "file_attached": "File attached to a bid",
         "file_rejected": "Bid file refused by the scan",
         "file_removed": "File taken off a bid",
+        "net_prices_confirmed": "Supplier confirmed prices before VAT",
         "recorded_on_behalf": "Bid recorded for the supplier",
         "saved": "Bid draft saved",
         "submitted": "Bid submitted",
@@ -3463,6 +3466,10 @@
       "position": {
         "assigned": "Position holder appointed",
         "unassigned": "Position holding ended"
+      },
+      "preferred_supplier": {
+        "created": "Preferred supplier set",
+        "extended": "Preferred supplier extended"
       },
       "price_agreement": {
         "created": "Agreed price set",
@@ -3718,6 +3725,7 @@
       "po_change": "PO changes",
       "portal_session": "Supplier portal",
       "position": "Positions",
+      "preferred_supplier": "Preferred suppliers",
       "price_agreement": "Agreed prices",
       "push_device": "BCS Go phones",
       "report_schedule": "Reports",
@@ -9053,6 +9061,8 @@
         "yourBid": "Your bid"
       },
       "errors": {
+        "AWARD_PRICE_EXCEEDS_BID": "The price before VAT of line {lines} plus VAT is above your bid",
+        "AWARD_PRICE_TOTAL": "The total before VAT plus VAT is above your total bid; lower some prices",
         "BID_INCOMPLETE": "Some lines have no price: line {lines}",
         "CONFLICT_VERSION": "Your bid was changed elsewhere meanwhile. Please reload the page and check it again",
         "FAILED": "That did not work. Please try again",
@@ -9106,6 +9116,8 @@
       },
       "reasons": {
         "EMPTY": "Please choose a file",
+        "LINES": "Give a price for every line you won",
+        "NOT_PENDING_PRICE": "The buyer has made the purchase order already, so the prices cannot be confirmed again",
         "PRICE": "A unit price is above 0 with at most 2 decimals",
         "RFI_NO_PRICE": "An RFI takes no prices",
         "TOO_LARGE": "The file is larger than 20 MB",
@@ -9116,6 +9128,12 @@
         "awarded": "You are awarded the lines below. The purchase order will come separately",
         "cancelled": "This RFx was cancelled; bids sent for it are not considered",
         "concluded": "This RFI is concluded. Thank you for your information",
+        "confirmAgain": "You have confirmed your prices; you may change them until the buyer makes the purchase order.",
+        "confirmDone": "Your prices before VAT are saved; the buyer makes the purchase order at these prices.",
+        "confirmIntro": "You bid with VAT included. Before the purchase order, give each line its unit price before VAT: that price plus VAT {rate}% may not exceed your bid, nor the total your total bid. The system does not round prices for you.",
+        "confirmLineHint": "Bid with VAT {quoted} THB · highest price before VAT {max} THB",
+        "confirmSend": "Confirm prices before VAT",
+        "confirmTitle": "Confirm your prices before VAT",
         "declined": "You declined to bid on this RFx",
         "line": "{lineNo}. {description}",
         "lineAmount": "{quantity} {uom} × {price} = {amount} THB",
@@ -9604,6 +9622,9 @@
         "RETURN_TO_POOL": "the request lines went back to the procurement pool"
       },
       "draftLabel": "Draft PO, no number yet",
+      "foreignSupplier": "A foreign supplier: the purchase order is in baht without VAT; its invoice cannot go through the payment module, and the withholding tax (P.N.D.54) and the VAT the buyer remits (P.P.36) are done outside the system.",
+      "fromAward": "From the sourcing award {award} · {rfx}. Its unit prices are those the award approved.",
+      "fromAwardLink": "See the award",
       "headingMeta": "{site} · {kind}",
       "homeLink": "Back to home",
       "metaTitle": "Purchase order",
@@ -11883,6 +11904,19 @@
   "sourcing": {
     "award": {
       "aboveRequest": "{amount} baht above what the requests approved",
+      "after": {
+        "agreements": "{count} agreed prices made from this award (no purchase order: a need without a request yet)",
+        "confirmed": "{supplier}: prices before VAT confirmed",
+        "draft": "Draft",
+        "none": "This award made no purchase order and no agreed price",
+        "notConfirmed": "{supplier}: not confirmed yet",
+        "poRow": "{number} · {supplier} · {amount} THB",
+        "pos": "Purchase orders of this award (drafts, sent for approval under the purchase-order authority as usual)",
+        "release": "Make the purchase orders",
+        "released": "The purchase orders are made",
+        "title": "After the approval",
+        "waiting": "Waiting for the winner who bid with VAT to confirm its prices before VAT on the portal; then the purchase orders can be made"
+      },
       "amountsTitle": "Amounts",
       "back": "Close",
       "bidCount": "Suppliers invited / bids sent",
@@ -11897,6 +11931,7 @@
       "contractRef": "Contract reference (optional)",
       "department": "Department of the approval route",
       "errors": {
+        "AGREEMENT_OVERLAP": "An agreed price of this item and supplier starts within the new one; end it first",
         "APPROVER_NOT_FOUND": "No approver found under the DOA",
         "AWARD_OPEN": "This RFx already has an open award",
         "AWARD_REASON_REQUIRED": "Give the reason for this award",
@@ -11909,6 +11944,7 @@
         "NOT_REVEALED": "The scores are not revealed yet",
         "NO_HIGHER_AUTHORITY": "Every band's approver took part in this RFx",
         "OTHER": "That did not work: try again",
+        "PO_PENDING_PRICE": "A winner has not confirmed all its prices before VAT, so no purchase order yet",
         "SUPPLIER_FLAGGED": "The registry shows the winner as ceased, so it cannot be awarded",
         "UNCHANGED": "Nothing changed since the last save",
         "VALIDATION_FAILED": "Something is missing or not valid"

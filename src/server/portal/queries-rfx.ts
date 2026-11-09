@@ -1,4 +1,5 @@
 import { satangToAmount } from '@/core/money/dto'
+import { netUnitPriceCeiling } from '@/core/sourcing'
 import { rateFor, taxDateOf } from '@/core/vat'
 import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
@@ -131,6 +132,16 @@ export interface PortalRfxDetail extends PortalRfxRow {
   } | null
   /** The lines an approved award gives the supplier, before VAT; empty when it won none */
   readonly awardedLines: ReadonlyArray<{ readonly lineNo: number; readonly description: string; readonly descriptionEn: string | null; readonly quantity: string; readonly uom: string; readonly uomEn: string | null; readonly unitPrice: string; readonly lineNet: string }>
+  /**
+   * S10-11 (OQ-212): the winner bid with VAT included and the award waits for its prices before VAT — each line it won with
+   * its price as bid, the highest price before VAT it may give (⌊bid × 10000 ÷ (10000 + rate)⌋) and the one it gave;
+   * null otherwise
+   */
+  readonly priceConfirm: {
+    readonly vatRateBp: number
+    readonly confirmedAt: Date | null
+    readonly lines: ReadonlyArray<{ readonly rfxLineId: string; readonly lineNo: number; readonly quotedUnitPrice: string; readonly maxNetUnitPrice: string; readonly confirmedNetUnitPrice: string | null }>
+  } | null
 }
 
 /** One RFx of the contact with its lines, files, amendments, questions, the contact's own bid and what it was awarded; the first one without an id */
@@ -153,7 +164,7 @@ export async function portalRfx(ctx: Ctx, rfxEventId?: string): Promise<PortalRf
     db.supplier.findFirst({ where: portalWhere(ctx, 'supplier'), select: { status: true, isVatRegistered: true, isForeign: true, registryFlag: true } }),
     // subjectId pins the RFx read through portalWhere above (db.ts: a file link names its subject by id only)
     db.fileLink.findMany({ where: { AND: [portalWhere(ctx, 'fileLink'), { kind: 'RFX_DOC', subjectType: 'RfxEvent', subjectId: rfx.id }] }, orderBy: { createdAt: 'asc' }, select: { file: { select: { id: true, fileName: true, sizeBytes: true } } } }),
-    db.awardLine.findMany({ where: { AND: [portalWhere(ctx, 'awardLine'), { awardDecision: { rfxEventId: rfx.id } }] }, include: { rfxLine: true } }),
+    db.awardLine.findMany({ where: { AND: [portalWhere(ctx, 'awardLine'), { awardDecision: { rfxEventId: rfx.id } }] }, include: { rfxLine: true, awardDecision: { select: { poStatus: true } } } }),
   ])
   const [bidLines, bidFiles] = bid
     ? await Promise.all([
@@ -168,6 +179,22 @@ export async function portalRfx(ctx: Ctx, rfxEventId?: string): Promise<PortalRf
     const rate = rateFor(taxDateOf(ctx.now), await listTaxRates())
     vatRateBp = rate.ok ? rate.rateBp : null
   }
+  // OQ-212: what the winner who bid with VAT confirms, while its award waits for it
+  const confirming = bid?.priceIncludesVat && awarded.some((a) => a.bidId === bid.id && a.awardDecision.poStatus === 'PENDING_PRICE')
+  const priceConfirm = confirming
+    ? {
+        vatRateBp: bid.vatRateBp ?? 0,
+        confirmedAt: bid.netPricesConfirmedAt,
+        lines: awarded
+          .filter((a) => a.bidId === bid.id)
+          .sort((a, b) => a.rfxLine.lineNo - b.rfxLine.lineNo)
+          .flatMap((a) => {
+            const line = bidLines.find((l) => l.rfxLineId === a.rfxLineId)
+            if (!line?.unitPriceSatang) return []
+            return [{ rfxLineId: a.rfxLineId, lineNo: a.rfxLine.lineNo, quotedUnitPrice: satangToAmount(line.unitPriceSatang), maxNetUnitPrice: satangToAmount(netUnitPriceCeiling(bid.vatRateBp ?? 0, line.unitPriceSatang)), confirmedNetUnitPrice: line.confirmedNetUnitPriceSatang === null ? null : satangToAmount(line.confirmedNetUnitPriceSatang) }]
+          }),
+      }
+    : null
   const bidder: PortalBidder = ctx.actor.type === 'SUPPLIER' && !ctx.actor.supplierId ? 'APPLICATION' : supplier?.status === 'ACTIVE' ? 'SUPPLIER' : 'NOT_ACTIVE'
   return {
     id: rfx.id,
@@ -226,5 +253,6 @@ export async function portalRfx(ctx: Ctx, rfxEventId?: string): Promise<PortalRf
         unitPrice: satangToAmount(a.unitPriceSatang),
         lineNet: satangToAmount(a.lineNetSatang),
       })),
+    priceConfirm,
   }
 }

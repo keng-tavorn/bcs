@@ -148,6 +148,17 @@ function StateNotices({ po, t, locale }: { po: PoViewDto; t: PoT; locale: Locale
       {po.status === 'REJECTED' ? <RejectedNotice>{t('detail.rejectedState')}</RejectedNotice> : null}
       {returned ? <Notice tone="warning">{t('detail.returnedNote')}</Notice> : null}
       {po.bounce && po.status === 'APPROVED' ? <Notice tone="warning">{t('actions.send.bounceState', { time: when(locale, po.bounce.at), code: po.bounce.code ?? '-' })}</Notice> : null}
+      {po.fromAward ? (
+        <Notice tone="info" role="status">
+          <p>
+            {t('detail.fromAward', { award: po.fromAward.number ?? '-', rfx: po.fromAward.rfxNumber ?? '-' })}{' '}
+            <Link href={`/sourcing/${po.fromAward.rfxEventId}/award`} className="font-medium text-primary underline underline-offset-4 hover:no-underline">
+              {t('detail.fromAwardLink')}
+            </Link>
+          </p>
+          {po.supplier.foreign ? <p>{t('detail.foreignSupplier')}</p> : null}
+        </Notice>
+      ) : null}
     </>
   )
 }

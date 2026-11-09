@@ -11,7 +11,8 @@ import { expect, test } from './fixtures'
 // the facts show the split amounts (302,700.00 + VAT 21,189.00 = 323,889.00) and the tags; the route panel says what the
 // send would meet. The demo organization's DOA has no RA rule, so the send is refused DOA_NOT_CONFIGURED and the award
 // stays a draft (the route and the decision are the integration tests'). axe with no serious or critical finding, no
-// sideways scrolling, a picture at 1440 and 375 px.
+// sideways scrolling, a picture at 1440 and 375 px. S10-11: an award of a need approved by the COO (under a rule the scene
+// adds for it) shows on its page what it made — the agreed prices of its two catalogue items.
 
 function scene<T>(...args: string[]): T {
   const r = spawnSync(`pnpm exec tsx tests/e2e/award-scene.ts ${args.join(' ')}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv() } })
@@ -71,4 +72,16 @@ test('[FR-SRC-204/AC2] procurement picks the winner of each line, gives the reas
   await page.getByRole('button', { name: 'ส่งขออนุมัติ' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'ส่งขออนุมัติ' }).click()
   await expect(page.getByText('อำนาจอนุมัติยังไม่มีข้อของผลการจัดหา').first()).toBeVisible()
+})
+
+test('[FR-SRC-204/AC9] an approved award shows what it made: here the agreed prices of the two catalogue items of a need', async ({ page }, testInfo) => {
+  test.setTimeout(180_000)
+  const approved = scene<{ rfxEventId: string; number: string; awardNumber: string; poStatus: string; priceAgreements: number }>('approved', randomUUID().slice(0, 6))
+  expect(approved).toMatchObject({ poStatus: 'NOT_APPLICABLE', priceAgreements: 2 })
+  await signIn(page, 'proc_officer')
+  await page.goto(`/sourcing/${approved.rfxEventId}/award`)
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(approved.awardNumber)
+  await expect(page.getByText('หลังอนุมัติผล').first()).toBeVisible()
+  await expect(page.getByText('สร้างราคาตกลง 2 รายการจากผลนี้')).toBeVisible()
+  await shot(page, testInfo, 'award-approved')
 })

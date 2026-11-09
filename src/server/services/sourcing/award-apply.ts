@@ -152,6 +152,8 @@ async function agreementsOf(tx: TenantTx, ctx: Ctx, award: { readonly id: string
       continue
     }
     const catalogItemId = first.rfxLine.catalogItemId!
+    // the item locked before its agreements are read, as priceAgreement.create does
+    await lockRowsForUpdate(tx, 'CatalogItem', ctx.organizationId, [catalogItemId])
     const overlapping = await tx.priceAgreement.findMany({
       where: { catalogItemId, supplierId: first.supplierId, validFrom: { lt: new Date(`${window.validTo}T00:00:00Z`) }, validTo: { gt: new Date(`${window.validFrom}T00:00:00Z`) } },
       orderBy: { validFrom: 'asc' },

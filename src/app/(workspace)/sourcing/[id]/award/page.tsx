@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { amountToSatang } from '@/core/money/dto'
@@ -12,10 +13,11 @@ import { Notice } from '@/ui/form/notice'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { AwardFacts } from '@/ui/sourcing/award-facts'
 import { AwardForm, type AwardFormLine } from '@/ui/sourcing/award-form'
+import { AwardRelease } from '@/ui/sourcing/award-release'
 import { AWARD_ERROR_KEYS, AWARD_STATUS_KEYS, keyOf } from '@/ui/sourcing/award-model'
 import { getSession } from '../../../../_lib/session'
 import { localeOf } from '../../../_tracking/present'
-import { cancelAwardAction, saveAwardAction, submitAwardAction } from './actions'
+import { cancelAwardAction, releaseAwardPoAction, saveAwardAction, submitAwardAction } from './actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('sourcing.award')
@@ -26,7 +28,9 @@ export async function generateMetadata() {
 // the bids that offer it, the reason and a contract reference; the facts its approver will see (amounts, tags that call
 // for a reason, winners with their flags, the comparison in short); the route it would take if sent now (previewRoute)
 // and the send. Once sent or decided the page reads only. For a reader of the RFx's prices (rfxReading PRICES):
-// procurement, finance, executives, auditors and its evaluators; the form for sourcing.award (procurement).
+// procurement, finance, executives, auditors and its evaluators; the form for sourcing.award (procurement). S10-11: once
+// approved, what the award made — its draft POs (linked), the agreed prices of a need, or, while a winner who bid with
+// VAT has not confirmed its prices before VAT, who has, and the button that makes the POs (award.releasePo).
 
 const OPEN = new Set(['DRAFT', 'RETURNED', 'PENDING_APPROVAL'])
 const EDITABLE = new Set(['DRAFT', 'RETURNED'])
@@ -89,6 +93,36 @@ export default async function AwardPage({ params }: { params: Promise<{ id: stri
                   />
                 )}
                 {w.award && !EDITABLE.has(w.award.status) ? <p className="text-base text-ink-muted md:text-sm">{t('readOnly', { status: t(`status.${keyOf(AWARD_STATUS_KEYS, w.award.status, 'NONE')}`) })}</p> : null}
+              </Panel>
+            ) : null}
+            {w.after && w.award ? (
+              <Panel title={t('after.title')} id="award-after">
+                {w.after.poStatus === 'PENDING_PRICE' ? (
+                  <div className="flex flex-col gap-3">
+                    <Notice tone="info">{t('after.waiting')}</Notice>
+                    <ul className="flex flex-col gap-1">
+                      {w.after.winnersToConfirm.map((x, i) => (
+                        <li key={i}>{x.confirmed ? t('after.confirmed', { supplier: x.supplierName }) : t('after.notConfirmed', { supplier: x.supplierName })}</li>
+                      ))}
+                    </ul>
+                    {w.canAward ? <AwardRelease ready={w.after.winnersToConfirm.every((x) => x.confirmed)} release={releaseAwardPoAction.bind(null, id, w.award.id, w.award.version)} /> : null}
+                  </div>
+                ) : w.after.purchaseOrders.length ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-ink-muted">{t('after.pos')}</p>
+                    <ul className="flex flex-col gap-1">
+                      {w.after.purchaseOrders.map((po) => (
+                        <li key={po.id}>
+                          <Link href={`/procurement/pos/${po.id}`} className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline lg:min-h-0">
+                            {t('after.poRow', { number: po.number ?? t('after.draft'), supplier: po.supplierName, amount: baht(po.gross) })}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="text-ink-muted">{w.after.priceAgreements ? t('after.agreements', { count: w.after.priceAgreements }) : t('after.none')}</p>
+                )}
               </Panel>
             ) : null}
             {w.facts ? (

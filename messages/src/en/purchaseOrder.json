@@ -85,6 +85,9 @@
     "closedState": "Closed {time}",
     "rejectedState": "The approver rejected this purchase order. Its request lines are back in the procurement pool.",
     "returnedNote": "The approver returned it for changes; the reason is on the timeline. Change it, then send it for approval again.",
+    "fromAward": "From the sourcing award {award} · {rfx}. Its unit prices are those the award approved.",
+    "fromAwardLink": "See the award",
+    "foreignSupplier": "A foreign supplier: the purchase order is in baht without VAT; its invoice cannot go through the payment module, and the withholding tax (P.N.D.54) and the VAT the buyer remits (P.P.36) are done outside the system.",
     "disposition": {
       "RETURN_TO_POOL": "the request lines went back to the procurement pool",
       "CANCEL_REQUEST_LINES": "the quantity was cancelled on the requests too"

@@ -166,7 +166,8 @@
     "review_task": "Risk reviewer tasks",
     "risk_review": "Reassessments",
     "score": "Scoring",
-    "award": "Sourcing award"
+    "award": "Sourcing award",
+    "preferred_supplier": "Preferred suppliers"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -239,7 +240,8 @@
     "RiskQuestionnaire": "Risk questionnaire version",
     "RiskAssessment": "Risk assessment",
     "ReviewTask": "Risk reviewer task",
-    "RiskReview": "Reassessment"
+    "RiskReview": "Reassessment",
+    "PreferredSupplier": "Preferred supplier"
   },
   "events": {
     "approval_step": {
@@ -713,7 +715,8 @@
       "recorded_on_behalf": "Bid recorded for the supplier",
       "file_attached": "File attached to a bid",
       "file_removed": "File taken off a bid",
-      "file_rejected": "Bid file refused by the scan"
+      "file_rejected": "Bid file refused by the scan",
+      "net_prices_confirmed": "Supplier confirmed prices before VAT"
     },
     "risk_tier": {
       "proposed": "New risk tier values proposed",
@@ -761,7 +764,12 @@
       "approved": "Award approved",
       "returned": "Award returned",
       "rejected": "Award rejected",
-      "cancelled": "Award cancelled"
+      "cancelled": "Award cancelled",
+      "po_created": "Purchase orders made from the award"
+    },
+    "preferred_supplier": {
+      "created": "Preferred supplier set",
+      "extended": "Preferred supplier extended"
     }
   }
 }

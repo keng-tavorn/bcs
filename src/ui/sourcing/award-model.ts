@@ -50,6 +50,8 @@ export const AWARD_ERROR_KEYS = [
   'VALIDATION_FAILED',
   'EMPTY',
   'UNCHANGED',
+  'PO_PENDING_PRICE',
+  'AGREEMENT_OVERLAP',
   'OTHER',
 ] as const
 export type AwardErrorKey = (typeof AWARD_ERROR_KEYS)[number]

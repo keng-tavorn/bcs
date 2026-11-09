@@ -195,6 +195,28 @@ export interface AwardWorkspaceDto {
   readonly route: AwardRoutePreview | null
   /** The reader may make, change, send and cancel awards (sourcing.award) */
   readonly canAward: boolean
+  /**
+   * S10-11: what the approved award made — its draft POs, the number of agreed prices of a need, and while a winner who
+   * bid with VAT has not confirmed its prices before VAT (PENDING_PRICE · OQ-212) which winners did; null before approval
+   */
+  readonly after: {
+    readonly poStatus: string
+    readonly purchaseOrders: ReadonlyArray<{ readonly id: string; readonly number: string | null; readonly status: string; readonly supplierName: string; readonly gross: string }>
+    readonly priceAgreements: number
+    readonly winnersToConfirm: ReadonlyArray<{ readonly supplierName: string; readonly confirmed: boolean }>
+  } | null
+}
+
+/** S10-11: what an approved award made, for its page */
+async function afterOf(tx: TenantTx, award: { readonly id: string; readonly poStatus: string; readonly priceAgreementIds: unknown }): Promise<NonNullable<AwardWorkspaceDto['after']>> {
+  const pos = await tx.purchaseOrder.findMany({ where: { awardDecisionId: award.id }, orderBy: [{ grossSatang: 'desc' }, { id: 'asc' }], select: { id: true, number: true, status: true, grossSatang: true, supplier: { select: { nameTh: true } } } })
+  const vatIncluded = await tx.bid.findMany({ where: { priceIncludesVat: true, awardLines: { some: { awardDecisionId: award.id } } }, orderBy: { id: 'asc' }, select: { netPricesConfirmedAt: true, supplier: { select: { nameTh: true } } } })
+  return {
+    poStatus: award.poStatus,
+    purchaseOrders: pos.map((p) => ({ id: p.id, number: p.number, status: p.status, supplierName: p.supplier.nameTh, gross: satangToAmount(p.grossSatang) })),
+    priceAgreements: Array.isArray(award.priceAgreementIds) ? award.priceAgreementIds.length : 0,
+    winnersToConfirm: award.poStatus === 'PENDING_PRICE' ? vatIncluded.map((b) => ({ supplierName: b.supplier.nameTh, confirmed: b.netPricesConfirmedAt !== null })) : [],
+  }
 }
 
 /** The award page of an RFx: for a reader of its prices (rfxReading PRICES) */
@@ -215,6 +237,7 @@ export async function awardWorkspace(ctx: Ctx, rfxEventId: string): Promise<Resu
     // the one open or approved award of the RFx (award_decision_one_open); after a rejection or a cancel a new one is made
     const award = await tx.awardDecision.findFirst({ where: { rfxEventId, status: { notIn: ['REJECTED', 'CANCELLED'] } }, include: { lines: { select: { rfxLineId: true, bidId: true } } } })
     const facts = award ? await factsOf(tx, ctx, award.id) : null
+    const after = award?.status === 'APPROVED' ? await afterOf(tx, award) : null
     let route: AwardRoutePreview | null = null
     let approverIds: string[] = []
     const member = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
@@ -241,6 +264,7 @@ export async function awardWorkspace(ctx: Ctx, rfxEventId: string): Promise<Resu
         route,
         approverIds,
         canAward,
+        after,
       },
     }
   })

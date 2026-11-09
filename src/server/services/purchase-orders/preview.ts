@@ -7,6 +7,7 @@ import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
 import { forTenant } from '@/server/db/tenant'
 import { loadRoutePolicy } from '@/server/doa/policy'
+import { poRateBp } from '@/server/queries/purchase-orders'
 import { approverRoles, isUuid, membersById, type ApproverRoleDto, type DoaRefDto, type MemberRefDto } from '@/server/queries/requests'
 
 // What PROCUREMENT sees before pressing "ส่งขออนุมัติ" on a draft PO (spec §9.9 principle 3, FR-P2P-004 AC1, BR-BUD-05):
@@ -39,15 +40,6 @@ export interface PoSubmitPreviewDto {
   readonly extraReserveSatang: Satang
   /** §6.4: only an active supplier's PO is sent for approval */
   readonly supplierActive: boolean
-}
-
-/**
- * The VAT rate a PO is sent for approval at: today's (§6.4) — except a PO of an award to a winner without VAT (not
- * registered, or abroad), which keeps the 0 its award gave it so its amount stays the award's (S10-11 · INV-RFX-04 ·
- * BR-VAT-04). The rate 0 for every other supplier without VAT is go-live item S8-20.
- */
-export function poRateBp(po: { readonly awardDecisionId: string | null; readonly vatRateBp: number | null }, todayRateBp: number): number {
-  return po.awardDecisionId !== null && po.vatRateBp === 0 ? 0 : todayRateBp
 }
 
 export async function previewPoSubmit(ctx: Ctx, poId: string): Promise<Result<PoSubmitPreviewDto>> {

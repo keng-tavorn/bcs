@@ -268,7 +268,9 @@
       "RATE_LIMITED": "Too many requests. Please wait a moment",
       "PRIVACY_NOTICE_OUTDATED": "Please accept the current privacy notice on the home page first",
       "MODULE_DISABLED": "Sourcing is not open for this organization",
-      "FAILED": "That did not work. Please try again"
+      "FAILED": "That did not work. Please try again",
+      "AWARD_PRICE_EXCEEDS_BID": "The price before VAT of line {lines} plus VAT is above your bid",
+      "AWARD_PRICE_TOTAL": "The total before VAT plus VAT is above your total bid; lower some prices"
     },
     "reasons": {
       "PRICE": "A unit price is above 0 with at most 2 decimals",
@@ -276,7 +278,9 @@
       "TOO_MANY_FILES": "At most {max} files a bid",
       "TYPE_NOT_ALLOWED": "PDF, JPEG, PNG or WebP only",
       "TOO_LARGE": "The file is larger than 20 MB",
-      "EMPTY": "Please choose a file"
+      "EMPTY": "Please choose a file",
+      "LINES": "Give a price for every line you won",
+      "NOT_PENDING_PRICE": "The buyer has made the purchase order already, so the prices cannot be confirmed again"
     },
     "bid": {
       "title": "Bid for {number}",
@@ -344,7 +348,13 @@
       "noBid": "You did not bid on this RFx",
       "line": "{lineNo}. {description}",
       "lineAmount": "{quantity} {uom} × {price} = {amount} THB",
-      "total": "Total before VAT {amount} THB"
+      "total": "Total before VAT {amount} THB",
+      "confirmTitle": "Confirm your prices before VAT",
+      "confirmIntro": "You bid with VAT included. Before the purchase order, give each line its unit price before VAT: that price plus VAT {rate}% may not exceed your bid, nor the total your total bid. The system does not round prices for you.",
+      "confirmAgain": "You have confirmed your prices; you may change them until the buyer makes the purchase order.",
+      "confirmLineHint": "Bid with VAT {quoted} THB · highest price before VAT {max} THB",
+      "confirmSend": "Confirm prices before VAT",
+      "confirmDone": "Your prices before VAT are saved; the buyer makes the purchase order at these prices."
     }
   }
 }

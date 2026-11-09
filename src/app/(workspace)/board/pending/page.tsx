@@ -38,7 +38,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
   const { rows, scope, asOf, riskFilter } = result.data
   const departments = await listDepartments(ctx)
   const query = filterQuery(filter)
-  const filtered = Boolean(filter.departmentId || filter.subjectType || filter.riskGated)
+  const filtered = Boolean(filter.departmentId || filter.subjectType || (riskFilter && filter.riskGated))
   const departmentName = (d: { nameTh: string; nameEn: string | null }) => (locale === 'en' && d.nameEn ? d.nameEn : d.nameTh)
 
   return (

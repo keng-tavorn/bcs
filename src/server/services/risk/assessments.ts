@@ -585,8 +585,14 @@ export const openRiskAssessment = (ctx: Ctx, input: z.input<typeof OpenInput>, o
 
 /** S11-07 (FR-RSK-203 AC6): "เปิดแบบประเมินความเสี่ยง" on a PO held at the risk gate — the PO's supplier, its work */
 export async function openRiskAssessmentForPo(ctx: Ctx, poId: string, options: RunOptions) {
-  const po = await forTenant(ctx.organizationId).purchaseOrder.findFirst({ where: { id: poId }, select: { supplierId: true } })
-  if (!po) return fail('NOT_FOUND', 'purchase order not found')
+  // who may open one is checked first: a refusal never tells whether the PO exists
+  const po = await forTenant(ctx.organizationId).$transaction(async (tx) => {
+    const who = await managerOf(tx, ctx)
+    if (!who.ok) return who
+    const found = await tx.purchaseOrder.findFirst({ where: { id: poId }, select: { supplierId: true } })
+    return found ? ({ ok: true, supplierId: found.supplierId } as const) : fail('NOT_FOUND', 'purchase order not found')
+  })
+  if (!po.ok) return po
   return openRiskAssessment(ctx, { supplierId: po.supplierId, poId }, options)
 }
 export const answerRiskAssessment = (ctx: Ctx, input: z.input<typeof AnswerInput>, options: RunOptions) => runCommand(ctx, answerCommand, input, options)

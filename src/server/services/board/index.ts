@@ -269,9 +269,11 @@ export async function boardView(ctx: Ctx, filter: BoardFilter = {}): Promise<Res
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
     const allowed = await authorize(tx, ctx, 'board.pending.view')
     if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
-    const rows = await boardRows(tx, ctx, allowed.data, filter)
+    // S11-07: "PO ติดด่านความเสี่ยง" is offered and applied only while RISK is on (an old address keeps no hidden filter)
+    const riskFilter = (await requireModule(ctx, 'RISK', tx)).ok
+    const rows = await boardRows(tx, ctx, allowed.data, riskFilter ? filter : { ...filter, riskGated: false })
     if (rows === null) return err('FORBIDDEN', 'members only')
-    return ok({ rows, scope: boardScope(allowed.data), asOf: ctx.now.toISOString(), riskFilter: (await requireModule(ctx, 'RISK', tx)).ok })
+    return ok({ rows, scope: boardScope(allowed.data), asOf: ctx.now.toISOString(), riskFilter })
   })
 }
 

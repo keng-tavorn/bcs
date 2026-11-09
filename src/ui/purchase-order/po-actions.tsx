@@ -215,7 +215,7 @@ function SendPart({
   label: string
   email: string | null
   again: boolean
-  /** The first sending only: the risk gate weighs it again (a copy sent again is not weighed) */
+  /** A sending of an APPROVED PO (the first, or again after a bounce): the risk gate weighs it again; a copy of a PO already out is not weighed */
   risk?: RiskOfPart
   run: PoActionsProps['actions']['send']
   onDone: (text: string, tone: 'success' | 'warning') => void
@@ -462,7 +462,7 @@ export function PoActions({ poId, label, submit, send, resend, cancel, close, cl
       {nothing ? <p className="text-ink-muted">{nothingText ?? t('nothing')}</p> : null}
       {submit ? <SubmitPart poId={poId} preview={submit} risk={risk} run={actions.submit} onDone={onDone} /> : null}
       {send ? <SendPart poId={poId} label={label} email={send.email} again={false} risk={risk} run={actions.send} onDone={onDone} /> : null}
-      {resend ? <SendPart poId={poId} label={label} email={resend.email} again run={actions.send} onDone={onDone} /> : null}
+      {resend ? <SendPart poId={poId} label={label} email={resend.email} again risk={risk} run={actions.send} onDone={onDone} /> : null}
       {close ? <ClosePart poId={poId} receiving={receiving} run={actions.close} onDone={onDone} /> : null}
       {closeWaits ? (
         <div className="flex flex-col gap-1 border-t border-line pt-4">

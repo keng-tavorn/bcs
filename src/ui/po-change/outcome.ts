@@ -49,6 +49,8 @@ export function toPoS8Failure(error: { code: string; details?: Readonly<Record<s
   }
 }
 
+const RISK_REASONS: readonly string[] = ['NOT_ASSESSED', 'IN_PROGRESS', 'SCOPE_EXPANDED', 'VALIDITY_LAPSED', 'REGISTRY_CEASED', 'REGISTRY_FLAGGED', 'OVERRIDE_EXPIRED', 'OVERRIDE_CAP_EXCEEDED']
+
 /** The words of a refusal, as the key under poChange.errors (each with its fix) */
 export function failureKey(failure: PoS8Failure): string {
   switch (failure.code) {
@@ -69,6 +71,11 @@ export function failureKey(failure: PoS8Failure): string {
     case 'EXTERNAL_SERVICE_ERROR':
     case 'INTERNAL':
       return failure.code
+    // S11-07: the supplier's risk gate refused the change, in the words of its reason
+    case 'RISK_ASSESSMENT_REQUIRED':
+    case 'RISK_REASSESSMENT_REQUIRED':
+    case 'RISK_BLOCKED':
+      return failure.reason && RISK_REASONS.includes(failure.reason) ? `RISK_${failure.reason}` : 'other'
     case 'PO_CHANGE_BELOW_PROGRESS':
       return failure.reason === 'INVOICED' || failure.reason === 'LINE_INVOICED' || failure.reason === 'RECEIVED_IN_FULL' || failure.reason === 'CLOSE_SHORT_INSTEAD' ? `PO_CHANGE_BELOW_PROGRESS_${failure.reason}` : 'PO_CHANGE_BELOW_PROGRESS_RECEIVED'
     case 'VALIDATION_FAILED':

@@ -54,7 +54,6 @@ interface OverrideRow {
   readonly expiresOn: Date
   readonly capGrossSatang: bigint
   readonly usedGrossSatang: bigint
-  readonly usedCount: number
 }
 
 /** What the gate weighed: the decision and what it rests on (for the command, the PO page and the module dry-run) */
@@ -78,24 +77,24 @@ const OVERRIDE_STATUSES: ('APPROVED' | 'EXPIRED')[] = ['APPROVED', 'EXPIRED']
  * (a reassessment that would supersede it waits for the PO) and the overrides that speak for the PO FOR UPDATE when the
  * command writes their use, FOR SHARE when it only checks.
  */
-async function holdGateRows(tx: TenantTx, ctx: Ctx, poId: string, write: boolean): Promise<void> {
+async function holdGateRows(tx: TenantTx, ctx: Ctx, poId: string, write: boolean): Promise<readonly string[]> {
   const po = await tx.purchaseOrder.findFirst({ where: { id: poId }, select: { supplierId: true, riskOverrideId: true } })
-  if (!po) return
+  if (!po) return []
   const completed = await tx.riskAssessment.findFirst({ where: { supplierId: po.supplierId, status: 'COMPLETED' }, select: { id: true } })
   if (completed) await lockRowsForShare(tx, 'RiskAssessment', ctx.organizationId, [completed.id])
   const listed = await tx.riskOverride.findMany({ where: { supplierId: po.supplierId, status: { in: OVERRIDE_STATUSES }, OR: [{ poId: null }, { poId }] }, select: { id: true } })
   const ids = [...listed.map((o) => o.id), ...(po.riskOverrideId ? [po.riskOverrideId] : [])]
-  if (write) await lockRowsForUpdate(tx, 'RiskOverride', ctx.organizationId, ids)
-  else await lockRowsForShare(tx, 'RiskOverride', ctx.organizationId, ids)
+  return write ? lockRowsForUpdate(tx, 'RiskOverride', ctx.organizationId, ids) : lockRowsForShare(tx, 'RiskOverride', ctx.organizationId, ids)
 }
 
 /**
  * Weighs the gate of a PO at `grossSatang` on ctx.now, RISK on, reading only: the tier is the higher of the PO's inherent
  * tier (BR-RSK-03 on the screening of the requests behind its lines and its line categories) and the supplier's; an
  * override the PO already draws on is tried first, then the others by the latest last day. The command holds the rows
- * first (holdGateRows); a screen reads it as it stands.
+ * first (holdGateRows) and weighs only the overrides it holds (`heldOverrideIds`: one approved meanwhile waits for the
+ * next command); a screen reads them as they stand.
  */
-export async function evaluatePoGate(tx: TenantTx, ctx: Ctx, poId: string, grossSatang: bigint, trigger: PoGateTrigger): Promise<Result<PoGateEvaluation>> {
+export async function evaluatePoGate(tx: TenantTx, ctx: Ctx, poId: string, grossSatang: bigint, trigger: PoGateTrigger, heldOverrideIds?: readonly string[]): Promise<Result<PoGateEvaluation>> {
   const tiers = await riskTiersInEffect(tx)
   if (!tiers.ok) return tiers
   const policy = await riskPolicyInEffect(tx)
@@ -129,9 +128,9 @@ export async function evaluatePoGate(tx: TenantTx, ctx: Ctx, poId: string, gross
   const assessedAfterFlag = Boolean(current?.completedAt && flaggedAt && current.completedAt.getTime() > flaggedAt.getTime())
 
   const rows: OverrideRow[] = await tx.riskOverride.findMany({
-    where: { supplierId: po.supplierId, status: { in: OVERRIDE_STATUSES }, OR: [{ poId: null }, { poId }] },
+    where: { supplierId: po.supplierId, status: { in: OVERRIDE_STATUSES }, OR: [{ poId: null }, { poId }], ...(heldOverrideIds ? { id: { in: [...heldOverrideIds] } } : {}) },
     orderBy: [{ expiresOn: 'desc' }, { id: 'asc' }],
-    select: { id: true, number: true, status: true, poId: true, expiresOn: true, capGrossSatang: true, usedGrossSatang: true, usedCount: true },
+    select: { id: true, number: true, status: true, poId: true, expiresOn: true, capGrossSatang: true, usedGrossSatang: true },
   })
   const candidates = [...rows.filter((o) => o.id === po.riskOverrideId), ...rows.filter((o) => o.id !== po.riskOverrideId)]
   const counted = prior?.countedGrossSatang !== undefined ? BigInt(prior.countedGrossSatang) : 0n
@@ -198,8 +197,7 @@ export type PoGateOutcome = { readonly ok: true; readonly events: EventDraft[]; 
 const NOTHING: PoGateOutcome = { ok: true, events: [], notifications: [] }
 
 /** The gate's refusal: the code of BR-RSK-09 with its reason, the tier and what it rests on (no amount of the cap) */
-function refusal(e: PoGateEvaluation, poId: string): PoGateOutcome {
-  if (e.decision.allowed) throw new Error('not a refusal')
+function refusal(e: PoGateEvaluation & { decision: Extract<PoGateResult, { allowed: false }> }, poId: string): PoGateOutcome {
   const message = e.decision.error === 'RISK_BLOCKED' ? 'the supplier is blocked from new purchase orders' : 'the supplier needs a risk assessment before this purchase order goes out'
   return fail(e.decision.error, message, { reason: e.decision.reason, tier: e.tier, supplierId: e.supplierId, poId, assessmentId: e.assessmentId, overrideId: e.override?.id ?? null })
 }
@@ -212,11 +210,11 @@ function refusal(e: PoGateEvaluation, poId: string): PoGateOutcome {
  */
 export async function assertSupplierClearForPo(tx: TenantTx, ctx: Ctx, call: PoGateCall): Promise<PoGateOutcome> {
   if (!(await requireModule(ctx, 'RISK', tx)).ok) return NOTHING
-  await holdGateRows(tx, ctx, call.poId, !call.checkOnly)
-  const evaluated = await evaluatePoGate(tx, ctx, call.poId, call.grossSatang, call.trigger)
+  const held = await holdGateRows(tx, ctx, call.poId, !call.checkOnly)
+  const evaluated = await evaluatePoGate(tx, ctx, call.poId, call.grossSatang, call.trigger, held)
   if (!evaluated.ok) return evaluated
   const e = evaluated.data
-  if (!e.decision.allowed) return refusal(e, call.poId)
+  if (!e.decision.allowed) return refusal({ ...e, decision: e.decision }, call.poId)
   const { source, warnings } = e.decision
 
   // BR-SUP-04: a warning that needs a reason has one — given now, the PO change's own, or the PO's earlier one for it
@@ -243,14 +241,14 @@ export async function assertSupplierClearForPo(tx: TenantTx, ctx: Ctx, call: PoG
   const events: EventDraft[] = []
   const notifications: NotificationDraft[] = []
   const drawsOn = source === 'OVERRIDE' ? e.override! : null
-  const held = e.prior?.countedGrossSatang !== undefined ? BigInt(e.prior.countedGrossSatang) : 0n
+  const share = e.prior?.countedGrossSatang !== undefined ? BigInt(e.prior.countedGrossSatang) : 0n
   if (e.boundOverrideId && e.boundOverrideId !== drawsOn?.id) {
-    await tx.riskOverride.update({ where: { id: e.boundOverrideId }, data: { usedGrossSatang: { decrement: held }, usedCount: { decrement: 1 }, version: { increment: 1 } } })
-    events.push({ type: 'risk_override.released', aggregateType: 'RiskOverride', aggregateId: e.boundOverrideId, data: { poId: call.poId, grossSatang: held.toString(), trigger: call.trigger } })
+    await tx.riskOverride.update({ where: { id: e.boundOverrideId }, data: { usedGrossSatang: { decrement: share }, usedCount: { decrement: 1 }, version: { increment: 1 } } })
+    events.push({ type: 'risk_override.released', aggregateType: 'RiskOverride', aggregateId: e.boundOverrideId, data: { poId: call.poId, grossSatang: share.toString(), trigger: call.trigger } })
   }
   if (drawsOn) {
     const first = e.boundOverrideId !== drawsOn.id
-    const delta = first ? call.grossSatang : call.grossSatang - held
+    const delta = first ? call.grossSatang : call.grossSatang - share
     await tx.riskOverride.update({ where: { id: drawsOn.id }, data: { usedGrossSatang: { increment: delta }, ...(first ? { usedCount: { increment: 1 } } : {}), version: { increment: 1 } } })
     if (first) events.push({ type: 'risk_override.used', aggregateType: 'RiskOverride', aggregateId: drawsOn.id, data: { poId: call.poId, grossSatang: call.grossSatang.toString(), trigger: call.trigger } })
   }
@@ -326,17 +324,18 @@ export interface PoRiskStatus {
  * The PO page's risk band (FR-RSK-203 AC6): the gate the PO meets next, weighed now at its stored gross without writing
  * anything — for whoever reads every PO (po.view ORG: PROCUREMENT FINANCE EXECUTIVE AUDITOR); null with RISK off, for
  * anyone else (a requester or an approver reads the gate the PO passed in its facts), or when the PO meets no gate any
- * more (it went out).
+ * more (it went out). `draftGrossSatang`: the draft's gross at today's VAT rate as the page computed it, which its
+ * submit weighs (the stored gross of a draft may be of another day's rate).
  */
-export async function poRiskStatus(ctx: Ctx, poId: string): Promise<PoRiskStatus | null> {
+export async function poRiskStatus(ctx: Ctx, poId: string, draftGrossSatang?: bigint): Promise<PoRiskStatus | null> {
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
     if (!(await requireModule(ctx, 'RISK', tx)).ok) return null
     const reader = await authorize(tx, ctx, 'po.view')
     if (!reader.ok || !scopesFor(reader.data, 'po.view').has('ORG')) return null
-    const po = await tx.purchaseOrder.findFirst({ where: { id: poId }, select: { status: true, sentAt: true, sendBouncedAt: true, grossSatang: true, supplierId: true } })
+    const po = await tx.purchaseOrder.findFirst({ where: { id: poId }, select: { status: true, sentAt: true, grossSatang: true, supplierId: true } })
     const trigger = po ? nextTrigger(po) : null
     if (!po || !trigger) return null
-    const evaluated = await evaluatePoGate(tx, ctx, poId, po.grossSatang, trigger)
+    const evaluated = await evaluatePoGate(tx, ctx, poId, trigger === 'SUBMIT' && draftGrossSatang !== undefined ? draftGrossSatang : po.grossSatang, trigger)
     if (!evaluated.ok) return null
     const e = evaluated.data
     const needed = e.decision.allowed ? e.decision.warnings.filter((w) => REASON_WARNINGS.includes(w)) : []

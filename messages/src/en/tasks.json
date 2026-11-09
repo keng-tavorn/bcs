@@ -366,7 +366,8 @@
     "PAYMENT_FLAGS_CHANGED": "The payment run's flags changed since this page was opened. Reload it and check the flagged items again.",
     "PAYMENT_FLAG_REASON_REQUIRED": "A flag has no reason from the preparer yet. Return the run for the preparer to give one.",
     "PAYMENT_DATE_INVALID": "The run's pay date can no longer be used. Return it for the preparer to choose another day, or reject it.",
-    "PASSKEY": "The passkey did not confirm this decision. Try again, or enter your PIN instead"
+    "PASSKEY": "The passkey did not confirm this decision. Try again, or enter your PIN instead",
+    "RISK_GATE": "It cannot be approved now: the supplier risk gate does not let this purchase order out at its new amount. Return it so procurement settles the supplier's risk first"
   },
   "varianceType": {
     "SHORT": "Shortfall",

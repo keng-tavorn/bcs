@@ -219,7 +219,7 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
     po.route ? getRouteStepDetails(ctx, po.route.id) : Promise.resolve([]),
     businessDaysTaken(ctx, po.submittedAt, CLOSED_PO.includes(po.status) ? lastDone : null),
     myTask ? Promise.all([getTaskAccess(ctx, myTask.id), getTaskView(ctx, myTask.id)]) : Promise.resolve(null),
-    poRiskStatus(ctx, po.id).then((s) => riskParts(t, s)),
+    poRiskStatus(ctx, po.id, po.status === 'DRAFT' ? po.totals.grossSatang : undefined).then((s) => riskParts(t, s)),
   ])
   // The decision bar: an open approval task of this PO that the reader may decide (approval.decide, BR-DLG-04)
   const decide = task && task[0] && task[1] && taskRight(principal, task[0]) === 'DECIDE' && task[1].status === 'OPEN' ? task[1] : null

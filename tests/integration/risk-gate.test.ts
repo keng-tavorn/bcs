@@ -311,6 +311,12 @@ describe('[FR-RSK-203/AC1] RISK off: the PO goes out as before', () => {
     ok(await sendPurchaseOrder(off.ctxOf('proc_officer', NOW), { poId: po.id }, key()))
     expect(await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: po.id } })).toMatchObject({ status: 'SENT', riskGate: null, riskOverrideId: null })
     expect(await prisma.event.count({ where: { organizationId: off.organizationId, type: 'po.risk_gate_passed' } })).toBe(0)
+    // the board neither offers nor applies "PO ติดด่านความเสี่ยง" without RISK (an old address keeps no hidden filter)
+    const waiting = await draftPo(s, '1000.00', SCREEN_HIGH, off, f)
+    ok(await submitPo(off.ctxOf('proc_officer', NOW), { poId: waiting.id }, key()))
+    const board = ok(await boardView(off.ctxOf('proc_officer', NOW), { riskGated: true }))
+    expect(board.riskFilter).toBe(false)
+    expect(board.rows.flatMap((r) => r.tasks.map((t) => t.subjectId))).toContain(waiting.id)
   })
 })
 
@@ -323,12 +329,16 @@ describe('[FR-RSK-203/AC6] what the screens show of the gate', () => {
     expect(await poRiskStatus(org.ctxOf('auditor', NOW), po.id)).toMatchObject({ canOpenAssessment: false })
     expect(await poRiskStatus(org.ctxOf('req_con', NOW), po.id)).toBeNull()
     expect(await openRiskAssessmentForPo(org.ctxOf('auditor', NOW), po.id, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    // refused before the PO is looked up: an id that is no PO is refused the same way
+    expect(await openRiskAssessmentForPo(org.ctxOf('auditor', NOW), randomUUID(), key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     const opened = ok(await openRiskAssessmentForPo(proc(), po.id, key()))
     expect(await prisma.riskAssessment.findUniqueOrThrow({ where: { id: opened.assessmentId } })).toMatchObject({ supplierId: s, triggerPoId: po.id, screening: SCREEN_HIGH })
     expect(await poRiskStatus(proc(), po.id)).toMatchObject({ decision: { reason: 'IN_PROGRESS' }, openAssessment: { id: opened.assessmentId }, canOpenAssessment: false })
 
     const o = await override(s, { cap: 50_000_000n })
     expect(await poRiskStatus(proc(), po.id)).toMatchObject({ decision: { allowed: true, source: 'OVERRIDE' }, override: { id: o.id, number: o.number }, reasonNeeded: [] })
+    // the band of a draft weighs the gross the page shows at today's VAT rate, as the submit will
+    expect(await poRiskStatus(proc(), po.id, 50_000_001n)).toMatchObject({ decision: { allowed: false, reason: 'OVERRIDE_CAP_EXCEEDED' } })
     ok(await submitPo(proc(), { poId: po.id }, key()))
     const view = await getPurchaseOrderView(proc(), po.id)
     expect(view!.riskGate).toMatchObject({ tier: 'HIGH', source: 'OVERRIDE', trigger: 'SUBMIT', override: { id: o.id, number: o.number }, assessment: null, warnings: ['OVERRIDE_USED'], reasoned: false })

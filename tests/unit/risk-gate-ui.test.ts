@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import en from '../../messages/en.json'
 import th from '../../messages/th.json'
+import { failureKey, toPoS8Failure } from '@/ui/po-change/outcome'
 import { poErrorKey, toPoFailure } from '@/ui/purchase-order/outcome'
+import { taskErrorKey, toActionFailure } from '@/ui/tasks/outcome'
 
 // S11-07 (FR-RSK-203 AC6 · §9.9 rule 7): the risk gate's refusal on the PO page is said by its reason, in Thai and English,
 // never as its code; the reason a warning needs has its own words.
@@ -34,6 +36,19 @@ describe('[FR-RSK-203/AC6] the PO page words the risk gate', () => {
     expect(poErrorKey(toPoFailure({ code: 'RISK_BLOCKED', details: { reason: 'SOMETHING_NEW' } }))).toBe('FAILED')
     expect(poErrorKey(toPoFailure({ code: 'VALIDATION_FAILED', details: { field: 'riskReason', reason: 'RISK_REASON_REQUIRED' } }))).toBe('RISK_REASON')
     expect(poErrorKey({ ok: false, code: 'VALIDATION_FAILED', field: 'riskReason' })).toBe('RISK_REASON')
+  })
+
+  it('the PO change page words the refusal by its reason; the last approval of a change says to return it', () => {
+    for (const reason of REASONS) {
+      const key = failureKey(toPoS8Failure({ code: CODE_OF[reason], details: { reason } }))
+      expect(key).toBe(`RISK_${reason}`)
+      expect(th.poChange.errors[key as keyof typeof th.poChange.errors]).toEqual(expect.any(String))
+      expect(en.poChange.errors[key as keyof typeof en.poChange.errors]).toEqual(expect.any(String))
+    }
+    expect(failureKey(toPoS8Failure({ code: 'RISK_BLOCKED', details: { reason: 'SOMETHING_NEW' } }))).toBe('other')
+    for (const code of ['RISK_ASSESSMENT_REQUIRED', 'RISK_REASSESSMENT_REQUIRED', 'RISK_BLOCKED']) expect(taskErrorKey(toActionFailure({ code, details: { reason: 'OVERRIDE_CAP_EXCEEDED' } }))).toBe('RISK_GATE')
+    expect(th.tasks.errors.RISK_GATE).toEqual(expect.any(String))
+    expect(en.tasks.errors.RISK_GATE).toEqual(expect.any(String))
   })
 
   it('names every tier, source, trigger and warning of a stored gate in both languages', () => {

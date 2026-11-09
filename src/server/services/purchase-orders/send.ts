@@ -18,6 +18,7 @@ import { renderPdf } from '@/server/pdf/render'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { departmentReceivers } from '../receiving/receivers'
 import { verifyUrlOf } from '../documents/verification'
+import { assertSupplierClearForPo } from '../risk/gate'
 
 // Sending a PO to its supplier (spec §6.4 APPROVED → po.send → SENT, FR-P2P-005): PROCUREMENT e-mails the approved PO
 // with its PDF (FR-PLT-009), reply-to the sender, and the PO becomes SENT with sentAt and sentToEmail. The e-mail goes
@@ -39,6 +40,8 @@ const SendInput = z.strictObject({
   poId: z.uuid(),
   /** Required on every send after the first, the one after a bounce included (AC3) */
   reason: z.string().trim().min(MIN_REASON_LENGTH).max(REASON_MAX_LENGTH).optional(),
+  /** S11-07 (BR-SUP-04 · BR-RSK-09): why the PO goes out despite a warning of the risk gate that needs a reason */
+  riskReason: z.string().trim().min(MIN_REASON_LENGTH).max(REASON_MAX_LENGTH).optional(),
 })
 
 export interface SendPoResult {
@@ -80,6 +83,10 @@ export const sendPoCommand = defineCommand({
     if (!to) return fail('VALIDATION_FAILED', 'the supplier has no e-mail address', { field: 'supplierEmail', reason: 'MISSING' })
     const moved = po.status === 'APPROVED' ? transition(PO_MACHINE, po.status as PoState, 'po.send') : null
     if (moved && !moved.ok) return fail('INVALID_STATE_TRANSITION', `po.send is not allowed from ${po.status}`, { from: po.status, command: 'po.send' })
+    // S11-07 (BR-RSK-09): the supplier's risk gate again as the PO goes out, before its PDF — time passed since the approval.
+    // A copy sent again while goods are still to come is not a new order and is not weighed again.
+    const risk = moved ? await assertSupplierClearForPo(tx, ctx, { poId: po.id, trigger: 'SEND', grossSatang: po.grossSatang, reason: input.riskReason }) : null
+    if (risk && !risk.ok) return risk
 
     // The PDF (FR-PLT-009), kept and linked to the PO as PO_PDF
     // S6-19: the PO the supplier gets carries the QR of its verification page
@@ -126,8 +133,8 @@ export const sendPoCommand = defineCommand({
       return {
         ok: true,
         result: { poId: po.id, status: po.status, sent: false, bounce, pdfFileId },
-        events: [{ type: 'po.send_bounced', aggregateType: 'PurchaseOrder', aggregateId: po.id, data: { status: po.status, code: bounce, resend, reasonCommentId, pdfFileId } }],
-        notifications,
+        events: [...(risk?.events ?? []), { type: 'po.send_bounced', aggregateType: 'PurchaseOrder', aggregateId: po.id, data: { status: po.status, code: bounce, resend, reasonCommentId, pdfFileId } }],
+        notifications: [...notifications, ...(risk?.notifications ?? [])],
       }
     }
 
@@ -159,8 +166,8 @@ export const sendPoCommand = defineCommand({
     return {
       ok: true,
       result: { poId: po.id, status, sent: true, bounce: null, pdfFileId },
-      events: [{ type: 'po.sent', aggregateType: 'PurchaseOrder', aggregateId: po.id, data: { from: po.status, resend, reasonCommentId, pdfFileId } }],
-      notifications,
+      events: [...(risk?.events ?? []), { type: 'po.sent', aggregateType: 'PurchaseOrder', aggregateId: po.id, data: { from: po.status, resend, reasonCommentId, pdfFileId } }],
+      notifications: [...notifications, ...(risk?.notifications ?? [])],
     }
   },
 })

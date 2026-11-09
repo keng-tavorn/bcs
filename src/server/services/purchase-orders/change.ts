@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { versionAt } from '@/core/doa'
 import { amountToSatang } from '@/core/money/dto'
+import type { AppError } from '@/core/result'
 import { formatSatang } from '@/core/money/format'
 import { lineNet, parseQuantity, type Satang } from '@/core/money/math'
 import { approveChange, changeTotals, rejectChange, submitChange, type ChangeLine } from '@/core/po-change'
@@ -19,6 +20,7 @@ import { loadRoutePolicy } from '@/server/doa/policy'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
+import type { NotificationDraft } from '@/server/notifications/create'
 import { poEmail } from '@/server/notifications/templates/po-email'
 import { printablePurchaseOrder } from '@/server/pdf/printable'
 import { renderPdf } from '@/server/pdf/render'
@@ -30,6 +32,7 @@ import { INVOICED_STATUSES } from '../ap/match-run'
 import { releasableFor, requestLineBasis } from '../procurement/pool'
 import { issueDocumentVerification, verifyUrlOf } from '../documents/verification'
 import { completeFinishedRequests, reorderSourceLine } from './requests'
+import { assertSupplierClearForPo } from '../risk/gate'
 
 // Changes to a sent PO (ADR-125, BR-POC-01 to BR-POC-05, OQ-126, FR-AP-107), in module CORE: PROCUREMENT drafts a change
 // of prices, quantities (never below what was received or invoiced, never above what is left of the request line,
@@ -240,8 +243,12 @@ function budgetLine(locked: Locked, line: { poLineId: string; oldQuantity: { toS
 }
 
 /** Applies an approved change to the PO (BR-POC-04): lines, sources, request lines, totals and the revision number */
-async function applyChange(tx: TenantTx, ctx: Ctx, locked: Locked, change: Awaited<ReturnType<typeof lockedChange>> extends infer T ? (T extends { change: infer C } ? C : never) : never): Promise<{ revisionNo: number; events: EventDraft[] }> {
+async function applyChange(tx: TenantTx, ctx: Ctx, locked: Locked, change: Awaited<ReturnType<typeof lockedChange>> extends infer T ? (T extends { change: infer C } ? C : never) : never): Promise<{ ok: true; revisionNo: number; events: EventDraft[]; notifications: NotificationDraft[] } | { ok: false; error: AppError }> {
   const { po } = locked
+  // S11-07 (BR-RSK-09 · FR-RSK-203 AC1): the supplier's risk gate at the PO's new gross before it is revised; the change's
+  // own reason answers a warning that needs one
+  const risk = await assertSupplierClearForPo(tx, ctx, { poId: po.id, trigger: 'PO_CHANGE', grossSatang: change.newGrossSatang, poChangeId: change.id })
+  if (!risk.ok) return risk
   const statuses = new Map<string, string>()
   for (const line of change.lines) {
     const b = budgetLine(locked, line)
@@ -265,8 +272,11 @@ async function applyChange(tx: TenantTx, ctx: Ctx, locked: Locked, change: Await
   // S6-19 (BR-QR-01, BR-POC-04): the revised PO prints a new QR; the one on the copy before says a newer version exists
   const verification = await issueDocumentVerification(tx, ctx, { subjectType: 'PURCHASE_ORDER', subjectId: po.id })
   return {
+    ok: true,
     revisionNo,
+    notifications: risk.notifications,
     events: [
+      ...risk.events,
       ...verification.events,
       { type: 'po_change.approved', aggregateType: 'PoChange', aggregateId: change.id, data: { poId: po.id, revisionNo, autoApproved: change.autoApproved } },
       { type: 'po.revised', aggregateType: 'PurchaseOrder', aggregateId: po.id, data: { poChangeId: change.id, revisionNo, netSatang: change.newNetSatang.toString(), requests: [...statuses].map(([requestId, status]) => ({ requestId, status })) } },
@@ -301,8 +311,17 @@ export const submitPoChangeCommand = defineCommand({
     // BR-POC-02: only the date or the notes — approved now, no task, no budget move
     if (change.autoApproved) {
       const applied = await applyChange(tx, ctx, locked, change)
-      return { ok: true, result: { poChangeId: change.id, status: 'APPROVED', routeId: null, revisionNo: applied.revisionNo }, events: [{ type: 'po_change.submitted', aggregateType: 'PoChange', aggregateId: change.id, data: { poId: change.poId, routeId: null, autoApproved: true } }, ...applied.events] }
+      if (!applied.ok) return applied
+      return {
+        ok: true,
+        result: { poChangeId: change.id, status: 'APPROVED', routeId: null, revisionNo: applied.revisionNo },
+        events: [{ type: 'po_change.submitted', aggregateType: 'PoChange', aggregateId: change.id, data: { poId: change.poId, routeId: null, autoApproved: true } }, ...applied.events],
+        notifications: applied.notifications,
+      }
     }
+    // S11-07 (BR-RSK-09): the risk gate the final approval weighs, at the change's new gross — refused now, not after the approvals
+    const risk = await assertSupplierClearForPo(tx, ctx, { poId: change.poId, trigger: 'PO_CHANGE', grossSatang: checked.totals.grossSatang, poChangeId: change.id, checkOnly: true })
+    if (!risk.ok) return risk
     // BR-POC-03: an increase reserves what it needs beyond the request's releasable, in the PO line's name
     const document = { type: 'PURCHASE_ORDER' as const, id: change.poId }
     const operations: BudgetOperation[] = []
@@ -376,7 +395,8 @@ export async function decidePoChange(tx: TenantTx, ctx: Ctx, poChangeId: string,
   if (!budget.ok) return { ok: false, error: budget.error }
   await tx.poChangeLine.updateMany({ where: { poChangeId: change.id }, data: { reservedSatang: 0n } })
   const applied = await applyChange(tx, ctx, locked, change)
-  return { ok: true, documentStatus: 'APPROVED', events: [...applied.events, ...budget.events], notifications: decidedNotice(change, 'APPROVED') }
+  if (!applied.ok) return applied
+  return { ok: true, documentStatus: 'APPROVED', events: [...applied.events, ...budget.events], notifications: [...decidedNotice(change, 'APPROVED'), ...applied.notifications] }
 }
 
 /** §10.1 po_change.decided: the proposer hears the decision */

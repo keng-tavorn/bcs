@@ -63,6 +63,8 @@ const LOCKABLE = [
   'RiskQuestionnaire',
   // S11-05: an assessment answered, sent, cancelled or given a file one change at a time (INV-RSK-02 · BR-RSK-19)
   'RiskAssessment',
+  // S11-07: an override's use by POs counted one PO at a time (BR-RSK-09 ข้อ 4 · BR-RSK-19)
+  'RiskOverride',
 ] as const
 export type LockableTable = (typeof LOCKABLE)[number]
 /** Tables whose key is not "id": a budget line's balance is keyed by the line (§6.2) */
@@ -88,6 +90,22 @@ export async function lockRowsForUpdate(
     SELECT ${keyColumn}::text AS id FROM ${tableSql}
     WHERE ${orgColumn} = ${organizationId}::uuid AND ${keyColumn} = ANY(${sorted}::uuid[])
     ORDER BY ${keyColumn} FOR UPDATE`
+  return rows.map((r) => r.id)
+}
+
+/**
+ * Locks rows FOR SHARE in ascending id order (INV-PLT-03): what a decision reads stays as it was until the decision
+ * commits, while others may read it too (BR-RSK-19: the gate before a PO reads the supplier's assessment).
+ */
+export async function lockRowsForShare(tx: TenantTx, table: LockableTable, organizationId: string, ids: readonly string[]): Promise<string[]> {
+  if (!(LOCKABLE as readonly string[]).includes(table) || table === 'Organization' || KEY_COLUMN[table]) throw new Error(`table ${table} is not lockable for share`)
+  if (ids.length === 0) return []
+  const sorted = [...new Set(ids)].sort()
+  const tableSql = Prisma.raw('"' + table + '"')
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"::text AS id FROM ${tableSql}
+    WHERE "organizationId" = ${organizationId}::uuid AND "id" = ANY(${sorted}::uuid[])
+    ORDER BY "id" FOR SHARE`
   return rows.map((r) => r.id)
 }
 

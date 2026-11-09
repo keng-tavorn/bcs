@@ -106,3 +106,28 @@ defineEvents('Supplier', {
   'supplier.risk_tier_changed': { schema: z.object({ from: tier.nullable(), to: tier.nullable(), assessmentId: z.uuid().nullable() }) },
   'supplier.risk_status_changed': { schema: z.object({ from: riskStatus, to: riskStatus }) },
 })
+
+// S11-07 (BR-RSK-09 · FR-RSK-203 · INV-RSK-01): the gate a PO passed, and an override's use by POs — counted once per PO,
+// its share moved with the PO's gross, released when the PO no longer draws on it. No event when the gate refuses.
+const gateTrigger = z.enum(['SUBMIT', 'SEND', 'PO_CHANGE'])
+const gateWarning = z.enum(['REGISTRY_FLAGGED', 'REASSESSMENT_OVERDUE', 'OVERRIDE_USED'])
+const satang = z.string().regex(/^\d+$/)
+defineEvents('PurchaseOrder', {
+  'po.risk_gate_passed': {
+    schema: z.object({
+      tier,
+      inherentTier: tier,
+      source: z.enum(['NOT_REQUIRED', 'ASSESSMENT', 'OVERRIDE']),
+      trigger: gateTrigger,
+      assessmentId: z.uuid().nullable(),
+      overrideId: z.uuid().nullable(),
+      warnings: z.array(gateWarning),
+      grossSatang: satang,
+      reasonCommentId: z.uuid().nullable(),
+    }),
+  },
+})
+defineEvents('RiskOverride', {
+  'risk_override.used': { schema: z.object({ poId: z.uuid(), grossSatang: satang, trigger: gateTrigger }) },
+  'risk_override.released': { schema: z.object({ poId: z.uuid(), grossSatang: satang, trigger: gateTrigger }) },
+})

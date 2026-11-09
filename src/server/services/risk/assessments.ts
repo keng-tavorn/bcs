@@ -34,6 +34,7 @@ import { requireModule } from '../modules'
 import { issueDocumentNumber } from '../numbering'
 import { issuePortalLink } from '../suppliers/links'
 import { storedOptions, questionnaireInEffect } from './questionnaire'
+import { mergeScreening, RISK_TIMEZONE, SCREENING_KEYS } from './screening'
 import { RISK_SUPPLIER_TEMPLATES } from './templates'
 import { riskPolicyInEffect, riskTiersInEffect } from './tiers'
 import { reviewSlotsFor, withReviewerGapReport } from './reviewers'
@@ -48,12 +49,12 @@ import { reviewSlotsFor, withReviewerGapReport } from './reviewers'
 type Fail = { readonly ok: false; readonly error: AppError }
 const fail = (code: AppError['code'], message: string, details?: Record<string, unknown>): Fail => ({ ok: false, error: { code, message, ...(details ? { details } : {}) } })
 
-export const RISK_TIMEZONE = 'Asia/Bangkok'
 const YN = z.enum(['Y', 'N'])
 const ScreeningInput = z.strictObject({ processesPersonalData: YN, accessesSystems: YN, accessesPremises: YN })
-const SCREENING_KEYS = ['processesPersonalData', 'accessesSystems', 'accessesPremises'] as const
 const CATEGORY = z.string().trim().min(1).max(30)
 const OPEN_STATUSES = ['DRAFT', 'IN_REVIEW', 'RETURNED'] as const
+
+export { mergeScreening, RISK_TIMEZONE }
 
 // ---------- who acts ----------
 
@@ -253,19 +254,6 @@ const OpenInput = z.strictObject({
   /** The standards the work asks for, compared with a certificate's scope (BR-RSK-05) */
   workScopes: z.array(z.string().trim().min(1).max(100)).max(10).default([]),
 })
-
-/** Y wins: a screening field asked of several requests is Y when any of them says Y (FR-RSK-201 AC1) */
-function mergeScreening(forms: readonly unknown[]): Partial<Screening> {
-  const out: Partial<Record<(typeof SCREENING_KEYS)[number], 'Y' | 'N'>> = {}
-  for (const form of forms) {
-    const f = (form && typeof form === 'object' ? form : {}) as Record<string, unknown>
-    for (const k of SCREENING_KEYS) {
-      if (f[k] === 'Y') out[k] = 'Y'
-      else if (f[k] === 'N' && out[k] !== 'Y') out[k] = 'N'
-    }
-  }
-  return out
-}
 
 async function workOf(tx: TenantTx, input: z.infer<typeof OpenInput>): Promise<{ ok: true; screening: Partial<Screening>; categories: string[] } | Fail> {
   if (input.poId) {

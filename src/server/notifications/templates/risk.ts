@@ -75,4 +75,12 @@ export const RISK_TEMPLATES: Readonly<Record<string, Template>> = {
     title: { th: `แบบประเมินความเสี่ยง ${what(d)} ถูกตีกลับให้แก้`, en: `Risk assessment ${what(d)} was returned for changes` },
     href: assessmentHref(d),
   }),
+  // S11-07 (FR-RSK-203 AC6 · BR-NOTI-12): AUDITOR, in the day's digest, of every PO an override lets out
+  'risk.override_used': (d) => ({
+    title: {
+      th: `ใบสั่งซื้อผ่านด่านความเสี่ยงด้วยการอนุมัติข้าม${d.number ? ` ${str(d.number)}` : ''}`,
+      en: `A purchase order passed the risk gate on an override${d.number ? ` ${str(d.number)}` : ''}`,
+    },
+    href: d.poId ? `/procurement/pos/${str(d.poId)}` : '/risk',
+  }),
 }

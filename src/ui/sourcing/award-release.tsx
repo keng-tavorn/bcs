@@ -33,7 +33,7 @@ export function AwardRelease({ ready, release }: { readonly ready: boolean; read
     if (outcome.ok) {
       setMessage({ tone: 'success', text: t('after.released') })
       router.refresh()
-    } else setMessage({ tone: 'danger', text: t(`errors.${keyOf(AWARD_ERROR_KEYS, outcome.reason === 'AGREEMENT_OVERLAP' ? 'AGREEMENT_OVERLAP' : outcome.code, 'OTHER')}`) })
+    } else setMessage({ tone: 'danger', text: t(`errors.${keyOf(AWARD_ERROR_KEYS, outcome.code, 'OTHER')}`) })
   }
 
   return (

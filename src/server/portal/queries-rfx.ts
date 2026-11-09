@@ -131,7 +131,7 @@ export interface PortalRfxDetail extends PortalRfxRow {
     readonly files: ReadonlyArray<{ readonly id: string; readonly fileName: string; readonly scanStatus: string }>
   } | null
   /** The lines an approved award gives the supplier, before VAT; empty when it won none */
-  readonly awardedLines: ReadonlyArray<{ readonly lineNo: number; readonly description: string; readonly descriptionEn: string | null; readonly quantity: string; readonly uom: string; readonly uomEn: string | null; readonly unitPrice: string; readonly lineNet: string }>
+  readonly awardedLines: ReadonlyArray<{ readonly lineNo: number; readonly description: string; readonly descriptionEn: string | null; readonly quantity: string; readonly uom: string; readonly uomEn: string | null; readonly unitPrice: string | null; readonly lineNet: string }>
   /**
    * S10-11 (OQ-212): the winner bid with VAT included and the award waits for its prices before VAT — each line it won with
    * its price as bid, the highest price before VAT it may give (⌊bid × 10000 ÷ (10000 + rate)⌋) and the one it gave;
@@ -250,7 +250,9 @@ export async function portalRfx(ctx: Ctx, rfxEventId?: string): Promise<PortalRf
         quantity: a.quantity.toString(),
         uom: a.rfxLine.uom,
         uomEn: a.rfxLine.uomEn,
-        unitPrice: satangToAmount(a.unitPriceSatang),
+        // S10-11 (OQ-212): while its award waits for the prices of a bid with VAT, the line holds the system's ceiling, not a
+        // price the supplier gave — no unit price is shown until procurement makes the PO at the confirmed one
+        unitPrice: a.awardDecision.poStatus === 'PENDING_PRICE' && bid?.priceIncludesVat && a.bidId === bid.id ? null : satangToAmount(a.unitPriceSatang),
         lineNet: satangToAmount(a.lineNetSatang),
       })),
     priceConfirm,

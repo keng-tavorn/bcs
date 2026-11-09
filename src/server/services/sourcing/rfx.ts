@@ -421,8 +421,9 @@ export const addRfxLinesCommand = defineCommand({
 })
 
 /** Lets the request lines of these RFx lines go back to the pool (INV-RFX-03) */
-export async function releaseSources(tx: TenantTx, where: { readonly rfxEventId: string; readonly rfxLineId?: string }): Promise<string[]> {
-  const sources = await tx.rfxLineSource.findMany({ where: { active: true, rfxLine: { rfxEventId: where.rfxEventId, ...(where.rfxLineId ? { id: where.rfxLineId } : {}) } }, select: { id: true, requestLineId: true } })
+export async function releaseSources(tx: TenantTx, where: { readonly rfxEventId: string; readonly rfxLineId?: string; readonly rfxLineIds?: readonly string[] }): Promise<string[]> {
+  const lineFilter = where.rfxLineId ? { id: where.rfxLineId } : where.rfxLineIds ? { id: { in: [...where.rfxLineIds] } } : {}
+  const sources = await tx.rfxLineSource.findMany({ where: { active: true, rfxLine: { rfxEventId: where.rfxEventId, ...lineFilter } }, select: { id: true, requestLineId: true } })
   if (sources.length === 0) return []
   await tx.rfxLineSource.updateMany({ where: { id: { in: sources.map((s) => s.id) } }, data: { active: false } })
   await tx.requestLine.updateMany({ where: { id: { in: sources.map((s) => s.requestLineId) }, rfxEventId: where.rfxEventId }, data: { rfxEventId: null } })

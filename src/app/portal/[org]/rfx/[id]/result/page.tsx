@@ -61,7 +61,9 @@ export default async function PortalRfxResultPage({ params, searchParams }: { pa
               <li key={l.lineNo} className="flex flex-col gap-1 py-3">
                 <span className="font-medium">{t('rfx.result.line', { lineNo: l.lineNo, description: en && l.descriptionEn ? l.descriptionEn : l.description })}</span>
                 <span className="tabular">
-                  {t('rfx.result.lineAmount', { quantity: l.quantity, uom: en && l.uomEn ? l.uomEn : l.uom, price: formatSatang(amountToSatang(l.unitPrice)), amount: formatSatang(amountToSatang(l.lineNet)) })}
+                  {l.unitPrice === null
+                    ? t('rfx.result.lineAmountPending', { quantity: l.quantity, uom: en && l.uomEn ? l.uomEn : l.uom, amount: formatSatang(amountToSatang(l.lineNet)) })
+                    : t('rfx.result.lineAmount', { quantity: l.quantity, uom: en && l.uomEn ? l.uomEn : l.uom, price: formatSatang(amountToSatang(l.unitPrice)), amount: formatSatang(amountToSatang(l.lineNet)) })}
                 </span>
               </li>
             ))}

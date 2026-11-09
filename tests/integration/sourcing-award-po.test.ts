@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { awardTotals } from '@/core/sourcing'
+import { setEmailProvider, type EmailMessage } from '@/integrations/email-provider'
 import { prisma } from '@/server/db/client'
+import { sendSupplierNotice } from '@/server/notifications/supplier-notices'
 import { portalRfx } from '@/server/portal/queries-rfx'
 import { portalCtx } from '@/server/portal/session'
 import { getPurchaseOrderView } from '@/server/queries/purchase-orders'
@@ -53,7 +55,14 @@ const PRICE_ONLY = [{ code: 'PRICE', nameTh: 'ราคา', weightBp: 10000, ki
 let org: DoaOrg
 let flow: ReturnType<typeof p2p>
 let budgetLineId: string
+const mails: EmailMessage[] = []
 beforeAll(async () => {
+  setEmailProvider({
+    async send(m) {
+      mails.push(m)
+      return { messageId: randomUUID() }
+    },
+  })
   org = await createP2Org()
   await prisma.orgModule.create({ data: { organizationId: org.organizationId, module: 'SOURCING', enabled: true, enabledAt: new Date('2026-01-01T00:00:00Z'), contractRef: 'TEST-S10', reason: 'องค์กรทดสอบจัดหา' } })
   const at = new Date('2026-01-01T00:00:00Z')
@@ -63,6 +72,15 @@ beforeAll(async () => {
   flow = p2p(org, MON)
   budgetLineId = await flow.fundedLine(20_000_000n)
 }, 180_000)
+afterAll(() => setEmailProvider(null))
+
+/** The text of a supplier notice as it is sent */
+async function sent(noticeId: string): Promise<string> {
+  const before = mails.length
+  expect(await sendSupplierNotice(org.organizationId, noticeId, SEND)).toBe('SENT')
+  const m = mails[before]!
+  return `${m.subject}\n${m.text}`
+}
 
 const as = (code: string, now = SEND) => org.ctxOf(code, now)
 const proc = (now = SEND) => as('proc_officer', now)
@@ -203,6 +221,7 @@ describe('[FR-SRC-204/AC3] [INV-RFX-04] [BR-RFX-13] scene 9 approved: two draft 
     )
     expect(notices.find((n) => n.templateKey === 'rfx.awarded')!.data).toMatchObject({ lines: [{ lineNo: 1, unitPrice: '23150.00', lineNet: '185200.00' }, { lineNo: 2, unitPrice: '23150.00', lineNet: '115750.00' }], pendingPrice: false })
     expect(JSON.stringify(notices.filter((n) => n.templateKey === 'rfx.not_awarded').map((n) => n.data))).not.toContain('23150')
+    expect(await sent(notices.find((n) => n.templateKey === 'rfx.awarded')!.id)).toContain('8 ชิ้น × 23150.00 บาท = 185200.00 บาท')
     // inside: the requester at once, the creator and evaluators in the digest
     const inside = await prisma.notification.findMany({ where: { organizationId: org.organizationId, templateKey: 'rfx.awarded_internal', subjectId: rfxEventId } })
     expect(inside.map((n) => [codeOf(n.recipientMemberId), n.urgency]).sort()).toEqual(
@@ -225,6 +244,8 @@ describe('[FR-SRC-204/AC3] [INV-RFX-04] [BR-RFX-13] scene 9 approved: two draft 
     ])
     // the drafts keep the awarded price (INV-RFX-04) and go to DOA PURCHASE_ORDER like any PO (OQ-203): PO-01, the COO
     expect(await editDraftPo(proc(), { poId: big.id, expectedVersion: big.version, lines: [{ poLineId: big.lines[0]!.id, unitPrice: '23000.00' }] }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'AWARD_PRICE' } } })
+    // the same price is no change of it: a note to the supplier goes with it
+    ok(await editDraftPo(proc(), { poId: big.id, expectedVersion: big.version, lines: [{ poLineId: big.lines[0]!.id, unitPrice: '23150.00' }], notesToSupplier: 'ส่งตามกำหนดในผลการจัดหา' }, key()))
     ok(await submitPo(proc(), { poId: big.id }, key()))
     const route = await prisma.approvalRoute.findFirstOrThrow({ where: { subjectType: 'PURCHASE_ORDER', subjectId: big.id } })
     expect(route).toMatchObject({ ruleCode: 'PO-01', escalatedFromRuleCode: null, amountSatang: 19_816_400n })
@@ -334,6 +355,11 @@ describe('[FR-SRC-204/AC10] [GC-SRC-41] [OQ-212] a winner who bid with VAT inclu
     const notices = await prisma.supplierNotice.findMany({ where: { organizationId: org.organizationId, subjectId: rfxEventId, supplierId: parties[2]!.supplier.id, templateKey: { in: ['rfx.awarded', 'rfx.net_price_confirm_requested'] } } })
     expect(notices.map((n) => n.templateKey).sort()).toEqual(['rfx.awarded', 'rfx.net_price_confirm_requested'])
     expect(notices.find((n) => n.templateKey === 'rfx.awarded')!.data).toMatchObject({ pendingPrice: true, lines: [{ unitPrice: '' }, { unitPrice: '' }] })
+    const text = await sent(notices.find((n) => n.templateKey === 'rfx.awarded')!.id)
+    expect(text).toContain('8 ชิ้น · ยอดก่อน VAT 186915.89 บาท')
+    expect(text).not.toMatch(/×\s+บาท|×\s+THB/)
+    // the portal shows no unit price the supplier did not give
+    expect((await portalRfx(parties[2]!.ctx(), rfxEventId))!.awardedLines.map((l) => l.unitPrice)).toEqual([null, null])
 
     expect(ok(await awardWorkspace(proc(), rfxEventId)).after).toMatchObject({ poStatus: 'PENDING_PRICE', purchaseOrders: [], winnersToConfirm: [{ supplierName: parties[2]!.supplier.nameTh, confirmed: false }] })
     // the winner's form: its price with VAT and the highest it may give before VAT, line by line; a loser has none
@@ -400,34 +426,30 @@ describe('[FR-SRC-204/AC10] [GC-SRC-41] [OQ-212] a winner who bid with VAT inclu
 })
 
 describe('[FR-SRC-204/AC9] [BR-RFX-13] a need: agreed prices instead of POs', () => {
-  it('one per line with a catalogue item at the awarded price for 365 days, the overlapping one ended the day before; one that starts within is refused first', async () => {
-    const item = async (code: string) => prisma.catalogItem.create({ data: { organizationId: org.organizationId, code: `${code}-${randomUUID().slice(0, 6)}`, nameTh: code, uom: 'ชิ้น', categoryCode: 'STEEL', refUnitPriceSatang: 10_000n } })
-    const [a, b] = [await item('ITEM-A'), await item('ITEM-B')]
+  const item = async (code: string) => prisma.catalogItem.create({ data: { organizationId: org.organizationId, code: `${code}-${randomUUID().slice(0, 6)}`, nameTh: code, uom: 'ชิ้น', categoryCode: 'STEEL', refUnitPriceSatang: 10_000n } })
+
+  it('one per line with a catalogue item at the awarded price for 365 days: the one running into it ends the day before; one procurement set to start later stays, and the award\'s runs until it', async () => {
+    const [a, b, c] = [await item('ITEM-A'), await item('ITEM-B'), await item('ITEM-C')]
     const winner = await party('ผู้ขายแคตตาล็อก')
     const loser = await party('ผู้ขายอีกราย')
     const old = await prisma.priceAgreement.create({ data: { organizationId: org.organizationId, catalogItemId: a.id, supplierId: winner.supplier.id, unitPriceSatang: 11_000n, validFrom: new Date('2026-10-01T00:00:00Z'), validTo: new Date('2027-01-01T00:00:00Z') } })
-    const future = await prisma.priceAgreement.create({ data: { organizationId: org.organizationId, catalogItemId: b.id, supplierId: winner.supplier.id, unitPriceSatang: 22_000n, validFrom: new Date('2026-12-01T00:00:00Z'), validTo: new Date('2027-03-01T00:00:00Z') } })
+    const later = await prisma.priceAgreement.create({ data: { organizationId: org.organizationId, catalogItemId: b.id, supplierId: winner.supplier.id, unitPriceSatang: 22_000n, validFrom: new Date('2026-12-01T00:00:00Z'), validTo: new Date('2027-03-01T00:00:00Z') } })
+    const sameDay = await prisma.priceAgreement.create({ data: { organizationId: org.organizationId, catalogItemId: c.id, supplierId: winner.supplier.id, unitPriceSatang: 33_000n, validFrom: new Date('2026-11-06T00:00:00Z'), validTo: new Date('2027-02-01T00:00:00Z') } })
     const source = {
       kind: 'NEED' as const,
       categoryCode: 'STEEL',
       lines: [
         { description: 'สินค้า ก', quantity: '10', uom: 'ชิ้น', catalogItemId: a.id },
         { description: 'สินค้า ข', quantity: '5', uom: 'ชิ้น', catalogItemId: b.id },
+        { description: 'สินค้า ค', quantity: '2', uom: 'ชิ้น', catalogItemId: c.id },
         { description: 'งานตัดพิเศษ', quantity: '1', uom: 'งาน', refUnitPrice: '500.00' },
       ],
     }
     const { rfxEventId, lines, bids } = await priceOnly(source, [
-      { p: winner, units: ['100.00', '200.00', '300.00'] },
-      { p: loser, units: ['120.00', '210.00', '320.00'] },
+      { p: winner, units: ['100.00', '200.00', '300.00', '400.00'] },
+      { p: loser, units: ['120.00', '210.00', '320.00', '420.00'] },
     ])
     const awardId = await sendAward(rfxEventId, allTo(lines, bids[0]!))
-    // the agreement of item B that starts on 1 Dec is the procurement's to end first: the approval rolls back, the task stays
-    expect(await approve(awardId)).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'AGREEMENT_OVERLAP', priceAgreementId: future.id, lineNo: 2 } } })
-    expect(await awardOf(awardId)).toMatchObject({ status: 'PENDING_APPROVAL' })
-    expect(await openTaskOf(awardId)).not.toBeNull()
-    expect((await prisma.rfxEvent.findUniqueOrThrow({ where: { id: rfxEventId } })).status).not.toBe('AWARDED')
-    await prisma.priceAgreement.delete({ where: { id: future.id } })
-
     ok(await approve(awardId))
     const award = await awardOf(awardId)
     expect(award).toMatchObject({ status: 'APPROVED', poStatus: 'NOT_APPLICABLE', purchaseOrderIds: [] })
@@ -435,16 +457,36 @@ describe('[FR-SRC-204/AC9] [BR-RFX-13] a need: agreed prices instead of POs', ()
     const made = await prisma.priceAgreement.findMany({ where: { sourceRef: award.number }, orderBy: { unitPriceSatang: 'asc' } })
     expect(made.map((p) => [p.catalogItemId, p.supplierId, p.unitPriceSatang, p.validFrom.toISOString().slice(0, 10), p.validTo.toISOString().slice(0, 10), p.createdById])).toEqual([
       [a.id, winner.supplier.id, 10_000n, '2026-11-06', '2027-11-06', org.member.proc_officer],
-      [b.id, winner.supplier.id, 20_000n, '2026-11-06', '2027-11-06', org.member.proc_officer],
+      // item B: until procurement's own agreement starts on 1 Dec
+      [b.id, winner.supplier.id, 20_000n, '2026-11-06', '2026-12-01', org.member.proc_officer],
     ])
     expect([...(award.priceAgreementIds as string[])].sort()).toEqual(made.map((p) => p.id).sort())
-    // the old one of item A ends on 5 Nov (validTo 6 Nov, not included)
+    // the old one of item A ends on 5 Nov (validTo 6 Nov, not included); B's and C's own stay as they were
     expect(await prisma.priceAgreement.findUniqueOrThrow({ where: { id: old.id } })).toMatchObject({ validTo: new Date('2026-11-06T00:00:00Z'), endedAt: SEND })
+    expect(await prisma.priceAgreement.findUniqueOrThrow({ where: { id: later.id } })).toMatchObject({ validFrom: new Date('2026-12-01T00:00:00Z'), validTo: new Date('2027-03-01T00:00:00Z'), endedAt: null })
+    expect(await prisma.priceAgreement.findUniqueOrThrow({ where: { id: sameDay.id } })).toMatchObject({ validTo: new Date('2027-02-01T00:00:00Z'), endedAt: null })
     const approved = await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, aggregateId: awardId, type: 'award.approved' } })
-    expect(approved.data).toMatchObject({ poStatus: 'NOT_APPLICABLE', linesWithoutAgreement: [3] })
+    // item C (procurement's agreement starts on the approval day) and the line with no catalogue item have none
+    expect(approved.data).toMatchObject({ poStatus: 'NOT_APPLICABLE', linesWithoutAgreement: [3, 4] })
     const created = await prisma.event.findMany({ where: { organizationId: org.organizationId, type: 'price_agreement.created', aggregateId: { in: made.map((p) => p.id) } } })
     expect(created.every((e) => (e.data as { via: string; sourceRef: string }).via === 'AWARD' && (e.data as { sourceRef: string }).sourceRef === award.number && e.actorMemberId === org.member.proc_officer)).toBe(true)
     expect(await prisma.preferredSupplier.count({ where: { awardDecisionId: awardId, supplierId: winner.supplier.id, categoryCode: 'STEEL' } })).toBe(1)
+  })
+
+  it('[OQ-212] a winner who bid with VAT: the agreed price is the one it confirms, made when procurement releases the award', async () => {
+    const d = await item('ITEM-D')
+    const winner = await party('ผู้ขายรวม VAT แคตตาล็อก')
+    const { rfxEventId, lines, bids } = await priceOnly({ kind: 'NEED', categoryCode: 'STEEL', lines: [{ description: 'สินค้า ง', quantity: '4', uom: 'ชิ้น', catalogItemId: d.id }] }, [{ p: winner, vat: true, units: ['107.00'] }])
+    const awardId = await sendAward(rfxEventId, allTo(lines, bids[0]!))
+    ok(await approve(awardId))
+    expect(await awardOf(awardId)).toMatchObject({ poStatus: 'PENDING_PRICE', priceAgreementIds: [] })
+    expect(await prisma.priceAgreement.count({ where: { catalogItemId: d.id } })).toBe(0)
+    ok(await confirmNetPrices(winner.ctx(), { rfxEventId, lines: [{ rfxLineId: lines[0]!, unitPrice: '95.00' }] }, key()))
+    const released = ok(await releaseAwardPo(proc(), { awardDecisionId: awardId, version: (await awardOf(awardId)).version }, key()))
+    expect(released.purchaseOrderIds).toEqual([])
+    const agreements = await prisma.priceAgreement.findMany({ where: { catalogItemId: d.id } })
+    expect(agreements.map((p) => [p.id, p.unitPriceSatang, p.validFrom.toISOString().slice(0, 10)])).toEqual([[released.priceAgreementIds[0], 9_500n, '2026-11-06']])
+    expect(await awardOf(awardId)).toMatchObject({ poStatus: 'NOT_APPLICABLE', priceAgreementIds: released.priceAgreementIds })
   })
 })
 

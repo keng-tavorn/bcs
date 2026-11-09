@@ -175,7 +175,7 @@
       "UNCHANGED": "Nothing changed since the last save",
       "OTHER": "That did not work: try again",
       "PO_PENDING_PRICE": "A winner has not confirmed all its prices before VAT, so no purchase order yet",
-      "AGREEMENT_OVERLAP": "An agreed price of this item and supplier starts within the new one; end it first"
+      "AWARD_PRICE_EXCEEDS_BID": "The purchase orders at the confirmed prices are above the winner's bid with VAT; ask the winner to confirm lower prices"
     },
     "after": {
       "title": "After the approval",

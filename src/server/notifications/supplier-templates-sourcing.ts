@@ -139,13 +139,14 @@ registerSupplierTemplate(SOURCING_SUPPLIER_TEMPLATES.awarded, (d, c) =>
     [
       `เรียน ${c.supplierName}`,
       `${c.organizationName} อนุมัติผลการจัดหา ${str(d.number)} "${str(d.title)}" ให้ท่านในรายการต่อไปนี้ (ราคาก่อน VAT):`,
-      ...awardedLines(d).map((l) => `รายการ ${str(l.lineNo)} ${str(l.description)} · ${str(l.quantity)} ${str(l.uom)} × ${str(l.unitPrice)} บาท = ${str(l.lineNet)} บาท`),
+      // a winner who bid with VAT has no price before VAT until it confirms one: its line's amount before VAT only
+      ...awardedLines(d).map((l) => `รายการ ${str(l.lineNo)} ${str(l.description)} · ${str(l.quantity)} ${str(l.uom)}${str(l.unitPrice) ? ` × ${str(l.unitPrice)} บาท = ${str(l.lineNet)} บาท` : ` · ยอดก่อน VAT ${str(l.lineNet)} บาท`}`),
       d.pendingPrice ? 'ท่านยื่นราคารวม VAT กรุณายืนยันราคาก่อน VAT ในพอร์ทัลก่อน ใบสั่งซื้อจะตามมาหลังยืนยัน' : d.need ? 'ราคาที่มอบจะเป็นราคาตกลงของรายการที่มีในแคตตาล็อก' : 'ใบสั่งซื้อจะส่งตามมาแยกต่างหาก',
       `ดูผลในพอร์ทัล ${str(d.loginUrl)}`,
     ],
     [
       `${c.organizationName} approved the award of ${str(d.number)} "${titleEn(d)}" to you for these lines (before VAT):`,
-      ...awardedLines(d).map((l) => `Line ${str(l.lineNo)} · ${str(l.quantity)} ${str(l.uom)} × ${str(l.unitPrice)} THB = ${str(l.lineNet)} THB`),
+      ...awardedLines(d).map((l) => `Line ${str(l.lineNo)} · ${str(l.quantity)} ${str(l.uom)}${str(l.unitPrice) ? ` × ${str(l.unitPrice)} THB = ${str(l.lineNet)} THB` : ` · ${str(l.lineNet)} THB before VAT`}`),
       d.pendingPrice ? 'You bid with VAT included: please confirm your prices before VAT on the portal first; the purchase order follows.' : d.need ? 'The awarded prices become the agreed prices of the catalogue items.' : 'The purchase order follows separately.',
       `See the result on the portal ${str(d.loginUrl)}.`,
     ],

@@ -354,7 +354,8 @@
       "confirmAgain": "You have confirmed your prices; you may change them until the buyer makes the purchase order.",
       "confirmLineHint": "Bid with VAT {quoted} THB · highest price before VAT {max} THB",
       "confirmSend": "Confirm prices before VAT",
-      "confirmDone": "Your prices before VAT are saved; the buyer makes the purchase order at these prices."
+      "confirmDone": "Your prices before VAT are saved; the buyer makes the purchase order at these prices.",
+      "lineAmountPending": "{quantity} {uom} · {amount} THB before VAT (unit price as you confirm it below)"
     }
   }
 }

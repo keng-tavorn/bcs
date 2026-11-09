@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
-import { lineNet, vatFromNet, type Satang } from '@/core/money/math'
+import { consolidate } from '@/core/consolidation'
+import { documentTotals, type Satang } from '@/core/money/math'
 import type { AppError } from '@/core/result'
 import { confirmedNetPriceCap, preferredWindow } from '@/core/sourcing'
 import { BID_MACHINE, RFX_EVENT_MACHINE, transition } from '@/core/state-machines'
@@ -65,7 +66,8 @@ export interface AwardApplied {
   readonly purchaseOrderIds: readonly string[]
   readonly priceAgreementIds: readonly string[]
   readonly preferredSupplierIds: readonly string[]
-  /** RFx lines of a need with no catalogue item, or one item twice at two prices: no agreed price (AC9) */
+  /** RFx lines of a need with no agreed price (AC9): no catalogue item, one item twice at two prices, or an agreement of
+   *  the item and the winner that procurement set to start on the approval day */
   readonly linesWithoutAgreement: readonly number[]
   /** OQ-212: PENDING_PRICE while a winner who bid with VAT has not confirmed its prices before VAT */
   readonly poStatus: 'NOT_APPLICABLE' | 'PENDING_PRICE' | 'CREATED'
@@ -159,15 +161,24 @@ async function agreementsOf(tx: TenantTx, ctx: Ctx, award: { readonly id: string
       orderBy: { validFrom: 'asc' },
       select: { id: true, validFrom: true },
     })
+    // one that runs into the approval ends the day before it (BR-RFX-13); one procurement set to start on or after that
+    // day stays as it is, and the award's runs until it starts — none at all when it starts that very day
+    let validTo = window.validTo
     for (const old of overlapping) {
-      if (old.validFrom.toISOString().slice(0, 10) >= window.validFrom) {
-        return fail('VALIDATION_FAILED', 'an agreed price of the item and the winner starts within the new one: end it first', { field: 'priceAgreement', reason: 'AGREEMENT_OVERLAP', priceAgreementId: old.id, lineNo: first.rfxLine.lineNo })
+      const from = old.validFrom.toISOString().slice(0, 10)
+      if (from >= window.validFrom) {
+        if (from < validTo) validTo = from
+        continue
       }
       const ended = await endPriceAgreementInTx(tx, ctx, { priceAgreementId: old.id, validTo: window.validFrom })
       if (!ended.ok) return ended
       events.push(...ended.events)
     }
-    const made = await createPriceAgreementInTx(tx, ctx, { catalogItemId, supplierId: first.supplierId, unitPriceSatang: first.unitPriceSatang, validFrom: window.validFrom, validTo: window.validTo, sourceRef: award.number, via: 'AWARD' })
+    if (validTo <= window.validFrom) {
+      without.push(...group.map((l) => l.rfxLine.lineNo))
+      continue
+    }
+    const made = await createPriceAgreementInTx(tx, ctx, { catalogItemId, supplierId: first.supplierId, unitPriceSatang: first.unitPriceSatang, validFrom: window.validFrom, validTo, sourceRef: award.number, via: 'AWARD' })
     if (!made.ok) return made
     priceAgreementIds.push(made.priceAgreementId)
     events.push(...made.events)
@@ -238,7 +249,8 @@ export async function applyAward(tx: TenantTx, effectsCtx: Ctx, award: AwardRow,
   out.events.push({ type: 'rfx.awarded', aggregateType: 'RfxEvent', aggregateId: rfx.id, data: { awardDecisionId: award.id } })
   // the RFx lines nobody won go back to the pool now (INV-RFX-03); the won ones once their POs are drafted
   const won = new Set(lines.map((l) => l.rfxLineId))
-  for (const l of await tx.rfxLine.findMany({ where: { rfxEventId: rfx.id }, select: { id: true } })) if (!won.has(l.id)) await releaseSources(tx, { rfxEventId: rfx.id, rfxLineId: l.id })
+  const lost = (await tx.rfxLine.findMany({ where: { rfxEventId: rfx.id }, select: { id: true } })).filter((l) => !won.has(l.id)).map((l) => l.id)
+  if (lost.length) await releaseSources(tx, { rfxEventId: rfx.id, rfxLineIds: lost })
   const preferred = await preferFromAward(tx, effectsCtx, { awardDecisionId: award.id, categoryCode: rfx.categoryCode, supplierIds: [...new Set(lines.map((l) => l.supplierId))] })
   let made: Materialized = { purchaseOrderIds: [], priceAgreementIds: [], linesWithoutAgreement: [], events: [] }
   if (pending.size === 0) {
@@ -259,6 +271,31 @@ export async function applyAward(tx: TenantTx, effectsCtx: Ctx, award: AwardRow,
     linesWithoutAgreement: made.linesWithoutAgreement,
     poStatus: pending.size ? 'PENDING_PRICE' : made.purchaseOrderIds.length ? 'CREATED' : 'NOT_APPLICABLE',
   }
+}
+
+/**
+ * What the POs of one winner's lines come to at these unit prices before VAT (OQ-212 · review S10-11 · 3): its RFx lines'
+ * request lines grouped as consolidateInTx groups them (core/consolidation: supplier, site, kind; an urgent request on
+ * its own) and priced as createDraft prices them (documentTotals: each line's amount, VAT once per PO on its VAT-able
+ * lines). A need makes no PO: its lines count as one document.
+ */
+async function draftedTotals(tx: TenantTx, supplierId: string, lines: ReadonlyArray<{ readonly rfxLineId: string; readonly quantity: string; readonly unitPriceSatang: Satang }>, rateBp: number): Promise<{ net: Satang; vat: Satang; gross: Satang }> {
+  const priceOf = new Map(lines.map((l) => [l.rfxLineId, l.unitPriceSatang]))
+  const sources = await tx.rfxLineSource.findMany({
+    where: { rfxLineId: { in: [...priceOf.keys()] }, active: true },
+    select: { rfxLineId: true, quantity: true, requestLine: { select: { id: true, lineNo: true, kind: true, vatable: true, request: { select: { number: true, deliverySiteId: true, urgency: true } } } } },
+  })
+  const documents: Array<Array<{ quantity: string; unitPriceSatang: Satang; vatable: boolean }>> = []
+  if (!sources.length) documents.push(lines.map((l) => ({ quantity: l.quantity, unitPriceSatang: l.unitPriceSatang, vatable: true })))
+  else {
+    const byRef = new Map(sources.map((x) => [x.requestLine.id, x]))
+    const grouped = consolidate(sources.map((x) => ({ ref: x.requestLine.id, requestNo: x.requestLine.request.number ?? '', lineNo: x.requestLine.lineNo, supplierId, siteId: x.requestLine.request.deliverySiteId, kind: x.requestLine.kind, urgent: x.requestLine.request.urgency === 'URGENT' })))
+    for (const refs of [...grouped.cycleGroups, ...grouped.immediate]) {
+      documents.push(refs.map((ref) => byRef.get(ref)!).map((x) => ({ quantity: x.quantity.toString(), unitPriceSatang: priceOf.get(x.rfxLineId)!, vatable: x.requestLine.vatable })))
+    }
+  }
+  const totals = documents.map((d) => documentTotals(d, rateBp, false))
+  return { net: totals.reduce((a, t) => a + t.net, 0n), vat: totals.reduce((a, t) => a + t.vat, 0n), gross: totals.reduce((a, t) => a + t.gross, 0n) }
 }
 
 // ---------- bid.confirmNetPrices (the winner on the portal · OQ-212) ----------
@@ -299,18 +336,22 @@ export const confirmNetPricesCommand = defineCommand({
     const given = new Map(input.lines.map((l) => [l.rfxLineId, amountToSatang(l.unitPrice)]))
     if (given.size !== input.lines.length || given.size !== won.length || won.some((w) => !given.has(w.rfxLineId))) return fail('VALIDATION_FAILED', 'give a price for every line the bid won, once', { field: 'lines', reason: 'LINES' })
     const rate = row.vatRateBp ?? 0
-    let net = 0n
     let quoted = 0n
     for (const w of won.sort((a, b) => a.rfxLine.lineNo - b.rfxLine.lineNo)) {
       const price = given.get(w.rfxLineId)!
       const bidLine = row.lines.find((l) => l.rfxLineId === w.rfxLineId)!
       if (price <= 0n) return fail('VALIDATION_FAILED', 'a price above zero is needed', { field: `lines.${w.rfxLineId}.unitPrice`, reason: 'PRICE' })
       if (!confirmedNetPriceCap(rate, bidLine.unitPriceSatang!, price)) return fail('AWARD_PRICE_EXCEEDS_BID', 'the price before VAT plus VAT is above the price bid', { line: String(w.rfxLine.lineNo), reason: 'LINE' })
-      net += lineNet(w.rfxLine.quantity.toString(), price)
       quoted += bidLine.lineQuotedSatang ?? 0n
     }
-    const vat = vatFromNet(net, rate).vat
-    if (net + vat > quoted) return fail('AWARD_PRICE_EXCEEDS_BID', 'the amounts before VAT plus VAT are above what was bid with VAT', { line: won.map((w) => w.rfxLine.lineNo).join(', '), reason: 'TOTAL', gross: satangToAmount(net + vat), bid: satangToAmount(quoted) })
+    // the total as the POs will carry it — their lines and their VAT rounded as the release drafts them
+    const { net, vat, gross } = await draftedTotals(
+      tx,
+      supplier.id,
+      won.map((w) => ({ rfxLineId: w.rfxLineId, quantity: w.rfxLine.quantity.toString(), unitPriceSatang: given.get(w.rfxLineId)! })),
+      rate,
+    )
+    if (gross > quoted) return fail('AWARD_PRICE_EXCEEDS_BID', 'the amounts before VAT plus VAT are above what was bid with VAT', { line: won.map((w) => w.rfxLine.lineNo).join(', '), reason: 'TOTAL', gross: satangToAmount(gross), bid: satangToAmount(quoted) })
     for (const w of won) await tx.bidLine.updateMany({ where: { bidId: row.id, rfxLineId: w.rfxLineId }, data: { confirmedNetUnitPriceSatang: given.get(w.rfxLineId)! } })
     await tx.bid.update({ where: { id: row.id }, data: { netPricesConfirmedAt: ctx.now, version: { increment: 1 } } })
     const notifications: NotificationDraft[] = award.submittedById
@@ -318,7 +359,7 @@ export const confirmNetPricesCommand = defineCommand({
       : []
     return {
       ok: true,
-      result: { bidId: row.id, net: satangToAmount(net), vat: satangToAmount(vat), gross: satangToAmount(net + vat) },
+      result: { bidId: row.id, net: satangToAmount(net), vat: satangToAmount(vat), gross: satangToAmount(gross) },
       events: [{ type: 'bid.net_prices_confirmed', aggregateType: 'Bid', aggregateId: row.id, data: { rfxEventId: rfx!.id, awardDecisionId: award.id, lineCount: won.length, netSatang: net.toString() } }],
       notifications,
     }
@@ -361,6 +402,18 @@ export const releaseAwardPoCommand = defineCommand({
     const submitter = awardCtx(ctx, award.submittedById!)
     const made = await materialize(tx, submitter, award, rfx, await awardLinesOf(tx, award.id), actor)
     if (isFail(made)) return made
+    // the last word (review S10-11 · 3): each winner who bid with VAT gets POs within what it bid for its lines with VAT
+    if (made.purchaseOrderIds.length) {
+      const pos = await tx.purchaseOrder.findMany({ where: { id: { in: made.purchaseOrderIds } }, select: { supplierId: true, grossSatang: true } })
+      const quotedLines = await tx.bidLine.findMany({ where: { bidId: { in: [...new Set(lines.filter((l) => l.bid.priceIncludesVat).map((l) => l.bidId))] } }, select: { bidId: true, rfxLineId: true, lineQuotedSatang: true } })
+      for (const bidId of new Set(lines.filter((l) => l.bid.priceIncludesVat).map((l) => l.bidId))) {
+        const own = lines.filter((l) => l.bidId === bidId)
+        const supplierId = own[0]!.supplierId
+        const quoted = own.reduce((sum, l) => sum + (quotedLines.find((q) => q.bidId === bidId && q.rfxLineId === l.rfxLineId)?.lineQuotedSatang ?? 0n), 0n)
+        const drafted = pos.filter((p) => p.supplierId === supplierId).reduce((sum, p) => sum + p.grossSatang, 0n)
+        if (drafted > quoted) return fail('AWARD_PRICE_EXCEEDS_BID', 'the purchase orders at the confirmed prices are above what was bid with VAT', { line: own.map((l) => l.rfxLine.lineNo).sort((a, b) => a - b).join(', '), reason: 'TOTAL', gross: satangToAmount(drafted), bid: satangToAmount(quoted) })
+      }
+    }
     await recordAsSubmitter(tx, submitter, made.events, actor)
     const poStatus = made.purchaseOrderIds.length ? 'CREATED' : 'NOT_APPLICABLE'
     await tx.awardDecision.update({ where: { id: award.id }, data: { poStatus, purchaseOrderIds: made.purchaseOrderIds, priceAgreementIds: made.priceAgreementIds, version: { increment: 1 } } })

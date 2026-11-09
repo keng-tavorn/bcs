@@ -51,7 +51,7 @@ export const AWARD_ERROR_KEYS = [
   'EMPTY',
   'UNCHANGED',
   'PO_PENDING_PRICE',
-  'AGREEMENT_OVERLAP',
+  'AWARD_PRICE_EXCEEDS_BID',
   'OTHER',
 ] as const
 export type AwardErrorKey = (typeof AWARD_ERROR_KEYS)[number]

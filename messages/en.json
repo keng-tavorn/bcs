@@ -9137,6 +9137,7 @@
         "declined": "You declined to bid on this RFx",
         "line": "{lineNo}. {description}",
         "lineAmount": "{quantity} {uom} × {price} = {amount} THB",
+        "lineAmountPending": "{quantity} {uom} · {amount} THB before VAT (unit price as you confirm it below)",
         "noBid": "You did not bid on this RFx",
         "notAwarded": "Thank you for your bid. You were not awarded this time",
         "open": "Bids are still open. The result comes after the close and the evaluation",
@@ -11931,9 +11932,9 @@
       "contractRef": "Contract reference (optional)",
       "department": "Department of the approval route",
       "errors": {
-        "AGREEMENT_OVERLAP": "An agreed price of this item and supplier starts within the new one; end it first",
         "APPROVER_NOT_FOUND": "No approver found under the DOA",
         "AWARD_OPEN": "This RFx already has an open award",
+        "AWARD_PRICE_EXCEEDS_BID": "The purchase orders at the confirmed prices are above the winner's bid with VAT; ask the winner to confirm lower prices",
         "AWARD_REASON_REQUIRED": "Give the reason for this award",
         "CONFLICT_VERSION": "The award changed meanwhile: reload the page and try again",
         "DOA_NOT_CONFIGURED": "The DOA has no rule for awards yet: ask an administrator to add one",

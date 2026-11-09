@@ -40,6 +40,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "purchase order",
       "REQUEST": "purchase request",
+      "RISK_OVERRIDE": "supplier risk override",
       "SUPPLIER_APPLICATION": "supplier application",
       "VARIANCE": "the receiving variance of purchase order",
       "WORKFLOW_VERSION": "workflow change"
@@ -669,6 +670,7 @@
       "PURCHASE_ORDER": "Purchase order (PO)",
       "PURCHASE_REQUEST": "Purchase request (PR)",
       "RFX_AWARD": "Sourcing award approval",
+      "RISK_OVERRIDE": "Supplier risk override approval",
       "SUPPLIER_APPROVAL": "New supplier approval"
     },
     "download": "Download {name} as YAML",
@@ -969,6 +971,7 @@
         "PURCHASE_ORDER": "Purchase order (PO)",
         "PURCHASE_REQUEST": "Purchase request (PR)",
         "RFX_AWARD": "Sourcing award approval",
+        "RISK_OVERRIDE": "Supplier risk override approval",
         "SUPPLIER_APPROVAL": "New supplier approval"
       },
       "effectiveApplied": "Took effect {time}",
@@ -3124,6 +3127,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order {label}",
       "REQUEST": "Request {label}",
+      "RISK_OVERRIDE": "Supplier risk override",
       "SUPPLIER": "Supplier {label}",
       "SUPPLIER_APPLICATION": "Supplier application",
       "VARIANCE": "Receiving variance of {label}",
@@ -3915,6 +3919,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order",
       "REQUEST": "Purchase request",
+      "RISK_OVERRIDE": "Supplier risk override",
       "SUPPLIER_APPLICATION": "Supplier application",
       "VARIANCE": "Receiving variance"
     },
@@ -4379,6 +4384,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order",
       "REQUEST": "Request",
+      "RISK_OVERRIDE": "Supplier risk override",
       "SUPPLIER_APPLICATION": "Supplier application",
       "VARIANCE": "Receiving variance",
       "WORKFLOW_VERSION": "Workflow change"
@@ -5338,6 +5344,7 @@
       "PURCHASE_ORDER": "Purchase order (PO)",
       "PURCHASE_REQUEST": "Purchase request (PR)",
       "RFX_AWARD": "Sourcing award approval",
+      "RISK_OVERRIDE": "Supplier risk override approval",
       "SUPPLIER_APPROVAL": "New supplier approval"
     },
     "errors": {
@@ -6681,6 +6688,7 @@
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order",
         "REQUEST": "Request",
+        "RISK_OVERRIDE": "Supplier risk override",
         "SUPPLIER_APPLICATION": "Supplier application",
         "VARIANCE": "Receiving variance",
         "WORKFLOW_VERSION": "Workflow change"
@@ -6917,6 +6925,7 @@
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order {label}",
         "REQUEST": "Request {label}",
+        "RISK_OVERRIDE": "Supplier risk override",
         "SUPPLIER": "Supplier {label}",
         "SUPPLIER_APPLICATION": "Supplier application",
         "VARIANCE": "Receiving variance of {label}",
@@ -8501,6 +8510,9 @@
         "REASON": "Enter a reason of at least 3 characters.",
         "REQUIRED_BY": "These modules still use this one: {modules}. Switch them off first.",
         "REQUIRES": "Switch on {modules} first, then this module.",
+        "RISK_POLICY_NOT_CONFIGURED": "The organization's risk gate policy is not confirmed yet. The customer's admin must set it and a second admin confirm it first, then this module can be switched on.",
+        "RISK_QUESTIONNAIRE_NOT_PUBLISHED": "The organization has no risk questionnaire in effect yet. The customer's admin must publish one first, then this module can be switched on.",
+        "RISK_TIER_NOT_CONFIGURED": "The organization's three risk tiers are not confirmed yet. The customer's admin must set them and a second admin confirm them first, then this module can be switched on.",
         "UNAUTHENTICATED": "Your session has ended. Sign in again, then do this again."
       },
       "intro": "Switch modules only as the contract says. Every change needs a contract reference and a reason; the organization admins will be told, and switching off deletes no data.",
@@ -10908,6 +10920,7 @@
           "PO_CHANGE": "PO change",
           "PURCHASE_ORDER": "purchase order",
           "REQUEST": "purchase request",
+          "RISK_OVERRIDE": "supplier risk override",
           "SUPPLIER_APPLICATION": "supplier application",
           "VARIANCE": "receiving variance",
           "WORKFLOW_VERSION": "workflow change"
@@ -12310,6 +12323,7 @@
         "PURCHASE_ORDER": "Purchase order (PO)",
         "PURCHASE_REQUEST": "Purchase request (PR)",
         "RFX_AWARD": "Sourcing award approval",
+        "RISK_OVERRIDE": "Supplier risk override approval",
         "SUPPLIER_APPROVAL": "New supplier approval"
       },
       "doaEffective": "In effect from",

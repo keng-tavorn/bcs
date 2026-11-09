@@ -34,6 +34,7 @@
     "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
     "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
     "AWARD_DECISION": "ผลการจัดหา",
+    "RISK_OVERRIDE": "การอนุมัติข้ามด่านความเสี่ยง",
     "BUDGET_LINE": "บรรทัดงบ {label}",
     "MEMBER": "สมาชิก {label}",
     "SUPPLIER": "ผู้ขาย {label}"

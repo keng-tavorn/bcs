@@ -13,6 +13,7 @@ import { budgetTransferSubject } from './budget-transfer'
 import { invoiceSubject } from './invoice'
 import { paymentRunSubject } from './payment-run'
 import { poChangeSubject } from './po-change'
+import { riskOverrideSubject } from './risk-override'
 import { supplierApplicationSubject } from './supplier-application'
 import { workflowVersionSubject } from './workflow-version'
 
@@ -100,6 +101,8 @@ export const SUBJECT_ADAPTERS: Readonly<Record<RegisteredSubject, SubjectAdapter
   SUPPLIER_APPLICATION: supplierApplicationSubject,
   // S10 (BR-DOA-27)
   AWARD_DECISION: awardDecisionSubject,
+  // S11 (BR-DOA-28)
+  RISK_OVERRIDE: riskOverrideSubject,
 }
 
 export function isRegisteredSubject(type: string): type is RegisteredSubject {

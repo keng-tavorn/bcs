@@ -39,3 +39,6 @@ versions:
       - { code: RA-01, documentType: RFX_AWARD, priority: 100, when: { amount: { gt: "0.00", lte: "500000.00" } }, approver: { kind: POSITION_OF_ORG, position: PROC_MGR }, slaBusinessHours: 16 }
       - { code: RA-02, documentType: RFX_AWARD, priority: 100, when: { amount: { gt: "500000.00", lte: "5000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 16 }
       - { code: RA-03, documentType: RFX_AWARD, priority: 100, when: { amount: { gt: "5000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 24 }
+      # S11 (BR-DOA-28 · ADR-226): the cap with VAT on every PO under the override, sent with vat 0 · SIMEC demo bands the customer confirms (OQ-224)
+      - { code: RO-01, documentType: RISK_OVERRIDE, priority: 100, when: { amount: { gt: "0.00", lte: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: RO-02, documentType: RISK_OVERRIDE, priority: 100, when: { amount: { gt: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }

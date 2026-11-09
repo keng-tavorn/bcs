@@ -5,7 +5,7 @@ import { boundaryTable, lintDoaVersion, resolveRoute, type DoaDocumentType, type
 import { baht, fixturesOf, GOLDEN_DIR, loadYaml, orgSnapshot, pick, ruleSnapshot, versionSnapshots, type FixturePair, type RuleFixture } from './doa-fixtures'
 
 // Every golden file of suite doa and doa-lint (spec §7.4): doa.yaml doa-lint.yaml (GC-DOA-01 to GC-DOA-27) and
-// doa-p1.yaml doa-p1-lint.yaml (GC-DOA-28 to GC-DOA-68) and doa-p2.yaml doa-p2-lint.yaml (GC-DOA-69 to GC-DOA-74, S7 · GC-DOA-75 to GC-DOA-80, S10). Each
+// doa-p1.yaml doa-p1-lint.yaml (GC-DOA-28 to GC-DOA-68) and doa-p2.yaml doa-p2-lint.yaml (GC-DOA-69 to GC-DOA-74, S7 · GC-DOA-75 to GC-DOA-80, S10 · GC-DOA-81 to GC-DOA-86, S11). Each
 // file names its own fixtures (ADR-069). The runner finds
 // and counts the cases itself; every test name carries the case id.
 

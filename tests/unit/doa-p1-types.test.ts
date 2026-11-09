@@ -190,3 +190,69 @@ describe('[BR-DOA-27] the phase-2 type RFX_AWARD (S10-02 · ADR-202)', () => {
   })
 })
 
+describe('[BR-DOA-28] the phase-2 type RISK_OVERRIDE (S11-02 · ADR-226)', () => {
+  const version = () => versionSnapshots('fixtures/doa-versions-p2.yaml')
+  const org = () => orgSnapshot([], 'fixtures/org-p1.yaml')
+  // the cap with VAT goes as the amount before VAT with VAT 0 (BR-DOA-28), so every basis gives the same band
+  const override = (capSatang: bigint | null): RouteInput => ({
+    documentType: 'RISK_OVERRIDE',
+    ...(capSatang === null ? {} : { amount: { netSatang: capSatang, vatSatang: 0n } }),
+    requesterMemberId: 'proc_officer',
+    chargedDepartmentId: 'PROC',
+    conflictMemberIds: ['proc_officer'],
+    at: new Date('2026-11-09T03:00:00Z'),
+  })
+
+  it('has an amount without VAT, is no policy change, routes RISK_OVERRIDE, RISK requires it, and it follows RFX_AWARD', () => {
+    expect(DOA_DOCUMENT_TYPES.indexOf('RISK_OVERRIDE')).toBe(DOA_DOCUMENT_TYPES.indexOf('RFX_AWARD') + 1)
+    expect(DOC_TYPE_TRAITS.RISK_OVERRIDE).toEqual({ amount: 'REQUIRED', vat: false, governance: false, requiredWithModules: ['RISK'], subjects: ['RISK_OVERRIDE'] })
+    expect(APPROVAL_SUBJECTS.indexOf('RISK_OVERRIDE')).toBe(APPROVAL_SUBJECTS.indexOf('AWARD_DECISION') + 1)
+    expect(requiredDocumentTypes(['SUPPLIER', 'SOURCING', 'RISK'])).toEqual(['DOA_CHANGE', 'ORG_AUTHORITY_CHANGE', 'BANK_ACCOUNT_CHANGE', 'SUPPLIER_APPROVAL', 'RFX_AWARD', 'RISK_OVERRIDE'])
+    expect(requiredDocumentTypes(['PAY', 'SUPPLIER', 'SOURCING'])).not.toContain('RISK_OVERRIDE')
+    expect(NO_AMOUNT_DOCUMENT_TYPES).not.toContain('RISK_OVERRIDE')
+    expect([...DOC_TYPES]).toEqual([...DOA_DOCUMENT_TYPES])
+  })
+
+  it('YAML with RO-01 RO-02 round-trips; a cap of zero or none is refused AMOUNT_NOT_POSITIVE / AMOUNT_REQUIRED', () => {
+    const text = readFileSync(path.resolve(import.meta.dirname, '../golden/fixtures/doa-versions-p2.yaml'), 'utf8')
+    const first = parseDoaYaml(text, new Map())
+    if (!first.ok) throw new Error(JSON.stringify(first.error))
+    expect(first.data[0]!.rules.filter((r) => r.documentType === 'RISK_OVERRIDE').map((r) => r.code)).toEqual(['RO-01', 'RO-02'])
+    expect(parseDoaYaml(doaYaml(first.data, new Map()), new Map())).toEqual(first)
+    const context = { versions: version(), org: org(), delegations: [] }
+    expect(resolveRoute(override(0n), context)).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'amount', reason: 'AMOUNT_NOT_POSITIVE' } } })
+    expect(resolveRoute(override(null), context)).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'amount', reason: 'AMOUNT_REQUIRED' } } })
+  })
+
+  it('the boundary table of RISK_OVERRIDE is [1,000,000.00 RO-01, 1,000,000.01 RO-02] and routing agrees with it', () => {
+    expect(boundaryTable(version()[0]!, 'RISK_OVERRIDE')).toEqual([
+      { amountSatang: 100_000_000n, ruleCode: 'RO-01' },
+      { amountSatang: 100_000_001n, ruleCode: 'RO-02' },
+    ])
+    const context = { versions: version(), org: org(), delegations: [] }
+    expect(resolveRoute(override(100_000_000n), context)).toMatchObject({ ok: true, data: { ruleCode: 'RO-01' } })
+    expect(resolveRoute(override(100_000_001n), context)).toMatchObject({ ok: true, data: { ruleCode: 'RO-02' } })
+  })
+
+  it('the RO rules change no other type: every boundary table and route of phase 1, S7 and S10 is the same without them (ADR-069)', () => {
+    const p2 = version()[0]!
+    const withoutRo = { ...p2, rules: p2.rules.filter((r) => r.documentType !== 'RISK_OVERRIDE') }
+    expect(withoutRo.rules.length).toBe(p2.rules.length - 2)
+    for (const type of DOA_DOCUMENT_TYPES.filter((t) => t !== 'RISK_OVERRIDE')) {
+      expect(boundaryTable(p2, type), type).toEqual(boundaryTable(withoutRo, type))
+      for (const row of boundaryTable(p2, type)) {
+        const input: RouteInput = { documentType: type, amount: { netSatang: row.amountSatang, vatSatang: 0n }, requesterMemberId: 'proc_officer', chargedDepartmentId: 'PROC', conflictMemberIds: ['proc_officer'], at: new Date('2026-11-09T03:00:00Z') }
+        expect(resolveRoute(input, { versions: [p2], org: org(), delegations: [] }), type).toEqual(resolveRoute(input, { versions: [withoutRo], org: org(), delegations: [] }))
+      }
+    }
+  })
+
+  it('a version without RO rules lints clean until RISK is on, then misses RISK_OVERRIDE alone (BR-DOA-23)', () => {
+    const p2 = version()[0]!
+    const withoutRo = { ...p2, rules: p2.rules.filter((r) => r.documentType !== 'RISK_OVERRIDE') }
+    expect(lintDoaVersion(withoutRo, org(), p2.effectiveFrom, { modules: ['PAY', 'SUPPLIER', 'SOURCING'] }).errors).toEqual([])
+    expect(lintDoaVersion(withoutRo, org(), p2.effectiveFrom, { modules: ['PAY', 'SUPPLIER', 'SOURCING', 'RISK'] }).errors).toMatchObject([{ code: 'DOA_LINT_MISSING_DOCTYPE', documentType: 'RISK_OVERRIDE' }])
+    expect(lintDoaVersion(p2, org(), p2.effectiveFrom, { modules: ['PAY', 'SUPPLIER', 'SOURCING', 'RISK'] }).errors).toEqual([])
+  })
+})
+

@@ -184,3 +184,12 @@
 **§11.4 (แก้แถว G-9):** G-9 = ผู้ขายที่ PO แรกในช่วงมี `riskGate.tier = HIGH` และ `riskGate.source = ASSESSMENT` ÷ ผู้ขายที่ PO แรกในช่วงมี `riskGate.tier = HIGH` (bp ปัดลง · การอนุมัติข้ามนับในตัวหาร · BR-RSK ข้อ 15) · G-6 G-8 คงอ้าง sub-spec ของ S9 S10
 
 **§4.11 (ตารางโมดูล แถว `RISK`):** ช่อง "ประกอบด้วย" เป็น "แบบประเมิน ตรวจคู่ขนาน ด่านก่อนออก PO การอนุมัติข้าม ประเมินซ้ำ รายงาน G-9" และกติกาข้อ 7 เพิ่ม "(`RISK` → `RISK_OVERRIDE` และต้องมี `RiskTier` กับ `RiskPolicy` ที่ยืนยันแล้วและแบบประเมินฉบับที่มีผล · BR-RSK ข้อ 16)"
+
+## G. แถว RO-01 RO-02 ของชีต DOA (ร่างใน S11-02 · seed จริงใน S11-12)
+
+ค่าเดียวกับ fixture `tests/golden/fixtures/doa-versions-p2.yaml` (ข้อมูล demo ของ SIMEC · ลูกค้ายืนยันในเส้นชัย B · OQ-224) ในรูปคอลัมน์ของชีต `DOA` ที่ `scripts/validate_inputs.py` อ่าน · ยอด = เพดานยอดรวม VAT สะสมของ PO ภายใต้การอนุมัติข้าม (ส่งเป็น `{ net: cap, vat: 0 }` · BR-DOA-28) · S11-12 เพิ่ม `RISK_OVERRIDE` ในเซ็ต `DOCS` ของ `validate_inputs.py` (ชนิดมียอด จึงไม่อยู่ใน `NO_AMOUNT_DOCS`) และด่านว่าเปิด `RISK` แล้วชีตมีข้อ RO (BR-DOA-23 BR-DOA-24) · เปิด `RISK` ใน seed หลัง `SUPPLIER` และหลังใส่ `RiskTier` `RiskPolicy` ที่ยืนยันแล้วกับแบบประเมินฉบับที่มีผล (BR-RSK-16 · `organization.set_module` ปฏิเสธถ้าขาด)
+
+| ruleCode | documentType | gt | lte | approverKind | approverPosition | approverMember | slaBusinessHours |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| RO-01 | RISK_OVERRIDE | 0.00 | 1000000.00 | POSITION_OF_ORG | COO | | 8 |
+| RO-02 | RISK_OVERRIDE | 1000000.00 | | POSITION_OF_ORG | CEO | | 16 |

@@ -26,6 +26,9 @@ export const SUBJECT_KIND: Readonly<Record<string, Text>> = {
   // S10 (BR-DOA-27): the card comes with the real adapter of S10-10 (the amount awarded, how many suppliers and the
   // winner, never a unit price · BR-NOTI-01); until then the empty adapter keeps the chat button off
   AWARD_DECISION: { th: 'ผลการจัดหา', en: 'Sourcing award' },
+  // S11 (BR-DOA-28 · BR-NOTI-12): the card of S11-08 has no approve button and opens LIFF (OQ-225); the empty adapter
+  // until then keeps the chat button off
+  RISK_OVERRIDE: { th: 'การอนุมัติข้ามด่านความเสี่ยง', en: 'Supplier risk override' },
 }
 const DOCUMENT: Text = { th: 'เอกสาร', en: 'Document' }
 

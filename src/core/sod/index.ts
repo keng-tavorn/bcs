@@ -37,6 +37,8 @@ export const APPROVAL_SUBJECTS = [
   'SUPPLIER_APPLICATION',
   // S10 (BR-DOA-27 · ADR-202): the award of an RFx, approved through RFX_AWARD
   'AWARD_DECISION',
+  // S11 (BR-DOA-28 · ADR-226): approval to issue POs to a supplier past its risk gate, approved through RISK_OVERRIDE
+  'RISK_OVERRIDE',
 ] as const
 export type ApprovalSubject = (typeof APPROVAL_SUBJECTS)[number]
 export type OrgAuthorityChangeKind = 'POSITION_ASSIGN' | 'POSITION_END' | 'DEPARTMENT_REPARENT' | 'DELEGATION_ON_BEHALF' | 'IDENTITY_RESET'

@@ -19,7 +19,7 @@ import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from 
 // reader who sees it other than as AUDITOR, who reads only (BR-AUTH-04).
 
 const OPEN = ['OPEN', 'INFO_REQUESTED'] as const
-export const BOARD_SUBJECTS = ['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE'] as const
+export const BOARD_SUBJECTS = ['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE', 'AWARD_DECISION'] as const
 export type BoardSubject = (typeof BOARD_SUBJECTS)[number]
 
 export interface BoardFilter {
@@ -40,6 +40,8 @@ export interface BoardTaskDto {
   readonly overdue: boolean
   /** The purchase order a variance belongs to (the page a reader opens for it); null for other documents */
   readonly poId: string | null
+  /** S10-12: the RFx of an award decision (its award page); null for other documents */
+  readonly rfxEventId?: string | null
   /** When this document may be reminded by hand again (an hour after the last reminder); null: now (FR-VIS-001 AC2) */
   readonly remindAgainAt: string | null
   /**
@@ -118,7 +120,7 @@ async function remindableTasks(tx: TenantTx, principal: Principal, taskIds: read
 }
 
 /** The row a document's reminders queue on: its own, or its purchase order's for a variance */
-const LOCKED: Readonly<Record<string, LockableTable>> = { REQUEST: 'Request', PURCHASE_ORDER: 'PurchaseOrder', DOA_VERSION: 'DoaVersion', ORG_AUTHORITY_CHANGE: 'OrgAuthorityChange' }
+const LOCKED: Readonly<Record<string, LockableTable>> = { REQUEST: 'Request', PURCHASE_ORDER: 'PurchaseOrder', DOA_VERSION: 'DoaVersion', ORG_AUTHORITY_CHANGE: 'OrgAuthorityChange', AWARD_DECISION: 'AwardDecision' }
 
 /**
  * Two people pressing "remind" on one document at once send one reminder (FR-VIS-001 AC2): the document's row is
@@ -139,22 +141,25 @@ async function labels(tx: TenantTx, tasks: ReadonlyArray<{ subjectType: string; 
 }
 
 /** The label of each document on the board, and the purchase order of a variance */
-async function documents(tx: TenantTx, tasks: ReadonlyArray<{ subjectType: string; subjectId: string }>): Promise<Map<string, { label: string; poId: string | null }>> {
+async function documents(tx: TenantTx, tasks: ReadonlyArray<{ subjectType: string; subjectId: string }>): Promise<Map<string, { label: string; poId: string | null; rfxEventId?: string | null }>> {
   const ids = (type: string) => tasks.filter((t) => t.subjectType === type).map((t) => t.subjectId)
-  const [requests, pos, variances, versions, changes] = await Promise.all([
+  const [requests, pos, variances, versions, changes, awards] = await Promise.all([
     tx.request.findMany({ where: { id: { in: ids('REQUEST') } }, select: { id: true, number: true, title: true } }),
     tx.purchaseOrder.findMany({ where: { id: { in: ids('PURCHASE_ORDER') } }, select: { id: true, number: true } }),
     tx.variance.findMany({ where: { id: { in: ids('VARIANCE') } }, select: { id: true, poId: true, po: { select: { number: true } } } }),
     tx.doaVersion.findMany({ where: { id: { in: ids('DOA_VERSION') } }, select: { id: true, code: true, versionNo: true } }),
     tx.orgAuthorityChange.findMany({ where: { id: { in: ids('ORG_AUTHORITY_CHANGE') } }, select: { id: true, kind: true } }),
+    // S10-12: an award decision by its number and its RFx's (AWD-… · RFX-…), and the RFx its page belongs to
+    tx.awardDecision.findMany({ where: { id: { in: ids('AWARD_DECISION') } }, select: { id: true, number: true, rfxEventId: true, rfxEvent: { select: { number: true } } } }),
   ])
   const plain = (label: string): { label: string; poId: string | null } => ({ label, poId: null })
-  return new Map<string, { label: string; poId: string | null }>([
+  return new Map<string, { label: string; poId: string | null; rfxEventId?: string | null }>([
     ...requests.map((r) => [r.id, plain(r.number ? `${r.number} ${r.title}` : r.title)] as const),
     ...pos.map((p) => [p.id, plain(p.number ?? '')] as const),
     ...variances.map((v) => [v.id, { label: v.po.number ?? '', poId: v.poId }] as const),
     ...versions.map((v) => [v.id, plain(`${v.code} #${v.versionNo}`)] as const),
     ...changes.map((c) => [c.id, plain(c.kind)] as const),
+    ...awards.map((a) => [a.id, { label: [a.number, a.rfxEvent.number].filter(Boolean).join(' · '), poId: null, rfxEventId: a.rfxEventId }] as const),
   ])
 }
 
@@ -213,6 +218,7 @@ async function boardRows(tx: TenantTx, ctx: Ctx, principal: Principal, filter: B
       ageMinutes: businessMinutesBetween(t.assignedAt, ctx.now, calendar),
       overdue: t.status === 'OPEN' && t.dueAt !== null && t.dueAt < ctx.now,
       poId: named.get(t.step.route.subjectId)?.poId ?? null,
+      rfxEventId: named.get(t.step.route.subjectId)?.rfxEventId ?? null,
       remindAgainAt: last ? new Date(last.getTime() + MS_PER_HOUR).toISOString() : null,
       canRemind: t.status === 'OPEN' && (remindable === null || remindable.has(t.id)),
     }

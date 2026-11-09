@@ -42,6 +42,8 @@ export function requestsOf(t: PoolT, locale: Locale, lines: readonly PoolLineDto
         amount: formatSatang(l.amountSatang),
         includesVat: l.priceIncludesVat,
         supplierName: l.supplier?.nameTh ?? null,
+        ...(l.categoryCode ? { category: l.categoryCode } : {}),
+        ...(l.rfx ? { rfx: { href: `/sourcing/${l.rfx.id}`, label: l.rfx.number ? t('rfx.in', { number: l.rfx.number }) : t('rfx.inDraft') } } : {}),
       })),
     }
   })

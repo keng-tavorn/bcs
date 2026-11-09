@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleAlert, CirclePause, Store } from 'lucide-react'
+import { CircleAlert, CirclePause, FileSearch, Store } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { useId, useState } from 'react'
@@ -40,6 +40,10 @@ export interface PoolLineView {
   readonly includesVat: boolean
   /** The supplier chosen in the pool, or null: the line waits for one */
   readonly supplierName: string | null
+  /** S10-12: the line's category (an RFx takes lines of one · BR-RFX-01) */
+  readonly category?: string | null
+  /** S10-12: the RFx that holds the line (INV-RFX-03): its words and link; the line is not ticked meanwhile */
+  readonly rfx?: { readonly href: string; readonly label: string } | null
 }
 
 export interface PoolRequestView {
@@ -61,6 +65,8 @@ export interface PoolBoardProps {
   readonly requests: readonly PoolRequestView[]
   readonly suppliers: ReadonlyArray<{ readonly id: string; readonly label: string }>
   readonly assign: (input: { requestLineIds: string[]; supplierId: string | null }, idempotencyKey: string) => Promise<PoolOutcome>
+  /** S10-12: SOURCING is on and the member may make an RFx (sourcing.manage): the ticked lines open /sourcing/new */
+  readonly sourcing?: boolean
 }
 
 const GRID = 'md:grid md:grid-cols-[minmax(0,1fr)_6.5rem_7.5rem_8.5rem] md:items-start md:gap-4'
@@ -125,13 +131,13 @@ export function DraftLinks({ drafts, label }: { drafts: readonly DraftView[]; la
   )
 }
 
-export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
+export function PoolBoard({ requests, suppliers, assign, sourcing = false }: PoolBoardProps) {
   const t = useTranslations('procurement.pool')
   const id = useId()
   const action = useOutcomeAction<PoolOutcome>(POOL_NO_ANSWER)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [supplierId, setSupplierId] = useState('')
-  const [problem, setProblem] = useState<'needLines' | 'needSupplier' | 'nothingToClear' | null>(null)
+  const [problem, setProblem] = useState<'needLines' | 'needSupplier' | 'nothingToClear' | 'rfxCategory' | 'rfxHasSupplier' | null>(null)
   /** The last press asked to take the supplier off (its refusal and its pending words are worded for it) */
   const [clearing, setClearing] = useState(false)
   const [done, setDone] = useState<{ text: string; drafts: readonly DraftView[]; urgent: string | null; blocked: string | null } | null>(null)
@@ -145,7 +151,7 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
   })
 
   // Lines that left the pool after a refresh are no longer selected
-  const present = new Set(requests.flatMap((r) => r.lines.map((l) => l.id)))
+  const present = new Set(requests.flatMap((r) => r.lines.filter((l) => !l.rfx).map((l) => l.id)))
   const selected = [...picked].filter((lineId) => present.has(lineId))
   const urgentPicked = urgentDraftedAtOnce(requests, picked)
   const vatListed = requests.some((r) => r.lines.some((l) => l.includesVat))
@@ -164,6 +170,14 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
     setConfirmUrgent(null)
     action.clear()
   }
+
+  /** S10-12: why the ticked lines cannot open an RFx, or null — then the button is a link to /sourcing/new (a GET that makes nothing) */
+  const rfxProblem = ((): 'needLines' | 'rfxCategory' | 'rfxHasSupplier' | null => {
+    if (selected.length === 0) return 'needLines'
+    const lines = requests.flatMap((r) => r.lines.filter((l) => selected.includes(l.id)))
+    if (new Set(lines.map((l) => l.category ?? '')).size !== 1 || lines.some((l) => !l.category)) return 'rfxCategory'
+    return lines.some((l) => l.supplierName !== null) ? 'rfxHasSupplier' : null
+  })()
 
   async function apply(clear: boolean, confirmed = false) {
     if (selected.length === 0) return setProblem('needLines')
@@ -261,6 +275,17 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
           <Button variant="secondary" onClick={() => void apply(true)} disabled={action.pending || confirmUrgent !== null}>
             {action.pending && clearing ? t('assign.clearing') : t('assign.clear')}
           </Button>
+          {sourcing ? (
+            rfxProblem === null ? (
+              <Link href={`/sourcing/new?lines=${selected.join(',')}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-input bg-bg px-4 font-medium text-ink hover:bg-surface">
+                {t('rfx.open')}
+              </Link>
+            ) : (
+              <Button variant="secondary" onClick={() => setProblem(rfxProblem)} disabled={action.pending || confirmUrgent !== null}>
+                {t('rfx.open')}
+              </Button>
+            )
+          ) : null}
         </div>
         {confirmUrgent !== null ? (
           <div role="group" aria-labelledby={`${id}-urgent`} className="flex flex-col gap-2 border-l-4 border-info bg-surface px-3 py-2.5">
@@ -287,14 +312,15 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
       </div>
       <ul aria-label={t('listLabel')} className="flex flex-col divide-y divide-line border-b border-line">
         {requests.map((r) => {
-          const lineIds = r.lines.map((l) => l.id)
-          const all = lineIds.every((lineId) => picked.has(lineId))
+          const lineIds = r.lines.filter((l) => !l.rfx).map((l) => l.id)
+          const all = lineIds.length > 0 && lineIds.every((lineId) => picked.has(lineId))
           return (
             <li key={r.id} className="flex flex-col gap-2 py-4">
               <div className="flex items-start gap-3">
                 <input
                   type="checkbox"
                   checked={all}
+                  disabled={lineIds.length === 0}
                   onChange={(event) => toggle(lineIds, event.currentTarget.checked)}
                   aria-label={t('request.selectAll', { number: r.number })}
                   className="mt-1.5 size-5 shrink-0"
@@ -334,9 +360,11 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
                       <label className="flex min-w-0 items-start gap-3">
                         <input
                           type="checkbox"
-                          checked={picked.has(l.id)}
+                          checked={!l.rfx && picked.has(l.id)}
+                          disabled={Boolean(l.rfx)}
                           onChange={(event) => toggle([l.id], event.currentTarget.checked)}
                           aria-label={t('line.select', { no: l.no, description: l.description })}
+                          aria-describedby={l.rfx ? `${id}-rfx-${l.id}` : undefined}
                           className="mt-1.5 size-5 shrink-0"
                         />
                         <span className="flex min-w-0 flex-col gap-0.5">
@@ -344,7 +372,18 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
                               supplier chosen is not an approval: its store in --info, never --primary (§9.9 tokens) */}
                           <span className="font-medium break-words text-ink">{t('line.title', { no: l.no, description: l.description })}</span>
                           <span className="text-ink-muted">{l.kind}</span>
-                          {l.supplierName ? (
+                          {l.rfx ? (
+                            // S10-12 (INV-RFX-03): held by an RFx — its supplier comes from the award, so the line is not ticked here
+                            <span id={`${id}-rfx-${l.id}`} className="inline-flex items-start gap-1.5 font-medium text-info">
+                              <FileSearch className="mt-[0.3em] size-4 shrink-0" aria-hidden="true" />
+                              <span className="break-words">
+                                <Link href={l.rfx.href} className="underline underline-offset-4 hover:no-underline">
+                                  {l.rfx.label}
+                                </Link>
+                                {` · ${t('rfx.held')}`}
+                              </span>
+                            </span>
+                          ) : l.supplierName ? (
                             <span className="inline-flex items-start gap-1.5 text-ink">
                               <Store className="mt-[0.3em] size-4 shrink-0 text-info" aria-hidden="true" />
                               <span className="break-words">{t('line.supplier', { name: l.supplierName })}</span>

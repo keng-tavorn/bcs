@@ -52,6 +52,10 @@ export interface PoolLineDto {
   readonly urgency: 'NORMAL' | 'URGENT'
   readonly approvedAt: string
   readonly ageDays: number
+  /** S10-12: the line's category (an RFx takes lines of one · BR-RFX-01) */
+  readonly categoryCode?: string | null
+  /** S10-12: the RFx that holds the line until it ends (INV-RFX-03), or null; its supplier is chosen by the award */
+  readonly rfx?: { readonly id: string; readonly number: string | null } | null
 }
 
 /** The home's row "บรรทัดรอจัดซื้อ" (§9.10): every line of the pool, as /procurement/pool lists it unfiltered; null for a non-buyer */
@@ -68,11 +72,13 @@ export async function listPool(ctx: Ctx, filter: PoolFilter = {}): Promise<Resul
   if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
   const lines = await db.$transaction((tx) => freeLines(tx))
   const requestIds = [...new Set(lines.map((l) => l.requestId))]
-  const [requests, suppliers, sites] = await Promise.all([
+  const [requests, suppliers, sites, held] = await Promise.all([
     db.request.findMany({ where: { id: { in: requestIds } }, select: { id: true, title: true, approvedAt: true, suggestedSupplierId: true, requester: { select: { displayNameTh: true, displayNameEn: true } } } }),
     db.supplier.findMany({ where: { id: { in: [...new Set(lines.flatMap((l) => (l.supplierId ? [l.supplierId] : [])))] } }, select: { id: true, code: true, nameTh: true } }),
     db.deliverySite.findMany({ where: { id: { in: [...new Set(lines.flatMap((l) => (l.deliverySiteId ? [l.deliverySiteId] : [])))] } }, select: { id: true, code: true, nameTh: true } }),
+    db.requestLine.findMany({ where: { id: { in: lines.map((l) => l.requestLineId) }, rfxEventId: { not: null } }, select: { id: true, rfxEvent: { select: { id: true, number: true } } } }),
   ])
+  const rfxOf = new Map(held.flatMap((h) => (h.rfxEvent ? [[h.id, h.rfxEvent] as const] : [])))
   const requestOf = new Map(requests.map((r) => [r.id, r]))
   const supplierOf = new Map(suppliers.map((s) => [s.id, s]))
   const siteOf = new Map(sites.map((s) => [s.id, s]))
@@ -103,6 +109,8 @@ export async function listPool(ctx: Ctx, filter: PoolFilter = {}): Promise<Resul
       urgency: l.urgent ? 'URGENT' : 'NORMAL',
       approvedAt: approvedAt.toISOString(),
       ageDays: Math.floor((ctx.now.getTime() - approvedAt.getTime()) / MS_PER_DAY),
+      categoryCode: l.categoryCode,
+      rfx: rfxOf.get(l.requestLineId) ?? null,
     }
   })
   return ok(

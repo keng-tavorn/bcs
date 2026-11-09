@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
+import { isAllowed, memberPrincipal } from '@/server/authz'
+import { listEnabledModules } from '@/server/queries/organization'
 import { consolidationSchedule, poolOptions, type NextRoundDto, type RoundDto } from '@/server/queries/procurement'
 import { listPool } from '@/server/services/procurement'
 import { Notice } from '@/ui/form/notice'
@@ -41,8 +43,9 @@ function roundTitle(t: PoolT, locale: Locale, round: RoundDto): string {
 // The page's frame (S16-10): the filters (in the address, ./_filters.ts) and the pool in white cards on the left, the
 // round and the rounds that ran on the right.
 export default async function PoolPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
-  if (!ctx) return null
+  const state = await getSession()
+  const ctx = ctxFromSession(state, 'WEB', systemClock.now())
+  if (!ctx || state.kind !== 'member') return null
   const filter = poolFilterOf(await loadPoolFilters(searchParams))
   const filtered = Object.keys(filter).length > 0
   const [t, locale] = await Promise.all([getTranslations('procurement.pool'), getLocale().then(localeOf)])
@@ -61,7 +64,9 @@ export default async function PoolPage({ searchParams }: { searchParams: Promise
       </Page>
     )
   }
-  const [everything, options, schedule] = await Promise.all([filtered ? listPool(ctx) : Promise.resolve(pool), poolOptions(ctx), consolidationSchedule(ctx)])
+  const [everything, options, schedule, modules] = await Promise.all([filtered ? listPool(ctx) : Promise.resolve(pool), poolOptions(ctx), consolidationSchedule(ctx), listEnabledModules(ctx.organizationId)])
+  // S10-12: "เปิด RFx จากบรรทัดที่เลือก" while SOURCING is on, for who may make an RFx (rfx.create checks both again)
+  const sourcing = modules.includes('SOURCING') && isAllowed(memberPrincipal(state.member.id, state.roles), 'sourcing.manage')
   const all = everything.ok ? everything.data : pool.data
   const total = all.length
   // The round panel counts the whole pool, whatever the filter shows
@@ -144,7 +149,7 @@ export default async function PoolPage({ searchParams }: { searchParams: Promise
             {/* The board keeps its supplier bar in view while the list scrolls: the card lets it stick (overflow visible) */}
             <Panel label={t('title')} className="overflow-visible">
               {requests.length ? (
-                <PoolBoard requests={requests} suppliers={options.suppliers.map((s) => ({ id: s.id, label: `${s.code} · ${s.nameTh}` }))} assign={assignSupplierAction} />
+                <PoolBoard requests={requests} suppliers={options.suppliers.map((s) => ({ id: s.id, label: `${s.code} · ${s.nameTh}` }))} assign={assignSupplierAction} sourcing={sourcing} />
               ) : total === 0 ? (
                 <ListEmpty
                   title={t('empty')}

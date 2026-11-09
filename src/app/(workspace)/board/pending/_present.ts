@@ -82,7 +82,7 @@ export function boardDocumentViews(t: BoardT, locale: string, row: BoardRowDto, 
       id: task.taskId,
       title,
       // the reader's own task opens where they decide it
-      href: mine ? `/tasks/${task.taskId}` : documentHref({ type: subjectOf(task.subjectType), id: task.subjectId, poId: task.poId }, rights),
+      href: mine ? `/tasks/${task.taskId}` : documentHref({ type: subjectOf(task.subjectType), id: task.subjectId, poId: task.poId, rfxEventId: task.rfxEventId ?? null }, rights),
       meta: t('document.meta', { kind: t(`subject.${subjectOf(task.subjectType)}`), time: formatDateTime(locale, task.assignedAt) }),
       states,
       // the button only where the service would send the reminder: a task waiting for a decision that the reader sees

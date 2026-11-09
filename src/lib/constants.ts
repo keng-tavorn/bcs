@@ -284,6 +284,11 @@ export const SOURCING_DEFAULT_WEIGHTS_BP = {
 } as const // TODO(OQ-206)
 /** S10: the longest description of an RFx (characters), and of an amendment's summary or a criterion's guidance */
 export const RFX_LONG_TEXT_MAX = 4_000
+/** S10-12: the most suppliers and members the setup form of an RFx lists to pick from, and the most catalogue items */
+export const SOURCING_CHOICES_MAX = 2_000
+export const SOURCING_CATALOG_MAX = 1_000
+/** Asia/Bangkok is UTC+7 all year (no daylight saving): the wall time of a datetime-local field */
+export const BANGKOK_OFFSET_MS = 7 * MS_PER_HOUR
 export const RFX_SUMMARY_MAX = 1_000
 /** S10: the longest question of a supplier about an RFx (BR-RFX-04), in characters */
 export const RFX_QUESTION_MAX = 2_000

@@ -46,9 +46,6 @@ function moveTask(task: { status: string }, command: ReviewTaskCommand): ReviewT
   return t.ok ? t.to : null
 }
 
-/** Who may decide a reviewer's task now (INV-RSK-04): the one rule, kept with the reviewer's pages (queries/risk-review.ts) */
-export const reviewDeciders = reviewDecidersIn
-
 // ---------- riskReview.decide ----------
 
 const DecideInput = z
@@ -85,7 +82,7 @@ const decideCommand = defineCommand({
       select: { id: true, number: true, supplierId: true, status: true, reviewRound: true, openedById: true, filledOnBehalfById: true, submittedByContactId: true, tier: true, answers: { select: { answeredByMemberId: true } } },
     })
     const preparers = preparersOf(a)
-    const allowed = await authorize(tx, ctx, 'risk.review.decide', { deciderMemberIds: await reviewDeciders(tx, task, preparers, ctx.now) })
+    const allowed = await authorize(tx, ctx, 'risk.review.decide', { deciderMemberIds: await reviewDecidersIn(tx, task, preparers, ctx.now) })
     if (!allowed.ok) return { ok: false, error: allowed.error }
     if (allowed.data.kind !== 'member') return fail('FORBIDDEN', 'members only')
     const actorMemberId = allowed.data.memberId
@@ -156,7 +153,7 @@ const decideCommand = defineCommand({
       const shared = input.shareWithSupplier ? input.reason! : null
       await tx.riskAssessment.update({ where: { id: a.id }, data: { status: moved.to, returnReason: shared, lastActivityAt: ctx.now, version: { increment: 1 } } })
       events.push({ type: 'risk_assessment.returned', aggregateType: 'RiskAssessment', aggregateId: a.id, data: { reviewRound: task.reviewRound, byTaskId: task.id, reasonShared: shared !== null } })
-      notifications.push(openerNotice(a, 'risk.assessment_returned'))
+      notifications.push(openerNotice(a, 'risk.assessment_returned', task.reviewRound))
       const told = await tellSupplier(tx, ctx, a, { templateKey: RISK_SUPPLIER_TEMPLATES.returned, data: { number: a.number ?? '', reason: shared }, withLink: true, memberId: actorMemberId })
       events.push(...told.events)
       notifications.push(...told.notifications)
@@ -168,7 +165,7 @@ const decideCommand = defineCommand({
     if (!moved.ok) return fail('INVALID_STATE_TRANSITION', `risk_review.all_passed is not allowed from ${a.status}`, { from: a.status })
     await tx.riskAssessment.update({ where: { id: a.id }, data: { version: { increment: 1 } } })
     events.push(...(await completeAssessment(tx, ctx, a.id)))
-    notifications.push(openerNotice(a, 'risk.assessment_completed'))
+    notifications.push(openerNotice(a, 'risk.assessment_completed', task.reviewRound))
     const told = await tellSupplier(tx, ctx, a, { templateKey: RISK_SUPPLIER_TEMPLATES.completed, data: { number: a.number ?? '', tier: a.tier }, withLink: false, memberId: actorMemberId })
     events.push(...told.events)
     notifications.push(...told.notifications)
@@ -177,12 +174,13 @@ const decideCommand = defineCommand({
 })
 
 /** BR-NOTI-12: who opened the assessment hears of its outcome in the day's digest */
-const openerNotice = (a: { id: string; number: string | null; openedById: string }, templateKey: string): NotificationDraft => ({
+const openerNotice = (a: { id: string; number: string | null; openedById: string }, templateKey: string, reviewRound: number): NotificationDraft => ({
   recipientMemberId: a.openedById,
   templateKey,
   data: { assessmentId: a.id, number: a.number },
   urgency: 'DIGEST',
-  dedupeKey: `${templateKey}:${a.id}:${templateKey}`,
+  // one per round: a second return after the supplier answered again is told too
+  dedupeKey: `${templateKey}:${a.id}:${reviewRound}`,
   subjectType: 'RiskAssessment',
   subjectId: a.id,
 })

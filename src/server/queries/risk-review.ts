@@ -42,12 +42,10 @@ async function reviewDelegations(tx: TenantTx, delegatorMemberIds: readonly stri
  * whoever acts for the holder now through a delegation of no document type and no amount, unless they prepared the
  * assessment (BR-DLG-05). The one rule of the decision (riskReview.decide) and of these pages.
  */
-export async function reviewDecidersIn(
-  tx: TenantTx,
-  task: { readonly assigneeMemberId: string; readonly delegatorMemberId: string | null },
-  preparers: readonly string[],
-  at: Date,
-): Promise<string[]> {
+export async function reviewDecidersIn(tx: TenantTx, task: ReviewTaskHolders, preparers: readonly string[], at: Date): Promise<string[]> {
+  const held = [task.assigneeMemberId, task.delegatorMemberId].filter((m): m is string => typeof m === 'string')
+  // as at the assignment (resolveReviewStep): only a reviewer found through a position is acted for (BR-DLG-01)
+  if (!(await slotViaPosition(tx, task))) return [...new Set(held)]
   const delegations = await reviewDelegations(tx, [task.assigneeMemberId])
   const delegates = delegations.map((d) => d.delegateMemberId)
   const active = new Set((await tx.member.findMany({ where: { id: { in: delegates }, status: 'ACTIVE' }, select: { id: true } })).map((m) => m.id))
@@ -55,8 +53,25 @@ export async function reviewDecidersIn(
   return [...new Set([task.assigneeMemberId, task.delegatorMemberId, now.principalMemberId ? now.assigneeMemberId : null].filter((m): m is string => typeof m === 'string'))]
 }
 
+/** What of a task names who may decide it: its holders, and the rule and side (reviewer or fallback) that found them */
+export interface ReviewTaskHolders {
+  readonly assigneeMemberId: string
+  readonly delegatorMemberId: string | null
+  readonly workflowVersionId: string
+  readonly ruleCodes: readonly string[]
+  readonly fallbackUsed: string
+}
+
+/** The slot's reviewer was found through a position (POSITION_AT), not named as a member: the rule's reviewer, or its fallback */
+async function slotViaPosition(tx: TenantTx, task: ReviewTaskHolders): Promise<boolean> {
+  const rule = await tx.workflowRule.findFirst({ where: { workflowVersionId: task.workflowVersionId, code: task.ruleCodes[0] ?? '' }, select: { reviewers: true, fallback: true } })
+  if (!rule) return false
+  const spec = (task.fallbackUsed === 'NONE' ? (Array.isArray(rule.reviewers) ? rule.reviewers[0] : null) : rule.fallback) as { kind?: unknown } | null
+  return spec?.kind === 'POSITION_AT'
+}
+
 /** Who sees a task's page: whoever may decide it now, and whoever decided it */
-async function taskReaders(tx: TenantTx, task: { assigneeMemberId: string; delegatorMemberId: string | null; decidedById: string | null }, preparers: readonly string[], at: Date): Promise<string[]> {
+async function taskReaders(tx: TenantTx, task: ReviewTaskHolders & { readonly decidedById: string | null }, preparers: readonly string[], at: Date): Promise<string[]> {
   return [...new Set([...(await reviewDecidersIn(tx, task, preparers, at)), ...(task.decidedById ? [task.decidedById] : [])])]
 }
 
@@ -97,6 +112,9 @@ export async function riskReviewTasksOf(ctx: Ctx, which: 'OPEN' | 'DONE', take =
       decidedAt: true,
       assigneeMemberId: true,
       delegatorMemberId: true,
+      workflowVersionId: true,
+      ruleCodes: true,
+      fallbackUsed: true,
       assessment: { select: { number: true, tier: true, status: true, openedById: true, filledOnBehalfById: true, answers: { select: { answeredByMemberId: true } }, supplier: { select: { code: true, nameTh: true } } } },
     } as const
     let rows
@@ -298,7 +316,7 @@ export async function riskReviewTaskPage(ctx: Ctx, taskId: string): Promise<Risk
 export async function riskReviewTaskReaders(ctx: Ctx, taskId: string): Promise<string[]> {
   if (!/^[0-9a-f-]{36}$/i.test(taskId)) return []
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
-    const task = await tx.reviewTask.findFirst({ where: { id: taskId }, select: { assessmentId: true, assigneeMemberId: true, delegatorMemberId: true, decidedById: true } })
+    const task = await tx.reviewTask.findFirst({ where: { id: taskId }, select: { assessmentId: true, assigneeMemberId: true, delegatorMemberId: true, decidedById: true, workflowVersionId: true, ruleCodes: true, fallbackUsed: true } })
     if (!task) return []
     const a = await tx.riskAssessment.findUniqueOrThrow({ where: { id: task.assessmentId }, select: { openedById: true, filledOnBehalfById: true, answers: { select: { answeredByMemberId: true } } } })
     return taskReaders(tx, task, assessmentPreparers(a), ctx.now)

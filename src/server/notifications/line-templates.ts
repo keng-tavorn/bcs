@@ -41,4 +41,6 @@ export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   'risk.review_assigned',
   'risk.review_reminder',
   'risk.review_overdue',
+  // and the fallback's acknowledgement at escalateAt ("LINE → อีเมล" of the same row)
+  'risk.review_escalated',
 ])

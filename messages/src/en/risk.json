@@ -369,6 +369,17 @@
     "filled": "Answers filled in were saved",
     "missing": "Still to answer: {codes}",
     "openFile": "Open file {name}",
-    "openDocument": "Open the certificate"
+    "openDocument": "Open the certificate",
+    "reviews": {
+      "title": "Risk reviewers",
+      "round": "Round {round}",
+      "reason": "Reason for the return",
+      "status": {
+        "OPEN": "Waiting",
+        "PASSED": "Passed",
+        "RETURNED": "Returned",
+        "CANCELLED": "Cancelled"
+      }
+    }
   }
 }

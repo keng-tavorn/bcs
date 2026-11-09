@@ -171,7 +171,8 @@ const DOWNLOAD_TTL_SECONDS = 300
 async function evidenceViewer(tx: TenantTx, ctx: Ctx, answer?: { readonly assessmentId: string; readonly questionCode: string }): Promise<{ ok: true } | Fail> {
   const on = await requireModule(ctx, 'RISK', tx)
   if (!on.ok) return { ok: false, error: on.error }
-  const may = await authorize(tx, ctx, 'risk.evidence.view', answer ? { assigneeMemberIds: await slotHoldersSeeing(tx, answer.assessmentId, answer.questionCode) } : undefined)
+  // without an answer no slot is named: only the roles open it (an ASSIGNED grant asked without a resource would let anyone in)
+  const may = await authorize(tx, ctx, 'risk.evidence.view', { assigneeMemberIds: answer ? await slotHoldersSeeing(tx, answer.assessmentId, answer.questionCode) : [] })
   return may.ok ? { ok: true } : { ok: false, error: may.error }
 }
 
@@ -180,7 +181,8 @@ async function slotHoldersSeeing(tx: TenantTx, assessmentId: string, questionCod
   const a = await tx.riskAssessment.findUniqueOrThrow({ where: { id: assessmentId }, select: { questionnaireId: true } })
   const question = await tx.riskQuestion.findFirst({ where: { questionnaireId: a.questionnaireId, code: questionCode }, select: { domain: true } })
   if (!question) return []
-  const tasks = await tx.reviewTask.findMany({ where: { assessmentId, status: { not: 'CANCELLED' } }, select: { riskDomains: true, assigneeMemberId: true, delegatorMemberId: true, decidedById: true } })
+  // every task of the assessment, a cancelled one too: its holder still reads the slot's page (riskReviewTaskPage)
+  const tasks = await tx.reviewTask.findMany({ where: { assessmentId }, select: { riskDomains: true, assigneeMemberId: true, delegatorMemberId: true, decidedById: true } })
   return [
     ...new Set(
       tasks
@@ -229,9 +231,9 @@ export async function requestRiskEvidenceDownload(ctx: Ctx, input: { assessmentI
  */
 export async function requestRiskEvidenceDocumentDownload(ctx: Ctx, input: { assessmentId: string; documentId: string }, options: RunOptions): Promise<Result<{ url: string; expiresInSeconds: number }>> {
   const behind = await forTenant(ctx.organizationId).$transaction(async (tx): Promise<{ ok: true } | Fail> => {
-    const may = await evidenceViewer(tx, ctx)
+    const answer = await tx.riskAnswer.findFirst({ where: { assessmentId: input.assessmentId, evidenceDocumentId: input.documentId }, select: { questionCode: true } })
+    const may = await evidenceViewer(tx, ctx, answer ? { assessmentId: input.assessmentId, questionCode: answer.questionCode } : undefined)
     if (!may.ok) return may
-    const answer = await tx.riskAnswer.findFirst({ where: { assessmentId: input.assessmentId, evidenceDocumentId: input.documentId }, select: { id: true } })
     return answer ? { ok: true } : fail('NOT_FOUND', 'no answer of this assessment rests on the document')
   })
   if (!behind.ok) return behind

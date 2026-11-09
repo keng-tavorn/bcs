@@ -369,6 +369,17 @@
     "filled": "บันทึกคำตอบที่กรอกแทนแล้ว",
     "missing": "ยังขาดคำตอบของคำถาม {codes}",
     "openFile": "เปิดไฟล์ {name}",
-    "openDocument": "เปิดใบรับรอง"
+    "openDocument": "เปิดใบรับรอง",
+    "reviews": {
+      "title": "ผู้ตรวจความเสี่ยง",
+      "round": "รอบที่ {round}",
+      "reason": "เหตุผลที่ตีกลับ",
+      "status": {
+        "OPEN": "รอตรวจ",
+        "PASSED": "ผ่าน",
+        "RETURNED": "ตีกลับ",
+        "CANCELLED": "ยกเลิก"
+      }
+    }
   }
 }

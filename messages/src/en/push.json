@@ -95,6 +95,9 @@
     },
     "review_overdue": {
       "title": "A risk assessment review is overdue"
+    },
+    "review_escalated": {
+      "title": "For your information: a risk assessment review is overdue"
     }
   }
 }

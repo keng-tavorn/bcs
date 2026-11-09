@@ -9878,6 +9878,9 @@
       "review_assigned": {
         "title": "A risk assessment waits for your review"
       },
+      "review_escalated": {
+        "title": "For your information: a risk assessment review is overdue"
+      },
       "review_overdue": {
         "title": "A risk assessment review is overdue"
       },
@@ -11630,6 +11633,17 @@
       "questions": "Questions and answers",
       "result": "Result",
       "resultValue": "{tier} tier · {points} points",
+      "reviews": {
+        "reason": "Reason for the return",
+        "round": "Round {round}",
+        "status": {
+          "CANCELLED": "Cancelled",
+          "OPEN": "Waiting",
+          "PASSED": "Passed",
+          "RETURNED": "Returned"
+        },
+        "title": "Risk reviewers"
+      },
       "save": "Save the answers",
       "saving": "Saving…",
       "scan": {

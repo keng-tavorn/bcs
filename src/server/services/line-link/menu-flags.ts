@@ -51,7 +51,8 @@ export async function richMenuInputsOf(tx: TenantTx, memberIds: readonly string[
   const reviewers = new Set<string>()
   if (workflow) {
     const org = await loadOrgSnapshot(tx)
-    for (const rule of workflow.rules) {
+    // S11-06: a reviewer of risk assessments (RISK_ASSESSMENT rules) has no task in the approver's list, so not that menu
+    for (const rule of workflow.rules.filter((r) => (r.scope ?? 'REQUEST') === 'REQUEST')) {
       for (const spec of [...rule.reviewers, ...(rule.fallback ? [rule.fallback] : [])]) {
         const found = resolveReviewer(spec, org, now)
         if (found) reviewers.add(found.memberId)

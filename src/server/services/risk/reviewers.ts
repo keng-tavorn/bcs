@@ -8,7 +8,7 @@ import { loadBusinessCalendar, loadDelegations, loadOrgSnapshot } from '@/server
 import type { EventDraft } from '@/server/events/append'
 import type { OutboxDraft } from '@/server/events/outbox'
 import type { NotificationDraft } from '@/server/notifications/create'
-import { assessmentPreparers } from '@/server/queries/risk-review'
+import { assessmentPreparers, domainsSeenBy } from '@/server/queries/risk-review'
 import { loadWorkflowVersions } from '@/server/workflow/policy'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { DEFAULT_ESCALATE_AFTER_MINUTES } from '../sla/policy'
@@ -77,8 +77,8 @@ export async function resolveAssessmentReviewers(tx: TenantTx, a: AssessmentForR
   )
 }
 
-/** The questions a slot's reviewer sees: GENERAL and the slot's domains (BR-RSK-08) */
-export const visibleDomains = (riskDomains: readonly string[]): string[] => ['GENERAL', ...riskDomains.filter((d) => d !== 'GENERAL')]
+/** The questions a slot's reviewer sees: GENERAL and the slot's domains (BR-RSK-08 · the one rule of the reviewer's pages) */
+export const visibleDomains = (riskDomains: readonly string[]): string[] => domainsSeenBy(riskDomains)
 
 /**
  * The tasks of a round of reviewers, inside the send's transaction: one per slot, each due after its slot's SLA, its holder

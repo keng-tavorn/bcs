@@ -33,6 +33,13 @@ const STATUS_LOOK: Record<Status, BadgeLook> = {
   SUPERSEDED: { tone: 'neutral', icon: 'Ban' },
   CANCELLED: { tone: 'neutral', icon: 'CircleX' },
 }
+// S11-06 (BR-RSK-08): the state of each reviewer's slot, with an icon beside its words
+const REVIEW_LOOK: Record<'OPEN' | 'PASSED' | 'RETURNED' | 'CANCELLED', BadgeLook> = {
+  OPEN: { tone: 'warn', icon: 'Hourglass' },
+  PASSED: { tone: 'ok', icon: 'CircleCheck' },
+  RETURNED: { tone: 'warn', icon: 'Undo2' },
+  CANCELLED: { tone: 'neutral', icon: 'CircleX' },
+}
 const SOURCES = ['EXPLICIT', 'ON_BEHALF', 'EVIDENCE'] as const
 const SCANS = ['PENDING', 'CLEAN', 'INFECTED'] as const
 const SCREENING = ['processesPersonalData', 'accessesSystems', 'accessesPremises'] as const
@@ -145,6 +152,32 @@ export default async function RiskAssessmentPage({ params }: { params: Promise<{
                 ) : null}
               </dl>
             </Panel>
+            {a.reviews.length > 0 ? (
+              <Panel title={t('reviews.title')} id="reviews">
+                <ol className="flex flex-col gap-3">
+                  {a.reviews.map((r) => (
+                    <li key={`${r.reviewRound}-${r.slotNo}`} className="flex flex-col gap-1 border-b border-border pb-3 last:border-b-0 last:pb-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">{RISK_DOMAINS_UI.filter((d) => d === 'GENERAL' || r.riskDomains.includes(d))
+                            .map((d) => tAdmin(`domain.${d}`))
+                            .join(', ')}</span>
+                        <StatusBadge look={REVIEW_LOOK[r.status]} label={t(`reviews.status.${r.status}`)} />
+                      </div>
+                      <span className="text-ink-muted">
+                        {t('reviews.round', { round: r.reviewRound })} · {r.reviewerName}
+                        {r.decidedAt ? ` · ${when(locale, r.decidedAt)}` : ''}
+                      </span>
+                      {r.reason ? (
+                        <p className="whitespace-pre-line">
+                          <span className="text-ink-muted">{t('reviews.reason')}: </span>
+                          {r.reason}
+                        </p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              </Panel>
+            ) : null}
             {a.canManage && open ? (
               <Panel title={t('manage')} id="manage">
                 <AssessmentButtons

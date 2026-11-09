@@ -14,6 +14,7 @@ import {
   openRiskAssessment,
   requestRiskEvidenceDownload,
   reresolveReviewTasks,
+  riskAssessmentView,
   riskReviewTask,
   riskReviewTasks,
   runReviewTaskTimer,
@@ -464,5 +465,63 @@ describe('[FR-RSK-202/AC5] separation of duties, acting holders, SLA and the tre
       await prisma.positionAssignment.delete({ where: { id: newcomer.id } })
       await prisma.positionAssignment.update({ where: { id: holder.id }, data: { validTo: null } })
     }
+  })
+})
+
+describe('[BR-RSK-08] what the review leaves for PROCUREMENT and the auditors (xhigh review of S11-06)', () => {
+  it('the file shows every slot’s state; the reason of a return to PROCUREMENT and AUDITOR only', async () => {
+    const a = await sent({ processesPersonalData: 'N', accessesSystems: 'Y', accessesPremises: 'Y' })
+    ok(await decide('dm_con', (await taskOf(a.assessmentId, 'RR-03')).id, 'RETURN', { reason: 'ภายใน: ขาดแผนผังพื้นที่ทำงาน' }))
+    const reviews = (who: string) => riskAssessmentView(as(who), a.assessmentId).then((r) => ok(r).reviews)
+    const proc = await reviews('proc_officer')
+    expect(proc.map((r) => [r.reviewRound, r.slotNo, r.riskDomains, r.status])).toEqual([
+      [1, 1, ['INFOSEC'], 'CANCELLED'],
+      [1, 2, ['PREMISES'], 'RETURNED'],
+    ])
+    expect(proc.find((r) => r.status === 'RETURNED')?.reason).toBe('ภายใน: ขาดแผนผังพื้นที่ทำงาน')
+    expect((await reviews('auditor')).find((r) => r.status === 'RETURNED')?.reason).toBe('ภายใน: ขาดแผนผังพื้นที่ทำงาน')
+    // FINANCE reads the file and the states, not the reason
+    await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.fin_officer!, role: 'FINANCE', grantedAt: NOW } }).catch(() => undefined)
+    const fin = await reviews('fin_officer')
+    expect(fin.map((r) => r.status)).toEqual(['CANCELLED', 'RETURNED'])
+    expect(fin.every((r) => r.reason === null)).toBe(true)
+  })
+
+  it('EXECUTIVE reads the file without the evidence buttons (risk.evidence.view is no ASSIGNED grant without a slot)', async () => {
+    await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.coo!, role: 'EXECUTIVE', grantedAt: NOW } })
+    const a = await sent({ processesPersonalData: 'N', accessesSystems: 'Y', accessesPremises: 'N' }, { files: ['RQ-IS-01'] })
+    expect(ok(await riskAssessmentView(as('coo'), a.assessmentId)).canViewEvidence).toBe(false)
+    expect(ok(await riskAssessmentView(as('auditor'), a.assessmentId)).canViewEvidence).toBe(true)
+    expect(await requestRiskEvidenceDownload(as('coo'), { assessmentId: a.assessmentId, fileId: a.files['RQ-IS-01']! }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    // a file that is not behind an answer of this assessment opens for no slot holder either
+    expect(await requestRiskEvidenceDownload(as('dm_it'), { assessmentId: a.assessmentId, fileId: randomUUID() }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+  })
+
+  it('a reviewer whose slot was cancelled by another slot’s return still opens the files of its part', async () => {
+    const a = await sent({ processesPersonalData: 'N', accessesSystems: 'Y', accessesPremises: 'Y' }, { files: ['RQ-IS-01'] })
+    ok(await decide('dm_con', (await taskOf(a.assessmentId, 'RR-03')).id, 'RETURN', { reason: 'ขาดแผนผัง' }))
+    expect((await tasksOf(a.assessmentId)).find((t) => t.ruleCodes.includes('RR-02'))).toMatchObject({ status: 'CANCELLED' })
+    expect(ok(await requestRiskEvidenceDownload(as('dm_it'), { assessmentId: a.assessmentId, fileId: a.files['RQ-IS-01']! }, key())).url).toMatch(/^https?:\/\//)
+  })
+
+  it('who opened it hears of every return, round after round', async () => {
+    const a = await sent({ processesPersonalData: 'N', accessesSystems: 'Y', accessesPremises: 'N' })
+    ok(await decide('dm_it', (await taskOf(a.assessmentId, 'RR-02')).id, 'RETURN', { reason: 'รอบหนึ่ง' }))
+    ok(await submitRiskAssessment(a.portal(), { assessmentId: a.assessmentId, expectedVersion: await version(a.assessmentId) }, key()))
+    const round2 = (await tasksOf(a.assessmentId)).find((t) => t.reviewRound === 2 && t.ruleCodes.includes('RR-02'))!
+    ok(await decide('dm_it', round2.id, 'RETURN', { reason: 'รอบสอง' }))
+    expect(await prisma.notification.count({ where: { templateKey: 'risk.assessment_returned', subjectId: a.assessmentId, recipientMemberId: org.member.proc_officer } })).toBe(2)
+  })
+
+  it('a reviewer named as a member is not acted for: only a slot found through a position is (BR-DLG-01, as at the assignment)', async () => {
+    const named = await createP2Org()
+    await riskOrg(named, [{ code: 'RR-07', riskDomains: ['INFOSEC'], when: { field: 'accessesSystems', op: 'eq', value: 'Y' }, reviewers: [{ kind: 'MEMBER', memberId: '' } as never], fallback: position('VP', 'SUP') }])
+    await prisma.workflowRule.updateMany({ where: { organizationId: named.organizationId, code: 'RR-07' }, data: { reviewers: [{ kind: 'MEMBER', memberId: named.member.dm_it! }] } })
+    const a = await sent({ processesPersonalData: 'N', accessesSystems: 'Y', accessesPremises: 'N' }, { o: named })
+    const t = (await prisma.reviewTask.findMany({ where: { assessmentId: a.assessmentId } }))[0]!
+    expect(t).toMatchObject({ assigneeMemberId: named.member.dm_it, delegatorMemberId: null })
+    await prisma.delegation.create({ data: { organizationId: named.organizationId, delegatorMemberId: named.member.dm_it!, delegateMemberId: named.member.admin!, documentTypes: [], startsAt: new Date('2026-11-08T00:00:00Z'), endsAt: new Date('2026-11-20T00:00:00Z'), status: 'ACTIVE', reason: 'ลา', createdVia: 'SELF' } })
+    expect(await decideRiskReview(named.ctxOf('admin', NOW), { taskId: t.id, decision: 'PASS' }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(ok(await decideRiskReview(named.ctxOf('dm_it', NOW), { taskId: t.id, decision: 'PASS' }, key())).assessment).toBe('COMPLETED')
   })
 })

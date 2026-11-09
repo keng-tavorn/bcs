@@ -1,17 +1,20 @@
 import { randomUUID } from 'node:crypto'
 import { systemClock } from '@/lib/clock'
-import { upsertUserWithPassword } from '@/server/auth/provision'
+import { deriveSeedTotpSecret } from '@/lib/totp'
+import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { portalCtx } from '@/server/portal/session'
 import { decideTask } from '@/server/services/approvals/decide'
+import { completeUpload, requestUpload } from '@/server/services/files'
 import { issueLineLinkCode, linkLineAccount } from '@/server/services/line-link'
 import { closeRfxAt, submitBid } from '@/server/services/sourcing'
 import { E2E_DB } from '../support/e2e-env'
 import { ensureTestPin, stepUpForTask } from '../support/pin'
 import { createDraft, submitRequest } from '../support/requests'
 import { lineWithRoom } from './budget-room'
+import { ATTACHMENT_PDF } from './tasks-attachment'
 
 // Run by tests/e2e/sourcing.spec.ts against the e2e database only (S10-12 · the internal side of scene 9 of S10.md):
 // the demo organization with SUPPLIER and SOURCING switched on while the spec runs (rows only, as a platform admin
@@ -68,15 +71,29 @@ async function approveAll(subjectId: string) {
   }
 }
 
+/** Uploads a PDF as the member through the presigned flow of the file service, as a browser does (FR-PLT-004) */
+async function upload(memberId: string, fileName: string): Promise<string> {
+  const ctx = ctxOf(memberId)
+  const asked = ok('upload', await requestUpload(ctx, { fileName, mimeType: 'application/pdf', sizeBytes: ATTACHMENT_PDF.length }))
+  const put = await fetch(asked.uploadUrl, { method: 'PUT', body: new Uint8Array(ATTACHMENT_PDF), headers: { 'Content-Type': 'application/pdf' } })
+  if (!put.ok) throw new Error(`upload failed: ${put.status}`)
+  return ok('upload recorded', await completeUpload(ctx, { ticket: asked.ticket })).fileId
+}
+
 /** An approved request of CON with one steel line at a site and no supplier: a line of the pool */
-async function poolLine(tag: string, quantity: string, site: string) {
+async function poolLine(tag: string, quantity: string, site: string, quotes: readonly [string, string, string]) {
   const requester = await member('req_con')
   const room = await lineWithRoom(['CON-CAPEX-2569', 'CON-OPEX-2569'], 21_000_000n)
   const siteRow = await prisma.deliverySite.findFirstOrThrow({ where: { organizationId: org.id, code: site }, select: { id: true } })
   const description = `เหล็กข้ออ้อย DB12 ${site} ${tag}`
+  // the demo DOA asks three quotations of a purchase this size (ATT-QUOTES): three, each with its file, the lowest chosen
+  const quotations = []
+  for (const [n, amount] of quotes.entries()) {
+    quotations.push({ supplierName: `ร้านเหล็กเสนอราคา ${n + 1}`, amount, includesVat: false, fileId: await upload(requester.id, `quotation-${n + 1}-${tag}.pdf`), selected: n === 0 })
+  }
   const draft = ok(
     'draft',
-    await createDraft(ctxOf(requester.id), { requestTypeCode: 'BUY_GOODS', priceIncludesVat: false, title: `เหล็กเส้น ${site} ${tag}`, budgetLineId: room.id, deliverySiteId: siteRow.id, lines: [{ description, quantity, uom: 'ตัน', unitPrice: '23800.00', categoryCode: 'STEEL' }] }, key()),
+    await createDraft(ctxOf(requester.id), { requestTypeCode: 'BUY_GOODS', priceIncludesVat: false, title: `เหล็กเส้น ${site} ${tag}`, budgetLineId: room.id, deliverySiteId: siteRow.id, quotations, lines: [{ description, quantity, uom: 'ตัน', unitPrice: '23800.00', categoryCode: 'STEEL' }] }, key()),
   )
   ok('submit', await submitRequest(ctxOf(requester.id), { requestId: draft.requestId }, key()))
   await approveAll(draft.requestId)
@@ -85,7 +102,7 @@ async function poolLine(tag: string, quantity: string, site: string) {
   return description
 }
 
-/** A fresh approver of the run (no other spec touches it), linked to the LINE account as /liff/link does, with a PIN */
+/** A fresh approver of the run (no other spec touches it), with a second factor, linked to the LINE account as /liff/link does, with a PIN */
 async function approver(tag: string, lineUserId: string) {
   const email = `e2e-src-${tag}@demo.bcs.local`
   const nameTh = `ผู้อนุมัติจัดหา ${tag}`
@@ -97,6 +114,8 @@ async function approver(tag: string, lineUserId: string) {
     update: {},
     select: { id: true },
   })
+  // an approver holds the second factor every approver of the seed has (LIFF asks it of a member who decides)
+  await enableTotpWithSecret(userId, deriveSeedTotpSecret(process.env.SEED_TOTP_KEY!, `e2e-src-${tag}`), [])
   await ensureTestPin(row.id)
   const issued = await issueLineLinkCode(ctxOf(row.id), systemClock.now())
   if (!issued.ok) throw new Error(`no link code: ${issued.error.code}`)
@@ -119,7 +138,7 @@ async function awardRule(tag: string, memberId: string | null) {
 
 async function setup(tag: string, lineUserId: string) {
   await modules(true)
-  const lines = [await poolLine(tag, '8', 'SITE-A'), await poolLine(tag, '5', 'SITE-B')]
+  const lines = [await poolLine(tag, '8', 'SITE-A', ['190400.00', '194400.00', '199400.00']), await poolLine(tag, '5', 'SITE-B', ['119000.00', '123000.00', '128000.00'])]
   const suppliers: Array<{ code: string; name: string }> = []
   for (const [n, name] of NAMES.entries()) {
     const code = `E2E-SRC-${tag}-${n}`

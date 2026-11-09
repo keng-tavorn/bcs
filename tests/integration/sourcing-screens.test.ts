@@ -45,8 +45,8 @@ async function supplier(name: string) {
 
 beforeAll(async () => {
   org = await createDoaOrg()
-  for (const module of ['SUPPLIER', 'SOURCING'] as const) {
-    await prisma.orgModule.create({ data: { organizationId: org.organizationId, module, enabled: true, enabledAt: new Date('2026-01-01T00:00:00Z'), contractRef: 'TEST-S10-12', reason: 'องค์กรทดสอบหน้าจัดหา' } })
+  for (const code of ['SUPPLIER', 'SOURCING'] as const) {
+    await prisma.orgModule.create({ data: { organizationId: org.organizationId, module: code, enabled: true, enabledAt: new Date('2026-01-01T00:00:00Z'), contractRef: 'TEST-S10-12', reason: 'องค์กรทดสอบหน้าจัดหา' } })
   }
   await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.dm_proc!, role: 'PROCUREMENT', grantedAt: new Date('2026-01-01T00:00:00Z') } })
   // a reader of every RFx who does not manage them (sourcing.view ORG · not sourcing.manage)

@@ -75,7 +75,7 @@ test('[FR-SRC-201/AC1] [FR-SRC-202/AC5] scene 9 inside: the pool opens an RFQ, i
   await signIn(page, 'proc_officer')
   await page.goto('/procurement/pool')
   for (const description of made.lines) await page.getByRole('checkbox', { name: new RegExp(`เลือกบรรทัด 1 ${description}`) }).check()
-  await page.getByRole('button', { name: 'เปิด RFx จากบรรทัดที่เลือก' }).click()
+  await page.getByRole('link', { name: 'เปิด RFx จากบรรทัดที่เลือก' }).click()
   await page.waitForURL(/\/sourcing\/new\?lines=/)
   await expect(page.getByText('บรรทัดจากกองจัดซื้อ 2 บรรทัด')).toBeVisible()
   await shot(page, testInfo, 'sourcing-new')

@@ -276,7 +276,8 @@
       "CLOSE_TOO_SOON_AT": "The close is earlier than the system allows. The earliest close is {earliest}.",
       "PAST_CLOSE": "The RFx has closed; suppliers can no longer be invited or withdrawn",
       "LAST_LINE": "An RFx keeps one line at least",
-      "OTHER": "That did not work. Try again; if it still fails, tell your administrator."
+      "OTHER": "That did not work. Try again; if it still fails, tell your administrator.",
+      "CONFLICT_VERSION": "Someone changed this RFx first. Reload the page to see it now and try again."
     },
     "stepsLabel": "Steps of setting up the RFx",
     "stepDone": "done",

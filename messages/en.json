@@ -12597,6 +12597,7 @@
         "CLOSE_TOO_SOON": "The close is earlier than the system allows. Pick a later close.",
         "CLOSE_TOO_SOON_AT": "The close is earlier than the system allows. The earliest close is {earliest}.",
         "CONFLICT": "Someone changed this RFx first. Reload the page to see it now and try again.",
+        "CONFLICT_VERSION": "Someone changed this RFx first. Reload the page to see it now and try again.",
         "DUPLICATE_CODE": "Two criteria have the same code. Give every criterion its own code.",
         "FEWER_INVITES_REASON": "Fewer suppliers than the minimum are invited. Give the reason the award's approver will see.",
         "FORBIDDEN": "You may not do this. Only procurement manages RFx.",

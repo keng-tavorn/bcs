@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useLocale, useTranslations } from 'next-intl'
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useSubmissionKey } from '../form/submission-key'
 import { formatDateTime } from '../format'
 import { setupErrorKey, type RfxOutcome } from './setup-model'
@@ -22,6 +22,8 @@ export function useRfxAct() {
   const router = useRouter()
   const submission = useSubmissionKey()
   const [pending, setPending] = useState(false)
+  // the page read again after a command: until it lands the form still holds the RFx's old version, so it stays busy
+  const [refreshing, startRefresh] = useTransition()
   const [message, setMessage] = useState<RfxActMessage | null>(null)
 
   function failureText(o: Extract<RfxOutcome, { ok: false }>): string {
@@ -46,9 +48,9 @@ export function useRfxAct() {
     }
     if (done) setMessage({ tone: 'success', text: done })
     if (onOk) onOk(outcome)
-    else router.refresh()
+    else startRefresh(() => router.refresh())
     return true
   }
 
-  return { act, pending, message, setMessage, router }
+  return { act, pending: pending || refreshing, message, setMessage, router }
 }

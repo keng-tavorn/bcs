@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useSubmissionKey } from '../../form/submission-key'
 import { errorKey, type RfxActionOutcome } from './model'
 
@@ -15,6 +15,8 @@ export function useRfxCommand() {
   const router = useRouter()
   const submission = useSubmissionKey()
   const [pending, setPending] = useState(false)
+  // until the page read again lands, its forms still hold the RFx's old version: they stay busy meanwhile
+  const [refreshing, startRefresh] = useTransition()
   const [message, setMessage] = useState<{ readonly tone: 'success' | 'danger'; readonly text: string } | null>(null)
 
   async function run(call: (key: string) => Promise<RfxActionOutcome>, done: string): Promise<boolean> {
@@ -30,9 +32,9 @@ export function useRfxCommand() {
     }
     setPending(false)
     setMessage(outcome.ok ? { tone: 'success', text: done } : { tone: 'danger', text: t(`errors.${errorKey(outcome)}`) })
-    if (outcome.ok) router.refresh()
+    if (outcome.ok) startRefresh(() => router.refresh())
     return outcome.ok
   }
 
-  return { pending, message, run }
+  return { pending: pending || refreshing, message, run }
 }

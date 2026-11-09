@@ -4036,20 +4036,20 @@ engine ของขั้นเป็น pure function ใน `src/core/risk` ·
 
 | ธงทะเบียน | ระดับที่ใช้ | ใบประเมิน | การอนุมัติข้าม APPROVED | ผล | GC |
 | --- | --- | --- | --- | --- | --- |
-| CEASED (`registryFlagBlocks = true`) | ใดก็ได้ | ใดก็ได้ | ใดก็ได้ | `RISK_BLOCKED` REGISTRY_CEASED | 36 |
-| VAT_CANCELLED / NOT_FOUND | ใดก็ได้ | ไม่มีใบ COMPLETED หลังติดธง | ใดก็ได้ | `RISK_BLOCKED` REGISTRY_FLAGGED | 37 42 |
-| VAT_CANCELLED / NOT_FOUND | ใดก็ได้ | COMPLETED หลังติดธง | — | ตรวจต่อตามระดับ | 41 43 |
-| ธงใด (`registryFlagBlocks = false`) | ใดก็ได้ | ใดก็ได้ | — | ตรวจต่อตามระดับ + คำเตือน REGISTRY_FLAGGED ที่ต้องกรอกเหตุผล | 46 |
-| NONE | LOW / MEDIUM | ไม่มี · CURRENT | — | ผ่าน NOT_REQUIRED | 25 26 |
-| NONE | LOW / MEDIUM | OVERDUE | — | ผ่าน NOT_REQUIRED + คำเตือน REASSESSMENT_OVERDUE ที่ต้องกรอกเหตุผล | 39 |
-| NONE | HIGH | CURRENT และครอบบริบทของ PO | — | ผ่าน ASSESSMENT | 27 |
-| NONE | HIGH | CURRENT แต่ PO เพิ่มคัดกรอง | ไม่มีที่ใช้ได้ | `RISK_REASSESSMENT_REQUIRED` SCOPE_EXPANDED | 38 |
-| NONE | HIGH | CURRENT แต่ PO เพิ่มคัดกรอง | ใช้ได้ | ผ่าน OVERRIDE | 45 |
-| NONE | HIGH | OVERDUE | ไม่มีที่ใช้ได้ | `RISK_REASSESSMENT_REQUIRED` VALIDITY_LAPSED | 34 |
-| NONE | HIGH | IN_PROGRESS · ไม่มี | ไม่มีที่ใช้ได้ (รวม PENDING_APPROVAL และรายการที่ผูก PO อื่น) | `RISK_ASSESSMENT_REQUIRED` IN_PROGRESS / NOT_ASSESSED | 28 29 40 47 |
-| NONE | HIGH | ไม่ผ่านข้อบน | `expiresOn ≥ วัน PO` และ `usedGross + gross ≤ cap` | ผ่าน OVERRIDE (+ `usedCount` `usedGrossSatang` ครั้งแรกต่อ PO) | 30 33 35 48 |
-| NONE | HIGH | ไม่ผ่านข้อบน (รวม OVERDUE) | `expiresOn < วัน PO` | `RISK_BLOCKED` OVERRIDE_EXPIRED | 31 44 |
-| NONE | HIGH | ไม่ผ่านข้อบน | `usedGross + gross > cap` (รวมยอดใหม่จาก `po_change`) | `RISK_BLOCKED` OVERRIDE_CAP_EXCEEDED | 32 49 50 |
+| CEASED (`registryFlagBlocks = true`) | ใดก็ได้ | ใดก็ได้ | ใดก็ได้ | `RISK_BLOCKED` REGISTRY_CEASED | 44 |
+| VAT_CANCELLED / NOT_FOUND | ใดก็ได้ | ไม่มีใบ COMPLETED หลังติดธง | ใดก็ได้ | `RISK_BLOCKED` REGISTRY_FLAGGED | 45 50 |
+| VAT_CANCELLED / NOT_FOUND | ใดก็ได้ | COMPLETED หลังติดธง | — | ตรวจต่อตามระดับ | 49 51 |
+| ธงใด (`registryFlagBlocks = false`) | ใดก็ได้ | ใดก็ได้ | — | ตรวจต่อตามระดับ + คำเตือน REGISTRY_FLAGGED ที่ต้องกรอกเหตุผล | 54 |
+| NONE | LOW / MEDIUM | ไม่มี · CURRENT | — | ผ่าน NOT_REQUIRED | 33 34 |
+| NONE | LOW / MEDIUM | OVERDUE | — | ผ่าน NOT_REQUIRED + คำเตือน REASSESSMENT_OVERDUE ที่ต้องกรอกเหตุผล | 47 |
+| NONE | HIGH | CURRENT และครอบบริบทของ PO | — | ผ่าน ASSESSMENT | 35 |
+| NONE | HIGH | CURRENT แต่ PO เพิ่มคัดกรอง | ไม่มีที่ใช้ได้ | `RISK_REASSESSMENT_REQUIRED` SCOPE_EXPANDED | 46 |
+| NONE | HIGH | CURRENT แต่ PO เพิ่มคัดกรอง | ใช้ได้ | ผ่าน OVERRIDE | 53 |
+| NONE | HIGH | OVERDUE | ไม่มีที่ใช้ได้ | `RISK_REASSESSMENT_REQUIRED` VALIDITY_LAPSED | 42 |
+| NONE | HIGH | IN_PROGRESS · ไม่มี | ไม่มีที่ใช้ได้ (รวม PENDING_APPROVAL และรายการที่ผูก PO อื่น) | `RISK_ASSESSMENT_REQUIRED` IN_PROGRESS / NOT_ASSESSED | 36 37 48 55 |
+| NONE | HIGH | ไม่ผ่านข้อบน | `expiresOn ≥ วัน PO` และ `usedGross + gross ≤ cap` | ผ่าน OVERRIDE (+ `usedCount` `usedGrossSatang` ครั้งแรกต่อ PO) | 38 41 43 56 |
+| NONE | HIGH | ไม่ผ่านข้อบน (รวม OVERDUE) | `expiresOn < วัน PO` | `RISK_BLOCKED` OVERRIDE_EXPIRED | 39 52 |
+| NONE | HIGH | ไม่ผ่านข้อบน | `usedGross + gross > cap` (รวมยอดใหม่จาก `po_change`) | `RISK_BLOCKED` OVERRIDE_CAP_EXCEEDED | 40 57 58 |
 
 **Invariant ของขั้น (S11-01)**
 
@@ -4163,6 +4163,51 @@ versions:
       - { code: RR-02, scope: RISK_ASSESSMENT, riskDomains: [INFOSEC], when: { field: accessesSystems, op: eq, value: "Y" }, reviewers: [{ kind: POSITION_AT, position: DM, department: IT }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 16 }
       - { code: RR-03, scope: RISK_ASSESSMENT, riskDomains: [PREMISES], when: { field: accessesPremises, op: eq, value: "Y" }, reviewers: [{ kind: POSITION_AT, position: DM, department: QSE }], fallback: { kind: POSITION_AT, position: VP, department: OPS }, mode: ALL, slaBusinessHours: 16 }
       - { code: RR-04, scope: RISK_ASSESSMENT, riskDomains: [FINANCE], when: { field: $tier, op: eq, value: HIGH }, reviewers: [{ kind: POSITION_AT, position: DM, department: FIN }], fallback: { kind: POSITION_AT, position: CFO, department: HQ }, mode: ALL, slaBusinessHours: 16 }
+```
+
+**Golden `risk-gate` (S11-07 · GC-RSK-33 ถึง GC-RSK-58 · `src/core/risk` `poGate`)** ด่านก่อนออก PO ตาม BR-RSK-09 BR-RSK-12 · ระดับ (`blocksPo`) และนโยบาย (`registryFlagBlocks` `mediumOverdueBlocks`) เป็นคีย์ของ suite (ค่า demo ของ SIMEC · ไม่ใช่ค่าในโค้ด) · `input.tier` คือระดับที่ด่านใช้แล้ว (บริการคำนวณจากระดับตั้งต้นของ PO และ `Supplier.riskTier`) · ตัวรันอ้างอิง `run_risk_gate` เทียบผลทั้ง object
+
+วิธีคำนวณ (risk-gate): `input.override` merge ทับ `defaults.override` ทีละฟิลด์ (usedGrossAmount เริ่ม 0.00) · ตรวจตามลำดับ BR-RSK-09: ธงทะเบียน (CEASED → REGISTRY_CEASED เมื่อ `policy.registryFlagBlocks` · VAT_CANCELLED และ NOT_FOUND → REGISTRY_FLAGGED เว้นแต่ `assessedAfterFlag` · `registryFlagBlocks: false` → ไม่บล็อก ใส่ warning REGISTRY_FLAGGED + requiresReason แล้วตรวจต่อ GC-RSK-54) → ระดับที่ `blocksPo = false` ผ่าน source NOT_REQUIRED เสมอ (ใบ OVERDUE ให้ warning REASSESSMENT_OVERDUE + requiresReason · GC-RSK-47 · ยกเว้น MEDIUM ที่ OVERDUE เมื่อ `mediumOverdueBlocks`) → ระดับที่บล็อกและมีใบ CURRENT ที่ `screeningCovered` ผ่านด้วยใบ → การอนุมัติข้าม APPROVED (หรือ EXPIRED ที่ job ปิด) ที่ `poId` ว่างหรือเท่า PO นี้ (ผูก PO อื่นถือว่าไม่มี GC-RSK-55) และ `expiresOn ≥ poDate` (เทียบวันที่เป็นสตริง ISO · 2026-10-16 ≥ 2026-10-16 ผ่าน · 2026-10-15 ไม่ผ่าน ตรงความหมาย `expiresOn < payDate` ของ `itemFlags` ใน S9 · ตรวจก่อนสถานะใบจึงให้ OVERRIDE_EXPIRED แม้ใบ OVERDUE GC-RSK-52) และเพดานสะสม `usedGross − priorGross + gross ≤ cap` เทียบเป็นสตางค์ (`priorGross` = ยอดของ PO นี้ที่ `usedGross` นับไว้แล้ว เช่นยอดเดิมเมื่อ PO_CHANGE · 0 + 12,000,000 ≤ 15,000,000 ผ่าน · 15,000,001 ไม่ผ่าน · 3,000,000 + 12,000,000 = 15,000,000 ผ่าน GC-RSK-56 · 3,000,001 + 12,000,000 ไม่ผ่าน GC-RSK-57 · 12,000,000 − 12,000,000 + 50,000,000 ไม่ผ่าน GC-RSK-58) → ไม่ผ่านข้อใดคืนรหัสตามสถานะใบ (CURRENT ที่ไม่ครอบ → SCOPE_EXPANDED · OVERDUE → VALIDITY_LAPSED · IN_PROGRESS · NONE → NOT_ASSESSED) · override ที่ไม่ APPROVED ถือว่าไม่มี (GC-RSK-48)
+
+```yaml
+# tests/golden/risk-gate.yaml (spec §7.24 · S11-07)
+# ด่านก่อนออก PO (BR-RSK-09 BR-RSK-12 · §8.12 FR-RSK-203): tiers และ policy เป็นคีย์จริงของ suite (ค่าเดียวกับ risk-tier.yaml)
+# · input.tier = ระดับที่ด่านใช้ (สูงสุดของระดับตั้งต้นของ PO และ Supplier.riskTier) · assessment = สถานะใบของผู้ขาย ณ วัน PO
+# (NONE IN_PROGRESS CURRENT OVERDUE) · override = การอนุมัติข้ามของผู้ขาย (ว่าง = ไม่มี · merge ทับ defaults.override ทีละฟิลด์)
+# · เงินเป็นบาทสตริง ตัวรันแปลงเป็นสตางค์ก่อนเทียบ · usedGrossAmount = ยอดสะสมที่ PO ที่ผ่านด้วยการอนุมัตินั้นใช้ไปแล้ว ·
+# priorGrossAmount = ยอดของ PO นี้ที่ usedGrossAmount นับไว้แล้ว (ยอดเดิมเมื่อ trigger PO_CHANGE · ว่าง = 0)
+suite: risk-gate
+tiers: [{ code: LOW, blocksPo: false }, { code: MEDIUM, blocksPo: false }, { code: HIGH, blocksPo: true }]
+policy: { registryFlagBlocks: true, mediumOverdueBlocks: false }
+defaults: { poDate: "2026-10-16", poId: PO-THIS, trigger: SUBMIT, grossAmount: "120000.00", registryFlag: NONE, screeningCovered: true, assessedAfterFlag: false, override: { usedGrossAmount: "0.00" } }
+cases:
+  - { id: GC-RSK-33, title: ระดับ LOW ไม่ต้องประเมิน, fn: poGate, input: { tier: LOW, assessment: NONE, grossAmount: "500000.00" }, expect: { allowed: true, source: NOT_REQUIRED, warnings: [], requiresReason: false } }
+  - { id: GC-RSK-34, title: ระดับ MEDIUM ไม่บล็อก, fn: poGate, input: { tier: MEDIUM, assessment: NONE, grossAmount: "500000.00" }, expect: { allowed: true, source: NOT_REQUIRED, warnings: [], requiresReason: false } }
+  - { id: GC-RSK-35, title: HIGH มีใบที่ใช้ได้, fn: poGate, input: { tier: HIGH, assessment: CURRENT, grossAmount: "500000.00" }, expect: { allowed: true, source: ASSESSMENT, warnings: [], requiresReason: false } }
+  - { id: GC-RSK-36, title: HIGH ไม่มีใบ, fn: poGate, input: { tier: HIGH, assessment: NONE }, expect: { allowed: false, error: RISK_ASSESSMENT_REQUIRED, reason: NOT_ASSESSED } }
+  - { id: GC-RSK-37, title: HIGH ใบยังทำอยู่, fn: poGate, input: { tier: HIGH, assessment: IN_PROGRESS }, expect: { allowed: false, error: RISK_ASSESSMENT_REQUIRED, reason: IN_PROGRESS } }
+  - { id: GC-RSK-38, title: อนุมัติข้ามหมดอายุวันเดียวกับ PO ยังใช้ได้ (ตรง GC-PAY-31), fn: poGate, input: { tier: HIGH, assessment: NONE, override: { status: APPROVED, expiresOn: "2026-10-16", capGrossAmount: "150000.00" } }, expect: { allowed: true, source: OVERRIDE, warnings: [OVERRIDE_USED], requiresReason: false } }
+  - { id: GC-RSK-39, title: อนุมัติข้ามหมดอายุก่อน PO หนึ่งวัน (ตรง GC-PAY-30), fn: poGate, input: { tier: HIGH, assessment: NONE, override: { status: APPROVED, expiresOn: "2026-10-15", capGrossAmount: "150000.00" } }, expect: { allowed: false, error: RISK_BLOCKED, reason: OVERRIDE_EXPIRED } }
+  - { id: GC-RSK-40, title: PO เกินเพดาน 1 สตางค์, fn: poGate, input: { tier: HIGH, assessment: NONE, grossAmount: "150000.01", override: { status: APPROVED, expiresOn: "2026-10-16", capGrossAmount: "150000.00" } }, expect: { allowed: false, error: RISK_BLOCKED, reason: OVERRIDE_CAP_EXCEEDED } }
+  - { id: GC-RSK-41, title: PO เท่าเพดานพอดี, fn: poGate, input: { tier: HIGH, assessment: NONE, grossAmount: "150000.00", override: { status: APPROVED, expiresOn: "2026-10-16", capGrossAmount: "150000.00" } }, expect: { allowed: true, source: OVERRIDE, warnings: [OVERRIDE_USED], requiresReason: false } }
+  - { id: GC-RSK-42, title: HIGH ใบเกินรอบ ไม่มีอนุมัติข้าม, fn: poGate, input: { tier: HIGH, assessment: OVERDUE }, expect: { allowed: false, error: RISK_REASSESSMENT_REQUIRED, reason: VALIDITY_LAPSED } }
+  - { id: GC-RSK-43, title: HIGH ใบเกินรอบ แต่มีอนุมัติข้ามที่ใช้ได้, fn: poGate, input: { tier: HIGH, assessment: OVERDUE, override: { status: APPROVED, expiresOn: "2026-10-16", capGrossAmount: "150000.00" } }, expect: { allowed: true, source: OVERRIDE, warnings: [OVERRIDE_USED], requiresReason: false } }
+  - { id: GC-RSK-44, title: เลิกกิจการ บล็อกแม้มีใบและอนุมัติข้าม, fn: poGate, input: { tier: HIGH, assessment: CURRENT, registryFlag: CEASED, override: { status: APPROVED, expiresOn: "2026-10-16", capGrossAmount: "150000.00" } }, expect: { allowed: false, error: RISK_BLOCKED, reason: REGISTRY_CEASED } }
+  - { id: GC-RSK-45, title: ออกจากระบบ VAT ยังไม่ประเมินซ้ำ, fn: poGate, input: { tier: LOW, assessment: CURRENT, registryFlag: VAT_CANCELLED }, expect: { allowed: false, error: RISK_BLOCKED, reason: REGISTRY_FLAGGED } }
+  - { id: GC-RSK-46, title: ใบที่ใช้ได้แต่คำขอใหม่เพิ่มคัดกรอง, fn: poGate, input: { tier: HIGH, assessment: CURRENT, screeningCovered: false }, expect: { allowed: false, error: RISK_REASSESSMENT_REQUIRED, reason: SCOPE_EXPANDED } }
+  - { id: GC-RSK-47, title: MEDIUM เกินรอบ ผ่าน NOT_REQUIRED พร้อมคำเตือนที่ต้องกรอกเหตุผล, fn: poGate, input: { tier: MEDIUM, assessment: OVERDUE }, expect: { allowed: true, source: NOT_REQUIRED, warnings: [REASSESSMENT_OVERDUE], requiresReason: true } }
+  - { id: GC-RSK-48, title: อนุมัติข้ามยังรออนุมัติ ไม่นับ, fn: poGate, input: { tier: HIGH, assessment: NONE, override: { status: PENDING_APPROVAL, expiresOn: "2026-10-16", capGrossAmount: "150000.00" } }, expect: { allowed: false, error: RISK_ASSESSMENT_REQUIRED, reason: NOT_ASSESSED } }
+  - { id: GC-RSK-49, title: ออกจากระบบ VAT แต่ประเมินซ้ำเสร็จหลังติดธง, fn: poGate, input: { tier: LOW, assessment: CURRENT, registryFlag: VAT_CANCELLED, assessedAfterFlag: true }, expect: { allowed: true, source: NOT_REQUIRED, warnings: [], requiresReason: false } }
+  # รอบตรวจของขั้น · เคสขอบที่ BR-RSK-09 BR-RSK-12 ระบุ (ธง NOT_FOUND · นโยบายไม่บล็อก · OVERDUE+หมดอายุ · ไม่ครอบ+ใช้ได้ · ผูก PO อื่น · เพดานสะสม · po_change)
+  - { id: GC-RSK-50, title: หาไม่พบในทะเบียน ยังไม่ประเมินซ้ำ บล็อกแบบเดียวกับออกจาก VAT, fn: poGate, input: { tier: HIGH, assessment: NONE, registryFlag: NOT_FOUND }, expect: { allowed: false, error: RISK_BLOCKED, reason: REGISTRY_FLAGGED } }
+  - { id: GC-RSK-51, title: หาไม่พบแต่ประเมินซ้ำเสร็จหลังติดธง, fn: poGate, input: { tier: LOW, assessment: CURRENT, registryFlag: NOT_FOUND, assessedAfterFlag: true }, expect: { allowed: true, source: NOT_REQUIRED, warnings: [], requiresReason: false } }
+  - { id: GC-RSK-52, title: HIGH ใบเกินรอบและอนุมัติข้ามหมดอายุ ตรวจอนุมัติข้ามก่อน, fn: poGate, input: { tier: HIGH, assessment: OVERDUE, override: { status: APPROVED, expiresOn: "2026-10-15", capGrossAmount: "150000.00" } }, expect: { allowed: false, error: RISK_BLOCKED, reason: OVERRIDE_EXPIRED } }
+  - { id: GC-RSK-53, title: ใบที่ใช้ได้แต่ไม่ครอบคัดกรองใหม่ มีอนุมัติข้ามที่ใช้ได้, fn: poGate, input: { tier: HIGH, assessment: CURRENT, screeningCovered: false, override: { status: APPROVED, expiresOn: "2026-10-16", capGrossAmount: "150000.00" } }, expect: { allowed: true, source: OVERRIDE, warnings: [OVERRIDE_USED], requiresReason: false } }
+  - { id: GC-RSK-54, title: นโยบายไม่บล็อกธงทะเบียน กลับเป็นคำเตือนที่ต้องกรอกเหตุผล, fn: poGate, input: { tier: LOW, assessment: NONE, registryFlag: CEASED, policy: { registryFlagBlocks: false, mediumOverdueBlocks: false } }, expect: { allowed: true, source: NOT_REQUIRED, warnings: [REGISTRY_FLAGGED], requiresReason: true } }
+  - { id: GC-RSK-55, title: อนุมัติข้ามผูกกับ PO อื่น ใช้กับ PO นี้ไม่ได้, fn: poGate, input: { tier: HIGH, assessment: NONE, override: { status: APPROVED, poId: PO-OTHER, expiresOn: "2026-10-16", capGrossAmount: "150000.00" } }, expect: { allowed: false, error: RISK_ASSESSMENT_REQUIRED, reason: NOT_ASSESSED } }
+  - { id: GC-RSK-56, title: ยอดสะสมเท่าเพดานพอดี, fn: poGate, input: { tier: HIGH, assessment: NONE, override: { status: APPROVED, expiresOn: "2026-10-16", capGrossAmount: "150000.00", usedGrossAmount: "30000.00" } }, expect: { allowed: true, source: OVERRIDE, warnings: [OVERRIDE_USED], requiresReason: false } }
+  - { id: GC-RSK-57, title: PO ใบที่สองทำให้สะสมเกินเพดาน 1 สตางค์, fn: poGate, input: { tier: HIGH, assessment: NONE, override: { status: APPROVED, expiresOn: "2026-10-16", capGrossAmount: "150000.00", usedGrossAmount: "30000.01" } }, expect: { allowed: false, error: RISK_BLOCKED, reason: OVERRIDE_CAP_EXCEEDED } }
+  - { id: GC-RSK-58, title: แก้ PO ที่ผ่านด้วยอนุมัติข้ามให้ยอดเกินเพดาน, fn: poGate, input: { tier: HIGH, assessment: NONE, trigger: PO_CHANGE, priorGrossAmount: "120000.00", grossAmount: "500000.00", override: { status: APPROVED, expiresOn: "2026-10-16", capGrossAmount: "150000.00", usedGrossAmount: "120000.00" } }, expect: { allowed: false, error: RISK_BLOCKED, reason: OVERRIDE_CAP_EXCEEDED } }
 ```
 
 ---
@@ -6152,7 +6197,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       59 ไฟล์ · 780 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       60 ไฟล์ · 806 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

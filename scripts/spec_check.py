@@ -1419,6 +1419,36 @@ def run_risk_tier(d):
         else: raise ValueError(f"fn {fn}")
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_risk_gate(d):
+    # BR-RSK-09 BR-RSK-12 (§7.24 · S11-07): the gate before a PO goes out, in the rule's order — a registry flag (CEASED
+    # always, VAT_CANCELLED and NOT_FOUND until an assessment completed after it; a policy that does not block turns it
+    # into a warning with a reason) → a tier that does not block passes NOT_REQUIRED (overdue = a warning with a reason,
+    # unless the policy blocks an overdue MEDIUM) → a blocking tier passes with a current covering assessment → an APPROVED
+    # (or job-EXPIRED) override for every PO or for this one: past its day blocks, a cumulative cap (held − this PO's held
+    # share + gross) over it blocks, else passes → what the assessment lacks. Money in satang, days compared as ISO text
+    tiers = {t["code"]: t for t in d["tiers"]}; df = d["defaults"]; out = []
+    for c in d["cases"]:
+        i = c["input"]; g = lambda k: i.get(k, df.get(k)); pol = i.get("policy", d["policy"])
+        ov = {**df["override"], **i["override"]} if "override" in i else None
+        warn = []; got = None
+        flag = g("registryFlag")
+        if flag != "NONE" and (flag == "CEASED" or not g("assessedAfterFlag")):
+            if pol["registryFlagBlocks"]: got = {"allowed": False, "error": "RISK_BLOCKED", "reason": "REGISTRY_CEASED" if flag == "CEASED" else "REGISTRY_FLAGGED"}
+            else: warn.append("REGISTRY_FLAGGED")
+        a = i["assessment"]
+        ok_ = lambda src, w: {"allowed": True, "source": src, "warnings": w, "requiresReason": any(x in ("REGISTRY_FLAGGED", "REASSESSMENT_OVERDUE") for x in w)}
+        if got is None and not tiers[i["tier"]]["blocksPo"] and not (i["tier"] == "MEDIUM" and a == "OVERDUE" and pol["mediumOverdueBlocks"]):
+            got = ok_("NOT_REQUIRED", warn + (["REASSESSMENT_OVERDUE"] if a == "OVERDUE" else []))
+        if got is None and a == "CURRENT" and g("screeningCovered"): got = ok_("ASSESSMENT", warn)
+        if got is None and ov and ov["status"] in ("APPROVED", "EXPIRED") and ov.get("poId") in (None, df["poId"]):
+            if ov["expiresOn"] < df["poDate"]: got = {"allowed": False, "error": "RISK_BLOCKED", "reason": "OVERRIDE_EXPIRED"}
+            elif sat(ov["usedGrossAmount"]) - sat(i.get("priorGrossAmount", "0.00")) + sat(g("grossAmount")) > sat(ov["capGrossAmount"]): got = {"allowed": False, "error": "RISK_BLOCKED", "reason": "OVERRIDE_CAP_EXCEEDED"}
+            else: got = ok_("OVERRIDE", warn + ["OVERRIDE_USED"])
+        if got is None:
+            err, why = {"CURRENT": ("RISK_REASSESSMENT_REQUIRED", "SCOPE_EXPANDED"), "OVERDUE": ("RISK_REASSESSMENT_REQUIRED", "VALIDITY_LAPSED"), "IN_PROGRESS": ("RISK_ASSESSMENT_REQUIRED", "IN_PROGRESS"), "NONE": ("RISK_ASSESSMENT_REQUIRED", "NOT_ASSESSED")}[a]
+            got = {"allowed": False, "error": err, "reason": why}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 def run_retention(d):  # BR-RET-01 แบ่งงวด · BR-RET-03 เงินประกัน (largest remainder สองส่วน) · BR-WHT-05 ภาษีตอนจ่าย (S8-09)
     out = []
     for c in d["cases"]:
@@ -2691,6 +2721,7 @@ RUNNERS = {
     "retention": run_retention,
     "rfx-award": run_rfx_award,
     "rfx-scoring": run_rfx_scoring,
+    "risk-gate": run_risk_gate,
     "risk-review": run_risk_review,
     "risk-tier": run_risk_tier,
     "savings": run_savings,

@@ -1,5 +1,5 @@
 // Supplier risk engine (spec §7.24 · S11-03): the tier from screening, the questions an assessment asks, its points and
-// tier, answers from evidence, whether it may be sent, and its status on a day. Pure: the organization's tiers, policy
+// tier, answers from evidence, whether it may be sent, and its status on a day · S11-07: the gate before a PO goes out. Pure: the organization's tiers, policy
 // and questionnaire are passed in, dates are calendar days in Asia/Bangkok.
 
 export {
@@ -15,6 +15,24 @@ export {
   type TierChange,
 } from './admin'
 export { evidenceSource, normalizeScope, riskStatusAt, type CurrentAnswer, type EvidenceDocument, type EvidenceInput, type EvidenceReason, type EvidenceResult, type RiskDateStatus } from './evidence'
+export {
+  overrideApplies,
+  PO_GATE_TRIGGERS,
+  poGate,
+  REASON_WARNINGS,
+  screeningCovers,
+  type GateAssessment,
+  type GateError,
+  type GateOverride,
+  type GatePolicy,
+  type GateReason,
+  type GateSource,
+  type GateWarning,
+  type PoGateInput,
+  type PoGateResult,
+  type PoGateTrigger,
+  type RegistryFlag,
+} from './gate'
 export { addCalendarDays, addCalendarMonths, reviewDates, type ReviewDates } from './review'
 export { assessmentCompleteness, scoreAssessment, tierByPoints, type AnswerSource, type Completeness, type Score } from './score'
 export {

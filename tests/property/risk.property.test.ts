@@ -1,6 +1,6 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { evidenceSource, RISK_TIER_CODES, scoreAssessment, selectQuestions, type RiskContext, type RiskPolicyDef, type RiskQuestionDef, type RiskTierCode, type RiskTierDef } from '@/core/risk'
+import { evidenceSource, poGate, RISK_TIER_CODES, scoreAssessment, selectQuestions, type RiskContext, type RiskPolicyDef, type RiskQuestionDef, type RiskTierCode, type RiskTierDef } from '@/core/risk'
 
 // src/core/risk (spec §7.24 · S11-03): properties of the tier engine over random questionnaires, answers and documents.
 
@@ -111,6 +111,54 @@ describe('[BR-RSK-05] an expired document is never evidence', () => {
         },
       ),
       { numRuns: 1000 },
+    )
+  })
+})
+
+// ---------- S11-07 · poGate (BR-RSK-09 ข้อ 4 · OQ-224): the cap of an override is cumulative ----------
+
+describe('poGate under one override (S11-07)', () => {
+  const gate = (used: bigint, gross: bigint, counted: bigint, cap: bigint) =>
+    poGate({
+      tier: 'HIGH',
+      tiers: [
+        { code: 'LOW', blocksPo: false },
+        { code: 'MEDIUM', blocksPo: false },
+        { code: 'HIGH', blocksPo: true },
+      ],
+      policy: { registryFlagBlocks: true, mediumOverdueBlocks: false },
+      registryFlag: 'NONE',
+      assessedAfterFlag: false,
+      assessment: 'NONE',
+      screeningCovered: true,
+      override: { status: 'APPROVED', poId: null, expiresOn: '2026-10-16', capGrossSatang: cap, usedGrossSatang: used },
+      poId: 'PO',
+      poDate: '2026-10-16',
+      grossSatang: gross,
+      countedGrossSatang: counted,
+      trigger: counted > 0n ? 'PO_CHANGE' : 'SUBMIT',
+    })
+  const satang = fc.bigInt({ min: 1n, max: 50_000_000n })
+
+  it('[FR-RSK-203/AC3] the POs it lets out never sum above the cap, however they come', () => {
+    fc.assert(
+      fc.property(satang, fc.array(satang, { maxLength: 12 }), (cap, grosses) => {
+        let used = 0n
+        for (const g of grosses) if (gate(used, g, 0n, cap).allowed) used += g
+        expect(used <= cap).toBe(true)
+      }),
+    )
+  })
+
+  it('[FR-RSK-203/AC3] a smaller amount never turns a pass into a block, and a change is judged on its new amount alone', () => {
+    fc.assert(
+      fc.property(satang, satang, satang, satang, (cap, used, a, b) => {
+        const [lo, hi] = a < b ? [a, b] : [b, a]
+        if (gate(used, hi, 0n, cap).allowed) expect(gate(used, lo, 0n, cap).allowed).toBe(true)
+        // a PO the override holds at `lo` changed to `hi` passes as a new PO of `hi` would with `lo` taken out
+        const held = used + lo
+        expect(gate(held, hi, lo, cap).allowed).toBe(gate(used, hi, 0n, cap).allowed)
+      }),
     )
   })
 })

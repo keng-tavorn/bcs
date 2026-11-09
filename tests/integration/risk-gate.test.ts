@@ -319,10 +319,10 @@ describe('[FR-RSK-203/AC6] what the screens show of the gate', () => {
     const s = await supplier('RG-UI')
     const po = await draftPo(s, '1000.00', SCREEN_HIGH)
     expect(await poRiskStatus(proc(), po.id)).toMatchObject({ trigger: 'SUBMIT', tier: 'HIGH', decision: { allowed: false, error: 'RISK_ASSESSMENT_REQUIRED', reason: 'NOT_ASSESSED' }, openAssessment: null, canOpenAssessment: true })
-    // FINANCE reads the PO but does not open an assessment (risk.assessment.manage is PROCUREMENT's); a requester reads none
-    expect(await poRiskStatus(org.ctxOf('fin_officer', NOW), po.id)).toMatchObject({ canOpenAssessment: false })
+    // AUDITOR reads every PO but does not open an assessment (risk.assessment.manage is PROCUREMENT's); a requester reads none
+    expect(await poRiskStatus(org.ctxOf('auditor', NOW), po.id)).toMatchObject({ canOpenAssessment: false })
     expect(await poRiskStatus(org.ctxOf('req_con', NOW), po.id)).toBeNull()
-    expect(await openRiskAssessmentForPo(org.ctxOf('fin_officer', NOW), po.id, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await openRiskAssessmentForPo(org.ctxOf('auditor', NOW), po.id, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     const opened = ok(await openRiskAssessmentForPo(proc(), po.id, key()))
     expect(await prisma.riskAssessment.findUniqueOrThrow({ where: { id: opened.assessmentId } })).toMatchObject({ supplierId: s, triggerPoId: po.id, screening: SCREEN_HIGH })
     expect(await poRiskStatus(proc(), po.id)).toMatchObject({ decision: { reason: 'IN_PROGRESS' }, openAssessment: { id: opened.assessmentId }, canOpenAssessment: false })

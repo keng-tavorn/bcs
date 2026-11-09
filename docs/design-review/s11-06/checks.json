@@ -1,0 +1,44 @@
+[
+  {
+    "screen": "risk-reviews",
+    "width": 1440,
+    "axe": [],
+    "sideways": 0,
+    "smallText": []
+  },
+  {
+    "screen": "risk-reviews",
+    "width": 375,
+    "axe": [],
+    "sideways": 0,
+    "smallText": []
+  },
+  {
+    "screen": "risk-review-task",
+    "width": 1440,
+    "axe": [],
+    "sideways": 0,
+    "smallText": []
+  },
+  {
+    "screen": "risk-review-task",
+    "width": 375,
+    "axe": [],
+    "sideways": 0,
+    "smallText": []
+  },
+  {
+    "screen": "workflow-risk-tab",
+    "width": 1440,
+    "axe": [],
+    "sideways": 0,
+    "smallText": []
+  },
+  {
+    "screen": "workflow-risk-tab",
+    "width": 375,
+    "axe": [],
+    "sideways": 0,
+    "smallText": []
+  }
+]

@@ -367,8 +367,14 @@ export const updateApplicationCommand = defineCommand({
     if (payeeType === 'FOREIGN') data.taxId = null
     // a new bank alone: the account kept must fit it too (the approval drafts the change from it · S7-10)
     if (f.accountNo === undefined && f.bankCode && f.bankCode !== app.bankCode && app.accountNoEnc) {
-      const kept = openAccountNo(ctx.organizationId, app)
-      if (kept && !normalizeAccount({ bankCode: f.bankCode, accountNo: kept }).ok) return fail('VALIDATION_FAILED', 'the account kept does not fit the new bank: type it again', { field: 'fields.accountNo', reason: 'ACCOUNT_BANK' })
+      // a stored number that no longer opens (a key changed) is typed again, as one that does not fit (review S7-19 ข้อ 3)
+      let kept: string | null = null
+      try {
+        kept = openAccountNo(ctx.organizationId, app)
+      } catch {
+        kept = null
+      }
+      if (!kept || !normalizeAccount({ bankCode: f.bankCode, accountNo: kept }).ok) return fail('VALIDATION_FAILED', 'the account kept does not fit the new bank: type it again', { field: 'fields.accountNo', reason: 'ACCOUNT_BANK' })
     }
     if (f.accountNo !== undefined) {
       if (f.accountNo === null) Object.assign(data, { accountNoEnc: null, accountNoLast4: null })

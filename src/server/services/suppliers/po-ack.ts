@@ -105,7 +105,9 @@ export const updatePoDeliveryCommand = defineCommand({
     const found = await lockedPoOfContact(tx, ctx, input.poId)
     if (!found.ok) return found
     const { po, contactId } = found
-    if (po.supplierAckStatus === 'NOT_ACKNOWLEDGED') return fail('INVALID_STATE_TRANSITION', 'acknowledge the purchase order first', { status: po.supplierAckStatus })
+    // the ACK of the revision in force, not the projection: between a new revision sent and the job po-ack-reset the
+    // projection still reads the older revision's acknowledgement (review S7-19 ข้อ 1)
+    if (!(await tx.poAcknowledgement.findFirst({ where: { poId: po.id, revisionNo: po.revisionNo, kind: 'ACK' }, select: { id: true } }))) return fail('INVALID_STATE_TRANSITION', 'acknowledge the purchase order first', { status: po.supplierAckStatus })
     if (input.promisedDeliveryOn < dateIn(ctx.now, TIMEZONE)) return fail('VALIDATION_FAILED', 'the delivery date is in the past', { field: 'promisedDeliveryOn', reason: 'PAST_DATE' })
     const from = isoOf(po.supplierPromisedDeliveryOn)
     if (from === input.promisedDeliveryOn) return fail('VALIDATION_FAILED', 'the delivery date is the same', { field: 'promisedDeliveryOn', reason: 'NO_CHANGE' })
@@ -137,7 +139,7 @@ export const resetPoAckCommand = defineCommand({
     const po = locked ? await tx.purchaseOrder.findUnique({ where: { id: input.poId }, select: { revisionNo: true, supplierAckStatus: true } }) : null
     if (!po) return fail('NOT_FOUND', 'purchase order not found')
     // an older event, or a revision acknowledged already since: nothing to do
-    if (po.revisionNo !== input.revisionNo || (await tx.poAcknowledgement.count({ where: { poId: input.poId, revisionNo: input.revisionNo } })) > 0) return fail('INVALID_STATE_TRANSITION', 'nothing to reset', { reason: 'CURRENT' })
+    if (po.revisionNo !== input.revisionNo || (await tx.poAcknowledgement.count({ where: { poId: input.poId, revisionNo: input.revisionNo, kind: 'ACK' } })) > 0) return fail('INVALID_STATE_TRANSITION', 'nothing to reset', { reason: 'CURRENT' })
     if (po.supplierAckStatus === 'NOT_ACKNOWLEDGED') return fail('INVALID_STATE_TRANSITION', 'nothing to reset', { reason: 'NOT_ACKNOWLEDGED' })
     await tx.purchaseOrder.update({ where: { id: input.poId }, data: { supplierAckStatus: 'NOT_ACKNOWLEDGED', supplierAcknowledgedAt: null, supplierPromisedDeliveryOn: null } })
     return { ok: true, result: { reset: true }, events: [{ type: 'po.ack_reset', aggregateType: 'PurchaseOrder', aggregateId: input.poId, data: { revisionNo: input.revisionNo } }] }
@@ -156,7 +158,12 @@ export async function resetPoAck(organizationId: string, poId: string, revisionN
 export async function poPdfUrlForContact(ctx: Ctx, poId: string): Promise<Result<{ url: string }>> {
   if (ctx.actor.type !== 'SUPPLIER' || ctx.channel !== 'PORTAL' || !ctx.actor.supplierId) return { ok: false, error: { code: 'FORBIDDEN', message: 'not a portal request' } }
   const supplierId = ctx.actor.supplierId
-  const po = await forTenant(ctx.organizationId).purchaseOrder.findFirst({ where: { id: poId, supplierId, status: { in: ['SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED'] } }, select: { number: true, pdfFile: { select: { storageKey: true, fileName: true } } } })
+  const db = forTenant(ctx.organizationId)
+  // as po.acknowledge: module SUPPLIER on, the contact and its supplier ACTIVE (review S7-19 ข้อ 2)
+  const on = await requireModule(ctx, 'SUPPLIER')
+  const contact = on.ok ? await db.supplierContact.findUnique({ where: { id: ctx.actor.supplierContactId }, select: { status: true, supplierId: true, supplier: { select: { status: true } } } }) : null
+  if (contact?.status !== 'ACTIVE' || contact.supplierId !== supplierId || contact.supplier?.status !== 'ACTIVE') return { ok: false, error: { code: 'FORBIDDEN', message: 'a contact of an active supplier only', details: { action: 'portal.po.acknowledge' } } }
+  const po = await db.purchaseOrder.findFirst({ where: { id: poId, supplierId, status: { in: ['SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED'] } }, select: { number: true, pdfFile: { select: { storageKey: true, fileName: true } } } })
   if (!po?.pdfFile) return { ok: false, error: { code: 'NOT_FOUND', message: 'purchase order not found' } }
   return { ok: true, data: { url: await presignDownload(po.pdfFile.storageKey, { fileName: po.pdfFile.fileName, contentType: 'application/pdf', inline: true }) } }
 }

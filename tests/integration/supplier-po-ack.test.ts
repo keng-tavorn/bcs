@@ -103,4 +103,37 @@ describe('[FR-SUP-105/AC4] a new revision waits for its acknowledgement again', 
     expect(await prisma.poAcknowledgement.count({ where: { poId: po.id, kind: 'ACK' } })).toBe(2)
     expect(await listPosAwaitingAck(ap.org.ctxOf('req_con', AP_NOW))).toEqual([])
   })
+
+  it('a new revision before po-ack-reset: no new date until the revision is acknowledged, and the reset still runs (review S7-19 ข้อ 1)', async () => {
+    const po = await sentPo(ap, [{ quantity: '3', unitPrice: '40.00' }])
+    const c = await contactOf(ap.supplierId)
+    expect(await acknowledgePo(c.ctx, { poId: po.id, promisedDeliveryOn: '2026-10-15' }, key())).toMatchObject({ ok: true })
+    // revision 1 sent; the projection still reads revision 0's acknowledgement until the job runs
+    await prisma.purchaseOrder.update({ where: { id: po.id }, data: { revisionNo: 1 } })
+    expect(await updatePoDelivery(c.ctx, { poId: po.id, promisedDeliveryOn: '2026-10-22', reason: 'เลื่อนตามฉบับใหม่' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION' } })
+    expect(await resetPoAck(ap.org.organizationId, po.id, 1, AP_NOW)).toBe(true)
+    expect(await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: po.id }, select: { supplierAckStatus: true } })).toEqual({ supplierAckStatus: 'NOT_ACKNOWLEDGED' })
+  })
+})
+
+describe('[FR-SUP-105/AC1] the PO’s PDF for an active supplier with SUPPLIER on only (review S7-19 ข้อ 2)', () => {
+  it('a supplier made INACTIVE, or the module off, gets no address', async () => {
+    const po = await sentPo(ap, [{ quantity: '1', unitPrice: '10.00' }])
+    const pdf = await prisma.fileObject.create({ data: { organizationId: ap.org.organizationId, storageKey: `${ap.org.organizationId}/po/${randomUUID()}.pdf`, fileName: 'po.pdf', mimeType: 'application/pdf', sizeBytes: 1, status: 'AVAILABLE' } })
+    await prisma.purchaseOrder.update({ where: { id: po.id }, data: { pdfFileId: pdf.id } })
+    const c = await contactOf(ap.supplierId)
+    expect(await poPdfUrlForContact(c.ctx, po.id)).toMatchObject({ ok: true })
+    await prisma.orgModule.updateMany({ where: { organizationId: ap.org.organizationId, module: 'SUPPLIER' }, data: { enabled: false } })
+    try {
+      expect(await poPdfUrlForContact(c.ctx, po.id)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    } finally {
+      await prisma.orgModule.updateMany({ where: { organizationId: ap.org.organizationId, module: 'SUPPLIER' }, data: { enabled: true } })
+    }
+    await prisma.supplier.update({ where: { id: ap.supplierId }, data: { status: 'INACTIVE' } })
+    try {
+      expect(await poPdfUrlForContact(c.ctx, po.id)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    } finally {
+      await prisma.supplier.update({ where: { id: ap.supplierId }, data: { status: 'ACTIVE' } })
+    }
+  })
 })

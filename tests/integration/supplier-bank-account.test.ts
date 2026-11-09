@@ -164,6 +164,9 @@ describe('[FR-SUP-103/AC5] an approved application drafts its account; without P
     expect(await updateApplication(ctx, { applicationId: r.data.applicationId, expectedVersion: await v(), fields: { bankCode: '004', accountNo: '123-4-56789-0' } }, key())).toMatchObject({ ok: true })
     expect(await updateApplication(ctx, { applicationId: r.data.applicationId, expectedVersion: await v(), fields: { bankCode: '014' } }, key())).toMatchObject({ ok: true })
     expect(await updateApplication(ctx, { applicationId: r.data.applicationId, expectedVersion: await v(), fields: { bankCode: '999' } }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'ACCOUNT_BANK' } } })
+    // a stored number that no longer opens (review S7-19 ข้อ 3): typed again, never an error of the server
+    await prisma.supplierApplication.update({ where: { id: r.data.applicationId }, data: { accountNoEnc: 'v1:not-a-sealed-value' } })
+    expect(await updateApplication(ctx, { applicationId: r.data.applicationId, expectedVersion: await v(), fields: { bankCode: '004' } }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'ACCOUNT_BANK' } } })
   })
 
   it('[BR-SUP-16] SUPPLIER on and PAY off: a change from the portal is claimed, sent and approved; an internal one is MODULE_DISABLED', async () => {

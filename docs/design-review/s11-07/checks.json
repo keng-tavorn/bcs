@@ -1,0 +1,44 @@
+[
+  {
+    "screen": "po-risk-held",
+    "width": 1440,
+    "axe": [],
+    "sideways": 0,
+    "smallText": []
+  },
+  {
+    "screen": "po-risk-held",
+    "width": 375,
+    "axe": [],
+    "sideways": 0,
+    "smallText": []
+  },
+  {
+    "screen": "po-risk-facts",
+    "width": 1440,
+    "axe": [],
+    "sideways": 0,
+    "smallText": []
+  },
+  {
+    "screen": "po-risk-facts",
+    "width": 375,
+    "axe": [],
+    "sideways": 0,
+    "smallText": []
+  },
+  {
+    "screen": "board-risk-filter",
+    "width": 1440,
+    "axe": [],
+    "sideways": 0,
+    "smallText": []
+  },
+  {
+    "screen": "board-risk-filter",
+    "width": 375,
+    "axe": [],
+    "sideways": 0,
+    "smallText": []
+  }
+]

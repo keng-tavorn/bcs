@@ -49,7 +49,7 @@ export default async function SupplierDocumentTypesPage() {
                       <TableRow key={type.code}>
                         <TableCell>
                           <div className="font-medium">{type.nameTh}</div>
-                          <div className="text-sm text-ink-muted">{type.code}</div>
+                          <div className="text-base text-ink-muted md:text-sm">{type.code}</div>
                         </TableCell>
                         <TableCell>{type.appliesTo.map((p) => t(`types.payee.${p}`)).join(', ')}</TableCell>
                         <TableCell className="tabular">

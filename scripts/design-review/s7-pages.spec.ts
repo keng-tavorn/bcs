@@ -65,6 +65,11 @@ const at = (id: string | null, to: (id: string) => string) => (id ? to(id) : nul
 const SCREENS: Screen[] = [
   // the portal of an ACTIVE supplier's primary contact (SP0029, the contact of scene 6)
   { name: 'portal_login', who: null, path: `${P}/login`, kind: 'portal-out' },
+  // the GET of an e-mailed link only shows its page (any token: the button POSTs it) · the code's page · an organization
+  // whose portal is not open (no such code: the same "not open" page)
+  { name: 'portal_link', who: null, path: `${P}/link/design-review-token`, kind: 'portal-out' },
+  { name: 'portal_otp', who: null, path: `${P}/otp`, kind: 'portal-out' },
+  { name: 'portal_unavailable', who: null, path: '/portal/no-such-org/login', kind: 'portal-out' },
   { name: 'portal_home', who: t.supplierContact, path: `${P}/home`, kind: 'portal' },
   { name: 'portal_pos', who: t.supplierContact, path: `${P}/pos`, kind: 'portal' },
   { name: 'portal_po', who: t.supplierContact, path: at(t.sentPo, (id) => `${P}/pos/${id}`), kind: 'portal' },
@@ -81,15 +86,18 @@ const SCREENS: Screen[] = [
   // the workspace
   { name: 'proc_mat1_applications', who: 'proc_mat1', path: '/suppliers/applications', kind: 'web' },
   { name: 'proc_mat1_application_stuck', who: 'proc_mat1', path: at(t.stuckApplication, (id) => `/suppliers/applications/${id}`), kind: 'web' },
+  { name: 'proc_mat1_application_edit', who: 'proc_mat1', path: at(t.stuckApplication, (id) => `/suppliers/applications/${id}/edit`), kind: 'web' },
+  { name: 'proc_mat1_suppliers', who: 'proc_mat1', path: '/suppliers', kind: 'web' },
   { name: 'proc_sub1_application_approved', who: 'proc_sub1', path: at(t.appliedApplication, (id) => `/suppliers/applications/${id}`), kind: 'web' },
   { name: 'proc_sub1_invite', who: 'proc_sub1', path: '/suppliers/invite', kind: 'web' },
   { name: 'proc_sub1_invite_existing', who: 'proc_sub1', path: '/suppliers/invite?kind=existing', kind: 'web' },
   { name: 'proc_mat1_supplier', who: 'proc_mat1', path: `/suppliers/${t.supplierId}`, kind: 'web' },
   { name: 'proc_officer_po_acked', who: 'proc_officer', path: at(t.ackedPo, (id) => `/procurement/pos/${id}`), kind: 'web' },
+  { name: 'proc_officer_board_pending', who: 'proc_officer', path: '/board/pending', kind: 'web' },
   { name: 'task_supplier_application', who: t.supplierTask?.code ?? null, path: at(t.supplierTask?.id ?? null, (id) => `/tasks/${id}`), kind: 'web' },
   { name: 'liff_task_supplier_application', who: t.supplierTask?.code ?? null, path: at(t.supplierTask?.id ?? null, (id) => `/liff/tasks/${id}`), kind: 'liff' },
   { name: 'fin_ap1_invoices_portal', who: 'fin_ap1', path: '/finance/invoices?channel=PORTAL', kind: 'web' },
-  { name: 'fin_ap1_bank-changes', who: 'fin_ap1', path: '/finance/bank-accounts/changes', kind: 'web' },
+  { name: 'fin_ap1_bank-accounts', who: 'fin_ap1', path: '/finance/bank-accounts', kind: 'web' },
   { name: 'fin_ap1_bank-change_portal', who: 'fin_ap1', path: at(t.bankChange, (id) => `/finance/bank-accounts/changes/${id}`), kind: 'web' },
   { name: 'dm_proc_reports_suppliers', who: 'dm_proc', path: '/reports/suppliers', kind: 'web' },
   { name: 'admin_supplier-document-types', who: 'admin', path: '/admin/supplier-document-types', kind: 'web' },

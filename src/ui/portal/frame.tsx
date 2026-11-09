@@ -40,7 +40,7 @@ export function PortalFrame({
     <div className="min-h-dvh bg-bg text-ink">
       <header className="border-b border-line bg-surface">
         <LiffContent className="py-3">
-          <p className="text-sm text-ink-muted">{organization}</p>
+          <p className="text-base text-ink-muted md:text-sm">{organization}</p>
           <h1 className="text-lg font-semibold">{title}</h1>
           {nav && nav.length ? (
             <nav aria-label={navLabel} className="mt-2">

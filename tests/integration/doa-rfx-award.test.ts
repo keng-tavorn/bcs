@@ -94,6 +94,19 @@ describe('[BR-DOA-27] an award routes by its amount with VAT on a real organizat
     expect(routed.data.firstTask.assigneeMemberId).toBe(org.member.coo)
   })
 
+  it('[GC-DOA-77] [GC-DOA-78] [GC-DOA-79] the band edges on the database: 500,000.00 is RA-01, 500,000.01 is RA-02, and the CEO in conflict at the top band is NO_HIGHER_AUTHORITY (S10-10)', async () => {
+    const org = await createP2Org()
+    const edge = await routedAward(org, { netSatang: 46_728_972n, vatSatang: 3_271_028n })
+    if (!edge.ok) throw new Error(JSON.stringify(edge.error))
+    expect(edge.data.route).toMatchObject({ ruleCode: 'RA-01', basisAmountSatang: 50_000_000n })
+    expect(edge.data.firstTask.assigneeMemberId).toBe(org.member.dm_proc)
+    const above = await routedAward(org, { netSatang: 46_728_973n, vatSatang: 3_271_028n })
+    if (!above.ok) throw new Error(JSON.stringify(above.error))
+    expect(above.data.route).toMatchObject({ ruleCode: 'RA-02', basisAmountSatang: 50_000_001n })
+    expect(above.data.firstTask.assigneeMemberId).toBe(org.member.coo)
+    expect(await routedAward(org, { netSatang: 467_289_721n, vatSatang: 32_710_280n }, ['ceo'])).toMatchObject({ ok: false, error: { code: 'NO_HIGHER_AUTHORITY' } })
+  })
+
   it('an award of no amount is refused (REQUIRED · BR-DOA-21) and nothing is written', async () => {
     const org = await createP2Org()
     expect(await routedAward(org, { netSatang: 0n, vatSatang: 0n })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } })

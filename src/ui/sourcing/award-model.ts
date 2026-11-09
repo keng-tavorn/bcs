@@ -1,3 +1,5 @@
+import { AWARD_REASON_CODES, type AwardReasonCode } from '@/core/sourcing/award'
+
 // The shapes the award page (S10-10 · /sourcing/[id]/award) passes between its server actions and its form.
 
 export interface AwardChoice {
@@ -28,8 +30,9 @@ export type AwardOutcome =
 /** The keys of sourcing.award the screens pick by value (their messages exist in both languages) */
 export const AWARD_STATUS_KEYS = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'RETURNED', 'REJECTED', 'CANCELLED', 'NONE'] as const
 export type AwardStatusKey = (typeof AWARD_STATUS_KEYS)[number]
-export const AWARD_REASON_KEYS = ['NOT_TOP_SCORE', 'SPLIT', 'FOREIGN', 'BID_EXPIRED', 'SUPPLIER_FLAGGED', 'DOCS_INCOMPLETE', 'ABOVE_REQUEST', 'RISK_NOT_CLEARED'] as const
-export type AwardReasonKey = (typeof AWARD_REASON_KEYS)[number]
+/** The reason codes of BR-RFX-12, one list with the engine's */
+export const AWARD_REASON_KEYS = AWARD_REASON_CODES
+export type AwardReasonKey = AwardReasonCode
 export const AWARD_FLAG_KEYS = ['HIGH', 'LOW', 'ABOVE_AGREEMENT'] as const
 export type AwardFlagKey = (typeof AWARD_FLAG_KEYS)[number]
 export const AWARD_ERROR_KEYS = [
@@ -46,6 +49,7 @@ export const AWARD_ERROR_KEYS = [
   'FORBIDDEN',
   'VALIDATION_FAILED',
   'EMPTY',
+  'UNCHANGED',
   'OTHER',
 ] as const
 export type AwardErrorKey = (typeof AWARD_ERROR_KEYS)[number]

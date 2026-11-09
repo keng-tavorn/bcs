@@ -177,8 +177,11 @@ describe('[FR-SRC-204/AC2] [GC-SRC-21] [GC-DOA-75] scene 9 awarded to the first 
     // one open award per RFx
     expect(await createAward(proc(), { rfxEventId, lines: allTo(lines, bids[1]!), reason: 'อีกผล' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { reason: 'AWARD_OPEN' } } })
 
+    // dm_proc holds no ORG role here: the prices are not theirs to read until the award's task is (review 1)
+    expect(await awardWorkspace(as('dm_proc'), rfxEventId)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     const sent = ok(await submitAward(proc(), { awardDecisionId: made.awardDecisionId, version: draft.version }, key()))
     expect(sent.number).toMatch(/^AWD-2569-\d{5}$/)
+    expect(ok(await awardWorkspace(as('dm_proc'), rfxEventId))).toMatchObject({ canAward: false, award: { id: made.awardDecisionId, status: 'PENDING_APPROVAL' } })
     const award = await awardOf(made.awardDecisionId)
     expect(award).toMatchObject({ status: 'PENDING_APPROVAL', number: sent.number, submittedById: org.member.proc_officer, submittedAt: SEND, amountBasis: 'GROSS', poStatus: 'NOT_APPLICABLE', currentRouteId: sent.routeId })
     expect(award.rankingSnapshot).toMatchObject({ topScoreBidId: bids[0], lowestBidId: bids[0], invited: 3, submitted: 3, bids: [{ bidId: bids[0], rank: 1, totalBp: 9538 }, { bidId: bids[1], rank: 2, totalBp: 9511 }, { bidId: bids[2], rank: 3, totalBp: 8957 }] })
@@ -223,9 +226,14 @@ describe('[FR-SRC-204/AC2] [BR-RFX-12] the reasons an award needs', () => {
     expect(made.reasonCodes).toEqual(['NOT_TOP_SCORE', 'SPLIT'])
     // 185,200 → 12,964.00 and 117,500 → 8,225.00: 302,700.00 + 21,189.00 = 323,889.00 (GC-SRC-23)
     expect(await awardOf(made.awardDecisionId)).toMatchObject({ isSplit: true, netSatang: 30_270_000n, vatSatang: 2_118_900n, grossSatang: 32_388_900n, reasonCodes: ['NOT_TOP_SCORE', 'SPLIT'], reason: 'แบ่งมอบเพื่อให้ส่งทันทั้งสองไซต์' })
-    // a reason taken away is refused again
+    // a reason taken away is refused again; the same reason again changes nothing
     const award = await awardOf(made.awardDecisionId)
     expect(await updateAward(proc(), { awardDecisionId: award.id, version: award.version, reason: null }, key())).toMatchObject({ ok: false, error: { code: 'AWARD_REASON_REQUIRED' } })
+    expect(await updateAward(proc(), { awardDecisionId: award.id, version: award.version, lines: split, reason: 'แบ่งมอบเพื่อให้ส่งทันทั้งสองไซต์' }, key())).toMatchObject({ ok: false, error: { details: { reason: 'UNCHANGED' } } })
+    // line 2 went to 117,500.00 where 115,750.00 was offered: not the lowest line by line, whatever the totals (review 5)
+    ok(await submitAward(proc(), { awardDecisionId: award.id, version: award.version }, key()))
+    expect((await awardOf(award.id)).rankingSnapshot).toMatchObject({ lowestLinesNet: '300950.00' })
+    expect(await awardCardCounts(org.organizationId, award.id)).toEqual({ bids: 3, winners: 2, notLowest: true })
   })
 
   it('the winner flagged CEASED and a required document missing after the invite: the send reads them live and asks the reason (SUPPLIER_FLAGGED · DOCS_INCOMPLETE)', async () => {
@@ -246,6 +254,19 @@ describe('[FR-SRC-204/AC2] [BR-RFX-12] the reasons an award needs', () => {
     } finally {
       await prisma.supplierDocumentType.update({ where: { id: type.id }, data: { active: false } })
     }
+  })
+
+  it('a flag that arises after the reason was given is answered before the send: the reason is given again (review 2 · BR-RFX-12 จ)', async () => {
+    const { rfxEventId, bids, lines, parties } = await scene()
+    const made = ok(await createAward(proc(), { rfxEventId, lines: allTo(lines, bids[1]!), reason: 'รายที่สองส่งของได้เร็วกว่า' }, key()))
+    expect(made.reasonCodes).toEqual(['NOT_TOP_SCORE'])
+    await prisma.supplier.update({ where: { id: parties[1]!.supplier.id }, data: { registryFlag: 'VAT_CANCELLED', registryFlaggedAt: AFTER } })
+    let award = await awardOf(made.awardDecisionId)
+    expect(await submitAward(proc(), { awardDecisionId: award.id, version: award.version }, key())).toMatchObject({ ok: false, error: { code: 'AWARD_REASON_REQUIRED', details: { reason: 'SUPPLIER_FLAGGED', arisen: ['SUPPLIER_FLAGGED'], reasonCodes: ['NOT_TOP_SCORE', 'SUPPLIER_FLAGGED'] } } })
+    ok(await updateAward(proc(), { awardDecisionId: award.id, version: award.version, reason: 'รายที่สองส่งของได้เร็วกว่า ตรวจแล้วว่าทะเบียน VAT ถูกยกเลิก ราคาไม่รวม VAT' }, key()))
+    award = await awardOf(made.awardDecisionId)
+    expect(award.reasonCodes).toEqual(['NOT_TOP_SCORE', 'SUPPLIER_FLAGGED'])
+    ok(await submitAward(proc(), { awardDecisionId: award.id, version: award.version }, key()))
   })
 
   it('above what the requests approved (20,000.00 a tonne → 260,000.00): ABOVE_REQUEST with the difference in the facts', async () => {

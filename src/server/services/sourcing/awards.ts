@@ -81,6 +81,8 @@ export interface AwardWinnerFacts {
 export interface AwardSnapshot {
   readonly topScoreBidId: string | null
   readonly lowestBidId: string | null
+  /** Σ over the awarded lines of the lowest amount before VAT any bid offers on it (the card's "not the lowest" · review 5) */
+  readonly lowestLinesNet: string
   /** Every bid of the comparison: its amount before VAT, rank and total when scored */
   readonly bids: ReadonlyArray<{ readonly bidId: string; readonly supplierId: string; readonly net: string; readonly partial: boolean; readonly lowest: boolean; readonly rank: number | null; readonly totalBp: number | null; readonly tags: readonly string[] }>
   /** The price flags of the winning lines (BR-RFX-11) */
@@ -217,10 +219,15 @@ export async function planAward(tx: TenantTx, ctx: Ctx, rfx: Pick<Rfx, 'id' | 'k
   const rankOf = new Map((ranking?.rows ?? []).map((r) => [r.bidId, r]))
   const winning = new Set(lines.map((l) => `${l.rfxLineId}:${l.bidId}`))
   const invited = await tx.rfxInvite.count({ where: { rfxEventId: rfx.id, status: { not: 'REMOVED' } } })
-  const added = await tx.event.findMany({ where: { type: 'scorecard.evaluator_added', data: { path: ['rfxEventId'], equals: rfx.id } }, select: { data: true } })
+  const added = rfx.scorecardId ? await tx.event.findMany({ where: { type: 'scorecard.evaluator_added', aggregateType: 'Scorecard', aggregateId: rfx.scorecardId }, select: { data: true } }) : []
+  const lowestLinesNet = lines.reduce((sum, l) => {
+    const nets = table.bids.flatMap((b) => b.lines.filter((x) => x.rfxLineId === l.rfxLineId && x.offered && x.lineNet !== null).map((x) => amountToSatang(x.lineNet!)))
+    return sum + nets.reduce((m, n) => (n < m ? n : m), nets[0] ?? 0n)
+  }, 0n)
   const snapshot: AwardSnapshot = {
     topScoreBidId: ranking?.topScoreBidId ?? table.bids.find((b) => b.lowest)?.bidId ?? null,
     lowestBidId: table.bids.find((b) => b.lowest)?.bidId ?? null,
+    lowestLinesNet: satangToAmount(lowestLinesNet),
     bids: table.bids.map((b) => ({ bidId: b.bidId, supplierId: b.supplierId, net: b.net, partial: b.partial, lowest: b.lowest, rank: rankOf.get(b.bidId)?.rank ?? null, totalBp: rankOf.get(b.bidId)?.totalBp ?? null, tags: b.tags })),
     priceFlags: table.bids.flatMap((b) => b.lines.filter((x) => x.flag !== null && winning.has(`${x.rfxLineId}:${b.bidId}`)).map((x) => ({ rfxLineId: x.rfxLineId, bidId: b.bidId, flag: x.flag!, deviationBp: x.deviationBp }))),
     winners,
@@ -262,7 +269,8 @@ export async function awardPeople(tx: TenantTx, rfxEventId: string): Promise<Awa
   const conflicts = await scoringConflicts(tx, rfx)
   const evaluators = rfx.scorecardId ? await tx.scorecardEvaluator.findMany({ where: { scorecardId: rfx.scorecardId }, select: { memberId: true } }) : []
   // a supplier's own submit clears Bid.submittedByMemberId, so the recorders are read from their events (review S10-06 · 2)
-  const onBehalf = await tx.event.findMany({ where: { type: 'bid.recorded_on_behalf', data: { path: ['rfxEventId'], equals: rfxEventId } }, select: { actorMemberId: true, data: true } })
+  const bidIds = (await tx.bid.findMany({ where: { rfxEventId }, select: { id: true } })).map((b) => b.id)
+  const onBehalf = bidIds.length ? await tx.event.findMany({ where: { type: 'bid.recorded_on_behalf', aggregateType: 'Bid', aggregateId: { in: bidIds } }, select: { actorMemberId: true, data: true } }) : []
   return {
     rfxCreatorMemberIds: conflicts.rfxCreatorMemberIds,
     evaluatorMemberIds: [...new Set(evaluators.map((e) => e.memberId))],
@@ -374,15 +382,18 @@ export const updateAwardCommand = defineCommand({
     const plan = await planAward(tx, ctx, rfx, choices, 'award.update')
     if (isFail(plan)) return plan
     const reason = input.reason === undefined ? award.reason : input.reason
+    const contractRef = input.contractRef === undefined ? award.contractRef : input.contractRef
+    const sameLines = choices.length === award.lines.length && choices.every((c) => award.lines.some((l) => l.rfxLineId === c.rfxLineId && l.bidId === c.bidId))
     const missing = reasonMissing(plan, reason)
     if (missing) return missing
-    const fields = [...(input.lines ? ['lines'] : []), ...(input.reason !== undefined ? ['reason'] : []), ...(input.contractRef !== undefined ? ['contractRef'] : [])]
-    if (!fields.length) return fail('VALIDATION_FAILED', 'nothing to change', { reason: 'EMPTY' })
+    // what changed; the codes count too, so a reason given again answers codes that arose since (review 2)
+    const fields = [...(sameLines ? [] : ['lines']), ...(reason !== award.reason ? ['reason'] : []), ...(contractRef !== award.contractRef ? ['contractRef'] : []), ...(plan.reasonCodes.join() !== award.reasonCodes.join() ? ['reasonCodes'] : [])]
+    if (!fields.length) return fail('VALIDATION_FAILED', 'nothing to change', { reason: 'UNCHANGED' })
     await tx.awardDecision.update({
       where: { id: award.id },
       data: { ...columnsOf(plan), reason, ...(input.contractRef !== undefined ? { contractRef: input.contractRef } : {}), version: { increment: 1 } },
     })
-    if (input.lines) await writeLines(tx, ctx, award.id, plan)
+    if (!sameLines) await writeLines(tx, ctx, award.id, plan)
     return {
       ok: true,
       result: { awardDecisionId: award.id, reasonCodes: [...plan.reasonCodes] },
@@ -419,6 +430,10 @@ export const submitAwardCommand = defineCommand({
     if (isFail(plan)) return plan
     const missing = reasonMissing(plan, award.reason)
     if (missing) return missing
+    // BR-RFX-12 จ: a code that arose since the reason was given (a flag, a document, the risk read now) is answered by the
+    // submitter before the send — award.update with the reason again
+    const arisen = plan.reasonCodes.filter((c) => !award.reasonCodes.includes(c))
+    if (arisen.length) return fail('AWARD_REASON_REQUIRED', `the award needs its reason given again: ${arisen.join(', ')}`, { reason: arisen[0], reasonCodes: plan.reasonCodes, arisen })
     const people = await awardPeople(tx, rfx.id)
     const number = award.number ?? (await issueDocumentNumber(tx, ctx, { document: 'AWD' }))
     const route = await startRoute(
@@ -452,7 +467,6 @@ export const submitAwardCommand = defineCommand({
         version: { increment: 1 },
       },
     })
-    await writeLines(tx, ctx, award.id, plan)
     return {
       ok: true,
       result: { awardDecisionId: award.id, number, routeId: route.data.routeId },

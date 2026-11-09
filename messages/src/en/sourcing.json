@@ -172,6 +172,7 @@
       "FORBIDDEN": "You may not make awards",
       "VALIDATION_FAILED": "Something is missing or not valid",
       "EMPTY": "Pick the winner of one line at least",
+      "UNCHANGED": "Nothing changed since the last save",
       "OTHER": "That did not work: try again"
     }
   }

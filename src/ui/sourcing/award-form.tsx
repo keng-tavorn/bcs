@@ -49,6 +49,7 @@ export function AwardForm({
   lines,
   initial,
   editable,
+  cancellable,
   actions,
 }: {
   readonly lines: readonly AwardFormLine[]
@@ -56,6 +57,8 @@ export function AwardForm({
   readonly initial: { readonly awardDecisionId: string; readonly version: number; readonly choices: readonly AwardChoice[]; readonly reason: string | null; readonly contractRef: string | null } | null
   /** The award may still be changed and sent (none yet, a draft or a returned one) */
   readonly editable: boolean
+  /** The reader may cancel it: procurement, while it is open */
+  readonly cancellable: boolean
   readonly actions: AwardFormActions
 }) {
   const t = useTranslations('sourcing.award')
@@ -79,7 +82,7 @@ export function AwardForm({
 
   function failure(o: Extract<AwardOutcome, { ok: false }>): string {
     if (o.code === 'AWARD_REASON_REQUIRED' && o.reasonCodes?.length) return `${t('errors.AWARD_REASON_REQUIRED')}: ${o.reasonCodes.filter((c): c is AwardReasonKey => oneOf(AWARD_REASON_KEYS, c)).map((c) => t(`reasonCode.${c}`)).join(' · ')}`
-    if (o.reason === 'AWARD_OPEN' || o.reason === 'NOT_REVEALED' || o.reason === 'EMPTY') return t(`errors.${o.reason}`)
+    if (o.reason === 'AWARD_OPEN' || o.reason === 'NOT_REVEALED' || o.reason === 'EMPTY' || o.reason === 'UNCHANGED') return t(`errors.${o.reason}`)
     return t(`errors.${keyOf(AWARD_ERROR_KEYS, o.code, 'OTHER')}`)
   }
 
@@ -168,7 +171,7 @@ export function AwardForm({
         </div>
       ) : null}
       {editable && dirty && initial ? <p className="text-base text-ink-muted md:text-sm">{t('saveFirst')}</p> : null}
-      {initial ? (
+      {initial && cancellable ? (
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" className="min-h-11 self-start lg:min-h-10" disabled={pending}>

@@ -11908,6 +11908,7 @@
         "NO_HIGHER_AUTHORITY": "Every band's approver took part in this RFx",
         "OTHER": "That did not work: try again",
         "SUPPLIER_FLAGGED": "The registry shows the winner as ceased, so it cannot be awarded",
+        "UNCHANGED": "Nothing changed since the last save",
         "VALIDATION_FAILED": "Something is missing or not valid"
       },
       "evaluatorsAdded": "Evaluators added after the close",

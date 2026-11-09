@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AWARD_REASON_CODES } from '@/core/sourcing'
 import { BASIS_POINTS_WHOLE } from '@/lib/constants'
 import { defineEvents } from '../registry'
 
@@ -87,7 +88,7 @@ defineEvents('Bid', {
 // nothing is sealed), the codes that called for its reason and the ids it touched; never the reason itself (it is on the
 // award, and a return or a rejection keeps its reason as a Comment)
 const satang = z.string().regex(/^\d+$/)
-const reasonCode = z.enum(['NOT_TOP_SCORE', 'SPLIT', 'FOREIGN', 'BID_EXPIRED', 'SUPPLIER_FLAGGED', 'DOCS_INCOMPLETE', 'ABOVE_REQUEST', 'RISK_NOT_CLEARED'])
+const reasonCode = z.enum(AWARD_REASON_CODES)
 const awardAmounts = { netSatang: satang, vatSatang: satang, isSplit: z.boolean(), lineCount: z.int().min(1), reasonCodes: z.array(reasonCode) }
 
 defineEvents('AwardDecision', {

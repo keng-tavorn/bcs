@@ -60,7 +60,8 @@ export default async function AwardPage({ params }: { params: Promise<{ id: stri
       return line?.offered && line.lineNet !== null ? [{ bidId: b.bidId, supplier: b.individual ? t('individual', { code: b.supplierCode }) : b.supplierName, net: baht(line.lineNet), lowest: line.lowest }] : []
     }),
   }))
-  const formAward = w.award && open ? { awardDecisionId: w.award.id, version: w.award.version, choices: w.award.lines, reason: w.award.reason, contractRef: w.award.contractRef } : null
+  // the winners shown for every award, open or approved (review 3); cancelled only while open
+  const formAward = w.award ? { awardDecisionId: w.award.id, version: w.award.version, choices: w.award.lines, reason: w.award.reason, contractRef: w.award.contractRef } : null
   const name = (n: { th: string; en: string | null }) => (locale === 'en' && n.en ? n.en : n.th)
 
   return (
@@ -81,8 +82,9 @@ export default async function AwardPage({ params }: { params: Promise<{ id: stri
                 ) : (
                   <AwardForm
                     lines={lines}
-                    initial={w.canAward ? formAward : null}
+                    initial={formAward}
                     editable={editable}
+                    cancellable={w.canAward && open}
                     actions={{ save: saveAwardAction.bind(null, id), submit: submitAwardAction.bind(null, id), cancel: cancelAwardAction.bind(null, id) }}
                   />
                 )}

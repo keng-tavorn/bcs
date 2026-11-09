@@ -8,7 +8,7 @@ interface SodCase {
   id: string
   title?: string
   input: {
-    action: 'DECIDE_APPROVAL' | 'POST_GR' | 'PROPOSE_ORG_AUTHORITY_CHANGE' | 'PREPARE_PAYMENT'
+    action: 'DECIDE_APPROVAL' | 'POST_GR' | 'PROPOSE_ORG_AUTHORITY_CHANGE' | 'PREPARE_PAYMENT' | 'DECIDE_RISK_REVIEW'
     actor: string
     requester?: string
     approvers?: string[]
@@ -20,6 +20,9 @@ interface SodCase {
     payDate?: string
     recentBankChangeDays?: number
     bankChanges?: Array<{ proposer: string; effectiveOn: string }>
+    /** DECIDE_RISK_REVIEW (S11-06 · BR-SOD-16) */
+    assessmentOpenedBy?: string
+    filledOnBehalfBy?: string
   }
   expect: Record<string, unknown>
 }
@@ -28,6 +31,7 @@ const suite = loadYaml<{ sodPolicy: { approverMayReceive: boolean; requesterMayR
 
 function action(i: SodCase['input']): SodAction {
   const recentBankChanges = i.bankChanges ? { payDate: i.payDate!, recentBankChangeDays: i.recentBankChangeDays!, changes: i.bankChanges.map((b) => ({ proposerMemberId: b.proposer, effectiveOn: b.effectiveOn })) } : undefined
+  if (i.action === 'DECIDE_RISK_REVIEW') return { kind: 'DECIDE_RISK_REVIEW', actorMemberId: i.actor, assessmentPreparerMemberIds: [i.assessmentOpenedBy, i.filledOnBehalfBy].filter((m): m is string => Boolean(m)) }
   if (i.action === 'PREPARE_PAYMENT') return { kind: 'PREPARE_PAYMENT', actorMemberId: i.actor, recentBankChanges: recentBankChanges! }
   if (i.action === 'POST_GR') return { kind: 'POST_GR', actorMemberId: i.actor, requesterMemberIds: i.requester ? [i.requester] : [], approverMemberIds: i.approvers ?? [] }
   if (i.action === 'PROPOSE_ORG_AUTHORITY_CHANGE') return { kind: 'PROPOSE_ORG_AUTHORITY_CHANGE', changeKind: i.kind!, actorMemberId: i.actor, beneficiaryMemberId: i.beneficiary ?? null }

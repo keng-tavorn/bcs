@@ -3,6 +3,7 @@ import { PIN_FAILURE_LIMIT, PIN_LOCK_MINUTES } from '@/core/pin'
 import { PAYMENT_TEMPLATES } from './payments'
 import { SUPPLIER_TEMPLATES } from './suppliers'
 import { SLA_TEMPLATES } from './sla'
+import { RISK_TEMPLATES } from './risk'
 
 // Notification templates (spec §4.7 rule 5, §10.1): each template turns a notification's data into a short text in
 // Thai and English and the page it links to (BR-NOTI-02). The in-app list (FR-NOTI-001) uses them now; LINE and e-mail
@@ -478,6 +479,8 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
   ...PAYMENT_TEMPLATES,
   // S7 suppliers and the portal, in lane 1's own file
   ...SUPPLIER_TEMPLATES,
+  // S11 supplier risk, in lane 3's own file
+  ...RISK_TEMPLATES,
 }
 
 const FALLBACK: Template = () => ({ title: { th: 'มีการแจ้งเตือนใหม่', en: 'New notification' }, href: null })

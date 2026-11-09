@@ -36,4 +36,9 @@ export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   'task.follow_up',
   // S9, in lane 2's own file (ADR-135)
   ...PAYMENT_LINE_TEMPLATES,
+  // S11-06 (BR-NOTI-12 · the notices table of docs/sub-specs/S11.md): a reviewer's task of a supplier risk assessment —
+  // the card with "ผ่าน" and "ตีกลับ" to the slot's holder, and its reminder and overdue notice "LINE → อีเมล"
+  'risk.review_assigned',
+  'risk.review_reminder',
+  'risk.review_overdue',
 ])

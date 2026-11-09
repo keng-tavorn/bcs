@@ -540,6 +540,9 @@ def run_sod(d):
             elif subj == "PURCHASE_ORDER" and i["actor"] == i.get("poCreator"): rule = "BR-SOD-03"
         elif i["action"] == "PREPARE_PAYMENT":
             if sod_recent_change(i): rule = "BR-SOD-10"
+        elif i["action"] == "DECIDE_RISK_REVIEW":
+            # S11-06 (BR-SOD-16): who opened the assessment or filled it in for the supplier never reviews it
+            if i["actor"] in [i.get("assessmentOpenedBy"), i.get("filledOnBehalfBy")]: rule = "BR-SOD-16"
         elif i["action"] == "POST_GR":
             if not st["approverMayReceive"] and i["actor"] in i.get("approvers", []): rule = "BR-SOD-02"
             elif i["actor"] == i.get("requester") and not st["requesterMayReceive"]: rule = "BR-SOD-07"

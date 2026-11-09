@@ -687,10 +687,19 @@
       "completed": "Risk assessment completed",
       "superseded": "Risk assessment replaced by a newer one",
       "cancelled": "Risk assessment cancelled",
-      "reminded": "Supplier reminded to answer"
+      "reminded": "Supplier reminded to answer",
+      "reviewers_assigned": "Questionnaire sent to the risk reviewers",
+      "returned": "Questionnaire returned by a reviewer",
+      "reviewer_gap_reported": "Questionnaire not sent: no reviewer, administrators told"
     },
     "review_task": {
-      "cancelled": "Risk reviewer task cancelled"
+      "cancelled": "Risk reviewer task cancelled",
+      "assigned": "Risk reviewer task assigned",
+      "decided": "Risk reviewer decided",
+      "reassigned": "Risk reviewer task moved after an org change",
+      "reminded": "Risk reviewer reminded",
+      "overdue": "Risk reviewer task overdue",
+      "escalated": "Fallback told a risk reviewer task is overdue"
     },
     "risk_review": {
       "completed": "Reassessment done"

@@ -85,5 +85,16 @@
     "decided": {
       "title": "Payment run decided"
     }
+  },
+  "risk": {
+    "review_assigned": {
+      "title": "A risk assessment waits for your review"
+    },
+    "review_reminder": {
+      "title": "Reminder: a risk assessment waits for your review"
+    },
+    "review_overdue": {
+      "title": "A risk assessment review is overdue"
+    }
   }
 }

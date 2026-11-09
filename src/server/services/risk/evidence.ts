@@ -163,12 +163,32 @@ const scannedCommand = defineCommand({
 
 const DOWNLOAD_TTL_SECONDS = 300
 
-/** risk.evidence.view with RISK on, inside the caller's transaction */
-async function evidenceViewer(tx: TenantTx, ctx: Ctx): Promise<{ ok: true } | Fail> {
+/**
+ * risk.evidence.view with RISK on, inside the caller's transaction: PROCUREMENT FINANCE AUDITOR (ORG), or the holder of a
+ * reviewer's slot of the assessment whose domains (GENERAL and its own · BR-RSK-08) hold the question of the answer
+ * (ASSIGNED · S11-06)
+ */
+async function evidenceViewer(tx: TenantTx, ctx: Ctx, answer?: { readonly assessmentId: string; readonly questionCode: string }): Promise<{ ok: true } | Fail> {
   const on = await requireModule(ctx, 'RISK', tx)
   if (!on.ok) return { ok: false, error: on.error }
-  const may = await authorize(tx, ctx, 'risk.evidence.view')
+  const may = await authorize(tx, ctx, 'risk.evidence.view', answer ? { assigneeMemberIds: await slotHoldersSeeing(tx, answer.assessmentId, answer.questionCode) } : undefined)
   return may.ok ? { ok: true } : { ok: false, error: may.error }
+}
+
+/** The members who hold or held a reviewer's slot of the assessment that sees the question's domain (BR-RSK-08) */
+async function slotHoldersSeeing(tx: TenantTx, assessmentId: string, questionCode: string): Promise<string[]> {
+  const a = await tx.riskAssessment.findUniqueOrThrow({ where: { id: assessmentId }, select: { questionnaireId: true } })
+  const question = await tx.riskQuestion.findFirst({ where: { questionnaireId: a.questionnaireId, code: questionCode }, select: { domain: true } })
+  if (!question) return []
+  const tasks = await tx.reviewTask.findMany({ where: { assessmentId, status: { not: 'CANCELLED' } }, select: { riskDomains: true, assigneeMemberId: true, delegatorMemberId: true, decidedById: true } })
+  return [
+    ...new Set(
+      tasks
+        .filter((t) => question.domain === 'GENERAL' || t.riskDomains.includes(question.domain))
+        .flatMap((t) => [t.assigneeMemberId, t.delegatorMemberId, t.decidedById])
+        .filter((m): m is string => typeof m === 'string'),
+    ),
+  ]
 }
 
 const evidenceDownloadCommand = defineCommand({
@@ -176,13 +196,15 @@ const evidenceDownloadCommand = defineCommand({
   capability: 'risk.evidence.view',
   input: z.strictObject({ assessmentId: z.uuid(), fileId: z.uuid() }),
   async execute(tx, input, ctx): Promise<CommandOutcome<{ storageKey: string; fileName: string; mimeType: string }>> {
-    const may = await evidenceViewer(tx, ctx)
-    if (!may.ok) return may
-    const answers = await tx.riskAnswer.findMany({ where: { assessmentId: input.assessmentId }, select: { id: true } })
+    const answers = await tx.riskAnswer.findMany({ where: { assessmentId: input.assessmentId }, select: { id: true, questionCode: true } })
     const link = await tx.fileLink.findFirst({
       where: { fileId: input.fileId, kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer', subjectId: { in: answers.map((x) => x.id) } },
-      select: { file: { select: { storageKey: true, fileName: true, mimeType: true, scanStatus: true } } },
+      select: { subjectId: true, file: { select: { storageKey: true, fileName: true, mimeType: true, scanStatus: true } } },
     })
+    // the right first, the file's existence after: who may not open it learns nothing of it
+    const questionCode = link ? answers.find((x) => x.id === link.subjectId)?.questionCode : undefined
+    const may = await evidenceViewer(tx, ctx, questionCode ? { assessmentId: input.assessmentId, questionCode } : undefined)
+    if (!may.ok) return may
     if (!link) return fail('NOT_FOUND', 'no such file behind an answer of this assessment')
     // a file opens once the central scan called it clean (S7's file-scan)
     if (link.file.scanStatus !== 'CLEAN') return fail(link.file.scanStatus === 'INFECTED' ? 'FILE_INFECTED' : 'FILE_NOT_SCANNED', 'the file is not clean', { scanStatus: link.file.scanStatus })

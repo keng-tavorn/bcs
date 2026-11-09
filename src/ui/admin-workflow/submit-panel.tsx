@@ -38,10 +38,21 @@ export interface SubmitPanelProps {
   readonly submit: SubmitWorkflowAction
 }
 
-/** One lint issue as a sentence with its code (BR-WF-11) */
+/** One lint issue as a sentence with its code (BR-WF-11; the risk reviewers' rules of S11-06, WF_LINT_RISK_*) */
 export function issueText(words: WorkflowWords, issue: WorkflowIssue): string {
   const { t } = words
-  const known = ['WF_LINT_UNKNOWN_REQUEST_TYPE', 'WF_LINT_UNKNOWN_FIELD', 'WF_LINT_DUPLICATE_CODE', 'WF_LINT_QUORUM_INVALID', 'WF_LINT_VACANT_REVIEWER', 'WF_LINT_NO_FALLBACK', 'WF_LINT_MEMBER_REVIEWER'] as const
+  const known = [
+    'WF_LINT_UNKNOWN_REQUEST_TYPE',
+    'WF_LINT_UNKNOWN_FIELD',
+    'WF_LINT_DUPLICATE_CODE',
+    'WF_LINT_QUORUM_INVALID',
+    'WF_LINT_VACANT_REVIEWER',
+    'WF_LINT_NO_FALLBACK',
+    'WF_LINT_MEMBER_REVIEWER',
+    'WF_LINT_RISK_DOMAIN_REQUIRED',
+    'WF_LINT_RISK_FIELD',
+    'WF_LINT_RISK_QUORUM',
+  ] as const
   const code = (known as readonly string[]).includes(issue.code) ? (issue.code as (typeof known)[number]) : null
   const sentence = code ? t(`lint.${code}`, { rule: issue.rule, type: issue.requestType ?? '', field: issue.field ? words.field(issue.field) : '' }) : t('lint.OTHER', { rule: issue.rule })
   return t('lint.withCode', { sentence, code: issue.code })

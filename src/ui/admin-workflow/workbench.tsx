@@ -13,8 +13,9 @@ import { formatDateTime } from '../format'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../shadcn/tabs'
 import { DiffList, type WorkflowDiff } from './diff-list'
 import { DryRun, type DryRunAction } from './dry-run'
-import { changedParts, isDirty, moveRule, putRule, ruleIndexOf, saveInput, type DraftState, type RuleValue, type SaveInput, type TestCaseValue } from './model'
+import { changedParts, isDirty, moveRule, putRule, ruleIndexOf, saveInput, scopeOf, type DraftState, type RuleScope, type RuleValue, type SaveInput, type TestCaseValue } from './model'
 import { WORKFLOW_REASONS, type WorkflowFailure, type WorkflowIssue } from './outcome'
+import { RiskDryRun } from './risk-dry-run'
 import { RuleDialog } from './rule-dialog'
 import { SubmitPanel, type SubmitPanelProps, type SubmitWorkflowAction } from './submit-panel'
 import { TestCases } from './test-cases'
@@ -27,6 +28,11 @@ import { useWorkflowWords, type WorkflowContext } from './words'
 // means the dry-run must run again before the send (the service clears it); while changes are unsaved the dry-run and
 // the send say to save first. Any other version is read only: a change is a new draft. The 90-day backtest (BR-WF-13,
 // S6-07) is a tab of its own when the page gives one: it runs on the saved draft, so with unsaved changes it says so.
+// S11-06 (BR-RSK-07 · FR-RSK-202 AC2): the rules of RISK_ASSESSMENT scope — who reviews a supplier risk assessment —
+// are a tab of their own, "risk reviewers", with their own list, add button and dry-run on screening answers and a
+// tier; the same save sends both lists. The tab shows when the organization has the RISK module on, or the version
+// already holds such rules (§9.9: nothing of a module that is off, but rules that exist are never hidden). The test
+// cases stay with the request rules: they name request rules only.
 
 export type SaveWorkflowResult = { readonly ok: true; readonly version: number } | WorkflowFailure
 export type SaveWorkflowAction = (input: SaveInput, idempotencyKey: string) => Promise<SaveWorkflowResult>
@@ -56,9 +62,11 @@ export interface WorkbenchProps {
   readonly actions: { readonly save: SaveWorkflowAction; readonly dryRun: DryRunAction; readonly submit: SubmitWorkflowAction }
   /** The 90-day backtest panel (src/ui/backtest/panel.tsx), for a version it applies to and a reader who may run it */
   readonly backtest?: ReactNode
+  /** The organization has the RISK module on: risk reviewer rules may be added (S11-06) */
+  readonly riskEnabled?: boolean
 }
 
-type Tab = 'rules' | 'dry-run' | 'backtest' | 'diff' | 'check'
+type Tab = 'rules' | 'risk' | 'dry-run' | 'backtest' | 'diff' | 'check'
 type Removed = { readonly rule: RuleValue; readonly index: number }
 type DateError = 'DATE' | 'MIN' | 'EFFECTIVE_IN_PAST' | 'LATER_VERSION_SCHEDULED'
 
@@ -79,7 +87,7 @@ export function Workbench(props: WorkbenchProps) {
   const [testCases, setTestCases] = useState<readonly TestCaseValue[]>(props.testCases)
   const [effectiveDate, setEffectiveDate] = useState(props.effectiveDate)
   const [reason, setReason] = useState(props.changeReason ?? '')
-  const [dialog, setDialog] = useState<{ readonly rule: RuleValue | null } | null>(null)
+  const [dialog, setDialog] = useState<{ readonly rule: RuleValue | null; readonly scope: RuleScope } | null>(null)
   const [removed, setRemoved] = useState<Removed | null>(null)
   const [ruleProblem, setRuleProblem] = useState<{ readonly code: string; readonly message: string } | null>(null)
   const [dateError, setDateError] = useState<{ readonly code: DateError; readonly version?: string } | null>(null)
@@ -89,6 +97,9 @@ export function Workbench(props: WorkbenchProps) {
 
   const dirty = props.editable && isDirty(saved, { rules, testCases, effectiveDate })
   const savedRules = saved.rules
+  const requestRules = rules.filter((r) => scopeOf(r) === 'REQUEST')
+  const riskRules = rules.filter((r) => scopeOf(r) === 'RISK_ASSESSMENT')
+  const riskEnabled = props.riskEnabled === true
 
   function edited() {
     setSavedNotice(false)
@@ -141,10 +152,13 @@ export function Workbench(props: WorkbenchProps) {
     }
     if (outcome.field === 'changeReason') return setReasonError(t('errors.REASON'))
     const message = t(`errors.${failureKey(outcome, WORKFLOW_REASONS)}`, errorValues(outcome))
-    // A refusal about one rule goes to that rule in the list
+    // A refusal about one rule goes to that rule in the list, on its own tab (the save is under both tabs of rules)
     const at = ruleIndexOf(outcome.field)
     const target = at !== null ? rules[at] : undefined
-    if (target) return setRuleProblem({ code: target.code, message })
+    if (target) {
+      setTab(scopeOf(target) === 'RISK_ASSESSMENT' ? 'risk' : 'rules')
+      return setRuleProblem({ code: target.code, message })
+    }
     setFailure(message)
   }
 
@@ -157,9 +171,11 @@ export function Workbench(props: WorkbenchProps) {
     </span>
   )
 
-  const ruleRow = (r: RuleValue, i: number) => {
+  /** One rule in its tab's list; `tabRules` are that tab's rules, the ones it moves among */
+  const ruleRow = (r: RuleValue, i: number, tabRules: readonly RuleValue[]) => {
     const before = savedRules.find((s) => s.code === r.code)
     const parts = changedParts(before, r)
+    const risk = scopeOf(r) === 'RISK_ASSESSMENT'
     return (
       <li key={r.code} className="flex flex-col gap-2 py-3">
         <div className={`grid grid-cols-1 gap-2 md:items-baseline md:gap-x-4 ${ROW_GRID}`}>
@@ -168,11 +184,19 @@ export function Workbench(props: WorkbenchProps) {
             {props.editable && !before ? tag('new', t('tagNew')) : null}
             {props.editable && parts.length ? tag('changed', t('tagChanged', { parts: parts.map((p) => t(`parts.${p}`)).join(', ') })) : null}
           </p>
-          <div className="flex min-w-0 flex-col">
-            <span className="text-ink-muted md:sr-only">{t('headers.when')}</span>
-            <span className="break-words">{r.requestTypeCodes.map(words.requestType).join(', ')}</span>
-            <span className="text-base break-words text-ink-muted md:text-sm">{words.condition(r.when)}</span>
-          </div>
+          {risk ? (
+            <div className="flex min-w-0 flex-col">
+              <span className="text-ink-muted md:sr-only">{t('risk.headerWhen')}</span>
+              <span className="break-words">{words.condition(r.when, 'RISK_ASSESSMENT')}</span>
+              <span className="text-base break-words text-ink-muted md:text-sm">{t('risk.domainsLine', { domains: words.domains(r.riskDomains ?? []) })}</span>
+            </div>
+          ) : (
+            <div className="flex min-w-0 flex-col">
+              <span className="text-ink-muted md:sr-only">{t('headers.when')}</span>
+              <span className="break-words">{r.requestTypeCodes.map(words.requestType).join(', ')}</span>
+              <span className="text-base break-words text-ink-muted md:text-sm">{words.condition(r.when)}</span>
+            </div>
+          )}
           <div className="flex min-w-0 flex-col">
             <span className="text-ink-muted md:sr-only">{t('headers.who')}</span>
             <span className="break-words">{r.reviewers.map(words.reviewer).join(', ')}</span>
@@ -185,7 +209,7 @@ export function Workbench(props: WorkbenchProps) {
         </div>
         {props.editable ? (
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" aria-label={t('editRule', { rule: r.code })} onClick={() => setDialog({ rule: r })}>
+            <Button variant="secondary" aria-label={t('editRule', { rule: r.code })} onClick={() => setDialog({ rule: r, scope: scopeOf(r) })}>
               {t('edit')}
             </Button>
             <Button variant="secondary" aria-label={t('moveUpRule', { rule: r.code })} disabled={i === 0} onClick={() => {
@@ -195,7 +219,7 @@ export function Workbench(props: WorkbenchProps) {
               <ArrowUp className="size-4 shrink-0" aria-hidden="true" />
               {t('moveUp')}
             </Button>
-            <Button variant="secondary" aria-label={t('moveDownRule', { rule: r.code })} disabled={i === rules.length - 1} onClick={() => {
+            <Button variant="secondary" aria-label={t('moveDownRule', { rule: r.code })} disabled={i === tabRules.length - 1} onClick={() => {
                 setRules((list) => moveRule(list, r.code, 1))
                 edited()
               }}>
@@ -223,14 +247,62 @@ export function Workbench(props: WorkbenchProps) {
       : t(`dateErrors.${dateError.code}`, { version: dateError.version ?? '' })
     : undefined
 
+  // The save of the whole draft, under each tab of rules: both lists go in one save
+  const saveForm = props.editable ? (
+    <form onSubmit={onSave} className="flex flex-col gap-4 border-t border-line pt-4" noValidate aria-labelledby={`${id}-save`}>
+      <h3 id={`${id}-save`} className="text-lg font-semibold">
+        {t('saveTitle')}
+      </h3>
+      <div className="flex max-w-2xl flex-col gap-4">
+        <Field
+          id={`${id}-effective`}
+          type="date"
+          label={t('effective')}
+          hint={echo()}
+          min={props.minEffectiveDate}
+          value={effectiveDate}
+          onChange={(ev) => {
+            setEffectiveDate(ev.currentTarget.value)
+            setDateError(null)
+            edited()
+          }}
+          error={dateMessage}
+          className="max-w-xs"
+        />
+        <Field
+          id={`${id}-reason`}
+          label={t('reason')}
+          hint={t('reasonHint')}
+          maxLength={REASON_MAX_LENGTH}
+          value={reason}
+          onChange={(ev) => {
+            setReason(ev.currentTarget.value)
+            setReasonError(undefined)
+          }}
+          error={reasonError}
+        />
+      </div>
+      {failure ? (
+        <Notice tone="danger">
+          <p>{failure}</p>
+        </Notice>
+      ) : null}
+      <div aria-live="polite">{savedNotice && !dirty ? <Notice tone="success">{t('saved', { name: draftName })}</Notice> : null}</div>
+      <p className="max-w-2xl text-base text-ink-muted md:text-sm">{dirty ? t('unsavedHint') : t('saveHint')}</p>
+      <Button type="submit" disabled={action.pending} className="self-start">
+        {action.pending ? t('saving') : t('save', { name: draftName })}
+      </Button>
+    </form>
+  ) : null
+
   const rulesTab = (
     <div className="flex flex-col gap-6">
       <section aria-labelledby={`${id}-rules`} className="flex flex-col gap-2">
         <h3 id={`${id}-rules`} className="text-lg font-semibold">
-          {t('rulesTitle', { count: rules.length })}
+          {t('rulesTitle', { count: requestRules.length })}
         </h3>
         <p className="text-base text-ink-muted md:text-sm">{props.editable ? t('rulesHint') : t('rulesHintReadOnly')}</p>
-        {rules.length === 0 ? (
+        {requestRules.length === 0 ? (
           <p className="border-y border-line py-3 text-ink-muted">{t('noRules')}</p>
         ) : (
           <>
@@ -240,12 +312,12 @@ export function Workbench(props: WorkbenchProps) {
               <span>{t('headers.who')}</span>
             </div>
             <ul aria-label={t('rulesListLabel')} className="flex flex-col divide-y divide-line border-b border-line">
-              {rules.map(ruleRow)}
+              {requestRules.map((r, i) => ruleRow(r, i, requestRules))}
             </ul>
           </>
         )}
         <div aria-live="polite">
-          {removed ? (
+          {removed && scopeOf(removed.rule) === 'REQUEST' ? (
             <Notice tone="info">
               <p>{t('removed', { rule: removed.rule.code })}</p>
               <Button variant="secondary" className="mt-2" onClick={restore}>
@@ -256,7 +328,7 @@ export function Workbench(props: WorkbenchProps) {
           ) : null}
         </div>
         {props.editable ? (
-          <Button variant="secondary" className="self-start" onClick={() => setDialog({ rule: null })}>
+          <Button variant="secondary" className="self-start" onClick={() => setDialog({ rule: null, scope: 'REQUEST' })}>
             <CirclePlus className="size-4 shrink-0" aria-hidden="true" />
             {t('addRule')}
           </Button>
@@ -274,7 +346,7 @@ export function Workbench(props: WorkbenchProps) {
             setTestCases(list)
             edited()
           }}
-          ruleCodes={rules.map((r) => r.code)}
+          ruleCodes={requestRules.map((r) => r.code)}
           failing={dirty ? [] : (props.submit?.testCasesFailing ?? [])}
           editable={props.editable}
           context={props.context}
@@ -284,62 +356,87 @@ export function Workbench(props: WorkbenchProps) {
         />
       </section>
 
-      {props.editable ? (
-        <form onSubmit={onSave} className="flex flex-col gap-4 border-t border-line pt-4" noValidate aria-labelledby={`${id}-save`}>
-          <h3 id={`${id}-save`} className="text-lg font-semibold">
-            {t('saveTitle')}
-          </h3>
-          <div className="flex max-w-2xl flex-col gap-4">
-            <Field
-              id={`${id}-effective`}
-              type="date"
-              label={t('effective')}
-              hint={echo()}
-              min={props.minEffectiveDate}
-              value={effectiveDate}
-              onChange={(ev) => {
-                setEffectiveDate(ev.currentTarget.value)
-                setDateError(null)
-                edited()
-              }}
-              error={dateMessage}
-              className="max-w-xs"
-            />
-            <Field
-              id={`${id}-reason`}
-              label={t('reason')}
-              hint={t('reasonHint')}
-              maxLength={REASON_MAX_LENGTH}
-              value={reason}
-              onChange={(ev) => {
-                setReason(ev.currentTarget.value)
-                setReasonError(undefined)
-              }}
-              error={reasonError}
-            />
-          </div>
-          {failure ? (
-            <Notice tone="danger">
-              <p>{failure}</p>
+      {saveForm}
+    </div>
+  )
+
+  // ---------- the risk reviewers (S11-06) ----------
+
+  const baselineName = props.baseline ? words.versionName(props.baseline.code, props.baseline.versionNo) : null
+
+  const showRisk = riskEnabled || riskRules.length > 0
+  const riskTab = (
+    <div className="flex flex-col gap-6">
+      <section aria-labelledby={`${id}-risk`} className="flex flex-col gap-2">
+        <h3 id={`${id}-risk`} className="text-lg font-semibold">
+          {t('risk.title', { count: riskRules.length })}
+        </h3>
+        <p className="text-base text-ink-muted md:text-sm">{t('risk.intro')}</p>
+        <p className="text-base text-ink-muted md:text-sm">{props.editable ? t('risk.hintEditable') : t('risk.hintReadOnly')}</p>
+        {riskEnabled ? null : <Notice tone="info">{t('risk.moduleOff')}</Notice>}
+        {riskRules.length === 0 ? (
+          <p className="border-y border-line py-3 text-ink-muted">{t('risk.none')}</p>
+        ) : (
+          <>
+            <div className={`hidden border-b border-line pb-2 text-sm font-medium text-ink-muted md:grid md:gap-x-4 ${ROW_GRID}`} aria-hidden="true">
+              <span>{t('headers.rule')}</span>
+              <span>{t('risk.headerWhen')}</span>
+              <span>{t('headers.who')}</span>
+            </div>
+            <ul aria-label={t('risk.listLabel')} className="flex flex-col divide-y divide-line border-b border-line">
+              {riskRules.map((r, i) => ruleRow(r, i, riskRules))}
+            </ul>
+          </>
+        )}
+        <div aria-live="polite">
+          {removed && scopeOf(removed.rule) === 'RISK_ASSESSMENT' ? (
+            <Notice tone="info">
+              <p>{t('removed', { rule: removed.rule.code })}</p>
+              <Button variant="secondary" className="mt-2" onClick={restore}>
+                <Undo2 className="size-4 shrink-0" aria-hidden="true" />
+                {t('restoreRule', { rule: removed.rule.code })}
+              </Button>
             </Notice>
           ) : null}
-          <div aria-live="polite">{savedNotice && !dirty ? <Notice tone="success">{t('saved', { name: draftName })}</Notice> : null}</div>
-          <p className="max-w-2xl text-base text-ink-muted md:text-sm">{dirty ? t('unsavedHint') : t('saveHint')}</p>
-          <Button type="submit" disabled={action.pending} className="self-start">
-            {action.pending ? t('saving') : t('save', { name: draftName })}
+        </div>
+        {props.editable && riskEnabled ? (
+          <Button variant="secondary" className="self-start" onClick={() => setDialog({ rule: null, scope: 'RISK_ASSESSMENT' })}>
+            <CirclePlus className="size-4 shrink-0" aria-hidden="true" />
+            {t('risk.add')}
           </Button>
-        </form>
+        ) : null}
+      </section>
+
+      {props.canSimulate ? (
+        <section aria-labelledby={`${id}-risk-dry-run`} className="flex flex-col gap-2">
+          <h3 id={`${id}-risk-dry-run`} className="text-lg font-semibold">
+            {t('riskDryRun.title')}
+          </h3>
+          <RiskDryRun
+            versionId={props.versionId}
+            draftName={draftName}
+            currentName={props.baseline?.relation === 'IN_EFFECT' ? baselineName : null}
+            blocked={dirty ? t('risk.saveFirst') : null}
+            defaultOpenerId={props.dryRunDefaults.requesterMemberId}
+            context={props.context}
+            words={words}
+            categoryCodes={props.categoryCodes}
+            run={props.actions.dryRun}
+          />
+        </section>
       ) : null}
+
+      {saveForm}
     </div>
   )
 
   // ---------- the tabs ----------
 
-  const baselineName = props.baseline ? words.versionName(props.baseline.code, props.baseline.versionNo) : null
   const diffTitle = props.baseline ? (props.baseline.relation === 'IN_EFFECT' ? t('diffTab.titleInEffect', { name: baselineName! }) : t('diffTab.titlePrevious', { name: baselineName! })) : t('diffTab.titleNone')
   const blocked = dirty ? t('saveFirst') : null
   const tabs: Array<{ value: Tab; label: string; content: ReactNode }> = [
     { value: 'rules', label: t('tabs.rules'), content: rulesTab },
+    ...(showRisk ? [{ value: 'risk' as const, label: t('tabs.risk'), content: riskTab }] : []),
     ...(props.canSimulate
       ? [
           {
@@ -441,6 +538,7 @@ export function Workbench(props: WorkbenchProps) {
           open={dialog !== null}
           rule={dialog?.rule ?? null}
           rules={rules}
+          scope={dialog?.scope ?? 'REQUEST'}
           context={props.context}
           words={words}
           categoryCodes={props.categoryCodes}

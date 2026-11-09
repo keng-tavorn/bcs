@@ -2,6 +2,7 @@
 // and reviewers), the lint of a workflow version, withdrawing a version not yet in effect and the 90-day backtest. Pure.
 export { stepOutcome, type Outcome, type Quorum, type SlotDecision, type SlotGroup, type StepOutcomeInput, type StepOutcomeResult } from './outcome'
 export {
+  requestScopeOnly,
   resolveRequestRoute,
   resolveReviewStep,
   resolveReviewer,

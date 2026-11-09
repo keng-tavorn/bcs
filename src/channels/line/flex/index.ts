@@ -8,3 +8,5 @@ export { subjectKind } from './labels'
 export { postbackRefusalMessage, textNotice, type PostbackRefusal, type TextNoticeData } from './notices'
 export { ACTION_LABEL_MAX_LENGTH, CARD_LABEL_MAX_LENGTH, CARD_NAME_MAX_LENGTH, clip, clipLines, NOTICE_BODY_MAX_LENGTH, NOTICE_TITLE_MAX_LENGTH } from './text'
 export type { CardLocale, FlexAction, FlexBubble, FlexMessage, OutgoingLineMessage, TextMessage } from './types'
+// S11-06 (BR-NOTI-12): a reviewer's task of a supplier risk assessment
+export { RISK_PASS_ACTION, riskPartsText, riskPassPostbackData, riskReviewCard, type RiskReviewCardData } from './risk-review-card'

@@ -33,6 +33,9 @@ export interface WorkflowRuleRow {
   readonly quorumCount: number | null
   readonly slaBusinessMinutes: number
   readonly sortOrder: number
+  /** S11 (ADR-222): absent on rows read before the column, which are REQUEST rules */
+  readonly scope?: string
+  readonly riskDomains?: readonly string[]
 }
 
 export interface WorkflowVersionRow {
@@ -51,6 +54,7 @@ const RuleJson = z.object({
   mode: z.enum(['ALL', 'ANY', 'COUNT']),
 })
 const Status = z.enum(['DRAFT', 'PENDING_APPROVAL', 'PUBLISHED', 'SUPERSEDED', 'REJECTED', 'WITHDRAWN'])
+const Scope = z.enum(['REQUEST', 'RISK_ASSESSMENT'])
 
 /** One stored rule as the engine reads it; throws with the rule code when the stored JSON is not a valid rule */
 export function workflowRuleFromRow(row: WorkflowRuleRow): WorkflowRuleSnapshot {
@@ -66,6 +70,8 @@ export function workflowRuleFromRow(row: WorkflowRuleRow): WorkflowRuleSnapshot 
     quorumCount: row.quorumCount,
     slaBusinessMinutes: row.slaBusinessMinutes,
     sortOrder: row.sortOrder,
+    // S11 (BR-RSK-07): the scope and the parts a RISK_ASSESSMENT rule's reviewer sees; a REQUEST rule keeps neither key
+    ...(row.scope === 'RISK_ASSESSMENT' ? { scope: Scope.parse(row.scope), riskDomains: [...(row.riskDomains ?? [])] } : {}),
   }
 }
 

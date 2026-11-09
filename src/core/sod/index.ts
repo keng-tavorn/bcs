@@ -91,6 +91,13 @@ export type SodAction =
       /** The requesters of the RFx's source request lines */
       readonly sourceRequesterMemberIds: readonly string[]
     }
+  | {
+      /** BR-SOD-16 (S11 · ADR-222): the holder of a reviewer's slot of a risk assessment, at riskReview.decide */
+      readonly kind: 'DECIDE_RISK_REVIEW'
+      readonly actorMemberId: string
+      /** Who opened the assessment and every member who filled it in for the supplier */
+      readonly assessmentPreparerMemberIds: readonly string[]
+    }
 
 /** The changes of the accounts a run pays into (BR-SOD-10): who proposed each and the Thai day it came into force */
 export interface RecentBankChanges {
@@ -114,6 +121,8 @@ export type SodRule =
   // S10
   | 'BR-SOD-13'
   | 'BR-SOD-14'
+  // S11
+  | 'BR-SOD-16'
 export type SodResult = { readonly ok: true } | { readonly ok: false; readonly error: 'SOD_VIOLATION'; readonly rule: SodRule }
 
 const allowed: SodResult = { ok: true }
@@ -210,5 +219,7 @@ export function checkSod(action: SodAction, policy: SodPolicy): SodResult {
       return SELF_BENEFIT_KINDS.includes(action.changeKind) && action.beneficiaryMemberId === action.actorMemberId ? violation('BR-SOD-08') : allowed
     case 'SCORE_RFX':
       return action.rfxCreatorMemberIds.includes(action.actorMemberId) || action.sourceRequesterMemberIds.includes(action.actorMemberId) ? violation('BR-SOD-14') : allowed
+    case 'DECIDE_RISK_REVIEW':
+      return action.assessmentPreparerMemberIds.includes(action.actorMemberId) ? violation('BR-SOD-16') : allowed
   }
 }

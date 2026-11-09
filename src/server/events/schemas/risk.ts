@@ -51,10 +51,49 @@ defineEvents('RiskAssessment', {
   'risk_assessment.superseded': { schema: z.object({ byAssessmentId: z.uuid() }) },
   'risk_assessment.cancelled': { schema: z.object({ reason: z.string(), cancelledTasks: z.int() }) },
   'risk_assessment.reminded': { schema: z.object({ lastActivityAt: z.string(), emailed: z.boolean() }) },
+  // S11-06 (BR-RSK-07 · FR-RSK-202): the round of reviewers, its return, and a send refused for a missing reviewer
+  'risk_assessment.reviewers_assigned': { schema: z.object({ workflowVersionId: z.uuid(), reviewRound: z.int(), tasks: z.int() }) },
+  'risk_assessment.returned': { schema: z.object({ reviewRound: z.int(), byTaskId: z.uuid(), reasonShared: z.boolean() }) },
+  'risk_assessment.reviewer_gap_reported': { schema: z.object({ ruleCode: z.string().nullable(), position: z.string().nullable(), department: z.string().nullable(), notifiedAdmins: z.int() }) },
 })
 
+const domain = z.enum(['GENERAL', 'PRIVACY', 'INFOSEC', 'PREMISES', 'FINANCE'])
+// S11-06 (INV-RSK-04): every decision names the workflow version, the rules and the slot it answers for
 defineEvents('ReviewTask', {
+  'review_task.assigned': {
+    schema: z.object({
+      assessmentId: z.uuid(),
+      reviewRound: z.int(),
+      workflowVersionId: z.uuid(),
+      ruleCodes: z.array(z.string()).min(1),
+      slotNo: z.int(),
+      riskDomains: z.array(domain),
+      assigneeMemberId: z.uuid(),
+      delegatorMemberId: z.uuid().nullable(),
+      fallbackUsed: z.enum(['NONE', 'VACANT', 'CONFLICT']),
+      dueAt: z.string(),
+      reassigned: z.boolean(),
+    }),
+  },
+  'review_task.decided': {
+    schema: z.object({
+      assessmentId: z.uuid(),
+      decision: z.enum(['PASS', 'RETURN']),
+      workflowVersionId: z.uuid(),
+      ruleCodes: z.array(z.string()).min(1),
+      slotNo: z.int(),
+      reviewRound: z.int(),
+      decidedById: z.uuid(),
+      onBehalfOf: z.uuid().nullable(),
+      shareWithSupplier: z.boolean(),
+    }),
+  },
   'review_task.cancelled': { schema: z.object({ assessmentId: z.uuid(), why: z.enum(['STEP_DECIDED', 'ASSESSMENT_CANCELLED', 'REASSIGNED']) }) },
+  // an org change moved the slot to its new holder; the task keeps its row (one per slot of a round · ADR-108)
+  'review_task.reassigned': { schema: z.object({ assessmentId: z.uuid(), fromMemberId: z.uuid(), toMemberId: z.uuid(), why: z.enum(['ORG_AUTHORITY_CHANGE']) }) },
+  'review_task.reminded': { schema: z.object({ assessmentId: z.uuid() }) },
+  'review_task.overdue': { schema: z.object({ assessmentId: z.uuid(), dueAt: z.string() }) },
+  'review_task.escalated': { schema: z.object({ assessmentId: z.uuid(), notifiedMemberIds: z.array(z.uuid()), toFallback: z.boolean() }) },
 })
 
 defineEvents('RiskReview', {

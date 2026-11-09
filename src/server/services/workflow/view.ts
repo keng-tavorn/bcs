@@ -59,6 +59,10 @@ export interface WorkflowListView {
 
 export interface WorkflowRuleView {
   readonly code: string
+  /** S11-06 (BR-RSK-07): REQUEST, or RISK_ASSESSMENT for the reviewers of a supplier risk assessment */
+  readonly scope: 'REQUEST' | 'RISK_ASSESSMENT'
+  /** RISK_ASSESSMENT: the parts its reviewer sees (BR-RSK-08); [] for a REQUEST rule */
+  readonly riskDomains: readonly string[]
   readonly requestTypeCodes: readonly string[]
   readonly when: WorkflowCondition
   readonly reviewers: readonly ReviewerSpec[]
@@ -82,7 +86,7 @@ export interface WorkflowTestCaseView {
   readonly expected: { readonly ruleCodes: readonly string[] }
 }
 
-export type WorkflowRuleField = 'requestTypes' | 'when' | 'reviewers' | 'fallback' | 'mode' | 'sla' | 'description'
+export type WorkflowRuleField = 'requestTypes' | 'when' | 'reviewers' | 'fallback' | 'mode' | 'sla' | 'description' | 'scope' | 'riskDomains'
 
 export interface WorkflowDiffView {
   readonly added: readonly string[]
@@ -239,6 +243,8 @@ export async function listWorkflowVersions(ctx: Ctx): Promise<Result<WorkflowLis
 function ruleViews(snapshot: WorkflowVersionSnapshot, rows: ReadonlyArray<{ code: string; descriptionTh: string | null }>): WorkflowRuleView[] {
   return snapshot.rules.map((r) => ({
     code: r.code,
+    scope: r.scope ?? 'REQUEST',
+    riskDomains: [...(r.riskDomains ?? [])],
     requestTypeCodes: r.requestTypeCodes,
     when: r.when,
     reviewers: r.reviewers,
@@ -272,6 +278,8 @@ export function diffWorkflowRules(before: readonly WorkflowRuleView[], after: re
     mode: canonical([r.mode, r.quorumCount]),
     sla: String(r.slaMinutes),
     description: r.descriptionTh ?? '',
+    scope: r.scope,
+    riskDomains: canonical([...r.riskDomains].sort()),
   })
   const changed = after.flatMap((r) => {
     const old = before.find((b) => b.code === r.code)

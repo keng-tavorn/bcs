@@ -36,7 +36,7 @@ import { issuePortalLink } from '../suppliers/links'
 import { storedOptions, questionnaireInEffect } from './questionnaire'
 import { RISK_SUPPLIER_TEMPLATES } from './templates'
 import { riskPolicyInEffect, riskTiersInEffect } from './tiers'
-import { reviewSlotsFor } from './reviewers'
+import { reviewSlotsFor, withReviewerGapReport } from './reviewers'
 
 // Risk assessments (S11-05 · FR-RSK-201 · BR-RSK-01 BR-RSK-03 to 06 BR-RSK-13 BR-RSK-14 · ADR-221 ADR-224): PROCUREMENT
 // opens one for a supplier (from a PO, a request, or the supplier's page) with the questionnaire version in effect and
@@ -519,7 +519,7 @@ const submitCommand = defineCommand({
       highRiskCategories: [...policy.data.highRiskCategories],
     }
     const round = a.reviewRound + 1
-    const slots = await reviewSlotsFor(tx, ctx, a, score.tier, round)
+    const slots = await reviewSlotsFor(tx, ctx, a, score.tier, round, questions)
     if (!slots.ok) return slots
     const events: EventDraft[] = [...stale.events]
     const base = { pointsTotal: score.points, tier: score.tier, scoringSnapshot, submittedAt: ctx.now, submittedByContactId: who.actor.kind === 'CONTACT' ? who.actor.contactId : null, lastActivityAt: ctx.now, reviewRound: round, version: { increment: 1 } }
@@ -596,7 +596,9 @@ const cancelCommand = defineCommand({
 export const openRiskAssessment = (ctx: Ctx, input: z.input<typeof OpenInput>, options: RunOptions) => runCommand(ctx, openCommand, input, options)
 export const answerRiskAssessment = (ctx: Ctx, input: z.input<typeof AnswerInput>, options: RunOptions) => runCommand(ctx, answerCommand, input, options)
 export const fillRiskAssessmentOnBehalf = (ctx: Ctx, input: z.input<typeof AnswerInput>, options: RunOptions) => runCommand(ctx, fillOnBehalfCommand, input, options)
-export const submitRiskAssessment = (ctx: Ctx, input: z.input<typeof SubmitInput>, options: RunOptions) => runCommand(ctx, submitCommand, input, options)
+// FR-RSK-202 AC1: a send refused for a missing reviewer is told to the administrators (reviewers.ts)
+export const submitRiskAssessment = async (ctx: Ctx, input: z.input<typeof SubmitInput>, options: RunOptions) =>
+  withReviewerGapReport(ctx, input.assessmentId, await runCommand(ctx, submitCommand, input, options), options)
 export const cancelRiskAssessment = (ctx: Ctx, input: z.input<typeof cancelCommand.input>, options: RunOptions) => runCommand(ctx, cancelCommand, input, options)
 
 // ---------- reads ----------

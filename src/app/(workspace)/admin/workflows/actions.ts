@@ -31,7 +31,8 @@ const DraftShape = z.object({ sourceVersionId: Id.optional(), code: z.string().m
 const Acknowledged = z.array(z.string().max(200)).max(200)
 /** The shape only: the service reads every rule, test case and document with its own strict schema */
 const SaveShape = z.object({ versionId: Id, version: z.number(), effectiveDate: z.string().max(20), changeReason: z.string().max(REASON_MAX_LENGTH * 2), rules: z.array(z.unknown()).max(200), testCases: z.array(z.unknown()).max(100) })
-const DryRunShape = z.object({ versionId: Id, documents: z.array(z.unknown()).min(1).max(20) })
+// S11-06: risk assessments (riskCases) try the RISK_ASSESSMENT rules out beside the documents of the request rules
+const DryRunShape = z.object({ versionId: Id, documents: z.array(z.unknown()).max(20), riskCases: z.array(z.unknown()).max(20).optional() })
 
 async function currentCtx() {
   return ctxFromSession(await getSession(), 'WEB', systemClock.now())
@@ -60,7 +61,7 @@ export async function saveWorkflowAction(input: SaveInput, idempotencyKey: strin
   return { ok: true, version: result.data.version }
 }
 
-export async function dryRunWorkflowAction(input: { versionId: string; documents: readonly unknown[] }, idempotencyKey: string): Promise<DryRunResult> {
+export async function dryRunWorkflowAction(input: { versionId: string; documents: readonly unknown[]; riskCases?: readonly unknown[] }, idempotencyKey: string): Promise<DryRunResult> {
   const ctx = await currentCtx()
   if (!ctx) return NO_SESSION
   if (!submissionKey.safeParse(idempotencyKey).success) return BAD_KEY
@@ -68,7 +69,7 @@ export async function dryRunWorkflowAction(input: { versionId: string; documents
   const result = await dryRunWorkflowVersion(ctx, input as Parameters<typeof dryRunWorkflowVersion>[1], { idempotencyKey })
   if (!result.ok) return toWorkflowFailure(result.error)
   revalidatePath('/admin/workflows', 'layout')
-  return { ok: true, rows: result.data.rows }
+  return { ok: true, rows: result.data.rows, riskRows: result.data.riskRows }
 }
 
 export async function submitWorkflowAction(versionId: string, acknowledgedWarnings: readonly string[], idempotencyKey: string): Promise<SubmitWorkflowResult> {

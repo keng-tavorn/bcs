@@ -104,7 +104,7 @@ async function awardRule(on: boolean) {
   if (rule) return
   const now = new Date()
   const version = await prisma.doaVersion.findFirstOrThrow({ where: { organizationId: org.id, status: 'PUBLISHED', effectiveFrom: { lte: now } }, orderBy: { effectiveFrom: 'desc' }, select: { id: true } })
-  await prisma.doaRule.create({ data: { organizationId: org.id, doaVersionId: version.id, code: 'RA-E2E', documentType: 'RFX_AWARD', priority: 100, when: {}, steps: [{ approver: { kind: 'POSITION_OF_ORG', position: 'COO' }, slaBusinessHours: 16 }] } })
+  await prisma.doaRule.create({ data: { organizationId: org.id, doaVersionId: version.id, code: 'RA-E2E', documentType: 'RFX_AWARD', priority: 100, when: {}, steps: [{ approver: { kind: 'POSITION_OF_ORG', position: 'COO' }, slaBusinessMinutes: 960, mode: 'SEQUENTIAL' }] } })
 }
 
 /** The RFx of open() awarded line by line to the first ranked, sent and approved by its approver */

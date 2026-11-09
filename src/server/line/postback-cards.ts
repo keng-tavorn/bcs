@@ -11,6 +11,7 @@ import { liffPathFor, liffTaskPath, type LiffTaskAction } from '@/channels/line/
 import { stepUpNeeded } from '@/core/pin'
 import type { AppError } from '@/core/result'
 import { getEnv } from '@/lib/env'
+import { awardCardCounts } from '@/server/queries/award-card'
 import { priceReferenceForCard } from '@/server/queries/price-reference'
 import { forTenant } from '@/server/db/tenant'
 import { liffLink } from './webhook/messages'
@@ -199,6 +200,7 @@ export async function approvalCardMessage(
     review: row.step.kind === 'REVIEW' ? { ruleCodes: row.workflowRuleCodes } : null,
     priceBadge: price?.badge ?? null,
     flags,
+    award: route.subjectType === 'AWARD_DECISION' ? await awardCardCounts(organizationId, route.subjectId) : null,
     tokenId: token?.id ?? null,
     links: { approve: taskLink(cards, task.taskId, 'approve'), decline: taskLink(cards, task.taskId, 'reject'), details: taskLink(cards, task.taskId) },
   })

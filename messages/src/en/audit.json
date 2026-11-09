@@ -165,7 +165,8 @@
     "risk_assessment": "Supplier risk assessments",
     "review_task": "Risk reviewer tasks",
     "risk_review": "Reassessments",
-    "score": "Scoring"
+    "score": "Scoring",
+    "award": "Sourcing award"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -231,6 +232,7 @@
     "RfxEvent": "RFx",
     "RfxInvite": "Bid invitation",
     "Scorecard": "Scorecard",
+    "AwardDecision": "Sourcing award",
     "Bid": "Bid",
     "RiskTier": "Risk tier",
     "RiskPolicy": "Risk check policy",
@@ -684,7 +686,8 @@
       "question_asked": "Supplier asked a question",
       "question_answered": "Question answered",
       "concluded": "RFI concluded",
-      "evaluating": "Bids under evaluation"
+      "evaluating": "Bids under evaluation",
+      "awarded": "Awarded"
     },
     "rfx_invite": {
       "created": "Supplier invited",
@@ -750,6 +753,15 @@
     "score": {
       "saved": "Scores saved as a draft",
       "submitted": "Scores sent"
+    },
+    "award": {
+      "created": "Award drafted",
+      "updated": "Award changed",
+      "submitted": "Award sent for approval",
+      "approved": "Award approved",
+      "returned": "Award returned",
+      "rejected": "Award rejected",
+      "cancelled": "Award cancelled"
     }
   }
 }

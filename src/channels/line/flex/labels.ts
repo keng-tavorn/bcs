@@ -65,6 +65,8 @@ const CARD = {
   // S6-13 · BR-DUP-05: a flag of the request in a few words, never what it buys (BR-NOTI-01)
   flagDuplicate: { th: 'คล้ายคำขอที่ส่งไปแล้ว', en: 'Looks like a request sent before' },
   flagSplit: { th: 'อาจแตกยอดเลี่ยงวงเงิน', en: 'May split a purchase under a limit' },
+  // S10-10 · BR-NOTI-01: an award in counts only — no supplier, no line, no price
+  award: { th: 'ผลการจัดหา', en: 'Award' },
 } as const satisfies Record<string, Text>
 
 const CONFIRMATION = {
@@ -93,6 +95,13 @@ export function priceBadgeText(badge: { readonly high: { readonly lines: number;
   const parts: string[] = []
   if (badge.high) parts.push(locale === 'th' ? `สูงกว่าค่ากลางย้อนหลัง ${badge.high.lines} รายการ สูงสุด +${badge.high.maxPct}%` : `Above the past median: ${badge.high.lines} line(s), up to +${badge.high.maxPct}%`)
   if (badge.low) parts.push(locale === 'th' ? `ต่ำกว่าค่ากลางย้อนหลัง ${badge.low.lines} รายการ ต่ำสุด ${badge.low.minPct}%` : `Below the past median: ${badge.low.lines} line(s), down to ${badge.low.minPct}%`)
+  return parts.join(' · ')
+}
+
+/** S10-10: an award in a few words — how many bids, how many winners, and when it is not the lowest price before VAT */
+export function awardBadgeText(award: { readonly bids: number; readonly winners: number; readonly notLowest: boolean }, locale: CardLocale): string {
+  const parts = locale === 'th' ? [`ข้อเสนอ ${award.bids} ราย`, `ผู้ชนะ ${award.winners} ราย`] : [`${award.bids} bid(s)`, `${award.winners} winner(s)`]
+  if (award.notLowest) parts.push(locale === 'th' ? 'ไม่ใช่ราคาต่ำสุด' : 'not the lowest price')
   return parts.join(' · ')
 }
 

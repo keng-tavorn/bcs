@@ -9,6 +9,14 @@ export interface SupplierRiskStatus {
   readonly tier: string | null
   /** Whether a PO to this supplier would stop at S11's gate today */
   readonly blocked: boolean
+  // S10-10 (BR-RFX-12 จ · cross-checked with S11): what an award reads of its winner — optional, so a provider that
+  // leaves them out still serves the invite's badge
+  /** The status of the supplier's assessment, e.g. CURRENT EXPIRING OVERDUE REASSESS_REQUIRED; null without one */
+  readonly status?: string | null
+  /** An override of S11 that is open for the supplier */
+  readonly openOverrideId?: string | null
+  /** RiskPolicy.registryFlagBlocks (OQ-227): false lets a CEASED winner through with a reason; true or left out refuses it */
+  readonly registryFlagBlocks?: boolean
 }
 
 export type SupplierRiskProvider = (tx: TenantTx, organizationId: string, supplierId: string, now: Date) => Promise<SupplierRiskStatus | null>

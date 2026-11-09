@@ -71,6 +71,7 @@
   "SUPPLIER_FLAGGED": "The registry flags this supplier ({flag})",
   "SCORECARD_INCOMPLETE": "The criteria must weigh 100% in all and the scorecard needs at least {min} evaluators",
   "SCORES_INCOMPLETE": "{missing} scores are still missing (every criterion of every bid)",
+  "AWARD_REASON_REQUIRED": "Give the reason for this award ({reason})",
   "QUESTION_CUTOFF_PASSED": "Questions closed at {cutoff}",
   "RFX_CLOSED": "This RFx closed for bids at {closesAt}",
   "SUPPLIER_NOT_APPROVED": "A bid can be sent once the supplier is approved",

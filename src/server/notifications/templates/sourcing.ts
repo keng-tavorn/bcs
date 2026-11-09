@@ -1,6 +1,7 @@
 // The in-app notices of S10 (lane 2's own file · docs/sub-specs/S10.md "การแจ้งเตือน" · BR-NOTI-11): a supplier asked a
 // question about an RFx (IMMEDIATE to its creator) · S10-08: the RFx closed (its creator and evaluators) and its scores
-// revealed (its creator). Never the question's words, a price or a score.
+// revealed (its creator) · S10-10: an award returned or rejected (its submitter). Never the question's words, a price or a
+// score.
 
 type Data = Readonly<Record<string, unknown>>
 type Text = { readonly th: string; readonly en: string }
@@ -24,5 +25,13 @@ export const SOURCING_TEMPLATES: Readonly<Record<string, Template>> = {
   'rfx.scored': (d) => ({
     title: { th: `เปิดเผยคะแนนของ ${ref(d)} แล้ว`, en: `The scores of ${ref(d)} are revealed` },
     href: `/sourcing/${str(d.rfxEventId)}/score`,
+  }),
+  // S10-10: the award came back from its approver — returned for changes or rejected (its submitter · IMMEDIATE)
+  'award.decided': (d) => ({
+    title:
+      d.outcome === 'REJECTED'
+        ? { th: `ผลมอบงาน ${ref(d)} ไม่ได้รับอนุมัติ`, en: `The award ${ref(d)} was rejected` }
+        : { th: `ผลมอบงาน ${ref(d)} ถูกตีกลับให้แก้`, en: `The award ${ref(d)} was returned for changes` },
+    href: `/sourcing/${str(d.rfxEventId)}/award`,
   }),
 }

@@ -48,6 +48,8 @@ import { getInvoiceTaskView } from '@/server/queries/ap-invoices'
 import { InvoiceVarianceBody } from '@/ui/tasks/subjects/invoice'
 import { getPoChangeTaskView } from '@/server/queries/po-changes'
 import { PoChangeBody } from '@/ui/tasks/subjects/po-change'
+import { getAwardTaskView } from '@/server/services/sourcing'
+import { AwardFacts } from '@/ui/sourcing/award-facts'
 import { askForInformationAction, decidePolicyTaskAction, decideTaskAction, passkeyOptionsAction } from '../actions'
 
 export async function generateMetadata() {
@@ -172,6 +174,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const invoice = task.subjectType === 'INVOICE' ? await getInvoiceTaskView(ctx, task.subjectId) : null
   // S8-13: a change of a sent PO (subject PO_CHANGE)
   const poChange = task.subjectType === 'PO_CHANGE' ? await getPoChangeTaskView(ctx, task.subjectId) : null
+  // S10-10: the award of an RFx (subject AWARD_DECISION)
+  const award = task.subjectType === 'AWARD_DECISION' ? await getAwardTaskView(ctx, task.subjectId) : null
   const [tp, poAccess] = await Promise.all([getTranslations('purchaseOrder'), po ? getPoAccess(ctx, po.id) : variance ? getPoAccess(ctx, variance.po.id) : Promise.resolve(null)])
   // The PO opens for whoever may see it (po.view); otherwise its number is plain text, never a link that ends in a refusal
   const poHref = poAccess && canViewPo(principal, poAccess) ? `/procurement/pos/${poAccess.poId}` : null
@@ -242,7 +246,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               ? (invoice.number ?? '-')
               : poChange
                 ? t('poChangeTask.label', { number: poChange.po.number ?? '-', changeNo: poChange.changeNo })
-                : task.policy
+                : award
+                  ? (award.number ?? '-')
+                  : task.policy
                   ? policyHeadline(t, locale, task.policy)
                   : task.workflow
                     ? t(task.workflow.withdrawal ? 'item.workflowWithdrawal' : 'item.workflow', { code: task.workflow.code, version: task.workflow.versionNo })
@@ -259,7 +265,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
             ? t('invoice.heading')
             : poChange
               ? poChange.supplier.nameTh
-              : (varianceTitle ?? label)
+              : award
+                ? award.rfx.title
+                : (varianceTitle ?? label)
   // On phones the decision bar is fixed to the bottom: the page ends above it, with room as tall as the bar is now — its
   // height comes from the bar itself (useBarSpace of src/ui/tasks/bar-space.ts) as it grows with the PIN, a refusal or
   // the boundary table's tick; until then a guess of it for the first paint, taller with the PIN and with the tick
@@ -362,6 +370,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 <InvoiceVarianceBody invoice={invoice} />
               ) : poChange ? (
                 <PoChangeBody change={poChange} />
+              ) : award ? (
+                <AwardFacts award={award} />
               ) : (
                 <PolicySubject task={task} locale={locale} doaLinks={doaLinks} doaSimulate={doaSimulate} orgAuthorityLink={canOpenOrgAuthorityChanges(principal)} />
               )}
@@ -392,12 +402,12 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   open={open}
                   locale={locale}
                   label={label}
-                  amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : transfer ? moneyText(transfer.amount) : overrun ? moneyText(overrun.shortfall) : invoice?.variance ? money(invoice.variance.netSatang + invoice.variance.vatSatang) : poChange ? money(poChange.new.grossSatang) : '-'}
+                  amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : transfer ? moneyText(transfer.amount) : overrun ? moneyText(overrun.shortfall) : invoice?.variance ? money(invoice.variance.netSatang + invoice.variance.vatSatang) : poChange ? money(poChange.new.grossSatang) : award ? moneyText({ amount: award.gross }) : '-'}
                   kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : isOverrun ? 'BUDGET_OVERRUN' : task.review ? 'REVIEW' : 'REQUEST'}
                   stepUp={task.stepUp}
                   hasPasskey={hasPasskey}
                   {...(variance ? { disposition: variance.disposition } : {})}
-                  actions={po || variance || isTransfer || isOverrun ? { decide: decideTaskAction, passkeyOptions: passkeyOptionsAction } : { decide: decideTaskAction, ask: askForInformationAction, passkeyOptions: passkeyOptionsAction }}
+                  actions={po || variance || isTransfer || isOverrun || award ? { decide: decideTaskAction, passkeyOptions: passkeyOptionsAction } : { decide: decideTaskAction, ask: askForInformationAction, passkeyOptions: passkeyOptionsAction }}
                 />
               )}
             </Panel>

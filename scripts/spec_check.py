@@ -535,6 +535,8 @@ def run_sod(d):
             elif subj == "BANK_ACCOUNT_CHANGE" and i["actor"] == i.get("requester"): rule = "BR-SOD-05"
             elif i["actor"] == i.get("requester"): rule = "BR-SOD-01"
             elif subj == "PURCHASE_ORDER" and i["actor"] == i.get("poCreator"): rule = "BR-SOD-03"
+            # S10-10: the RFx's creator, its evaluators, the requesters of its source lines and who recorded a bid for a supplier
+            elif subj == "AWARD_DECISION" and i["actor"] in [i.get("rfxCreator"), *i.get("evaluators", []), *i.get("sourceRequesters", []), *i.get("recordedOnBehalfBy", [])]: rule = "BR-SOD-13"
         elif i["action"] == "PREPARE_PAYMENT":
             if sod_recent_change(i): rule = "BR-SOD-10"
         elif i["action"] == "SCORE_RFX":  # S10-08: the RFx's creator and the requesters of its source lines

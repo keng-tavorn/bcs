@@ -175,6 +175,8 @@ export const PERMISSIONS = {
   // S10-08 (BR-RFX-09 · BR-SOD-14): the evaluators of an RFx's scorecard score it — any member set as one (the service
   // passes the scorecard's evaluators as the assignees; who may not be one is BR-SOD-14's, checked by the service)
   'sourcing.score': [anyMember('ASSIGNED')],
+  // S10-10: an award is made, changed, sent and cancelled by procurement (BR-RFX-12 · BR-RFX-16)
+  'sourcing.award': PROCUREMENT_ONLY,
   // S11-04 (BR-RSK-02 · ADR-229): the tiers, the gate policy and the questionnaire versions, proposed by one administrator
   // and confirmed or published by another; ORG_ADMIN loses them once the DOA administrators are separated (below)
   'admin.riskTiers': DOA_ADMINS,

@@ -165,7 +165,8 @@
     "risk_assessment": "แบบประเมินความเสี่ยงคู่ค้า",
     "review_task": "งานผู้ตรวจความเสี่ยง",
     "risk_review": "การประเมินซ้ำ",
-    "score": "การให้คะแนน"
+    "score": "การให้คะแนน",
+    "award": "ผลการจัดหา"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -231,6 +232,7 @@
     "RfxEvent": "RFx",
     "RfxInvite": "คำเชิญเสนอราคา",
     "Scorecard": "เกณฑ์ให้คะแนน",
+    "AwardDecision": "ผลการจัดหา",
     "Bid": "ข้อเสนอ",
     "RiskTier": "เกณฑ์ระดับความเสี่ยง",
     "RiskPolicy": "นโยบายด่านความเสี่ยง",
@@ -684,7 +686,8 @@
       "question_asked": "ผู้ขายถามคำถาม",
       "question_answered": "ตอบคำถามผู้ขาย",
       "concluded": "สรุปผล RFI",
-      "evaluating": "เริ่มพิจารณาข้อเสนอ"
+      "evaluating": "เริ่มพิจารณาข้อเสนอ",
+      "awarded": "มอบงานแล้ว"
     },
     "rfx_invite": {
       "created": "เชิญผู้ขายเข้า RFx",
@@ -750,6 +753,15 @@
     "score": {
       "saved": "บันทึกร่างคะแนน",
       "submitted": "ส่งคะแนน"
+    },
+    "award": {
+      "created": "สร้างผลมอบงาน",
+      "updated": "แก้ผลมอบงาน",
+      "submitted": "ส่งผลมอบงานขออนุมัติ",
+      "approved": "อนุมัติผลมอบงาน",
+      "returned": "ตีกลับผลมอบงาน",
+      "rejected": "ไม่อนุมัติผลมอบงาน",
+      "cancelled": "ยกเลิกผลมอบงาน"
     }
   }
 }

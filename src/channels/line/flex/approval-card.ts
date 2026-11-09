@@ -1,4 +1,4 @@
-import { cardLabel, doaReference, priceBadgeText, subjectKind } from './labels'
+import { awardBadgeText, cardLabel, doaReference, priceBadgeText, subjectKind } from './labels'
 import { DANGER, heading, INK, PRIMARY, row, SURFACE, vertical, WARN } from './style'
 import { ACTION_LABEL_MAX_LENGTH, bahtOf, CARD_LABEL_MAX_LENGTH, CARD_NAME_MAX_LENGTH, clip, dateTimeOf } from './text'
 import type { CardLocale, FlexAction, FlexButton, FlexComponent, FlexMessage } from './types'
@@ -49,6 +49,8 @@ export interface ApprovalCardData {
   /** S6-13 (BR-DUP-05): the request's flags; left out or empty when none */
   readonly flags?: ReadonlyArray<'DUPLICATE' | 'SPLIT'>
   readonly priceBadge?: { readonly high: { readonly lines: number; readonly maxPct: number } | null; readonly low: { readonly lines: number; readonly minPct: number } | null } | null
+  /** S10-10: an award's counts (BR-NOTI-01: no supplier, line or price); left out for every other subject */
+  readonly award?: { readonly bids: number; readonly winners: number; readonly notLowest: boolean } | null
   readonly links: {
     /** /liff/tasks/<taskId>?action=approve */
     readonly approve: string
@@ -105,6 +107,7 @@ export function approvalCard(data: ApprovalCardData): FlexMessage {
     rows.push(data.overdue ? row(cardLabel('due', t), `${due} · ${cardLabel('overdue', t)}`, DANGER) : row(cardLabel('due', t), due))
   }
   if (data.priceBadge && (data.priceBadge.high || data.priceBadge.low)) rows.push(row(cardLabel('price', t), priceBadgeText(data.priceBadge, t), WARN))
+  if (data.award) rows.push(data.award.notLowest ? row(cardLabel('award', t), awardBadgeText(data.award, t), WARN) : row(cardLabel('award', t), awardBadgeText(data.award, t)))
   if (data.review?.ruleCodes.length) rows.push(row(cardLabel('reviewRules', t), clip(data.review.ruleCodes.join(', '), CARD_NAME_MAX_LENGTH)))
   rows.push(row(cardLabel('doa', t), doaReference(data.doa, t)))
   if (data.stepUp) rows.push({ type: 'text', text: cardLabel('pinNeeded', t), size: 'md', color: WARN, wrap: true, margin: 'md' })

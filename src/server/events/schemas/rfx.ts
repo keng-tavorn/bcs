@@ -29,6 +29,8 @@ defineEvents('RfxEvent', {
   // S10-08: the first score saved (or an evaluator added) after the close
   'rfx.evaluating': { schema: z.object({ by: z.enum(['SCORE', 'EVALUATOR_ADDED']) }) },
   'rfx.concluded': { schema: z.object({ requestLineIds: z.array(z.uuid()) }) },
+  // S10-10: the award approved (BR-RFX-12 · BR-RFX-13)
+  'rfx.awarded': { schema: z.object({ awardDecisionId: z.uuid() }) },
   'rfx.cancelled': { schema: z.object({ reasonCommentId: z.uuid(), requestLineIds: z.array(z.uuid()) }) },
   'rfx.reopened': { schema: z.object({ fromRfxEventId: z.uuid(), requestLineIds: z.array(z.uuid()) }) },
 })
@@ -79,4 +81,35 @@ defineEvents('Bid', {
   'bid.file_attached': { schema: z.object({ rfxEventId: z.uuid(), fileId: z.uuid() }) },
   'bid.file_removed': { schema: z.object({ rfxEventId: z.uuid(), fileId: z.uuid() }) },
   'bid.file_rejected': { schema: z.object({ rfxEventId: z.uuid(), fileId: z.uuid() }) },
+})
+
+// S10-10 (BR-RFX-12 BR-RFX-13 · docs/sub-specs/S10.md "event"): an award — its amounts in whole satang (after the close, so
+// nothing is sealed), the codes that called for its reason and the ids it touched; never the reason itself (it is on the
+// award, and a return or a rejection keeps its reason as a Comment)
+const satang = z.string().regex(/^\d+$/)
+const reasonCode = z.enum(['NOT_TOP_SCORE', 'SPLIT', 'FOREIGN', 'BID_EXPIRED', 'SUPPLIER_FLAGGED', 'DOCS_INCOMPLETE', 'ABOVE_REQUEST', 'RISK_NOT_CLEARED'])
+const awardAmounts = { netSatang: satang, vatSatang: satang, isSplit: z.boolean(), lineCount: z.int().min(1), reasonCodes: z.array(reasonCode) }
+
+defineEvents('AwardDecision', {
+  'award.created': { schema: z.object({ rfxEventId: z.uuid(), ...awardAmounts }) },
+  'award.updated': { schema: z.object({ rfxEventId: z.uuid(), fields: fields.min(1), ...awardAmounts }) },
+  'award.submitted': {
+    schema: z.object({
+      rfxEventId: z.uuid(),
+      number: z.string().min(1),
+      routeId: z.uuid(),
+      resubmitted: z.boolean(),
+      ...awardAmounts,
+      requestingDepartmentId: z.uuid(),
+      sourceDepartmentIds: z.array(z.uuid()),
+      poStatus: z.enum(['NOT_APPLICABLE', 'PENDING_PRICE']),
+    }),
+  },
+  // onBehalfOf: the approver; the events the approval writes for the submitter (S10-11's POs) carry the submitter as actor
+  'award.approved': {
+    schema: z.object({ rfxEventId: z.uuid(), number: z.string(), onBehalfOf: z.uuid().nullable(), purchaseOrderIds: z.array(z.uuid()), priceAgreementIds: z.array(z.uuid()), preferredSupplierIds: z.array(z.uuid()) }),
+  },
+  'award.returned': { schema: z.object({ rfxEventId: z.uuid(), number: z.string(), reasonCommentId: z.uuid().nullable() }) },
+  'award.rejected': { schema: z.object({ rfxEventId: z.uuid(), number: z.string(), reasonCommentId: z.uuid().nullable() }) },
+  'award.cancelled': { schema: z.object({ rfxEventId: z.uuid(), from: z.enum(['DRAFT', 'RETURNED', 'PENDING_APPROVAL']), reasonCommentId: z.uuid() }) },
 })

@@ -437,6 +437,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `sourcing.view` | ผู้ขอ (OWN) · ผู้ได้รับงาน (ASSIGNED) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR (ORG) — RFx ผู้ขอและผู้ติดตามของคำขอต้นทางเห็นสถานะ ผู้ได้รับงาน (ผู้ประเมิน ผู้อนุมัติผล) เห็นที่ได้รับ · ก่อนปิดรับไม่มีใครเห็นราคาเมื่อ `sealed` (S10-04 · BR-RFX-06) |
 | `sourcing.manage` | PROCUREMENT (ORG) — สร้าง แก้ เชิญ ตั้ง Scorecard เปิด แก้ไขหลังเปิด ขยาย ปิดก่อน ยกเลิก และเปิดใหม่ RFx (S10-04 · BR-RFX-01 ถึง 05) |
 | `sourcing.score` | ผู้ได้รับงาน (ASSIGNED) — ผู้ประเมินที่ถูกตั้งใน Scorecard ของ RFx ให้คะแนน ส่งคะแนน และถอนตัว (ผู้ขอของบรรทัดต้นทางและผู้สร้าง RFx ตั้งเป็นผู้ประเมินไม่ได้ · BR-SOD-14 · S10-08 · BR-RFX-09) |
+| `sourcing.award` | PROCUREMENT (ORG) — สร้าง แก้ ส่ง และยกเลิกผลมอบงาน (S10-10 · BR-RFX-12 BR-RFX-16) · ผู้อนุมัติผลใช้ `approval.decide` เดิมตาม DOA `RFX_AWARD` (FINANCE ผู้ประเมินที่ไม่ใช่ PROCUREMENT และผู้ขอไม่มีสิทธิ์นี้) |
 | `admin.riskTiers` | ORG_ADMIN, DOA_ADMIN (ORG) — เสนอ ยืนยัน และยกเลิกเกณฑ์ระดับความเสี่ยงและนโยบายด่าน (`admin.riskTiers.*` `admin.riskPolicy.*`) ผู้ยืนยันต้องไม่ใช่ผู้เสนอ (`SAME_EDITOR`) · ORG_ADMIN ไม่ได้เมื่อ DOA ฉบับที่มีผลแยกผู้ดูแล DOA (S11-04 · BR-RSK-02 · BR-WF-17) |
 | `admin.riskQuestionnaire` | ORG_ADMIN, DOA_ADMIN (ORG) — ร่าง แก้ ส่ง เผยแพร่ และตีกลับฉบับแบบประเมิน ผู้เผยแพร่ต้องไม่ใช่ผู้ส่ง (`SAME_EDITOR`) · ORG_ADMIN ไม่ได้เมื่อ DOA ฉบับที่มีผลแยกผู้ดูแล DOA (S11-04 · BR-RSK-02 · BR-WF-17) |
 | `risk.assessment.view` | PROCUREMENT FINANCE EXECUTIVE AUDITOR (ORG) — อ่านแฟ้มใบประเมิน คำตอบ ที่มาของคำตอบ และ metadata ของหลักฐาน (S11-05 · BR-RSK-14 · ผู้ถือ slot ของผู้ตรวจและ role REVIEWER_* เพิ่มใน S11-06) |
@@ -6059,6 +6060,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `SUPPLIER_FLAGGED` | 422 | ผู้ขายรายนี้ถูกติดธงสถานะทะเบียน ({flag}) |
 | `SCORECARD_INCOMPLETE` | 422 | ต้องมีเกณฑ์ที่น้ำหนักรวม 100% และผู้ประเมินอย่างน้อย {min} คน |
 | `SCORES_INCOMPLETE` | 422 | ยังให้คะแนนไม่ครบ {missing} ช่อง (ทุกเกณฑ์ของทุกข้อเสนอ) |
+| `AWARD_REASON_REQUIRED` | 422 | ต้องระบุเหตุผลของผลมอบงาน ({reason}) |
 | `QUESTION_CUTOFF_PASSED` | 409 | พ้นกำหนดรับคำถามเมื่อ {cutoff} |
 | `RFX_CLOSED` | 409 | RFx นี้ปิดรับข้อเสนอแล้วเมื่อ {closesAt} |
 | `SUPPLIER_NOT_APPROVED` | 422 | ยื่นข้อเสนอได้เมื่อการสมัครเป็นผู้ขายได้รับอนุมัติแล้ว |

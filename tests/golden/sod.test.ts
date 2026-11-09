@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { checkSod, paymentRunSodExtra, type ApprovalSubject, type OrgAuthorityChangeKind, type SodAction } from '@/core/sod'
+import { awardDecisionSodExtra, checkSod, paymentRunSodExtra, type ApprovalSubject, type OrgAuthorityChangeKind, type SodAction } from '@/core/sod'
 import { loadYaml, pick } from './doa-fixtures'
 
 // tests/golden/sod.yaml (spec §7.5): GC-SOD-01 to GC-SOD-16 (GC-SOD-10 on: the payment run and the bank account change of S9),
-// GC-SOD-17 (S7). The runner maps SCORE_RFX (BR-SOD-14) for GC-SOD-20, which S10-10 adds with GC-SOD-19 (the ids run on
-// from S7's GC-SOD-18 · docs/sub-specs/S10.md).
+// GC-SOD-17 (S7). The runner maps SCORE_RFX (BR-SOD-14) and the people of an award (BR-SOD-13) for GC-SOD-20 and GC-SOD-19,
+// which S10-10 adds once S7's GC-SOD-18 is in main (the ids run on · docs/sub-specs/S10.md); until then both rules are
+// checked directly below.
 
 interface SodCase {
   id: string
@@ -24,6 +25,8 @@ interface SodCase {
     bankChanges?: Array<{ proposer: string; effectiveOn: string }>
     rfxCreator?: string
     sourceRequesters?: string[]
+    evaluators?: string[]
+    recordedOnBehalfBy?: string[]
   }
   expect: Record<string, unknown>
 }
@@ -44,6 +47,10 @@ function action(i: SodCase['input']): SodAction {
     poCreatorMemberId: i.poCreator ?? null,
     ...(i.invoiceRecorders ? { invoiceRecorderMemberIds: i.invoiceRecorders } : {}),
     ...(recentBankChanges ? { recentBankChanges } : {}),
+    // S10-10 (BR-SOD-13): the people of an award besides its submitter
+    ...(i.subject === 'AWARD_DECISION'
+      ? { rfxCreatorMemberIds: i.rfxCreator ? [i.rfxCreator] : [], evaluatorMemberIds: i.evaluators ?? [], sourceRequesterMemberIds: i.sourceRequesters ?? [], recordedOnBehalfMemberIds: i.recordedOnBehalfBy ?? [] }
+      : {}),
   }
 }
 
@@ -60,6 +67,18 @@ describe('golden sod.yaml', () => {
 
 describe('[FR-DOA-007/AC1] separation of duties beyond the golden cases', () => {
   const policy = { approverMayReceive: false, requesterMayReceive: true }
+  it('[BR-SOD-13] who may not approve an award: its submitter (BR-SOD-01) first, then the RFx creator, its evaluators, the requesters of its lines and who recorded a bid for a supplier (S10-10 · GC-SOD-19 once GC-SOD-18 is in main)', () => {
+    const people = { rfxCreatorMemberIds: ['proc_mat2'], evaluatorMemberIds: ['proc_mat1', 'dm_it'], sourceRequesterMemberIds: ['req_con'], recordedOnBehalfMemberIds: ['proc_rec'] }
+    const decide = (actor: string) => checkSod({ kind: 'DECIDE_APPROVAL', subject: 'AWARD_DECISION', actorMemberId: actor, requesterMemberIds: ['proc_officer'], ...people }, policy)
+    // GC-SOD-19's input: an evaluator approves
+    expect(decide('proc_mat1')).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-13' })
+    for (const actor of ['proc_mat2', 'dm_it', 'req_con', 'proc_rec']) expect(decide(actor)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-13' })
+    expect(decide('proc_officer')).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-01' })
+    expect(decide('dm_proc')).toEqual({ ok: true })
+    // the runtime list the adapter hands approvals/decide.ts is the same people
+    expect(awardDecisionSodExtra(people)).toEqual([{ rule: 'BR-SOD-13', memberIds: ['proc_mat2', 'proc_mat1', 'dm_it', 'req_con', 'proc_rec'] }])
+  })
+
   it('[BR-SOD-14] who may not score an RFx: its creator and the requesters of its source lines (S10-08 · GC-SOD-20 in S10-10)', () => {
     const conflicts = { rfxCreatorMemberIds: ['proc_officer'], sourceRequesterMemberIds: ['req_con', 'asst_con'] }
     expect(checkSod({ kind: 'SCORE_RFX', actorMemberId: 'req_con', ...conflicts }, policy)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-14' })

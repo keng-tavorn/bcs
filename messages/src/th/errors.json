@@ -71,6 +71,7 @@
   "SUPPLIER_FLAGGED": "ผู้ขายรายนี้ถูกติดธงสถานะทะเบียน ({flag})",
   "SCORECARD_INCOMPLETE": "ต้องมีเกณฑ์ที่น้ำหนักรวม 100% และผู้ประเมินอย่างน้อย {min} คน",
   "SCORES_INCOMPLETE": "ยังให้คะแนนไม่ครบ {missing} ช่อง (ทุกเกณฑ์ของทุกข้อเสนอ)",
+  "AWARD_REASON_REQUIRED": "ต้องระบุเหตุผลของผลมอบงาน ({reason})",
   "QUESTION_CUTOFF_PASSED": "พ้นกำหนดรับคำถามเมื่อ {cutoff}",
   "RFX_CLOSED": "RFx นี้ปิดรับข้อเสนอแล้วเมื่อ {closesAt}",
   "SUPPLIER_NOT_APPROVED": "ยื่นข้อเสนอได้เมื่อการสมัครเป็นผู้ขายได้รับอนุมัติแล้ว",

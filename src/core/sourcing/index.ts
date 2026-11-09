@@ -32,8 +32,14 @@ export {
   type SourcingTimeSettings,
 } from './timing'
 export {
+  AWARD_REASON_CODES,
   awardAmount,
+  awardTotals,
   confirmedNetPriceCap,
+  netUnitPriceCeiling,
+  orderReasonCodes,
+  riskCleared,
+  type AwardReasonCode,
   minInvites,
   priceAnomaly,
   priceAnomalyFlags,

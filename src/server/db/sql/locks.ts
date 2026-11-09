@@ -71,6 +71,8 @@ const LOCKABLE = [
   'RiskQuestionnaire',
   // S11-05: an assessment answered, sent, cancelled or given a file one change at a time (INV-RSK-02 · BR-RSK-19)
   'RiskAssessment',
+  // S10-10: an award made, changed, sent, decided or cancelled one command at a time (one open award per RFx)
+  'AwardDecision',
 ] as const
 export type LockableTable = (typeof LOCKABLE)[number]
 /** Tables whose key is not "id": a budget line's balance is keyed by the line (§6.2) */

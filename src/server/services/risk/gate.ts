@@ -1,7 +1,7 @@
 import { inherentTier, maxTier, poGate, REASON_WARNINGS, screeningCovers, SCREENING_FIELDS, type GateAssessment, type GateWarning, type PoGateResult, type PoGateTrigger, type RegistryFlag, type RiskTierCode, type Screening } from '@/core/risk'
 import type { AppError, Result } from '@/core/result'
 import { dateIn } from '@/core/supplier-docs'
-import { authorize } from '@/server/authz'
+import { authorize, scopesFor } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { isActivePlatformAdmin } from '@/server/db/lookups'
 import { lockRowsForShare, lockRowsForUpdate } from '@/server/db/sql/locks'
@@ -324,12 +324,15 @@ export interface PoRiskStatus {
 
 /**
  * The PO page's risk band (FR-RSK-203 AC6): the gate the PO meets next, weighed now at its stored gross without writing
- * anything — null with RISK off, for a reader without po.view, or when the PO meets no gate any more (it went out).
+ * anything — for whoever reads every PO (po.view ORG: PROCUREMENT FINANCE EXECUTIVE AUDITOR); null with RISK off, for
+ * anyone else (a requester or an approver reads the gate the PO passed in its facts), or when the PO meets no gate any
+ * more (it went out).
  */
 export async function poRiskStatus(ctx: Ctx, poId: string): Promise<PoRiskStatus | null> {
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
     if (!(await requireModule(ctx, 'RISK', tx)).ok) return null
-    if (!(await authorize(tx, ctx, 'po.view')).ok) return null
+    const reader = await authorize(tx, ctx, 'po.view')
+    if (!reader.ok || !scopesFor(reader.data, 'po.view').has('ORG')) return null
     const po = await tx.purchaseOrder.findFirst({ where: { id: poId }, select: { status: true, sentAt: true, sendBouncedAt: true, grossSatang: true, supplierId: true } })
     const trigger = po ? nextTrigger(po) : null
     if (!po || !trigger) return null

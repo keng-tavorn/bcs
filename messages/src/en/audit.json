@@ -161,7 +161,8 @@
     "risk_questionnaire": "Risk questionnaire",
     "risk_assessment": "Supplier risk assessments",
     "review_task": "Risk reviewer tasks",
-    "risk_review": "Reassessments"
+    "risk_review": "Reassessments",
+    "risk_override": "Risk overrides"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -229,7 +230,8 @@
     "RiskQuestionnaire": "Risk questionnaire version",
     "RiskAssessment": "Risk assessment",
     "ReviewTask": "Risk reviewer task",
-    "RiskReview": "Reassessment"
+    "RiskReview": "Reassessment",
+    "RiskOverride": "Risk override"
   },
   "events": {
     "approval_step": {
@@ -433,7 +435,8 @@
       "milestones_set": "Purchase order split into milestones",
       "retention_set": "Purchase order retention set",
       "revised": "Purchase order revised",
-      "revision_sent": "Revised purchase order sent to the supplier"
+      "revision_sent": "Revised purchase order sent to the supplier",
+      "risk_gate_passed": "Passed the supplier risk gate"
     },
     "position": {
       "assigned": "Position holder appointed",
@@ -703,6 +706,10 @@
     },
     "risk_review": {
       "completed": "Reassessment done"
+    },
+    "risk_override": {
+      "used": "Override used by a purchase order",
+      "released": "Purchase order no longer draws on the override"
     }
   }
 }

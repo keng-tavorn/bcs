@@ -3206,6 +3206,7 @@
       "Retention": "Performance retention",
       "ReviewTask": "Risk reviewer task",
       "RiskAssessment": "Risk assessment",
+      "RiskOverride": "Risk override",
       "RiskPolicy": "Risk check policy",
       "RiskQuestionnaire": "Risk questionnaire version",
       "RiskReview": "Reassessment",
@@ -3534,6 +3535,7 @@
         "returned": "Purchase order returned",
         "revised": "Purchase order revised",
         "revision_sent": "Revised purchase order sent to the supplier",
+        "risk_gate_passed": "Passed the supplier risk gate",
         "send_bounced": "Purchase order e-mail bounced",
         "sent": "Purchase order sent to the supplier",
         "submitted": "Purchase order sent for approval",
@@ -3624,6 +3626,10 @@
         "reviewers_assigned": "Questionnaire sent to the risk reviewers",
         "submitted": "Questionnaire sent",
         "superseded": "Risk assessment replaced by a newer one"
+      },
+      "risk_override": {
+        "released": "Purchase order no longer draws on the override",
+        "used": "Override used by a purchase order"
       },
       "risk_policy": {
         "confirmed": "Risk check policy confirmed",
@@ -3791,6 +3797,7 @@
       "retention": "Performance retention",
       "review_task": "Risk reviewer tasks",
       "risk_assessment": "Supplier risk assessments",
+      "risk_override": "Risk overrides",
       "risk_policy": "Risk check policy",
       "risk_questionnaire": "Risk questionnaire",
       "risk_review": "Reassessments",

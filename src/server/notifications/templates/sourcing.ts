@@ -1,7 +1,7 @@
 // The in-app notices of S10 (lane 2's own file · docs/sub-specs/S10.md "การแจ้งเตือน" · BR-NOTI-11): a supplier asked a
 // question about an RFx (IMMEDIATE to its creator) · S10-08: the RFx closed (its creator and evaluators) and its scores
-// revealed (its creator) · S10-10: an award returned or rejected (its submitter). Never the question's words, a price or a
-// score.
+// revealed (its creator) · S10-10: an award returned or rejected (its submitter) · S10-11: an award approved, and the
+// winner's prices before VAT confirmed. Never the question's words, a price or a score.
 
 type Data = Readonly<Record<string, unknown>>
 type Text = { readonly th: string; readonly en: string }
@@ -32,6 +32,19 @@ export const SOURCING_TEMPLATES: Readonly<Record<string, Template>> = {
       d.outcome === 'REJECTED'
         ? { th: `ผลมอบงาน ${ref(d)} ไม่ได้รับอนุมัติ`, en: `The award ${ref(d)} was rejected` }
         : { th: `ผลมอบงาน ${ref(d)} ถูกตีกลับให้แก้`, en: `The award ${ref(d)} was returned for changes` },
+    href: `/sourcing/${str(d.rfxEventId)}/award`,
+  }),
+  // S10-11: the award approved — its RFx's creator and evaluators (DIGEST), the requesters of its source lines (IMMEDIATE,
+  // the PO is on its way); no price
+  'rfx.awarded_internal': (d) => ({
+    title: { th: `ผลการจัดหา ${ref(d)} ได้รับอนุมัติแล้ว`, en: `The award of ${ref(d)} is approved` },
+    body: d.pendingPrice ? { th: 'รอผู้ขายยืนยันราคาก่อน VAT ก่อนออกใบสั่งซื้อ', en: 'Waiting for the supplier to confirm its prices before VAT before the purchase order' } : undefined,
+    href: `/sourcing/${str(d.rfxEventId)}/award`,
+  }),
+  // S10-11 (OQ-212): the winner confirmed its prices before VAT — the award's submitter releases the POs
+  'award.prices_confirmed': (d) => ({
+    title: { th: `ผู้ขายยืนยันราคาก่อน VAT ของ ${ref(d)} แล้ว`, en: `The supplier confirmed its prices before VAT for ${ref(d)}` },
+    body: { th: 'ออกใบสั่งซื้อจากผลได้แล้ว', en: 'You can make the purchase orders of the award now' },
     href: `/sourcing/${str(d.rfxEventId)}/award`,
   }),
 }

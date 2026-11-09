@@ -6,10 +6,15 @@ import { defineEvents } from '../registry'
 
 defineEvents('Request', {
   'request.supplier_assigned': {
+    // S10-11 (schemaVersion 2 · ADR-206): chosen by an approved award, whose approver acts for its submitter (the actor)
+    schemaVersion: 2,
     schema: z.object({
       requestLineIds: z.array(z.uuid()).min(1),
       /** null: the choice was taken back */
       supplierId: z.uuid().nullable(),
+      via: z.literal('AWARD').optional(),
+      awardDecisionId: z.uuid().optional(),
+      onBehalfOfMemberId: z.uuid().nullable().optional(),
     }),
   },
   // §6.4: the POs that ordered the request are all closed or cancelled

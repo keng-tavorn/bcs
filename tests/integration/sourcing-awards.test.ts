@@ -31,7 +31,7 @@ import { stepUpForTask } from '../support/pin'
 // with the phase-2 organization (DOA-P2: RA-01 to the procurement manager up to 500,000.00 with VAT, RA-02 the COO).
 // Scene 9 from two approved requests of 8 and 5 tonnes at 23,800.00: three bids (23,150.00 · 23,500.00 · 25,000.00 with
 // VAT) scored 95.38 · 95.11 · 89.57. The award to the first is 300,950.00 + VAT 21,066.50 = 322,016.50 and goes to
-// dm_proc under RA-01; approved, the RFx is AWARDED (the POs are S10-11's). The reasons BR-RFX-12 asks for — not the
+// dm_proc under RA-01; approved, the RFx is AWARDED (its POs: sourcing-award-po.test.ts · S10-11). The reasons BR-RFX-12 asks for — not the
 // first, split, foreign, expired, flagged or short of documents (read live at the send), above the requests, RISK —
 // the SoD of BR-SOD-13 at routing and at deciding, the route's department, the capability, a return, a rejection and
 // a cancel.
@@ -205,10 +205,12 @@ describe('[FR-SRC-204/AC2] [GC-SRC-21] [GC-DOA-75] scene 9 awarded to the first 
     expect(await awardCardCounts(org.organizationId, award.id)).toEqual({ bids: 3, winners: 1, notLowest: false })
 
     expect(ok(await decide(award.id, 'APPROVE'))).toMatchObject({ documentStatus: 'APPROVED' })
-    expect(await awardOf(award.id)).toMatchObject({ status: 'APPROVED', decidedAt: SEND, poStatus: 'NOT_APPLICABLE' })
+    // S10-11: the approval drafts the POs of the award (sourcing-award-po.test.ts)
+    expect(await awardOf(award.id)).toMatchObject({ status: 'APPROVED', decidedAt: SEND, poStatus: 'CREATED' })
     expect(await prisma.rfxEvent.findUniqueOrThrow({ where: { id: rfxEventId } })).toMatchObject({ status: 'AWARDED', awardDecisionId: award.id })
     const approved = await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, aggregateId: award.id, type: 'award.approved' } })
-    expect(approved.data).toMatchObject({ rfxEventId, number: sent.number, onBehalfOf: org.member.dm_proc, purchaseOrderIds: [] })
+    expect(approved.data).toMatchObject({ rfxEventId, number: sent.number, onBehalfOf: org.member.dm_proc })
+    expect((approved.data as { purchaseOrderIds: string[] }).purchaseOrderIds).toHaveLength(2)
     expect(await prisma.event.count({ where: { organizationId: org.organizationId, aggregateId: rfxEventId, type: 'rfx.awarded' } })).toBe(1)
   })
 })

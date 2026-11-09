@@ -23,6 +23,7 @@ import { unmergeableLine } from '../budget/overrun-use'
 import { issueDocumentVerification } from '../documents/verification'
 import { completeFinishedRequests, unorderSourceLines } from './requests'
 import { hasOpenChange } from './close'
+import { poRateBp } from './preview'
 
 export { closePurchaseOrder } from './close'
 export { previewPoSubmit, type PoRoutePreviewDto, type PoSubmitPreviewDto } from './preview'
@@ -105,6 +106,10 @@ export const editDraftCommand = defineCommand({
       const line = kept.find((l) => l.id === edit.poLineId)
       if (!line) return fail('VALIDATION_FAILED', 'the line is not on this purchase order', { field: `lines.${i}.poLineId`, reason: 'LINE' })
       const target = next.get(line.id)!
+      // S10-11 (INV-RFX-04): a PO of an award orders at the price the award's approver approved
+      if (edit.unitPrice !== undefined && po.awardDecisionId !== null && amountToSatang(edit.unitPrice) !== line.unitPriceSatang) {
+        return fail('VALIDATION_FAILED', 'a purchase order of an award keeps the awarded price', { field: `lines.${i}.unitPrice`, reason: 'AWARD_PRICE' })
+      }
       if (edit.unitPrice !== undefined) target.unitPriceSatang = amountToSatang(edit.unitPrice)
       if (edit.quantity !== undefined) {
         const quantity = parseQuantity(edit.quantity)
@@ -202,9 +207,11 @@ export const submitPoCommand = defineCommand({
     const taxDate = taxDateOf(ctx.now)
     const rate = rateFor(taxDate, await listTaxRates())
     if (!rate.ok) return fail('TAX_RATE_NOT_CONFIGURED', 'no VAT rate covers the tax date', { date: taxDate })
+    // S10-11 (INV-RFX-04 · BR-VAT-04): a PO of an award to a winner without VAT keeps the rate 0 its award gave it
+    const rateBp = poRateBp(po, rate.rateBp)
     const totals = totalsOf(
       po.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
-      rate.rateBp,
+      rateBp,
     )
 
     // The drafter of a consolidation round is the system: whoever sends it owns it, for BR-SOD-03
@@ -251,7 +258,7 @@ export const submitPoCommand = defineCommand({
         netSatang: totals.net,
         vatSatang: totals.vat,
         grossSatang: totals.gross,
-        vatRateBp: rate.rateBp,
+        vatRateBp: rateBp,
         taxPointDate: new Date(`${taxDate}T00:00:00Z`),
         createdById: creator,
         submittedAt: ctx.now,
@@ -272,7 +279,7 @@ export const submitPoCommand = defineCommand({
           netSatang: totals.net.toString(),
           vatSatang: totals.vat.toString(),
           grossSatang: totals.gross.toString(),
-          vatRateBp: rate.rateBp,
+          vatRateBp: rateBp,
           routeId: route.data.routeId,
           doaVersionId: route.data.route.doaVersionId,
           doaRuleCode: route.data.route.ruleCode,

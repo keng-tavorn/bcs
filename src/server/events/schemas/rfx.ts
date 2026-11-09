@@ -82,6 +82,9 @@ defineEvents('Bid', {
   'bid.file_attached': { schema: z.object({ rfxEventId: z.uuid(), fileId: z.uuid() }) },
   'bid.file_removed': { schema: z.object({ rfxEventId: z.uuid(), fileId: z.uuid() }) },
   'bid.file_rejected': { schema: z.object({ rfxEventId: z.uuid(), fileId: z.uuid() }) },
+  // S10-11 (OQ-212): the winner who quoted with VAT confirmed its prices before VAT for the lines it won (how many, and
+  // their total before VAT in satang — after the award, nothing is sealed)
+  'bid.net_prices_confirmed': { schema: z.object({ rfxEventId: z.uuid(), awardDecisionId: z.uuid(), lineCount: z.int().min(1), netSatang: z.string().regex(/^\d+$/) }) },
 })
 
 // S10-10 (BR-RFX-12 BR-RFX-13 · docs/sub-specs/S10.md "event"): an award — its amounts in whole satang (after the close, so
@@ -108,9 +111,29 @@ defineEvents('AwardDecision', {
   },
   // onBehalfOf: the approver; the events the approval writes for the submitter (S10-11's POs) carry the submitter as actor
   'award.approved': {
-    schema: z.object({ rfxEventId: z.uuid(), number: z.string(), onBehalfOf: z.uuid().nullable(), purchaseOrderIds: z.array(z.uuid()), priceAgreementIds: z.array(z.uuid()), preferredSupplierIds: z.array(z.uuid()) }),
+    // S10-11: what the approval made of it — PENDING_PRICE until a winner who bid with VAT confirms its prices (OQ-212), and the
+    // lines of a need that got no agreed price (no catalogue item, or one item twice at two prices · AC9)
+    schema: z.object({
+      rfxEventId: z.uuid(),
+      number: z.string(),
+      onBehalfOf: z.uuid().nullable(),
+      purchaseOrderIds: z.array(z.uuid()),
+      priceAgreementIds: z.array(z.uuid()),
+      preferredSupplierIds: z.array(z.uuid()),
+      poStatus: z.enum(['NOT_APPLICABLE', 'PENDING_PRICE', 'CREATED']).optional(),
+      linesWithoutAgreement: z.array(z.int().min(1)).optional(),
+    }),
   },
   'award.returned': { schema: z.object({ rfxEventId: z.uuid(), number: z.string(), reasonCommentId: z.uuid().nullable() }) },
   'award.rejected': { schema: z.object({ rfxEventId: z.uuid(), number: z.string(), reasonCommentId: z.uuid().nullable() }) },
   'award.cancelled': { schema: z.object({ rfxEventId: z.uuid(), from: z.enum(['DRAFT', 'RETURNED', 'PENDING_APPROVAL']), reasonCommentId: z.uuid() }) },
+  // S10-11 (OQ-212): procurement released the POs (or the agreed prices of a need) once every winner confirmed its prices
+  'award.po_created': { schema: z.object({ rfxEventId: z.uuid(), number: z.string(), purchaseOrderIds: z.array(z.uuid()), priceAgreementIds: z.array(z.uuid()) }) },
+})
+
+// S10-11 (BR-RFX-14 · OQ-210): a winner preferred in the RFx's category from the award's approval; a pair still in effect
+// is extended instead of made again (S10-13 adds MANUAL and the end)
+defineEvents('PreferredSupplier', {
+  'preferred_supplier.created': { schema: z.object({ categoryCode: z.string().min(1), supplierId: z.uuid(), validFrom: z.iso.date(), validTo: z.iso.date(), source: z.enum(['SOURCING', 'MANUAL']), awardDecisionId: z.uuid().optional() }) },
+  'preferred_supplier.extended': { schema: z.object({ categoryCode: z.string().min(1), supplierId: z.uuid(), from: z.iso.date(), to: z.iso.date(), awardDecisionId: z.uuid().optional() }) },
 })

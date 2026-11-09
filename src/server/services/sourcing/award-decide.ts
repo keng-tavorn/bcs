@@ -1,71 +1,26 @@
 import type { AppError } from '@/core/result'
-import { AWARD_DECISION_MACHINE, RFX_EVENT_MACHINE, transition, type AwardDecisionCommand } from '@/core/state-machines'
+import { AWARD_DECISION_MACHINE, transition, type AwardDecisionCommand } from '@/core/state-machines'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
-import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import type { SubjectDecided, SubjectDecision } from '../approvals/subjects'
 import { requireModule } from '../modules'
+import { applyAward, awardCtx, type AwardRow } from './award-apply'
 
 // The decision of DOA RFX_AWARD (S10-10 · FR-SRC-204 AC3 AC5 · BR-RFX-12 BR-RFX-13 · ADR-202 ADR-206). The shared
 // approvals/decide.ts has checked the decider's separation of duties (the adapter's sodContext: the submitter through
 // checkSod, then BR-SOD-13's people through awardDecisionSodExtra), the step-up at the version's stepUpThreshold and
 // the channel; the route's result comes here under the lock of the RFx and then the award (the order of the award's own
 // commands and of bid.disqualify). Approved: applyAward in the same transaction, with a context derived from the
-// submitter (BR-RFX-13: the POs are made by procurement, the approver acts on their behalf); any refusal rolls the
-// whole decision back and the task stays open. Rejected: the RFx stays as it is and a new award may be made. Returned:
-// the submitter changes and sends it again on a new route (BR-DOA-09). The submitter hears a return or a rejection.
+// submitter (BR-RFX-13: the POs are made by procurement, the approver acts on their behalf · S10-11 award-apply.ts); any
+// refusal rolls the whole decision back and the task stays open. Rejected: the RFx stays as it is and a new award may be
+// made. Returned: the submitter changes and sends it again on a new route (BR-DOA-09). The submitter hears a return or a
+// rejection.
 
-/** What the decision reads of an award */
-export interface AwardRow {
-  readonly id: string
-  readonly rfxEventId: string
-  readonly number: string | null
-  readonly submittedById: string | null
-  readonly version: number
-}
+export { applyAward, awardCtx, type AwardApplied, type AwardRow } from './award-apply'
 
 const refused = (code: AppError['code'], message: string, details: Record<string, unknown>): SubjectDecided => ({ ok: false, error: { code, message, details } })
-
-/** BR-RFX-13: the context the approval's effects run under — the award's submitter, the approver kept as onBehalfOf */
-export function awardCtx(ctx: Ctx, submittedById: string): Ctx {
-  return { ...ctx, actor: { type: 'USER', memberId: submittedById } }
-}
-
-/** What applyAward did, for award.approved */
-export interface AwardApplied {
-  readonly events: readonly EventDraft[]
-  readonly notifications: readonly NotificationDraft[]
-  readonly purchaseOrderIds: readonly string[]
-  readonly priceAgreementIds: readonly string[]
-  readonly preferredSupplierIds: readonly string[]
-  /** OQ-212: PENDING_PRICE while a winner who quoted with VAT has not confirmed its prices before VAT */
-  readonly poStatus: 'NOT_APPLICABLE' | 'PENDING_PRICE' | 'CREATED'
-}
-
-/**
- * The effects of an approved award inside the decision's transaction (BR-RFX-13 · ADR-206). S10-10 moves the RFx to
- * AWARDED and keeps the award on it; S10-11 fills in the POs through assignSupplierInTx and consolidateInTx, the price
- * agreements of a need, the preferred suppliers and the suppliers' e-mails — all with `effects` as their context.
- */
-export async function applyAward(tx: TenantTx, effects: Ctx, award: AwardRow): Promise<{ ok: false; error: AppError } | ({ ok: true } & AwardApplied)> {
-  const rfx = await tx.rfxEvent.findUniqueOrThrow({ where: { id: award.rfxEventId }, select: { id: true, status: true } })
-  const moved = transition(RFX_EVENT_MACHINE, rfx.status, 'rfx.award')
-  if (!moved.ok) return { ok: false, error: { code: 'INVALID_STATE_TRANSITION', message: `the RFx is ${rfx.status}`, details: { from: rfx.status, command: 'rfx.award' } } }
-  await tx.rfxEvent.update({ where: { id: rfx.id }, data: { status: moved.to, awardDecisionId: award.id, version: { increment: 1 } } })
-  void effects
-  const unconfirmed = await tx.awardLine.count({ where: { awardDecisionId: award.id, bid: { priceIncludesVat: true, netPricesConfirmedAt: null } } })
-  return {
-    ok: true,
-    events: [{ type: 'rfx.awarded', aggregateType: 'RfxEvent', aggregateId: rfx.id, data: { awardDecisionId: award.id } }],
-    notifications: [],
-    purchaseOrderIds: [],
-    priceAgreementIds: [],
-    preferredSupplierIds: [],
-    poStatus: unconfirmed > 0 ? 'PENDING_PRICE' : 'NOT_APPLICABLE',
-  }
-}
 
 /** award.decided: the submitter hears a return or a rejection (IMMEDIATE) */
 function decidedNotice(award: AwardRow, rfx: { number: string | null; title: string }, outcome: 'RETURNED' | 'REJECTED'): NotificationDraft {
@@ -96,7 +51,7 @@ export async function decideAward(tx: TenantTx, ctx: Ctx, awardDecisionId: strin
   const number = award.number ?? ''
   if (decision.outcome === 'APPROVED') {
     const approver = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
-    const applied = await applyAward(tx, awardCtx(ctx, award.submittedById!), award)
+    const applied = await applyAward(tx, awardCtx(ctx, award.submittedById!), award, approver)
     if (!applied.ok) return { ok: false, error: applied.error }
     await tx.awardDecision.update({
       where: { id: award.id },
@@ -110,7 +65,16 @@ export async function decideAward(tx: TenantTx, ctx: Ctx, awardDecisionId: strin
           type: 'award.approved',
           aggregateType: 'AwardDecision',
           aggregateId: award.id,
-          data: { rfxEventId: award.rfxEventId, number, onBehalfOf: approver, purchaseOrderIds: [...applied.purchaseOrderIds], priceAgreementIds: [...applied.priceAgreementIds], preferredSupplierIds: [...applied.preferredSupplierIds] },
+          data: {
+            rfxEventId: award.rfxEventId,
+            number,
+            onBehalfOf: approver,
+            purchaseOrderIds: [...applied.purchaseOrderIds],
+            priceAgreementIds: [...applied.priceAgreementIds],
+            preferredSupplierIds: [...applied.preferredSupplierIds],
+            poStatus: applied.poStatus,
+            linesWithoutAgreement: [...applied.linesWithoutAgreement],
+          },
         },
         ...applied.events,
       ],

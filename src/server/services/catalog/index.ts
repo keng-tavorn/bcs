@@ -6,6 +6,7 @@ import { MS_PER_DAY } from '@/lib/constants'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
+import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import { CATALOG_ITEM_FIELDS } from '@/server/events/schemas/catalog'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
@@ -136,6 +137,61 @@ const CreateAgreementInput = z.strictObject({
   sourceRef: z.string().trim().max(200).optional(),
 })
 
+type Fail = { readonly ok: false; readonly error: AppError }
+
+/** An agreed price as created by PROCUREMENT (ADMIN) or by an approved award (AWARD · S10-11 · sourceRef AWD-…) */
+export interface AgreementInput {
+  readonly catalogItemId: string
+  readonly supplierId: string
+  /** Before VAT, above zero */
+  readonly unitPriceSatang: bigint
+  readonly validFrom: string
+  /** Not included */
+  readonly validTo: string
+  readonly sourceRef: string | null
+  readonly via: 'ADMIN' | 'AWARD'
+}
+
+/**
+ * An agreed price inside the caller's transaction (S6-10 · S10-11 ADR-206): the item locked, the supplier active, a period
+ * not over and overlapping no other of the item and supplier (BR-PRC-06). It checks no capability: the command checks
+ * catalog.manage; an award's authority is its approval.
+ */
+export async function createPriceAgreementInTx(tx: TenantTx, ctx: Ctx, input: AgreementInput): Promise<Fail | { readonly ok: true; readonly priceAgreementId: string; readonly events: EventDraft[] }> {
+  // One agreement of an item at a time, so two saved together cannot both pass the overlap check
+  const [locked] = await lockRowsForUpdate(tx, 'CatalogItem', ctx.organizationId, [input.catalogItemId])
+  if (!locked) return fail('NOT_FOUND', 'catalogue item not found')
+  if (!(await tx.supplier.count({ where: { id: input.supplierId, status: 'ACTIVE' } }))) return fail('VALIDATION_FAILED', 'unknown or inactive supplier', { field: 'supplierId', reason: 'UNKNOWN' })
+  if (input.unitPriceSatang <= 0n) return fail('VALIDATION_FAILED', 'the agreed price must be above zero', { field: 'unitPrice', reason: 'PRICE' })
+  if (input.validTo <= agreementDay(ctx.now)) return fail('VALIDATION_FAILED', 'the period is over already', { field: 'validTo', reason: 'PERIOD_OVER' })
+  const existing = await tx.priceAgreement.findMany({ where: { catalogItemId: input.catalogItemId, supplierId: input.supplierId }, select: { catalogItemId: true, supplierId: true, validFrom: true, validTo: true } })
+  const checked = checkAgreement(
+    existing.map((e) => ({ ...e, validFrom: dayOf(e.validFrom), validTo: dayOf(e.validTo) })),
+    { catalogItemId: input.catalogItemId, supplierId: input.supplierId, validFrom: input.validFrom, validTo: input.validTo },
+  )
+  if (!checked.ok) return { ok: false, error: checked.error }
+  const row = await tx.priceAgreement.create({
+    data: {
+      organizationId: ctx.organizationId,
+      catalogItemId: input.catalogItemId,
+      supplierId: input.supplierId,
+      unitPriceSatang: input.unitPriceSatang,
+      validFrom: dateOf(input.validFrom),
+      validTo: dateOf(input.validTo),
+      sourceRef: input.sourceRef || null,
+      createdById: ctx.actor.type === 'USER' ? ctx.actor.memberId : null,
+    },
+    select: { id: true },
+  })
+  const event: EventDraft = {
+    type: 'price_agreement.created',
+    aggregateType: 'PriceAgreement',
+    aggregateId: row.id,
+    data: { catalogItemId: input.catalogItemId, supplierId: input.supplierId, unitPriceSatang: input.unitPriceSatang.toString(), validFrom: input.validFrom, validTo: input.validTo, via: input.via, ...(input.via === 'AWARD' ? { sourceRef: input.sourceRef } : {}) },
+  }
+  return { ok: true, priceAgreementId: row.id, events: [event] }
+}
+
 export const createPriceAgreementCommand = defineCommand({
   name: 'priceAgreement.create',
   capability: 'catalog.manage',
@@ -143,38 +199,9 @@ export const createPriceAgreementCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ priceAgreementId: string }>> {
     const ok = await allowed(tx, ctx)
     if (!ok.ok) return { ok: false, error: ok.error }
-    // One agreement of an item at a time, so two saved together cannot both pass the overlap check
-    const [locked] = await lockRowsForUpdate(tx, 'CatalogItem', ctx.organizationId, [input.catalogItemId])
-    if (!locked) return fail('NOT_FOUND', 'catalogue item not found')
-    if (!(await tx.supplier.count({ where: { id: input.supplierId, status: 'ACTIVE' } }))) return fail('VALIDATION_FAILED', 'unknown or inactive supplier', { field: 'supplierId', reason: 'UNKNOWN' })
-    if (input.validTo <= agreementDay(ctx.now)) return fail('VALIDATION_FAILED', 'the period is over already', { field: 'validTo', reason: 'PERIOD_OVER' })
-    const existing = await tx.priceAgreement.findMany({ where: { catalogItemId: input.catalogItemId, supplierId: input.supplierId }, select: { catalogItemId: true, supplierId: true, validFrom: true, validTo: true } })
-    const checked = checkAgreement(
-      existing.map((e) => ({ ...e, validFrom: dayOf(e.validFrom), validTo: dayOf(e.validTo) })),
-      { catalogItemId: input.catalogItemId, supplierId: input.supplierId, validFrom: input.validFrom, validTo: input.validTo },
-    )
-    if (!checked.ok) return { ok: false, error: checked.error }
-    const unitPriceSatang = amountToSatang(input.unitPrice)
-    const row = await tx.priceAgreement.create({
-      data: {
-        organizationId: ctx.organizationId,
-        catalogItemId: input.catalogItemId,
-        supplierId: input.supplierId,
-        unitPriceSatang,
-        validFrom: dateOf(input.validFrom),
-        validTo: dateOf(input.validTo),
-        sourceRef: input.sourceRef || null,
-        createdById: ctx.actor.type === 'USER' ? ctx.actor.memberId : null,
-      },
-      select: { id: true },
-    })
-    const event: EventDraft = {
-      type: 'price_agreement.created',
-      aggregateType: 'PriceAgreement',
-      aggregateId: row.id,
-      data: { catalogItemId: input.catalogItemId, supplierId: input.supplierId, unitPriceSatang: unitPriceSatang.toString(), validFrom: input.validFrom, validTo: input.validTo, via: 'ADMIN' },
-    }
-    return { ok: true, result: { priceAgreementId: row.id }, events: [event] }
+    const made = await createPriceAgreementInTx(tx, ctx, { catalogItemId: input.catalogItemId, supplierId: input.supplierId, unitPriceSatang: amountToSatang(input.unitPrice), validFrom: input.validFrom, validTo: input.validTo, sourceRef: input.sourceRef || null, via: 'ADMIN' })
+    if (!made.ok) return made
+    return { ok: true, result: { priceAgreementId: made.priceAgreementId }, events: made.events }
   },
 })
 
@@ -184,6 +211,23 @@ export function createPriceAgreement(ctx: Ctx, input: z.input<typeof CreateAgree
 
 const EndAgreementInput = z.strictObject({ priceAgreementId: z.uuid() })
 
+/**
+ * Ends an agreed price early inside the caller's transaction (S6-10 · S10-11): from `validTo` on, the item has no agreed
+ * price with this supplier. The command ends one today (validTo = tomorrow); an award ends the one its new agreement
+ * overlaps on the day before it starts (validTo = the award's first day). One that has not started by `validTo` − 1, or
+ * that ends by `validTo` already, is refused. It checks no capability.
+ */
+export async function endPriceAgreementInTx(tx: TenantTx, ctx: Ctx, input: { readonly priceAgreementId: string; readonly validTo: string }): Promise<Fail | { readonly ok: true; readonly validTo: string; readonly events: EventDraft[] }> {
+  const agreement = await tx.priceAgreement.findFirst({ where: { id: input.priceAgreementId } })
+  if (!agreement) return fail('NOT_FOUND', 'agreed price not found')
+  await lockRowsForUpdate(tx, 'CatalogItem', ctx.organizationId, [agreement.catalogItemId])
+  const validTo = input.validTo
+  if (dayOf(agreement.validFrom) >= validTo) return fail('INVALID_STATE_TRANSITION', 'the agreed price has not started', { reason: 'AGREEMENT_NOT_STARTED' })
+  if (dayOf(agreement.validTo) <= validTo) return fail('INVALID_STATE_TRANSITION', 'the agreed price ends by then already', { reason: 'AGREEMENT_OVER' })
+  await tx.priceAgreement.update({ where: { id: agreement.id }, data: { validTo: dateOf(validTo), endedAt: ctx.now } })
+  return { ok: true, validTo, events: [{ type: 'price_agreement.ended', aggregateType: 'PriceAgreement', aggregateId: agreement.id, data: { catalogItemId: agreement.catalogItemId, supplierId: agreement.supplierId, validTo } }] }
+}
+
 export const endPriceAgreementCommand = defineCommand({
   name: 'priceAgreement.end',
   capability: 'catalog.manage',
@@ -191,20 +235,11 @@ export const endPriceAgreementCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ priceAgreementId: string; validTo: string }>> {
     const ok = await allowed(tx, ctx)
     if (!ok.ok) return { ok: false, error: ok.error }
-    const agreement = await tx.priceAgreement.findFirst({ where: { id: input.priceAgreementId } })
-    if (!agreement) return fail('NOT_FOUND', 'agreed price not found')
-    await lockRowsForUpdate(tx, 'CatalogItem', ctx.organizationId, [agreement.catalogItemId])
-    const today = agreementDay(ctx.now)
     // Today is its last day: from tomorrow the item has no agreed price with this supplier
-    const validTo = dayOf(new Date(dateOf(today).getTime() + DAY_MS))
-    if (dayOf(agreement.validFrom) > today) return fail('INVALID_STATE_TRANSITION', 'the agreed price has not started', { reason: 'AGREEMENT_NOT_STARTED' })
-    if (dayOf(agreement.validTo) <= validTo) return fail('INVALID_STATE_TRANSITION', 'the agreed price ends by tomorrow already', { reason: 'AGREEMENT_OVER' })
-    await tx.priceAgreement.update({ where: { id: agreement.id }, data: { validTo: dateOf(validTo), endedAt: ctx.now } })
-    return {
-      ok: true,
-      result: { priceAgreementId: agreement.id, validTo },
-      events: [{ type: 'price_agreement.ended', aggregateType: 'PriceAgreement', aggregateId: agreement.id, data: { catalogItemId: agreement.catalogItemId, supplierId: agreement.supplierId, validTo } }],
-    }
+    const today = agreementDay(ctx.now)
+    const ended = await endPriceAgreementInTx(tx, ctx, { priceAgreementId: input.priceAgreementId, validTo: dayOf(new Date(dateOf(today).getTime() + DAY_MS)) })
+    if (!ended.ok) return ended
+    return { ok: true, result: { priceAgreementId: input.priceAgreementId, validTo: ended.validTo }, events: ended.events }
   },
 })
 

@@ -283,7 +283,8 @@ export const conflictsOf = (submitter: string, people: AwardPeople): string[] =>
 
 // ---------- the award row ----------
 
-async function lockedAward(tx: TenantTx, ctx: Ctx, awardDecisionId: string) {
+/** The award locked after its RFx (the order of bid.disqualify, the decision and award.releasePo), with its choices */
+export async function lockedAward(tx: TenantTx, ctx: Ctx, awardDecisionId: string) {
   const head = await tx.awardDecision.findUnique({ where: { id: awardDecisionId }, select: { rfxEventId: true } })
   if (!head) return null
   // the RFx first, then the award: the order of bid.disqualify and of the decision
@@ -294,7 +295,7 @@ async function lockedAward(tx: TenantTx, ctx: Ctx, awardDecisionId: string) {
 }
 type LockedAward = NonNullable<Awaited<ReturnType<typeof lockedAward>>>
 
-function awardStep(award: LockedAward['award'], command: AwardDecisionCommand, version: number): Fail | { readonly to: LockedAward['award']['status'] } {
+export function awardStep(award: LockedAward['award'], command: AwardDecisionCommand, version: number): Fail | { readonly to: LockedAward['award']['status'] } {
   const t = transition(AWARD_DECISION_MACHINE, award.status, command)
   if (!t.ok) return fail('INVALID_STATE_TRANSITION', `${command} is not allowed from ${award.status}`, { from: award.status, command })
   if (award.version !== version) return fail('CONFLICT_VERSION', 'the award changed meanwhile', { expectedVersion: version, version: award.version })

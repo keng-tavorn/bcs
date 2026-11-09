@@ -41,6 +41,15 @@ export interface PoSubmitPreviewDto {
   readonly supplierActive: boolean
 }
 
+/**
+ * The VAT rate a PO is sent for approval at: today's (§6.4) — except a PO of an award to a winner without VAT (not
+ * registered, or abroad), which keeps the 0 its award gave it so its amount stays the award's (S10-11 · INV-RFX-04 ·
+ * BR-VAT-04). The rate 0 for every other supplier without VAT is go-live item S8-20.
+ */
+export function poRateBp(po: { readonly awardDecisionId: string | null; readonly vatRateBp: number | null }, todayRateBp: number): number {
+  return po.awardDecisionId !== null && po.vatRateBp === 0 ? 0 : todayRateBp
+}
+
 export async function previewPoSubmit(ctx: Ctx, poId: string): Promise<Result<PoSubmitPreviewDto>> {
   if (!isUuid(poId)) return err('NOT_FOUND', 'purchase order not found')
   const db = forTenant(ctx.organizationId)
@@ -58,26 +67,30 @@ export async function previewPoSubmit(ctx: Ctx, poId: string): Promise<Result<Po
         id: true,
         status: true,
         createdById: true,
+        awardDecisionId: true,
+        vatRateBp: true,
         supplier: { select: { status: true } },
         lines: { orderBy: { lineNo: 'asc' }, select: { quantity: true, unitPriceSatang: true, vatable: true, netSatang: true, budgetLineId: true, sources: { select: { releasableSatang: true } } } },
       },
     })
     if (!po) return refused({ code: 'NOT_FOUND', message: 'purchase order not found' })
     if (po.status !== 'DRAFT') return refused({ code: 'INVALID_STATE_TRANSITION', message: 'only a draft is sent for approval', details: { from: po.status, command: 'po.submit' } })
-    const totals = rate.ok
-      ? documentTotals(
-          po.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
-          rate.rateBp,
-          false,
-        )
-      : null
+    const rateBp = rate.ok ? poRateBp(po, rate.rateBp) : null
+    const totals =
+      rateBp !== null
+        ? documentTotals(
+            po.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
+            rateBp,
+            false,
+          )
+        : null
     const extraReserveSatang = po.lines.reduce((sum, l) => {
       const delta = l.netSatang - l.sources.reduce((s, src) => s + src.releasableSatang, 0n)
       return delta > 0n ? sum + delta : sum
     }, 0n)
     const supplierActive = po.supplier.status === 'ACTIVE'
-    if (!totals || !rate.ok) return { kind: 'blocked' as const, totals: null, rateBp: null, code: 'TAX_RATE_NOT_CONFIGURED', extraReserveSatang, supplierActive }
-    if (po.lines.length === 0) return { kind: 'blocked' as const, totals, rateBp: rate.rateBp, code: 'NO_LINES', extraReserveSatang, supplierActive }
+    if (!totals || rateBp === null) return { kind: 'blocked' as const, totals: null, rateBp: null, code: 'TAX_RATE_NOT_CONFIGURED', extraReserveSatang, supplierActive }
+    if (po.lines.length === 0) return { kind: 'blocked' as const, totals, rateBp, code: 'NO_LINES', extraReserveSatang, supplierActive }
     // The same route input as submitPo: whoever sends it owns it when the round drafted it
     const creator = po.createdById ?? actor
     const requests = await tx.request.findMany({ where: { lines: { some: { poSources: { some: { poLine: { poId: po.id } } } } } }, select: { requesterMemberId: true } })
@@ -97,7 +110,7 @@ export async function previewPoSubmit(ctx: Ctx, poId: string): Promise<Result<Po
     // The band of the rule the amount fell into (before an escalation), as the route's own page shows it
     const bandRule = resolved.ok ? versionAt(policy.versions, ctx.now)?.rules.find((x) => x.code === (resolved.data.escalatedFromRuleCode ?? resolved.data.ruleCode)) : undefined
     const band = bandRule?.when.amount ? bandOf(bandRule.when.amount) : null
-    return { kind: 'resolved' as const, totals, rateBp: rate.rateBp, resolved, band, extraReserveSatang, supplierActive }
+    return { kind: 'resolved' as const, totals, rateBp, resolved, band, extraReserveSatang, supplierActive }
   })
   if (loaded.kind === 'refused') return { ok: false, error: loaded.error }
 

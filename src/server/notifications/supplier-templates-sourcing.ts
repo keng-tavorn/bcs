@@ -15,6 +15,9 @@ export const SOURCING_SUPPLIER_TEMPLATES = {
   closed: 'rfx.closed',
   cancelled: 'rfx.cancelled',
   fileRejected: 'rfx.file_rejected',
+  awarded: 'rfx.awarded',
+  notAwarded: 'rfx.not_awarded',
+  netPriceConfirmRequested: 'rfx.net_price_confirm_requested',
 } as const
 
 const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '')
@@ -122,5 +125,50 @@ registerSupplierTemplate(SOURCING_SUPPLIER_TEMPLATES.fileRejected, (d, c) =>
     `${str(d.number)} ไฟล์แนบไม่ผ่านการตรวจ / An attached file was refused`,
     [`เรียน ${c.supplierName}`, `ไฟล์ "${str(d.fileName)}" ที่แนบกับข้อเสนอ ${str(d.number)} "${str(d.title)}" ไม่ผ่านการตรวจความปลอดภัย ระบบนำออกจากข้อเสนอแล้ว กรุณาแนบไฟล์ใหม่ก่อนปิดรับในพอร์ทัล ${str(d.loginUrl)}`],
     [`The file "${str(d.fileName)}" attached to your bid for ${str(d.number)} "${titleEn(d)}" did not pass the security check and was taken off the bid. Please attach another before the close at ${str(d.loginUrl)}.`],
+  ),
+)
+
+// S10-11 (FR-SRC-204 AC3 · BR-NOTI-11): the award approved — to a winner its own lines and prices before VAT, the PO
+// following on its own; to a supplier who bid and won nothing a thank-you without the winner or any price
+type AwardedLine = { readonly lineNo?: unknown; readonly description?: unknown; readonly quantity?: unknown; readonly uom?: unknown; readonly unitPrice?: unknown; readonly lineNet?: unknown }
+const awardedLines = (d: Record<string, unknown>) => (Array.isArray(d.lines) ? (d.lines as AwardedLine[]) : [])
+
+registerSupplierTemplate(SOURCING_SUPPLIER_TEMPLATES.awarded, (d, c) =>
+  supplierMail(
+    `${c.organizationName} มอบงาน ${str(d.number)} ให้ท่าน / You won ${str(d.number)}`,
+    [
+      `เรียน ${c.supplierName}`,
+      `${c.organizationName} อนุมัติผลการจัดหา ${str(d.number)} "${str(d.title)}" ให้ท่านในรายการต่อไปนี้ (ราคาก่อน VAT):`,
+      ...awardedLines(d).map((l) => `รายการ ${str(l.lineNo)} ${str(l.description)} · ${str(l.quantity)} ${str(l.uom)} × ${str(l.unitPrice)} บาท = ${str(l.lineNet)} บาท`),
+      d.pendingPrice ? 'ท่านยื่นราคารวม VAT กรุณายืนยันราคาก่อน VAT ในพอร์ทัลก่อน ใบสั่งซื้อจะตามมาหลังยืนยัน' : d.need ? 'ราคาที่มอบจะเป็นราคาตกลงของรายการที่มีในแคตตาล็อก' : 'ใบสั่งซื้อจะส่งตามมาแยกต่างหาก',
+      `ดูผลในพอร์ทัล ${str(d.loginUrl)}`,
+    ],
+    [
+      `${c.organizationName} approved the award of ${str(d.number)} "${titleEn(d)}" to you for these lines (before VAT):`,
+      ...awardedLines(d).map((l) => `Line ${str(l.lineNo)} · ${str(l.quantity)} ${str(l.uom)} × ${str(l.unitPrice)} THB = ${str(l.lineNet)} THB`),
+      d.pendingPrice ? 'You bid with VAT included: please confirm your prices before VAT on the portal first; the purchase order follows.' : d.need ? 'The awarded prices become the agreed prices of the catalogue items.' : 'The purchase order follows separately.',
+      `See the result on the portal ${str(d.loginUrl)}.`,
+    ],
+  ),
+)
+
+registerSupplierTemplate(SOURCING_SUPPLIER_TEMPLATES.notAwarded, (d, c) =>
+  supplierMail(
+    `ผลการจัดหา ${str(d.number)} / Result of ${str(d.number)}`,
+    [`เรียน ${c.supplierName}`, `${c.organizationName} ขอบคุณที่ยื่นข้อเสนอสำหรับ ${str(d.number)} "${str(d.title)}" ครั้งนี้ข้อเสนอของท่านไม่ได้รับเลือก หวังว่าจะได้ร่วมงานกันในครั้งต่อไป`],
+    [`${c.organizationName} thanks you for your bid for ${str(d.number)} "${titleEn(d)}". It was not selected this time; we hope to work with you next time.`],
+  ),
+)
+
+// OQ-212: a winner who bid with VAT included confirms each line's price before VAT, at most the price bid less its VAT
+registerSupplierTemplate(SOURCING_SUPPLIER_TEMPLATES.netPriceConfirmRequested, (d, c) =>
+  supplierMail(
+    `กรุณายืนยันราคาก่อน VAT ของ ${str(d.number)} / Please confirm your prices before VAT`,
+    [
+      `เรียน ${c.supplierName}`,
+      `ท่านยื่นราคารวม VAT สำหรับ ${str(d.number)} "${str(d.title)}" ก่อนออกใบสั่งซื้อ กรุณายืนยันราคาต่อหน่วยก่อน VAT ของแต่ละรายการในพอร์ทัล (ราคาก่อน VAT บวก VAT ต้องไม่เกินราคาที่ยื่น)`,
+      `ยืนยันได้ที่ ${str(d.loginUrl)}`,
+    ],
+    [`You bid with VAT included for ${str(d.number)} "${titleEn(d)}". Before the purchase order, please confirm each line's unit price before VAT on the portal (that price plus VAT may not exceed your bid).`, `Confirm at ${str(d.loginUrl)}.`],
   ),
 )

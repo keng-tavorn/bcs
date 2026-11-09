@@ -13,4 +13,5 @@ export { registerSupplierRiskProvider, type SupplierRiskProvider, type SupplierR
 export { openSourcingDocuments } from './usage'
 export { cancelAward, createAward, submitAward, updateAward, type AwardPlan, type AwardSnapshot } from './awards'
 export { applyAward, decideAward } from './award-decide'
+export { confirmNetPrices, releaseAwardPo } from './award-apply'
 export { awardWorkspace, getAwardTaskView, type AwardFactsDto, type AwardRoutePreview, type AwardWorkspaceDto } from './award-view'

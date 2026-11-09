@@ -582,6 +582,13 @@ const cancelCommand = defineCommand({
 })
 
 export const openRiskAssessment = (ctx: Ctx, input: z.input<typeof OpenInput>, options: RunOptions) => runCommand(ctx, openCommand, input, options)
+
+/** S11-07 (FR-RSK-203 AC6): "เปิดแบบประเมินความเสี่ยง" on a PO held at the risk gate — the PO's supplier, its work */
+export async function openRiskAssessmentForPo(ctx: Ctx, poId: string, options: RunOptions) {
+  const po = await forTenant(ctx.organizationId).purchaseOrder.findFirst({ where: { id: poId }, select: { supplierId: true } })
+  if (!po) return fail('NOT_FOUND', 'purchase order not found')
+  return openRiskAssessment(ctx, { supplierId: po.supplierId, poId }, options)
+}
 export const answerRiskAssessment = (ctx: Ctx, input: z.input<typeof AnswerInput>, options: RunOptions) => runCommand(ctx, answerCommand, input, options)
 export const fillRiskAssessmentOnBehalf = (ctx: Ctx, input: z.input<typeof AnswerInput>, options: RunOptions) => runCommand(ctx, fillOnBehalfCommand, input, options)
 // FR-RSK-202 AC1: a send refused for a missing reviewer is told to the administrators (reviewers.ts)

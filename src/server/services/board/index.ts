@@ -9,6 +9,8 @@ import { lockRowsForUpdate, type LockableTable } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { loadBusinessCalendar } from '@/server/doa/policy'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { requireModule } from '../modules'
+import { riskGatedPoIds } from '../risk/gate'
 
 // The board "เอกสารค้างที่ใคร" (spec §11.1, FR-VIS-001 AC1 AC2): one row per assignee with their open tasks, the age of
 // the oldest in business hours, how many are past their SLA and the average age; tasks waiting for the requester
@@ -25,6 +27,8 @@ export type BoardSubject = (typeof BOARD_SUBJECTS)[number]
 export interface BoardFilter {
   readonly departmentId?: string
   readonly subjectType?: BoardSubject
+  /** S11-07 (FR-RSK-203 AC6): only PO tasks whose PO the supplier's risk gate would not let go out now */
+  readonly riskGated?: boolean
 }
 
 export interface BoardTaskDto {
@@ -57,6 +61,8 @@ export interface BoardViewDto {
   readonly scope: BoardScope
   /** When the ages were counted */
   readonly asOf: string
+  /** S11-07: RISK is on, so the board offers the filter "PO ติดด่านความเสี่ยง" */
+  readonly riskFilter: boolean
 }
 
 export interface BoardRowDto {
@@ -176,18 +182,22 @@ async function recentReminders(tx: TenantTx, now: Date): Promise<Map<string, Dat
 async function boardRows(tx: TenantTx, ctx: Ctx, principal: Principal, filter: BoardFilter): Promise<BoardRowDto[] | null> {
   const scope = await visibleTasks(tx, principal)
   if (scope === null) return null
-  const tasks = await tx.approvalTask.findMany({
+  const found = await tx.approvalTask.findMany({
     where: {
       AND: [
         scope,
         { status: { in: [...OPEN] } },
         ...(filter.subjectType ? [{ step: { route: { subjectType: filter.subjectType } } }] : []),
+        ...(filter.riskGated ? [{ step: { route: { subjectType: 'PURCHASE_ORDER' } } }] : []),
         ...(filter.departmentId ? [{ assignee: { primaryDepartmentId: filter.departmentId } }] : []),
       ],
     },
     include: { step: { include: { route: { select: { subjectType: true, subjectId: true } } } }, assignee: { select: { id: true, displayNameTh: true } } },
     orderBy: { assignedAt: 'asc' },
   })
+  // S11-07: "PO ติดด่านความเสี่ยง" — the gate of the PO's first sending weighed now, nothing written
+  const gated = filter.riskGated ? await riskGatedPoIds(tx, ctx, found.map((t) => t.step.route.subjectId)) : null
+  const tasks = gated ? found.filter((t) => gated.has(t.step.route.subjectId)) : found
   const calendar = await loadBusinessCalendar(tx, ctx.organizationId)
   const named = await documents(
     tx,
@@ -261,7 +271,7 @@ export async function boardView(ctx: Ctx, filter: BoardFilter = {}): Promise<Res
     if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
     const rows = await boardRows(tx, ctx, allowed.data, filter)
     if (rows === null) return err('FORBIDDEN', 'members only')
-    return ok({ rows, scope: boardScope(allowed.data), asOf: ctx.now.toISOString() })
+    return ok({ rows, scope: boardScope(allowed.data), asOf: ctx.now.toISOString(), riskFilter: (await requireModule(ctx, 'RISK', tx)).ok })
   })
 }
 

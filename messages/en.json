@@ -4458,10 +4458,13 @@
     },
     "filters": {
       "allDepartments": "All departments",
+      "allRisk": "All tasks",
       "allTypes": "All kinds",
       "clear": "Clear filters",
       "department": "Holder's department",
       "label": "Board filters",
+      "risk": "Supplier risk gate",
+      "riskGated": "POs held at the risk gate",
       "submit": "Apply filters",
       "type": "Kind of document"
     },
@@ -5946,8 +5949,11 @@
     "REVIEWER_NOT_FOUND": "No reviewer {position} of {department} for rule {rule}. Please contact your administrator",
     "RISK_ANSWERS_INCOMPLETE": "The risk questionnaire still lacks answers: {missing}",
     "RISK_ASSESSMENT_OPEN": "This supplier already has an open risk assessment.",
+    "RISK_ASSESSMENT_REQUIRED": "This supplier is high risk: complete its risk assessment or get an override before the purchase order goes out",
+    "RISK_BLOCKED": "No purchase order can go to this supplier: its registry status or its override does not allow it",
     "RISK_POLICY_NOT_CONFIGURED": "The supplier risk policy is not confirmed yet. Please contact your administrator.",
     "RISK_QUESTIONNAIRE_NOT_PUBLISHED": "No supplier risk questionnaire is in effect yet. Please contact your administrator.",
+    "RISK_REASSESSMENT_REQUIRED": "The supplier's risk assessment no longer covers this purchase order: reassess it or get an override",
     "RISK_TIER_NOT_CONFIGURED": "The risk tiers are not set yet. Please contact your administrator.",
     "SOD_VIOLATION": "Not allowed because it breaks segregation of duties ({rule})",
     "STEP_UP_LOCKED": "Too many wrong PINs. Try again after {time}",
@@ -8746,6 +8752,8 @@
       "openDisable": "Switch off {name}",
       "openEnable": "Switch on {name}",
       "reason": "Reason (kept in the history)",
+      "riskDryRun": "If switched on: {held} of {open} purchase orders not yet out would be held at the risk gate",
+      "riskDryRunNotConfigured": "The purchase orders the gate would hold cannot be counted until the organization confirms its risk tiers and policy",
       "title": "Modules of {name}",
       "titleShort": "Customer modules"
     },
@@ -9638,6 +9646,16 @@
       "QUANTITY": "Type a quantity above 0",
       "QUANTITY_OVER_REQUEST": "More than the request has left ({left} left). Lower the quantity and save again.",
       "REASON": "Type a reason of at least 3 characters",
+      "RISK_IN_PROGRESS": "This supplier's risk assessment is not finished: wait for the supplier's answers and every reviewer, or ask for an override under the DOA",
+      "RISK_NOT_ASSESSED": "This supplier is high risk and has never been assessed: have the supplier answer the risk questionnaire until it passes review, or ask for an override under the DOA",
+      "RISK_OPEN_FAILED": "The assessment could not be opened: reload the page, or see the supplier's open assessment",
+      "RISK_OVERRIDE_CAP_EXCEEDED": "This purchase order with the earlier ones goes over the override's cap: finish the risk assessment, or ask for a new override",
+      "RISK_OVERRIDE_EXPIRED": "This supplier's override has expired: finish the risk assessment, or ask for a new override",
+      "RISK_REASON": "Give the reason this purchase order still goes to this supplier, at least 3 characters",
+      "RISK_REGISTRY_CEASED": "This supplier has ceased trading according to the registry: no new purchase order and no override",
+      "RISK_REGISTRY_FLAGGED": "This supplier's registry status changed (out of the VAT register, or not found): finish a new risk assessment first",
+      "RISK_SCOPE_EXPANDED": "The work of this purchase order carries a risk the supplier's assessment did not cover: reassess, or ask for an override under the DOA",
+      "RISK_VALIDITY_LAPSED": "This supplier's risk assessment is past its review date: reassess, or ask for an override under the DOA",
       "SHORT_NOT_APPROVED": "Some lines did not come in full. It closes once they come; if the rest will not come, ask to close the purchase order short on its receiving page, and close it once that is approved.",
       "STATE": "This purchase order changed status already. Reload the page to see where it is now.",
       "SUPPLIER_INACTIVE": "This supplier is inactive, so the PO cannot be sent for approval. Activate the supplier in the supplier register first, then come back to send it.",
@@ -9658,6 +9676,7 @@
       "paymentCash": "Cash on delivery",
       "paymentDays": "{days} days credit",
       "paymentTerms": "Payment terms",
+      "risk": "Supplier risk",
       "sent": "Last sent to the supplier",
       "sentValue": "{time} to {email}",
       "site": "Delivery site",
@@ -9738,6 +9757,60 @@
       "noFiles": "This request has no attachments",
       "requester": "Requested by {name}",
       "title": "{number} · {title}"
+    },
+    "risk": {
+      "band": {
+        "blocked": "This purchase order cannot be sent for approval yet (supplier risk: {tier})",
+        "blockedSend": "This purchase order cannot go to the supplier yet (supplier risk: {tier})",
+        "open": "Open a risk assessment",
+        "opening": "Opening the assessment",
+        "override": "This purchase order will pass the risk gate on override {number}; the auditors are told",
+        "reason": {
+          "IN_PROGRESS": "This supplier's risk assessment is not finished: wait for the supplier's answers and every reviewer, or ask for an override under the DOA",
+          "NOT_ASSESSED": "This supplier is high risk and has never been assessed: have the supplier answer the risk questionnaire until it passes review, or ask for an override under the DOA",
+          "OVERRIDE_CAP_EXCEEDED": "This purchase order with the earlier ones goes over the override's cap: finish the risk assessment, or ask for a new override",
+          "OVERRIDE_EXPIRED": "This supplier's override has expired: finish the risk assessment, or ask for a new override",
+          "REGISTRY_CEASED": "This supplier has ceased trading according to the registry: no new purchase order and no override",
+          "REGISTRY_FLAGGED": "This supplier's registry status changed (out of the VAT register, or not found): finish a new risk assessment first",
+          "SCOPE_EXPANDED": "The work of this purchase order carries a risk the supplier's assessment did not cover: reassess, or ask for an override under the DOA",
+          "VALIDITY_LAPSED": "This supplier's risk assessment is past its review date: reassess, or ask for an override under the DOA"
+        },
+        "reasonNeeded": "This supplier has warnings: {warnings}. Give the reason to order from it anyway in the reason field when you {when}",
+        "title": "Supplier risk",
+        "viewOpen": "See the open assessment {number}",
+        "when": {
+          "SEND": "send it to the supplier",
+          "SUBMIT": "send it for approval"
+        }
+      },
+      "fact": "{tier} risk · {source} · {trigger}",
+      "noNumber": "without a number yet",
+      "reasonField": {
+        "hint": "Its approvers and the auditors see this reason",
+        "label": "Why this purchase order still goes to this supplier"
+      },
+      "reasoned": "a reason was given",
+      "source": {
+        "ASSESSMENT": "passed on assessment {number}",
+        "NOT_REQUIRED": "no assessment needed",
+        "OVERRIDE": "passed on override {number}"
+      },
+      "tier": {
+        "HIGH": "high",
+        "LOW": "low",
+        "MEDIUM": "medium"
+      },
+      "trigger": {
+        "PO_CHANGE": "checked when the PO was changed",
+        "SEND": "checked when sent to the supplier",
+        "SUBMIT": "checked when sent for approval"
+      },
+      "warning": {
+        "OVERRIDE_USED": "an override was used",
+        "REASSESSMENT_OVERDUE": "the supplier's assessment is past its review date",
+        "REGISTRY_FLAGGED": "the supplier's registry status changed"
+      },
+      "warnings": "Warnings: {list}"
     },
     "status": {
       "APPROVED": "Approved",

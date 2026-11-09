@@ -9,11 +9,13 @@ import { boardFilter } from './_present'
 export const BOARD_FILTERS = {
   department: parseAsString,
   type: parseAsStringLiteral(BOARD_SUBJECTS),
+  // S11-07: ?risk=gated — POs the supplier's risk gate would not let go out now
+  risk: parseAsStringLiteral(['gated'] as const),
 }
 export const loadBoardFilters = createLoader(BOARD_FILTERS)
 
 /** The board's filter from the address: the loader's values, checked as before */
 export async function readBoardFilter(searchParams: Promise<Record<string, string | string[] | undefined>>): Promise<BoardFilter> {
   const f = await loadBoardFilters(searchParams)
-  return boardFilter({ department: f.department ?? undefined, type: f.type ?? undefined })
+  return boardFilter({ department: f.department ?? undefined, type: f.type ?? undefined, risk: f.risk ?? undefined })
 }

@@ -5,6 +5,7 @@ import './templates'
 
 export * from './assessments'
 export * from './evidence'
+export * from './gate'
 export * from './questionnaire'
 export * from './reviews'
 export * from './tiers'

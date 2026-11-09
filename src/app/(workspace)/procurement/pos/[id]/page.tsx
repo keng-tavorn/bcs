@@ -10,6 +10,7 @@ import { getTaskAccess, getTaskView } from '@/server/queries/tasks'
 import { isAgentAvailable } from '@/server/services/ai'
 import { listFollowUps } from '@/server/services/assistants/follow-up'
 import { previewPoSubmit, type PoSubmitPreviewDto } from '@/server/services/purchase-orders'
+import { poRiskStatus, type PoRiskStatus } from '@/server/services/risk'
 import { getPoS8View } from '@/server/services/purchase-orders/view-change'
 import { AssistantPanel } from '@/ui/assistants/document-panel'
 import { PO_BADGES, StatusBadge, URGENCY_BADGES } from '@/ui/document/badges'
@@ -27,6 +28,7 @@ import { DraftEditor } from '@/ui/purchase-order/draft-editor'
 import { DraftPay } from '@/ui/po-change/draft-pay'
 import { PoChangeRail, PoChangesTab, PoInvoicesTab } from '@/ui/po-change/po-tabs'
 import { PoActions, type SubmitPreviewView } from '@/ui/purchase-order/po-actions'
+import { RiskBand, type RiskBandView } from '@/ui/purchase-order/risk-band'
 import { RejectedNotice } from '@/ui/purchase-order/status'
 import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Section } from '@/ui/request-view/facts'
@@ -44,7 +46,7 @@ import { decideTaskAction } from '../../../tasks/actions'
 import { canListPos, poReader, canViewPo, poRights } from '../_parts/access'
 import { PoBody } from '../_parts/po-body'
 import { docTimelineItems, waitingOf, type PoT } from '../_parts/present'
-import { cancelPoAction, closePoAction, editDraftAction, sendPoAction, submitPoAction } from '../actions'
+import { cancelPoAction, closePoAction, editDraftAction, openRiskAssessmentAction, sendPoAction, submitPoAction } from '../actions'
 import { sendRevisionAction, setMilestonesAction, setRetentionAction } from './s8-actions'
 
 export async function generateMetadata() {
@@ -154,6 +156,29 @@ function StateNotices({ po, t, locale }: { po: PoViewDto; t: PoT; locale: Locale
 
 const CLOSED_PO: readonly string[] = ['CANCELLED', 'REJECTED', 'CLOSED']
 
+/**
+ * S11-07 (FR-RSK-203 AC6 · BR-RSK-09): the supplier's risk gate at the PO's next step in words — the band above the PO
+ * and what procurement's submit or first sending must show: why it would refuse (and the way to the assessment that
+ * clears it), the override it would pass with, or the warning whose reason the step asks. Nothing when RISK is off or the
+ * gate passes plainly.
+ */
+function riskParts(t: PoT, s: PoRiskStatus | null): { band: RiskBandView | null; actions: { blocked: string | null; reasonNeeded: boolean } | null } {
+  if (!s) return { band: null, actions: null }
+  const number = (n: string | null) => n ?? t('risk.noNumber')
+  const openAssessment = s.openAssessment ? { href: `/risk/assessments/${s.openAssessment.id}`, label: t('risk.band.viewOpen', { number: number(s.openAssessment.number) }) } : null
+  if (!s.decision.allowed) {
+    const why = t(`risk.band.reason.${s.decision.reason}`)
+    const head = t(s.trigger === 'SUBMIT' ? 'risk.band.blocked' : 'risk.band.blockedSend', { tier: t(`risk.tier.${s.tier}`) })
+    return { band: { tone: 'danger', lines: [head, why], openAssessment, canOpen: s.canOpenAssessment }, actions: { blocked: why, reasonNeeded: false } }
+  }
+  if (s.reasonNeeded.length > 0) {
+    const warnings = s.reasonNeeded.map((w) => t(`risk.warning.${w}`)).join(', ')
+    return { band: { tone: 'warning', lines: [t('risk.band.reasonNeeded', { warnings, when: t(`risk.band.when.${s.trigger}`) })], openAssessment, canOpen: false }, actions: { blocked: null, reasonNeeded: true } }
+  }
+  if (s.decision.source === 'OVERRIDE' && s.override) return { band: { tone: 'info', lines: [t('risk.band.override', { number: number(s.override.number) })], openAssessment, canOpen: false }, actions: null }
+  return { band: null, actions: null }
+}
+
 // One purchase order as a tabbed document (spec §9.1 /procurement/pos/[id], FR-INT-012 AC6, FR-P2P-003 to FR-P2P-005,
 // FR-P2P-010), in the frame of the request page: the header with its number, supplier, badges, menu and summary row;
 // the tabs — overview (whom it waits for, the route as step cards that turn into stamps, its amounts and budget), items,
@@ -189,11 +214,12 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
   const s8 = s8View.ok ? s8View.data : null
   const procurement = rights.edit || rights.submit || rights.send || rights.cancel || rights.close
   const lastDone = po.track.filter((e) => e.state === 'done').at(-1)?.at ?? null
-  const [preview, details, daysTaken, task] = await Promise.all([
+  const [preview, details, daysTaken, task, risk] = await Promise.all([
     po.next.submit && rights.submit ? previewPoSubmit(ctx, po.id) : Promise.resolve(null),
     po.route ? getRouteStepDetails(ctx, po.route.id) : Promise.resolve([]),
     businessDaysTaken(ctx, po.submittedAt, CLOSED_PO.includes(po.status) ? lastDone : null),
     myTask ? Promise.all([getTaskAccess(ctx, myTask.id), getTaskView(ctx, myTask.id)]) : Promise.resolve(null),
+    poRiskStatus(ctx, po.id).then((s) => riskParts(t, s)),
   ])
   // The decision bar: an open approval task of this PO that the reader may decide (approval.decide, BR-DLG-04)
   const decide = task && task[0] && task[1] && taskRight(principal, task[0]) === 'DECIDE' && task[1].status === 'OPEN' ? task[1] : null
@@ -370,7 +396,12 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
           { label: td('header.taken'), value: daysTaken !== null ? td('header.takenDays', { days: digits.format(daysTaken) }) : td('header.takenUnknown') },
         ]}
         compactBadge={statusBadge}
-        notices={<StateNotices po={po} t={t} locale={locale} />}
+        notices={
+          <>
+            <StateNotices po={po} t={t} locale={locale} />
+            {risk.band ? <RiskBand poId={po.id} view={risk.band} open={openRiskAssessmentAction} /> : null}
+          </>
+        }
       />
 
       <DecisionLink>
@@ -429,6 +460,7 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
                   // Where what will not come is closed short (the receiving page, not in procurement's menu): once it went out
                   receivingHref={receivingHref}
                   {...(po.status === 'PENDING_APPROVAL' ? { nothing: t('actions.nothingWhileApproval') } : {})}
+                  risk={risk.actions}
                   actions={{ submit: submitPoAction, send: sendPoAction, cancel: cancelPoAction, close: closePoAction }}
                 />
               ) : decide ? null : (

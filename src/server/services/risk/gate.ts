@@ -1,9 +1,11 @@
 import { inherentTier, maxTier, poGate, REASON_WARNINGS, screeningCovers, SCREENING_FIELDS, type GateAssessment, type GateWarning, type PoGateResult, type PoGateTrigger, type RegistryFlag, type RiskTierCode, type Screening } from '@/core/risk'
 import type { AppError, Result } from '@/core/result'
 import { dateIn } from '@/core/supplier-docs'
+import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
+import { isActivePlatformAdmin } from '@/server/db/lookups'
 import { lockRowsForShare, lockRowsForUpdate } from '@/server/db/sql/locks'
-import type { TenantTx } from '@/server/db/tenant'
+import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { requireModule } from '../modules'
@@ -69,15 +71,31 @@ export interface PoGateEvaluation {
   readonly boundOverrideId: string | null
 }
 
-type Lock = 'UPDATE' | 'SHARE' | 'NONE'
+const OVERRIDE_STATUSES: ('APPROVED' | 'EXPIRED')[] = ['APPROVED', 'EXPIRED']
 
 /**
- * Weighs the gate of a PO at `grossSatang` on ctx.now, RISK on: the tier is the higher of the PO's inherent tier
- * (BR-RSK-03 on the screening of the requests behind its lines and its line categories) and the supplier's; an override
- * the PO already draws on is tried first, then the others by the latest last day. `lock` UPDATE holds the overrides for
- * the write that follows and the assessment FOR SHARE (BR-RSK-19); SHARE holds both for a check that writes nothing.
+ * BR-RSK-19: inside the command's transaction, before the gate is weighed — the supplier's COMPLETED assessment FOR SHARE
+ * (a reassessment that would supersede it waits for the PO) and the overrides that speak for the PO FOR UPDATE when the
+ * command writes their use, FOR SHARE when it only checks.
  */
-export async function evaluatePoGate(tx: TenantTx, ctx: Ctx, poId: string, grossSatang: bigint, trigger: PoGateTrigger, lock: Lock): Promise<Result<PoGateEvaluation>> {
+async function holdGateRows(tx: TenantTx, ctx: Ctx, poId: string, write: boolean): Promise<void> {
+  const po = await tx.purchaseOrder.findFirst({ where: { id: poId }, select: { supplierId: true, riskOverrideId: true } })
+  if (!po) return
+  const completed = await tx.riskAssessment.findFirst({ where: { supplierId: po.supplierId, status: 'COMPLETED' }, select: { id: true } })
+  if (completed) await lockRowsForShare(tx, 'RiskAssessment', ctx.organizationId, [completed.id])
+  const listed = await tx.riskOverride.findMany({ where: { supplierId: po.supplierId, status: { in: OVERRIDE_STATUSES }, OR: [{ poId: null }, { poId }] }, select: { id: true } })
+  const ids = [...listed.map((o) => o.id), ...(po.riskOverrideId ? [po.riskOverrideId] : [])]
+  if (write) await lockRowsForUpdate(tx, 'RiskOverride', ctx.organizationId, ids)
+  else await lockRowsForShare(tx, 'RiskOverride', ctx.organizationId, ids)
+}
+
+/**
+ * Weighs the gate of a PO at `grossSatang` on ctx.now, RISK on, reading only: the tier is the higher of the PO's inherent
+ * tier (BR-RSK-03 on the screening of the requests behind its lines and its line categories) and the supplier's; an
+ * override the PO already draws on is tried first, then the others by the latest last day. The command holds the rows
+ * first (holdGateRows); a screen reads it as it stands.
+ */
+export async function evaluatePoGate(tx: TenantTx, ctx: Ctx, poId: string, grossSatang: bigint, trigger: PoGateTrigger): Promise<Result<PoGateEvaluation>> {
   const tiers = await riskTiersInEffect(tx)
   if (!tiers.ok) return tiers
   const policy = await riskPolicyInEffect(tx)
@@ -102,11 +120,7 @@ export async function evaluatePoGate(tx: TenantTx, ctx: Ctx, poId: string, gross
   const inherent = inherentTier({ screening, categoryCodes }, policy.data)
   const tier = maxTier(inherent, (po.supplier.riskTier as RiskTierCode | null) ?? 'LOW')
 
-  const completed = await tx.riskAssessment.findFirst({ where: { supplierId: po.supplierId, status: 'COMPLETED' }, select: { id: true } })
-  if (completed && lock !== 'NONE') await lockRowsForShare(tx, 'RiskAssessment', ctx.organizationId, [completed.id])
-  const current = completed
-    ? await tx.riskAssessment.findFirst({ where: { id: completed.id, status: 'COMPLETED' }, select: { id: true, completedAt: true, validUntil: true, screening: true, categoryCodes: true } })
-    : null
+  const current = await tx.riskAssessment.findFirst({ where: { supplierId: po.supplierId, status: 'COMPLETED' }, select: { id: true, completedAt: true, validUntil: true, screening: true, categoryCodes: true } })
   const open = current ? 0 : await tx.riskAssessment.count({ where: { supplierId: po.supplierId, status: { in: [...OPEN_ASSESSMENT] } } })
   const today = dateIn(ctx.now, RISK_TIMEZONE)
   const assessment: GateAssessment = current?.validUntil ? (iso(current.validUntil) >= today ? 'CURRENT' : 'OVERDUE') : open > 0 ? 'IN_PROGRESS' : 'NONE'
@@ -114,13 +128,8 @@ export async function evaluatePoGate(tx: TenantTx, ctx: Ctx, poId: string, gross
   const flaggedAt = po.supplier.registryFlaggedAt
   const assessedAfterFlag = Boolean(current?.completedAt && flaggedAt && current.completedAt.getTime() > flaggedAt.getTime())
 
-  const where = { supplierId: po.supplierId, status: { in: ['APPROVED', 'EXPIRED'] as ('APPROVED' | 'EXPIRED')[] }, OR: [{ poId: null }, { poId }] }
-  const listed = await tx.riskOverride.findMany({ where, select: { id: true } })
-  const ids = [...new Set([...listed.map((o) => o.id), ...(po.riskOverrideId ? [po.riskOverrideId] : [])])]
-  if (lock === 'UPDATE') await lockRowsForUpdate(tx, 'RiskOverride', ctx.organizationId, ids)
-  else if (lock === 'SHARE') await lockRowsForShare(tx, 'RiskOverride', ctx.organizationId, ids)
   const rows: OverrideRow[] = await tx.riskOverride.findMany({
-    where: { ...where, id: { in: ids } },
+    where: { supplierId: po.supplierId, status: { in: OVERRIDE_STATUSES }, OR: [{ poId: null }, { poId }] },
     orderBy: [{ expiresOn: 'desc' }, { id: 'asc' }],
     select: { id: true, number: true, status: true, poId: true, expiresOn: true, capGrossSatang: true, usedGrossSatang: true, usedCount: true },
   })
@@ -203,7 +212,8 @@ function refusal(e: PoGateEvaluation, poId: string): PoGateOutcome {
  */
 export async function assertSupplierClearForPo(tx: TenantTx, ctx: Ctx, call: PoGateCall): Promise<PoGateOutcome> {
   if (!(await requireModule(ctx, 'RISK', tx)).ok) return NOTHING
-  const evaluated = await evaluatePoGate(tx, ctx, call.poId, call.grossSatang, call.trigger, call.checkOnly ? 'SHARE' : 'UPDATE')
+  await holdGateRows(tx, ctx, call.poId, !call.checkOnly)
+  const evaluated = await evaluatePoGate(tx, ctx, call.poId, call.grossSatang, call.trigger)
   if (!evaluated.ok) return evaluated
   const e = evaluated.data
   if (!e.decision.allowed) return refusal(e, call.poId)
@@ -216,8 +226,8 @@ export async function assertSupplierClearForPo(tx: TenantTx, ctx: Ctx, call: PoG
     const given = call.reason?.trim()
     if (given) reason = { reasonFor: needed }
     else if (call.poChangeId) reason = { reasonPoChangeId: call.poChangeId, reasonFor: needed }
-    else if (e.prior?.reasonFor && needed.every((w) => e.prior!.reasonFor!.includes(w)) && (e.prior.reasonCommentId || e.prior.reasonPoChangeId)) {
-      reason = { ...(e.prior.reasonCommentId ? { reasonCommentId: e.prior.reasonCommentId } : { reasonPoChangeId: e.prior.reasonPoChangeId! }), reasonFor: e.prior.reasonFor }
+    else if (e.prior && reasonCovered(e.prior, needed)) {
+      reason = { ...(e.prior.reasonCommentId ? { reasonCommentId: e.prior.reasonCommentId } : { reasonPoChangeId: e.prior.reasonPoChangeId! }), reasonFor: e.prior.reasonFor! }
     } else return fail('VALIDATION_FAILED', 'a reason is needed to order from this supplier', { field: 'riskReason', reason: 'RISK_REASON_REQUIRED', warnings: needed })
     if (given && !call.checkOnly) {
       const comment = await tx.comment.create({
@@ -280,4 +290,105 @@ export async function assertSupplierClearForPo(tx: TenantTx, ctx: Ctx, call: PoG
     }
   }
   return { ok: true, events, notifications }
+}
+
+// ---------- what the screens read (FR-RSK-203 AC6): nothing here writes ----------
+
+/** Whether an earlier reason of the PO answers the warnings that need one now */
+function reasonCovered(prior: StoredRiskGate | null, needed: readonly GateWarning[]): boolean {
+  return Boolean(prior?.reasonFor && (prior.reasonCommentId || prior.reasonPoChangeId) && needed.every((w) => prior.reasonFor!.includes(w)))
+}
+
+/** The gate a PO meets next: its submit while a DRAFT, its first sending while APPROVED and not yet out; else none */
+function nextTrigger(po: { status: string; sentAt: Date | null }): 'SUBMIT' | 'SEND' | null {
+  if (po.status === 'DRAFT') return 'SUBMIT'
+  if (po.status === 'APPROVED' && po.sentAt === null) return 'SEND'
+  return null
+}
+
+const OPEN_FOR_ASSESSMENT: readonly string[] = ['NOT_ASSESSED', 'SCOPE_EXPANDED', 'VALIDITY_LAPSED', 'REGISTRY_FLAGGED', 'OVERRIDE_EXPIRED', 'OVERRIDE_CAP_EXCEEDED']
+
+export interface PoRiskStatus {
+  readonly trigger: 'SUBMIT' | 'SEND'
+  readonly decision: PoGateResult
+  readonly tier: RiskTierCode
+  /** Warnings that need a reason no earlier one of the PO answers: the submit or the sending asks it */
+  readonly reasonNeeded: readonly GateWarning[]
+  /** The override it would pass with (source OVERRIDE) */
+  readonly override: { readonly id: string; readonly number: string | null } | null
+  /** The supplier's assessment still being answered or reviewed */
+  readonly openAssessment: { readonly id: string; readonly number: string | null } | null
+  /** The reader may open an assessment from this PO now (risk.assessment.manage · none open · the refusal is one an assessment clears) */
+  readonly canOpenAssessment: boolean
+}
+
+/**
+ * The PO page's risk band (FR-RSK-203 AC6): the gate the PO meets next, weighed now at its stored gross without writing
+ * anything — null with RISK off, for a reader without po.view, or when the PO meets no gate any more (it went out).
+ */
+export async function poRiskStatus(ctx: Ctx, poId: string): Promise<PoRiskStatus | null> {
+  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+    if (!(await requireModule(ctx, 'RISK', tx)).ok) return null
+    if (!(await authorize(tx, ctx, 'po.view')).ok) return null
+    const po = await tx.purchaseOrder.findFirst({ where: { id: poId }, select: { status: true, sentAt: true, sendBouncedAt: true, grossSatang: true, supplierId: true } })
+    const trigger = po ? nextTrigger(po) : null
+    if (!po || !trigger) return null
+    const evaluated = await evaluatePoGate(tx, ctx, poId, po.grossSatang, trigger)
+    if (!evaluated.ok) return null
+    const e = evaluated.data
+    const needed = e.decision.allowed ? e.decision.warnings.filter((w) => REASON_WARNINGS.includes(w)) : []
+    const open = await tx.riskAssessment.findFirst({ where: { supplierId: po.supplierId, status: { in: [...OPEN_ASSESSMENT] } }, select: { id: true, number: true } })
+    const manage = (await authorize(tx, ctx, 'risk.assessment.manage')).ok
+    return {
+      trigger,
+      decision: e.decision,
+      tier: e.tier,
+      reasonNeeded: reasonCovered(e.prior, needed) ? [] : needed,
+      override: e.decision.allowed && e.decision.source === 'OVERRIDE' && e.override ? { id: e.override.id, number: e.override.number } : null,
+      openAssessment: open,
+      canOpenAssessment: manage && !open && !e.decision.allowed && OPEN_FOR_ASSESSMENT.includes(e.decision.reason),
+    }
+  })
+}
+
+/**
+ * The board's filter "PO ติดด่านความเสี่ยง" (FR-RSK-203 AC6): of the POs given, those whose first sending the gate would
+ * refuse now — the approval goes on, the PO cannot go out. Empty with RISK off.
+ */
+export async function riskGatedPoIds(tx: TenantTx, ctx: Ctx, poIds: readonly string[]): Promise<Set<string>> {
+  const out = new Set<string>()
+  if (poIds.length === 0 || !(await requireModule(ctx, 'RISK', tx)).ok) return out
+  const pos = await tx.purchaseOrder.findMany({ where: { id: { in: [...new Set(poIds)] } }, select: { id: true, grossSatang: true } })
+  for (const po of pos) {
+    const e = await evaluatePoGate(tx, ctx, po.id, po.grossSatang, 'SEND')
+    if (e.ok && !e.data.decision.allowed) out.add(po.id)
+  }
+  return out
+}
+
+export type RiskGateDryRun = { readonly kind: 'COUNTED'; readonly open: number; readonly held: number } | { readonly kind: 'NOT_CONFIGURED'; readonly code: AppError['code'] }
+
+/**
+ * /platform/tenants/[orgId]/modules (S11-02 · S11-07): how many of the organization's POs still to go out (DRAFT, waiting
+ * for approval, approved and not sent) the gate would hold the moment RISK is switched on — weighed with its tiers and
+ * policy in effect, writing nothing. Not configured yet → the code that switching on would refuse with. The BCS team only.
+ */
+export async function riskGateDryRun(ctx: Ctx): Promise<Result<RiskGateDryRun>> {
+  if (ctx.actor.type !== 'PLATFORM_ADMIN' || !(await isActivePlatformAdmin(ctx.actor.platformAdminId))) return fail('FORBIDDEN', 'only the BCS team')
+  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+    const tiers = await riskTiersInEffect(tx)
+    if (!tiers.ok) return { ok: true, data: { kind: 'NOT_CONFIGURED', code: tiers.error.code } }
+    const policy = await riskPolicyInEffect(tx)
+    if (!policy.ok) return { ok: true, data: { kind: 'NOT_CONFIGURED', code: policy.error.code } }
+    const pos = await tx.purchaseOrder.findMany({
+      where: { OR: [{ status: { in: ['DRAFT', 'PENDING_APPROVAL'] } }, { status: 'APPROVED', sentAt: null }] },
+      select: { id: true, status: true, grossSatang: true },
+    })
+    let held = 0
+    for (const po of pos) {
+      const e = await evaluatePoGate(tx, ctx, po.id, po.grossSatang, po.status === 'DRAFT' ? 'SUBMIT' : 'SEND')
+      if (e.ok && !e.data.decision.allowed) held++
+    }
+    return { ok: true, data: { kind: 'COUNTED', open: pos.length, held } }
+  })
 }

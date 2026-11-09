@@ -50,7 +50,9 @@
       "UNAUTHENTICATED": "Your session has ended. Sign in again, then do this again.",
       "INTERNAL": "Something went wrong (reference {requestId}). Try again."
     },
-    "code": "code {code}"
+    "code": "code {code}",
+    "riskDryRun": "If switched on: {held} of {open} purchase orders not yet out would be held at the risk gate",
+    "riskDryRunNotConfigured": "The purchase orders the gate would hold cannot be counted until the organization confirms its risk tiers and policy"
   },
   "ai": {
     "titleShort": "AI credits",

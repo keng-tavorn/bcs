@@ -26,7 +26,9 @@ const EditInput = z.object({
   paymentTermDays: z.number().int().min(0).max(PAYMENT_TERM_MAX_DAYS).nullable().optional(),
   notesToSupplier: z.string().max(PO_NOTE_MAX_LENGTH).nullable().optional(),
 })
-const SendInput = z.object({ poId: Id, reason: z.string().max(REASON_MAX_LENGTH).optional() })
+const SendInput = z.object({ poId: Id, reason: z.string().max(REASON_MAX_LENGTH).optional(), riskReason: z.string().max(REASON_MAX_LENGTH).optional() })
+/** S11-07 (BR-SUP-04 · BR-RSK-09): the reason a warning of the supplier's risk gate needs */
+const RiskReason = z.string().max(REASON_MAX_LENGTH).optional()
 const CancelInput = z.object({ poId: Id, disposition: z.enum(['RETURN_TO_POOL', 'CANCEL_REQUEST_LINES']), reason: z.string().max(REASON_MAX_LENGTH) })
 
 const invalid = (field: string, reason?: string): PoOutcome => ({ ok: false, code: 'VALIDATION_FAILED', field, ...(reason ? { reason } : {}) })
@@ -53,12 +55,16 @@ export async function editDraft(ctx: Ctx, input: unknown, idempotencyKey: unknow
   )
 }
 
-/** Send a draft for approval on the DOA rule of PURCHASE_ORDER (FR-P2P-004 AC1, BR-BUD-05) */
-export async function submitDraft(ctx: Ctx, poId: unknown, idempotencyKey: unknown): Promise<PoOutcome> {
+/** Send a draft for approval on the DOA rule of PURCHASE_ORDER (FR-P2P-004 AC1, BR-BUD-05), with the reason a risk warning needs */
+export async function submitDraft(ctx: Ctx, poId: unknown, idempotencyKey: unknown, riskReason?: unknown): Promise<PoOutcome> {
   if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
   const parsed = Id.safeParse(poId)
   if (!parsed.success) return invalid('poId')
-  const result = await submitPo(ctx, { poId: parsed.data }, { idempotencyKey: idempotencyKey as string })
+  const why = RiskReason.safeParse(riskReason)
+  if (!why.success) return invalid('riskReason')
+  const risk = why.data?.trim()
+  if (risk !== undefined && risk.length > 0 && risk.length < REASON_MIN) return invalid('riskReason')
+  const result = await submitPo(ctx, { poId: parsed.data, ...(risk ? { riskReason: risk } : {}) }, { idempotencyKey: idempotencyKey as string })
   return result.ok ? { ok: true, status: 'PENDING_APPROVAL' } : toPoFailure(result.error)
 }
 
@@ -69,7 +75,9 @@ export async function sendToSupplier(ctx: Ctx, input: unknown, idempotencyKey: u
   if (!parsed.success) return invalid(refusedField(parsed.error, 'poId'))
   const reason = parsed.data.reason?.trim()
   if (reason !== undefined && reason.length < REASON_MIN) return invalid('reason')
-  const result = await sendPurchaseOrder(ctx, { poId: parsed.data.poId, ...(reason ? { reason } : {}) }, { idempotencyKey: idempotencyKey as string })
+  const risk = parsed.data.riskReason?.trim()
+  if (risk !== undefined && risk.length > 0 && risk.length < REASON_MIN) return invalid('riskReason')
+  const result = await sendPurchaseOrder(ctx, { poId: parsed.data.poId, ...(reason ? { reason } : {}), ...(risk ? { riskReason: risk } : {}) }, { idempotencyKey: idempotencyKey as string })
   if (!result.ok) return toPoFailure(result.error)
   return result.data.bounce ? { ok: true, status: result.data.status, bounce: result.data.bounce } : { ok: true, status: result.data.status }
 }

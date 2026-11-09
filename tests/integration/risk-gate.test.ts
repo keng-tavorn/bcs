@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
+import { getPurchaseOrderView } from '@/server/queries/purchase-orders'
+import { boardView } from '@/server/services/board'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
 import { createPoChange, submitPoChange } from '@/server/services/purchase-orders/change'
 import { sendPurchaseOrder } from '@/server/services/purchase-orders/send'
-import { proposeRiskPolicy, proposeRiskTiers } from '@/server/services/risk'
+import { openRiskAssessmentForPo, poRiskStatus, proposeRiskPolicy, proposeRiskTiers, riskGateDryRun } from '@/server/services/risk'
 import type { DoaOrg } from '../support/doa-org'
 import { createP2Org } from '../support/p2-org'
 import { p2p } from '../support/p2p'
@@ -308,6 +311,59 @@ describe('[FR-RSK-203/AC1] RISK off: the PO goes out as before', () => {
     ok(await sendPurchaseOrder(off.ctxOf('proc_officer', NOW), { poId: po.id }, key()))
     expect(await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: po.id } })).toMatchObject({ status: 'SENT', riskGate: null, riskOverrideId: null })
     expect(await prisma.event.count({ where: { organizationId: off.organizationId, type: 'po.risk_gate_passed' } })).toBe(0)
+  })
+})
+
+describe('[FR-RSK-203/AC6] what the screens show of the gate', () => {
+  it('the PO page: why a draft is held, the assessment it opens from the PO, and the gate the PO passed in its facts', async () => {
+    const s = await supplier('RG-UI')
+    const po = await draftPo(s, '1000.00', SCREEN_HIGH)
+    expect(await poRiskStatus(proc(), po.id)).toMatchObject({ trigger: 'SUBMIT', tier: 'HIGH', decision: { allowed: false, error: 'RISK_ASSESSMENT_REQUIRED', reason: 'NOT_ASSESSED' }, openAssessment: null, canOpenAssessment: true })
+    // FINANCE reads the PO but does not open an assessment (risk.assessment.manage is PROCUREMENT's)
+    expect(await poRiskStatus(org.ctxOf('fin_officer', NOW), po.id)).toMatchObject({ canOpenAssessment: false })
+    expect(await openRiskAssessmentForPo(org.ctxOf('fin_officer', NOW), po.id, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    const opened = ok(await openRiskAssessmentForPo(proc(), po.id, key()))
+    expect(await prisma.riskAssessment.findUniqueOrThrow({ where: { id: opened.assessmentId } })).toMatchObject({ supplierId: s, triggerPoId: po.id, screening: SCREEN_HIGH })
+    expect(await poRiskStatus(proc(), po.id)).toMatchObject({ decision: { reason: 'IN_PROGRESS' }, openAssessment: { id: opened.assessmentId }, canOpenAssessment: false })
+
+    const o = await override(s, { cap: 50_000_000n })
+    expect(await poRiskStatus(proc(), po.id)).toMatchObject({ decision: { allowed: true, source: 'OVERRIDE' }, override: { id: o.id, number: o.number }, reasonNeeded: [] })
+    ok(await submitPo(proc(), { poId: po.id }, key()))
+    const view = await getPurchaseOrderView(proc(), po.id)
+    expect(view!.riskGate).toMatchObject({ tier: 'HIGH', source: 'OVERRIDE', trigger: 'SUBMIT', override: { id: o.id, number: o.number }, assessment: null, warnings: ['OVERRIDE_USED'], reasoned: false })
+    // waiting for approval, the PO meets no gate until it is sent: the band says nothing
+    expect(await poRiskStatus(proc(), po.id)).toBeNull()
+  })
+
+  it('the board: "PO ติดด่านความเสี่ยง" lists a PO waiting for approval whose sending the gate would refuse now', async () => {
+    const s = await supplier('RG-BOARD')
+    const o = await override(s, { cap: 50_000_000n, expiresOn: '2026-11-20' })
+    const po = await draftPo(s, '1000.00', SCREEN_HIGH)
+    ok(await submitPo(proc(), { poId: po.id }, key()))
+    const ids = async (now: Date) => ok(await boardView(org.ctxOf('proc_officer', now), { riskGated: true })).rows.flatMap((r) => r.tasks.map((t) => t.subjectId))
+    expect(await ids(NOW)).not.toContain(po.id)
+    // the override's last day passed while the PO waited: approved, it could not go out
+    expect(await ids(new Date('2026-11-21T03:00:00Z'))).toContain(po.id)
+    expect(ok(await boardView(org.ctxOf('proc_officer', NOW))).riskFilter).toBe(true)
+    await prisma.riskOverride.update({ where: { id: o.id }, data: { expiresOn: new Date('2026-12-31') } })
+  })
+
+  it('the modules page: how many POs not yet out the gate would hold if RISK were switched on — the BCS team only', async () => {
+    const off = await createP2Org()
+    const f = p2p(off, NOW)
+    await riskOn(off)
+    await prisma.orgModule.updateMany({ where: { organizationId: off.organizationId, module: 'RISK' }, data: { enabled: false } })
+    const held = (await prisma.supplier.create({ data: { organizationId: off.organizationId, code: 'RG-DRY', nameTh: 'ทดลอง', isForeign: true, email: 'dry@supplier.test' } })).id
+    await draftPo(held, '1000.00', SCREEN_HIGH, off, f)
+    await draftPo(held, '1000.00', SCREEN_LOW, off, f)
+    const admin = await prisma.platformAdmin.create({ data: { displayName: 'ทีม BCS', active: true } })
+    const platform = makeCtx({ organizationId: off.organizationId, actor: { type: 'PLATFORM_ADMIN', platformAdminId: admin.id }, channel: 'WEB', now: NOW })
+    expect(await riskGateDryRun(platform)).toEqual({ ok: true, data: { kind: 'COUNTED', open: 2, held: 1 } })
+    expect(await riskGateDryRun(off.ctxOf('admin', NOW))).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    await prisma.riskPolicy.update({ where: { organizationId: off.organizationId }, data: { confirmedById: null, confirmedAt: null } })
+    expect(await riskGateDryRun(platform)).toEqual({ ok: true, data: { kind: 'NOT_CONFIGURED', code: 'RISK_POLICY_NOT_CONFIGURED' } })
+    // nothing written by the count
+    expect((await prisma.purchaseOrder.findMany({ where: { organizationId: off.organizationId }, select: { riskGate: true } })).every((p) => p.riskGate === null)).toBe(true)
   })
 })
 

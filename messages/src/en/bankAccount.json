@@ -299,6 +299,7 @@
     "stepUpValue": "The approver confirms with a PIN every time"
   },
   "history": {
+    "claimed": "Finance took up what the supplier proposed on the portal",
     "drafted": "Draft created",
     "updated": "Draft edited: {fields}",
     "updatedPlain": "Draft edited",

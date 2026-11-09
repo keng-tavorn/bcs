@@ -139,7 +139,16 @@ export default async function SupplierReportPage({ searchParams }: { searchParam
             {medians.map((m) => (
               <div key={m.key} className="flex flex-col gap-1 rounded-md border border-line p-3">
                 <dt className="text-base text-ink-muted md:text-sm">{m.label}</dt>
-                <dd className={m.empty ? 'text-ink-muted' : 'text-xl font-semibold text-ink tabular'}>{m.text}</dd>
+                {/* each figure leads to the approvals it is the median of, in the table below (§9.9 · S7-18) */}
+                <dd className={m.empty ? 'text-ink-muted' : 'text-xl font-semibold text-ink tabular'}>
+                  {m.empty ? (
+                    m.text
+                  ) : (
+                    <a href="#approved" className="text-ink underline-offset-4 hover:underline">
+                      {m.text}
+                    </a>
+                  )}
+                </dd>
               </div>
             ))}
           </dl>

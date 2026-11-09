@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
+import { formatDay } from '@/ui/liff/delegation/day'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
@@ -379,7 +380,7 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
               <Notice tone={ack.status === 'NOT_ACKNOWLEDGED' ? 'info' : ack.status === 'DELIVERY_UPDATED' ? 'warning' : 'success'}>
                 {ack.status === 'NOT_ACKNOWLEDGED'
                   ? ta('notYet')
-                  : ta('strip', { at: ack.acknowledgedAt ? when(locale, ack.acknowledgedAt) : '-', date: ack.promisedDeliveryOn ?? ta('noDate') }) + (ack.movedFrom ? ` ${ta('movedFrom', { date: ack.movedFrom })}` : '')}
+                  : ta('strip', { at: ack.acknowledgedAt ? when(locale, ack.acknowledgedAt) : '-', date: ack.promisedDeliveryOn ? (formatDay(ack.promisedDeliveryOn, locale) ?? ack.promisedDeliveryOn) : ta('noDate') }) + (ack.movedFrom ? ` ${ta('movedFrom', { date: formatDay(ack.movedFrom, locale) ?? ack.movedFrom })}` : '')}
               </Notice>
             ) : null}
           </>

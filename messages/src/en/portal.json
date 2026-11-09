@@ -1,5 +1,6 @@
 {
   "title": "Supplier portal",
+  "fileInput": { "choose": "Choose a file", "none": "No file chosen yet" },
   "of": "of {organization}",
   "unavailable": {
     "title": "Not available",

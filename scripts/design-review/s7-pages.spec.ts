@@ -96,7 +96,7 @@ const SCREENS: Screen[] = [
   { name: 'proc_officer_board_pending', who: 'proc_officer', path: '/board/pending', kind: 'web' },
   { name: 'task_supplier_application', who: t.supplierTask?.code ?? null, path: at(t.supplierTask?.id ?? null, (id) => `/tasks/${id}`), kind: 'web' },
   { name: 'liff_task_supplier_application', who: t.supplierTask?.code ?? null, path: at(t.supplierTask?.id ?? null, (id) => `/liff/tasks/${id}`), kind: 'liff' },
-  { name: 'fin_ap1_invoices_portal', who: 'fin_ap1', path: '/finance/invoices?channel=PORTAL', kind: 'web' },
+  { name: 'fin_ap1_invoices_portal', who: 'fin_ap1', path: '/finance/invoices?channel=PORTAL&tab=all', kind: 'web' },
   { name: 'fin_ap1_bank-accounts', who: 'fin_ap1', path: '/finance/bank-accounts', kind: 'web' },
   { name: 'fin_ap1_bank-change_portal', who: 'fin_ap1', path: at(t.bankChange, (id) => `/finance/bank-accounts/changes/${id}`), kind: 'web' },
   { name: 'dm_proc_reports_suppliers', who: 'dm_proc', path: '/reports/suppliers', kind: 'web' },

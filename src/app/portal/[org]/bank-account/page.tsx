@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
 import { getPortalBankAccount, getPortalHome, type PortalBankStage } from '@/server/portal/queries'
 import { PortalButton, PortalField, PortalFrame, PortalNotice, portalInputClass, portalTextareaClass } from '@/ui/portal/frame'
+import { PortalFileInput } from '@/ui/portal/file-input'
 import { one, pageOrg, pageSession, portalNav, Unavailable, type SearchParams } from '../_lib/page'
 
 // /portal/[org]/bank-account (S7-10 · FR-SUP-103 AC1 AC4 · ADR-190): the supplier's account in force, masked, where its
@@ -96,7 +97,7 @@ export default async function PortalBankAccountPage({ params, searchParams }: { 
               <textarea id="reason" name="reason" required minLength={3} maxLength={500} aria-describedby="reason-hint" className={portalTextareaClass} />
             </PortalField>
             <PortalField id="file" label={t('proof')} hint={t('proofHint')}>
-              <input id="file" name="file" type="file" required accept="application/pdf,image/jpeg,image/png" aria-describedby="file-hint" className="text-base" />
+              <PortalFileInput id="file" name="file" required accept="application/pdf,image/jpeg,image/png" describedBy="file-hint" chooseLabel={tp('fileInput.choose')} noneLabel={tp('fileInput.none')} />
             </PortalField>
             <PortalButton type="submit">{t('submit')}</PortalButton>
           </form>

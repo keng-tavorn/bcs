@@ -102,6 +102,9 @@ function eventText(t: BankT, e: BankChangeHistoryDto, kind: BankAccountChangeDto
       const fields = e.fields.filter((f): f is (typeof HISTORY_FIELDS)[number] => (HISTORY_FIELDS as readonly string[]).includes(f)).map((f) => t(`history.field.${f}`))
       return fields.length ? t('history.updated', { fields: fields.join(', ') }) : t('history.updatedPlain')
     }
+    // S7-10: finance takes up what the supplier proposed on the portal (S7-18: it read as "another event")
+    case 'bank_account_change.claimed':
+      return t('history.claimed')
     case 'bank_account_change.submitted':
       return t('history.submitted')
     case 'bank_account_change.cancelled':

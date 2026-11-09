@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useLocale, useTranslations } from 'next-intl'
+import { formatDay } from '../liff/delegation/day'
 import { useState, type ReactNode } from 'react'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
@@ -73,7 +74,7 @@ export function DocumentsPanel({ rows, canVerify, actions }: { readonly rows: re
   )
   const dates = (d: DocumentRow): ReactNode => (
     <span className="tabular">
-      {d.issuedOn} – {d.expiresOn}
+      {formatDay(d.issuedOn, locale) ?? d.issuedOn} – {formatDay(d.expiresOn, locale) ?? d.expiresOn}
     </span>
   )
   const state = (d: DocumentRow): ReactNode => (

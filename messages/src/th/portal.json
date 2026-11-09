@@ -1,5 +1,6 @@
 {
   "title": "พอร์ทัลผู้ขาย",
+  "fileInput": { "choose": "เลือกไฟล์", "none": "ยังไม่ได้เลือกไฟล์" },
   "of": "ของ {organization}",
   "unavailable": {
     "title": "ยังไม่เปิดบริการ",

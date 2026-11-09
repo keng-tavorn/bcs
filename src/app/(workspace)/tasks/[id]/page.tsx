@@ -404,7 +404,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   locale={locale}
                   label={label}
                   amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : transfer ? moneyText(transfer.amount) : overrun ? moneyText(overrun.shortfall) : invoice?.variance ? money(invoice.variance.netSatang + invoice.variance.vatSatang) : poChange ? money(poChange.new.grossSatang) : '-'}
-                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : isOverrun ? 'BUDGET_OVERRUN' : task.review ? 'REVIEW' : 'REQUEST'}
+                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : isOverrun ? 'BUDGET_OVERRUN' : isSupplierApp ? 'SUPPLIER_APPLICATION' : task.review ? 'REVIEW' : 'REQUEST'}
                   stepUp={task.stepUp}
                   hasPasskey={hasPasskey}
                   {...(variance ? { disposition: variance.disposition } : {})}
@@ -412,9 +412,13 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 />
               )}
             </Panel>
-            <Panel title={tv('timeline.title')} id="timeline">
-              <Timeline items={items} label={timelineLabel} />
-            </Panel>
+            {/* a subject with no track of its own here (a supplier application: its timeline is on its page) draws no empty
+                heading (S7-18) */}
+            {items.length > 0 ? (
+              <Panel title={tv('timeline.title')} id="timeline">
+                <Timeline items={items} label={timelineLabel} />
+              </Panel>
+            ) : null}
           </aside>
         </div>
       </PageBody>

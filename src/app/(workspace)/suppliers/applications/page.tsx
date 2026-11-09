@@ -108,7 +108,8 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
                 <li key={r.id} className="flex flex-col gap-1 py-3 md:flex-row md:items-start md:justify-between md:gap-4">
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <Link href={`/suppliers/applications/${r.id}`} className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-4 hover:underline lg:min-h-0">
-                      {r.number ? `${r.number} · ${r.label}` : r.label}
+                      {/* an individual's label is already "ผู้ขายบุคคลธรรมดา · number" (BR-NOTI-10): its number once (S7-18) */}
+                      {r.number && !r.label.includes(r.number) ? `${r.number} · ${r.label}` : r.label}
                     </Link>
                     <span className="text-ink-muted">
                       {t('list.invitedBy', { name: r.inviterName ?? '-', date: formatDateTime(locale, r.invitedAt) })}

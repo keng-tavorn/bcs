@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { redirect } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
+import { formatDay } from '@/ui/liff/delegation/day'
 import { listPortalDocumentTypes } from '@/server/portal/queries'
 import { listSupplierDocuments } from '@/server/services/suppliers/documents'
 import { PortalButton, PortalFrame, PortalNotice, portalInputClass } from '@/ui/portal/frame'
+import { PortalFileInput } from '@/ui/portal/file-input'
 import { one, pageOrg, pageSession, portalNav, Unavailable, type SearchParams } from '../_lib/page'
 
 // /portal/[org]/documents (S7-06 · BR-SDOC ข้อ 02 ข้อ 07 · FR-SUP-102 AC4): the contact's own documents with their state,
@@ -39,7 +41,7 @@ export default async function PortalDocumentsPage({ params, searchParams }: { pa
               <span className="font-medium">{locale === 'en' ? d.typeNameEn : d.typeNameTh}</span>
               {d.scope ? <span className="text-ink-muted">{d.scope}</span> : null}
               <span className="tabular text-ink-muted">
-                {d.issuedOn} – {d.expiresOn}
+                {formatDay(d.issuedOn, locale) ?? d.issuedOn} – {formatDay(d.expiresOn, locale) ?? d.expiresOn}
               </span>
               <span>{(STATUSES as readonly string[]).includes(d.status) ? t(`documents.status.${d.status}`) : d.status}</span>
             </li>
@@ -69,7 +71,7 @@ export default async function PortalDocumentsPage({ params, searchParams }: { pa
           <label htmlFor="file" className="font-medium">
             {t('documents.file')}
           </label>
-          <input id="file" name="file" type="file" required accept="application/pdf,image/jpeg,image/png,image/webp" className="text-base" />
+          <PortalFileInput id="file" name="file" required accept="application/pdf,image/jpeg,image/png,image/webp" chooseLabel={tp('fileInput.choose')} noneLabel={tp('fileInput.none')} />
           <label htmlFor="issuedOn" className="font-medium">
             {t('documents.issuedOn')}
           </label>

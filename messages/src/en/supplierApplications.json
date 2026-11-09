@@ -49,6 +49,7 @@
     "registry": "Registry check",
     "registryNone": "Not checked yet: checked when procurement sends it for approval",
     "registrySource": "Source",
+    "registrySources": { "RD": "Revenue Department", "DBD": "Department of Business Development", "MANUAL": "Proof attached by procurement", "STUB": "Test registry" },
     "registryName": "Name on the registry",
     "registryStatus": "Status on the registry",
     "vatCancelled": "The registry says VAT was cancelled",

@@ -6,6 +6,7 @@ import { formatThaiDate } from '@/core/thai'
 import { getPortalHome } from '@/server/portal/queries'
 import { listPortalInvoicePos } from '@/server/portal/queries-invoices'
 import { PortalButton, PortalField, PortalFrame, PortalNotice, portalCheckboxClass, portalInputClass } from '@/ui/portal/frame'
+import { PortalFileInput } from '@/ui/portal/file-input'
 import { one, pageOrg, pageSession, portalNav, Unavailable, type SearchParams } from '../../_lib/page'
 
 // /portal/[org]/invoices/new (S7-12 · FR-AP-101 AC7 · BR-SUP ข้อ 15): a new invoice on a PO of the contact's supplier that
@@ -64,7 +65,7 @@ export default async function PortalNewInvoicePage({ params, searchParams }: { p
             </select>
           </PortalField>
           <PortalField id="file" label={t('invoices.file')} hint={t('invoices.fileHint')} required requiredLabel={t('invoices.required')}>
-            <input id="file" name="file" type="file" required accept="application/pdf,image/jpeg,image/png" className={portalInputClass} />
+            <PortalFileInput id="file" name="file" required accept="application/pdf,image/jpeg,image/png" chooseLabel={t('fileInput.choose')} noneLabel={t('fileInput.none')} />
           </PortalField>
           <PortalField id="supplierInvoiceNo" label={t('invoices.supplierNo')} required requiredLabel={t('invoices.required')}>
             <input id="supplierInvoiceNo" name="supplierInvoiceNo" required maxLength={60} autoComplete="off" className={portalInputClass} />

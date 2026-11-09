@@ -161,7 +161,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           {a.registry ? (
             <Facts
               items={[
-                { label: t('detail.registrySource'), value: a.registry.source ?? '-' },
+                { label: t('detail.registrySource'), value: registrySourceLabel(a.registry.source, t) },
                 ...(a.registry.nameTh ? [{ label: t('detail.registryName'), value: a.registry.nameTh }] : []),
                 ...(a.registry.juristicStatus ? [{ label: t('detail.registryStatus'), value: a.registry.juristicStatus }] : []),
               ]}
@@ -232,4 +232,12 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
       </PageBody>
     </Page>
   )
+}
+
+const REGISTRY_SOURCES = ['RD', 'DBD', 'MANUAL', 'STUB'] as const
+
+/** Where the registry check's answer came from, in words (S7-18: the screen showed the code MANUAL) */
+function registrySourceLabel(source: string | null, t: (key: `detail.registrySources.${(typeof REGISTRY_SOURCES)[number]}`) => string): string {
+  const known = REGISTRY_SOURCES.find((s) => s === source)
+  return known ? t(`detail.registrySources.${known}`) : '-'
 }

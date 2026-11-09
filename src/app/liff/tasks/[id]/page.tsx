@@ -365,9 +365,12 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
         <PolicySubject task={task} locale={locale} doaLinks={false} doaSimulate={false} orgAuthorityLink={false} />
       )}
 
-      <LiffSection id="timeline" title={tv('timeline.title')}>
-        <Timeline items={items} label={timelineLabel} />
-      </LiffSection>
+      {/* no empty heading for a subject with no track here (a supplier application · S7-18) */}
+      {items.length > 0 ? (
+        <LiffSection id="timeline" title={tv('timeline.title')}>
+          <Timeline items={items} label={timelineLabel} />
+        </LiffSection>
+      ) : null}
     </>
   )
 
@@ -399,6 +402,17 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
           decide={decideLiffTaskAction}
           {...(request ? { ask: askLiffRequesterAction } : {})}
           {...(paymentRun ? { subjectInput: { flagsKey: paymentRun.flagsKey } } : {})}
+          {...(supplierApp
+            ? {
+                // S7-18: a supplier application in its own words, as on the web (tasks.decide.supplierApplication)
+                words: {
+                  confirmText: t('decide.supplierApplication.confirmText', { label }),
+                  ...Object.fromEntries(
+                    (['otherLink', 'returnOption', 'returnHint', 'rejectHint', 'reasonHint', 'submitReturn', 'submitReject', 'returned', 'rejected'] as const).map((k) => [k, t(`decide.supplierApplication.${k}`)]),
+                  ),
+                },
+              }
+            : {})}
           {...(paymentRun && tPay
             ? {
                 words: {

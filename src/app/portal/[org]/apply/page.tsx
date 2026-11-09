@@ -6,6 +6,7 @@ import { listPortalAiReadings } from '@/server/portal/queries-ai'
 import { getPortalApplication, getPortalHome, listPortalContacts, PORTAL_APPLY_STEPS, type PortalApplicationView, type PortalApplyStep } from '@/server/portal/queries'
 import { AiReadingPanel } from './ai-panel'
 import { PortalButton, PortalField, PortalFrame, PortalNotice, PortalSteps, portalCheckboxClass, portalInputClass, portalPrimaryLinkClass, portalTextareaClass } from '@/ui/portal/frame'
+import { PortalFileInput } from '@/ui/portal/file-input'
 import { one, pageOrg, pageSession, portalNav, Unavailable, type SearchParams } from '../_lib/page'
 
 // /portal/[org]/apply (S7-08 · ADR-184 · BR-SUP ข้อ 08 ถึง ข้อ 11 · FR-SUP-101 FR-SUP-102): the application in six steps —
@@ -259,7 +260,7 @@ function DocumentsStep({ t, app, locale, action, csrf, sent }: { readonly t: T; 
                 <input type="hidden" name="next" value="apply" />
                 <input type="hidden" name="documentTypeCode" value={d.code} />
                 <PortalField id={`${id}-file`} label={t('apply.documents.file')}>
-                  <input id={`${id}-file`} name="file" type="file" required accept="application/pdf,image/*" className="text-base" />
+                  <PortalFileInput id={`${id}-file`} name="file" required accept="application/pdf,image/*" chooseLabel={t('fileInput.choose')} noneLabel={t('fileInput.none')} />
                 </PortalField>
                 <PortalField id={`${id}-issued`} label={t('apply.documents.issuedOn')}>
                   <input id={`${id}-issued`} name="issuedOn" type="date" required className={portalInputClass} />

@@ -195,6 +195,18 @@
       "submitReject": "Reject this over-budget approval",
       "returned": "Returned to the requester.",
       "rejected": "Rejected."
+    },
+    "supplierApplication": {
+      "confirmText": "Approve application {label}: this supplier is added to the supplier register. The decision cannot be changed later.",
+      "otherLink": "Send back or reject",
+      "returnOption": "Send the application back to be fixed",
+      "returnHint": "The application goes back to the supplier or procurement to fix and send again. This approval route closes and the supplier is not added yet.",
+      "rejectHint": "The application is closed, the supplier is told by e-mail and is not added to the supplier register.",
+      "reasonHint": "Procurement sees this on the application. Say clearly what to fix or why it is not approved.",
+      "submitReturn": "Send the application back",
+      "submitReject": "Reject this application",
+      "returned": "Application sent back",
+      "rejected": "Application rejected"
     }
   },
   "policy": {

@@ -4229,6 +4229,7 @@
       "approved": "Approved, new account in effect",
       "approvedClose": "Approved, account closed",
       "cancelled": "Request cancelled",
+      "claimed": "Finance took up what the supplier proposed on the portal",
       "decided": {
         "APPROVE": "Approver approved",
         "REJECT": "Approver rejected",
@@ -9027,6 +9028,10 @@
       "TOKEN_USED": "This link was used already. Please ask for a new sign-in link.",
       "VALIDATION_FAILED": "Please check what you typed."
     },
+    "fileInput": {
+      "choose": "Choose a file",
+      "none": "No file chosen yet"
+    },
     "help": {
       "contactGeneral": "Please contact the procurement team of {organization} the way you usually do.",
       "contactTitle": "Contact procurement",
@@ -12192,6 +12197,12 @@
       "registryName": "Name on the registry",
       "registryNone": "Not checked yet: checked when procurement sends it for approval",
       "registrySource": "Source",
+      "registrySources": {
+        "DBD": "Department of Business Development",
+        "MANUAL": "Proof attached by procurement",
+        "RD": "Revenue Department",
+        "STUB": "Test registry"
+      },
       "registryStatus": "Status on the registry",
       "returnReason": "Returned because: {reason}",
       "router": "Sent for approval by",
@@ -13047,6 +13058,18 @@
       "stepUpHint": "The amount of this task needs your 6-digit PIN to approve, return or reject it",
       "submitReject": "Reject this request",
       "submitReturn": "Return to the requester for changes",
+      "supplierApplication": {
+        "confirmText": "Approve application {label}: this supplier is added to the supplier register. The decision cannot be changed later.",
+        "otherLink": "Send back or reject",
+        "reasonHint": "Procurement sees this on the application. Say clearly what to fix or why it is not approved.",
+        "rejectHint": "The application is closed, the supplier is told by e-mail and is not added to the supplier register.",
+        "rejected": "Application rejected",
+        "returnHint": "The application goes back to the supplier or procurement to fix and send again. This approval route closes and the supplier is not added yet.",
+        "returnOption": "Send the application back to be fixed",
+        "returned": "Application sent back",
+        "submitReject": "Reject this application",
+        "submitReturn": "Send the application back"
+      },
       "title": "Decide this task",
       "transfer": {
         "confirmText": "Approve {label} of {amount} baht. The decision cannot be changed later.",

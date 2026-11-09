@@ -10,8 +10,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 // The client parts of the document header (FR-INT-012 AC1, §9.10 "หัว"): the menu ⋯ (print the PDF, copy the link,
 // cancel when the reader may) and the one-row header that stays at the top once the full header has scrolled away.
 
-/** Where a cancel form waits on the page: the menu opens it and moves there */
-export const CANCEL_ANCHOR = 'cancel-document'
+import { CANCEL_ANCHOR } from './doc-anchors'
+
+export { CANCEL_ANCHOR }
 
 export interface DocMenuLabels {
   readonly menu: string

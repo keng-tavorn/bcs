@@ -11,14 +11,13 @@ import { Input } from '../shadcn/input'
 import { NativeSelect, NativeSelectOption } from '../shadcn/native-select'
 import { Textarea } from '../shadcn/textarea'
 import type { ActionResult } from './application-actions'
+import { ON_BEHALF_STEPS, type OnBehalfStep } from './on-behalf-steps'
 
 // PROCUREMENT fills in an application for the supplier (S7-09 · BR-SUP ข้อ 10 · /suppliers/applications/[id]/edit): the
 // same fields as the portal's form, a step at a time (company, tax, bank account, send — at most 8 fields each), only
 // what changed is sent; every field filled in is marked ON_BEHALF and the supplier gets a copy when it is sent. The
 // account number is never shown back, its last four only.
 
-export const ON_BEHALF_STEPS = ['company', 'tax', 'bank', 'send'] as const
-export type OnBehalfStep = (typeof ON_BEHALF_STEPS)[number]
 
 export interface OnBehalfFields {
   readonly nameTh: string

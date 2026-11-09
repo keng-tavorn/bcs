@@ -33,8 +33,9 @@ export interface CodingChoices {
   readonly incomeTypes: ReadonlyArray<{ readonly value: string; readonly label: string }>
 }
 
-/** The value of "no withholding" in the list of income types: never a code (codes are A-Z, 0-9 and _) */
-export const NO_WITHHOLDING = '-'
+import { NO_WITHHOLDING } from './coding-values'
+
+export { NO_WITHHOLDING }
 
 /**
  * The account code, cost center and withholding income type of every line of a draft (FR-AP-108, BR-AP-10, BR-WHT-03):

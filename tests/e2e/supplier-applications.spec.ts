@@ -114,13 +114,14 @@ test.describe('@s7 supplier applications on the workspace', () => {
     await expect(router.getByText('ชื่อคล้ายผู้ขายที่มีอยู่')).toBeVisible()
     await shot(router, testInfo, 's7-09-application')
     await router.getByRole('button', { name: /^ยืนยัน/ }).first().click()
-    await expect(router.getByText('ยืนยันแล้ว').first()).toBeVisible()
+    // the documents panel draws a table from md and a list under it: the one on screen (S7-18 · review S7-19)
+    await expect(router.getByText('ยืนยันแล้ว').filter({ visible: true }).first()).toBeVisible()
     await router.getByRole('button', { name: 'ตรวจทะเบียนแล้วส่งเข้าเส้นทางอนุมัติ' }).click()
     await expect(router.getByText(/ทะเบียนยืนยันผู้ขายรายนี้ไม่ได้/)).toBeVisible()
     await router.locator('input[type="file"]').first().setInputFiles({ name: 'หนังสือรับรองที่ตรวจแล้ว.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7\n%%EOF\n') })
     await expect(router.getByText(/แนบแล้ว: /)).toBeVisible()
     await router.getByRole('button', { name: 'ตรวจทะเบียนแล้วส่งเข้าเส้นทางอนุมัติ' }).click()
-    await expect(router.getByText('รออนุมัติ').first()).toBeVisible()
+    await expect(router.getByText('รออนุมัติ').filter({ visible: true }).first()).toBeVisible()
     await context.close()
 
     // the approver of SA-01 gets the card in LINE and approves in the chat

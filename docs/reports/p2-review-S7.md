@@ -139,4 +139,10 @@
 | 4 | `getPoAckStrip` (`src/server/queries/po-ack.ts`) ไม่ตรวจสิทธิ์เอง พึ่งหน้า `/procurement/pos/[id]` ที่ตรวจ `canViewPo` ก่อน | ไม่แก้: เป็น query อ่านอย่างเดียวที่มีผู้เรียกที่เดียวและอ่านเฉพาะสถานะรับทราบกับวันส่ง (ไม่มีเงินหรือข้อมูลบุคคล) ตามแบบ query อื่นใน `src/server/queries` · ถ้าเพิ่มผู้เรียกใหม่ต้องย้ายการตรวจเข้า query |
 | 5 | `getPortalPo` และ `getPoAckStrip` ตรวจ id ด้วย regex เขียนเองแทน `z.uuid()` | ไม่แก้: ค่าที่ไม่ใช่ uuid แต่ผ่าน regex ทำให้ query คืนไม่พบเท่านั้น ไม่กระทบความถูกต้อง |
 
-หลังแก้: `pnpm verify` · `pnpm verify --strict --e2e` · `pnpm test:e2e --grep @demo` `@p1demo` `@p2demo` (ผลในบรรทัดติ๊กของ S7-19)
+`pnpm verify --strict --e2e` รอบแรกหลังแก้ (3 ชม. 20 นาที): 562 ผ่าน 10 ล้ม · แยกเหตุได้ดังนี้
+
+| # | เทสต์ที่ล้ม | เหตุ | ผล |
+| --- | --- | --- | --- |
+| 6 | `uat-config.spec.ts:112` (desktop และ mobile) · `admin.spec.ts:180` `:223` (mobile) | ฉาก e2e ของ S7 (`supplier-applications-scene.ts` `portal-scene.ts` `supplier-report-scene.ts`) และ S11 (`risk-portal-scene.ts`) สร้างองค์กรผ่าน `createP2Org` ซึ่งได้รหัส `D-…` ที่เรียงก่อน `DEMO` ในหน้าของทีม BCS · เทสต์ของทีม BCS กดลูกค้ารายแรกโดยถือว่าองค์กรของฉาก e2e ขึ้นต้นด้วย Z จึงไปเปิดโมดูลหรือสร้างระบบทดลองให้องค์กรของฉากแทน DEMO · ล้มทุกครั้งที่ฉากเหล่านี้รันก่อน | แก้แล้วที่ต้นเหตุ: `createP2Org` ให้รหัส `ZE2E-P2-…` เมื่อรันในฐาน e2e (เทสต์ integration ไม่เปลี่ยน) · รัน 4 เทสต์นี้พร้อมฉากที่สร้างองค์กรก่อน ผ่านทั้ง 8 |
+| 7 | `supplier-applications.spec.ts:75` (mobile) | S7-18 ให้แผงเอกสารวาดตารางตั้งแต่ md และรายการใต้ md · เทสต์เลือกคำ "ยืนยันแล้ว" ตัวแรกซึ่งเป็นตัวที่ซ่อนบนมือถือ | แก้เทสต์ให้เลือกตัวที่เห็นบนจอ (`filter({ visible: true })`) แบบเทสต์อื่นใน repo · ผ่านทั้งสองขนาด |
+| 8 | `admin-doa-initial.spec.ts:64` `home-assistant.spec.ts:16` `home.spec.ts:81` (desktop) · `request-form.spec.ts:148` `request-view.spec.ts:34` (mobile) | หมดเวลา 30 วินาทีตอนเครื่องหนัก (ไม่เกี่ยวกับงานของ S7) | รันเดี่ยวผ่านทั้งหมด |

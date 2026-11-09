@@ -3,7 +3,9 @@ import type { BusinessCalendar } from '@/core/sla'
 import { awardDecisionSodExtra, checkSod } from '@/core/sod'
 import { OrgSettingsSchema, sourcingSettingsOf } from '@/lib/org-settings'
 import {
+  AWARD_REASON_CODES,
   awardAmount,
+  awardTotals,
   businessDayMinutes,
   compareBids,
   confirmedNetPriceCap,
@@ -12,9 +14,12 @@ import {
   earliestCloseAt,
   formatScore,
   formatTenths,
+  netUnitPriceCeiling,
+  orderReasonCodes,
   priceAnomaly,
   priceScoreBp,
   rankBids,
+  riskCleared,
   savings,
   savingsTotal,
   scorecardReveal,
@@ -126,6 +131,47 @@ describe('award amount and price checks (BR-RFX-11 to BR-RFX-13) edges', () => {
   })
   it('flags LOW below the bidder’s own agreed price', () => {
     expect(priceAnomaly({ unitPriceSatang: 7000n }, { unitPriceSatang: 10000n, source: 'AGREEMENT' }, 2000)).toEqual({ deviationBp: -3000, flag: 'LOW' })
+  })
+})
+
+describe('[BR-RFX-12] S10-10: the award from the amounts of the comparison, the price held for a bid with VAT, the reasons and the risk', () => {
+  it('awardTotals takes the line amounts as given, VAT once per supplier, and refuses a negative line or two rates of one supplier', () => {
+    // GC-SRC-23 from its line amounts: 185,200 → 12,964.00 and 117,500 → 8,225.00
+    expect(
+      awardTotals([
+        { ref: 'L1', supplierId: 'a', lineNetSatang: 18_520_000n, vatRateBp: 700 },
+        { ref: 'L2', supplierId: 'b', lineNetSatang: 11_750_000n, vatRateBp: 700 },
+      ]),
+    ).toMatchObject({ net: 30_270_000n, vat: 2_118_900n, gross: 32_388_900n, isSplit: true })
+    // a bid with VAT shared over two lines (303,738.32): VAT of the supplier's total, not of each line
+    expect(awardTotals([{ ref: 'L1', supplierId: 'c', lineNetSatang: 18_691_589n, vatRateBp: 700 }, { ref: 'L2', supplierId: 'c', lineNetSatang: 11_682_243n, vatRateBp: 700 }])).toMatchObject({ net: 30_373_832n, vat: 2_126_168n, isSplit: false })
+    expect(() => awardTotals([{ ref: 'L1', supplierId: 'a', lineNetSatang: -1n, vatRateBp: 700 }])).toThrow(RangeError)
+    expect(() => awardTotals([{ ref: 'L1', supplierId: 'a', lineNetSatang: 1n, vatRateBp: 700 }, { ref: 'L2', supplierId: 'a', lineNetSatang: 1n, vatRateBp: 0 }])).toThrow(RangeError)
+    expect(awardTotals([])).toMatchObject({ net: 0n, vat: 0n, gross: 0n, isSplit: false })
+  })
+  it('netUnitPriceCeiling is the highest price before VAT a winner may confirm (GC-SRC-41) and refuses an invalid rate or price', () => {
+    expect(netUnitPriceCeiling(700, 2_500_000n)).toBe(2_336_448n)
+    expect(confirmedNetPriceCap(700, 2_500_000n, netUnitPriceCeiling(700, 2_500_000n))).toBe(true)
+    expect(confirmedNetPriceCap(700, 2_500_000n, netUnitPriceCeiling(700, 2_500_000n) + 1n)).toBe(false)
+    expect(netUnitPriceCeiling(0, 100n)).toBe(100n)
+    expect(() => netUnitPriceCeiling(-1, 100n)).toThrow(RangeError)
+    expect(() => netUnitPriceCeiling(1.5, 100n)).toThrow(RangeError)
+    expect(() => netUnitPriceCeiling(700, -1n)).toThrow(RangeError)
+  })
+  it('orderReasonCodes keeps the fixed order of AWARD_REASON_CODES, each once', () => {
+    expect(orderReasonCodes(['RISK_NOT_CLEARED', 'SPLIT', 'NOT_TOP_SCORE', 'SPLIT'])).toEqual(['NOT_TOP_SCORE', 'SPLIT', 'RISK_NOT_CLEARED'])
+    expect(orderReasonCodes([])).toEqual([])
+    expect(AWARD_REASON_CODES).toHaveLength(8)
+  })
+  it('riskCleared: below HIGH always; HIGH when CURRENT, EXPIRING or overridden; not when overdue, to reassess, or of no status', () => {
+    expect(riskCleared({ tier: 'LOW' })).toBe(true)
+    expect(riskCleared({ tier: null })).toBe(true)
+    expect(riskCleared({ tier: 'HIGH', status: 'CURRENT' })).toBe(true)
+    expect(riskCleared({ tier: 'HIGH', status: 'EXPIRING' })).toBe(true)
+    expect(riskCleared({ tier: 'HIGH', status: 'OVERDUE', openOverrideId: 'o-1' })).toBe(true)
+    expect(riskCleared({ tier: 'HIGH', status: 'OVERDUE', openOverrideId: null })).toBe(false)
+    expect(riskCleared({ tier: 'HIGH', status: 'REASSESS_REQUIRED' })).toBe(false)
+    expect(riskCleared({ tier: 'HIGH' })).toBe(false)
   })
 })
 

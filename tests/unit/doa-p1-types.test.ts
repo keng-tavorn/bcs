@@ -190,7 +190,7 @@ describe('[BR-DOA-27] the phase-2 type RFX_AWARD (S10-02 · ADR-202)', () => {
   })
 })
 
-describe('[BR-DOA-28] the phase-2 type RISK_OVERRIDE (S11-02 · ADR-226)', () => {
+describe('[FR-RSK-203/AC2] [BR-DOA-28] the phase-2 type RISK_OVERRIDE (S11-02 · ADR-226)', () => {
   const version = () => versionSnapshots('fixtures/doa-versions-p2.yaml')
   const org = () => orgSnapshot([], 'fixtures/org-p1.yaml')
   // the cap with VAT goes as the amount before VAT with VAT 0 (BR-DOA-28), so every basis gives the same band

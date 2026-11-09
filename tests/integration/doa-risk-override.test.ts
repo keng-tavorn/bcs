@@ -86,7 +86,7 @@ async function questionnaire(org: DoaOrg, status: 'DRAFT' | 'PUBLISHED', effecti
   return prisma.riskQuestionnaire.create({ data: { organizationId: org.organizationId, code: 'RQ-T', versionNo, status, effectiveFrom, checksum: `test-${versionNo}`, ...published } })
 }
 
-describe('[BR-DOA-28] an override routes by its cap with VAT, sent with VAT 0, on a real organization', () => {
+describe('[FR-RSK-203/AC2] [BR-DOA-28] an override routes by its cap with VAT, sent with VAT 0, on a real organization', () => {
   it('the demo cap 120,000.00 routes under RO-01 to the COO; above stepUpThreshold (100,000.00) deciding asks for step-up by the amount (BR-RSK-11)', async () => {
     const org = await createP2Org()
     const routed = await routedOverride(org, SCENE_CAP)

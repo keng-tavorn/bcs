@@ -180,6 +180,9 @@ export const PERMISSIONS = {
   // no role gives it. Their task page shows GENERAL and the slot's domains (risk.review.view, the task's holders)
   'risk.review.decide': [doaAssignee()],
   'risk.review.view': [anyMember('ASSIGNED')],
+  // S11-08 (BR-RSK-10 · ADR-226): PROCUREMENT asks for an override of the risk gate; only who asked edits, sends or
+  // cancels it (the service checks); its approvers decide it through the DOA route (approval.decide)
+  'risk.override.request': PROCUREMENT_ONLY,
   'admin.riskQuestionnaire': DOA_ADMINS,
   // S6-10 (FR-INT-102, BR-PRC-06 · OQ-114): every member searches the catalogue; PROCUREMENT keeps it and its agreed prices
   'catalog.view': [anyMember('ORG')],

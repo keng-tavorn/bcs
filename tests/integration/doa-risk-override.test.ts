@@ -14,7 +14,7 @@ import { createP2Org } from '../support/p2-org'
 // S11-02 (BR-DOA-28 · ADR-226 · BR-RSK-16): the DOA document type RISK_OVERRIDE and switching the RISK module. What the
 // golden files doa-p2.yaml doa-p2-lint.yaml cannot hold (spec §7.4): an override routes on a real organization by its cap
 // with VAT sent with VAT 0, step-up goes by that amount (never always · BR-RSK-11), a vacant COO is APPROVER_NOT_FOUND,
-// a cap of zero is refused, a task of the subject stays with the empty adapter until S11-08, the DOA try-out takes the
+// a cap of zero is refused, a task with no override behind it is refused by the adapter (S11-08), the DOA try-out takes the
 // type, and organization.set_module switches RISK on only with SUPPLIER on, the RO rules, the three tiers and the gate
 // policy confirmed and a questionnaire in effect, and off only when no assessment is with its reviewers and no override
 // waits for its approvers. Tiers, policy and questions are test data of the organization (OQ-221 OQ-222), never code.
@@ -101,7 +101,7 @@ describe('[FR-RSK-203/AC2] [BR-DOA-28] an override routes by its cap with VAT, s
     expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({ status: 'OPEN' })
   })
 
-  it('below stepUpThreshold no step-up is asked (not in ALWAYS_STEP_UP_SUBJECTS); the empty adapter keeps the task open until S11-08', async () => {
+  it('below stepUpThreshold no step-up is asked (not in ALWAYS_STEP_UP_SUBJECTS); a task with no override behind it is refused SUBJECT and stays open', async () => {
     const org = await createP2Org()
     const routed = await routedOverride(org, 5_000_000n)
     if (!routed.ok) throw new Error(JSON.stringify(routed.error))

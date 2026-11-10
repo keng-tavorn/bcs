@@ -20,6 +20,8 @@ interface SodCase {
     payDate?: string
     recentBankChangeDays?: number
     bankChanges?: Array<{ proposer: string; effectiveOn: string }>
+    /** DECIDE_APPROVAL of RISK_OVERRIDE (S11-08 · BR-SOD-15): the PO's creator and the assessment's filler-in besides the requester */
+    alsoConflicting?: string[]
     /** DECIDE_RISK_REVIEW (S11-06 · BR-SOD-16) */
     assessmentOpenedBy?: string
     filledOnBehalfBy?: string
@@ -39,7 +41,7 @@ function action(i: SodCase['input']): SodAction {
     kind: 'DECIDE_APPROVAL',
     subject: i.subject ?? 'REQUEST',
     actorMemberId: i.actor,
-    requesterMemberIds: i.requester ? [i.requester] : [],
+    requesterMemberIds: [...(i.requester ? [i.requester] : []), ...(i.alsoConflicting ?? [])],
     poCreatorMemberId: i.poCreator ?? null,
     ...(i.invoiceRecorders ? { invoiceRecorderMemberIds: i.invoiceRecorders } : {}),
     ...(recentBankChanges ? { recentBankChanges } : {}),
@@ -84,6 +86,16 @@ describe('[FR-DOA-007/AC1] separation of duties beyond the golden cases', () => 
       error: 'SOD_VIOLATION',
       rule: 'BR-SOD-08',
     })
+  })
+})
+
+describe('[FR-RSK-203/AC2] [BR-SOD-15] the override of a risk gate (S11-08 · ADR-226)', () => {
+  const policy = { approverMayReceive: false, requesterMayReceive: true }
+  const override = (actor: string, conflicting: string[]) => checkSod({ kind: 'DECIDE_APPROVAL', subject: 'RISK_OVERRIDE', actorMemberId: actor, requesterMemberIds: conflicting }, policy)
+  it('refuses the requester, the PO creator and the filler-in of the assessment by BR-SOD-15, and lets the COO approve', () => {
+    const people = ['proc_officer', 'proc_mat1', 'dm_it']
+    for (const actor of people) expect(override(actor, people)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-15' })
+    expect(override('coo', people)).toEqual({ ok: true })
   })
 })
 

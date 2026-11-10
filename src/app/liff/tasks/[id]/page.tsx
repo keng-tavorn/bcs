@@ -43,6 +43,8 @@ import { getInvoiceTaskView } from '@/server/queries/ap-invoices'
 import { LiffInvoiceSummary } from '@/ui/liff/tasks/subjects/invoice'
 import { getPoChangeTaskView } from '@/server/queries/po-changes'
 import { LiffPoChangeSummary } from '@/ui/liff/tasks/subjects/po-change'
+import { LiffRiskOverrideSummary } from '@/ui/liff/tasks/subjects/risk-override'
+import { riskOverrideView } from '@/server/services/risk'
 import { getPaymentRunTaskView } from '@/server/queries/payment-runs'
 import { getBankAccountChange } from '@/server/services/bank-accounts/view'
 import { LiffBankAccountChangeSummary } from '@/ui/liff/tasks/subjects/bank-account-change'
@@ -209,6 +211,10 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
   const paymentRun = task.subjectType === 'PAYMENT_RUN' ? await getPaymentRunTaskView(ctx, task.subjectId) : null
   const bankChange = task.subjectType === 'BANK_ACCOUNT_CHANGE' ? await getBankAccountChange(ctx, { changeId: task.subjectId }).then((r) => (r.ok ? r.data : null)) : null
   const tPay = paymentRun ? await getTranslations('payRun.task') : null
+  // S11-08: an override of the risk gate (FR-RSK-203 AC2 · BR-RSK-11), read by who has a task on it; no answer of the assessment
+  const riskOverrideRead = task.subjectType === 'RISK_OVERRIDE' ? await riskOverrideView(ctx, task.subjectId) : null
+  const riskOverride = riskOverrideRead?.ok ? riskOverrideRead.data : null
+  const tro = riskOverride ? await getTranslations('risk.override.facts') : null
   // What the reader of a PO sees beside it, with the member's roles: the approver decides on the prices paid before too
   // (FR-P2P-003 AC1), as on the web decision page; the supplier's address and the source requests' files per §2.4
   const reader = po ? poReader(memberPrincipal(page.member.id, (await liffSignedIn(page.member.id))?.roles ?? []), null, po, { prices: true }) : null
@@ -271,7 +277,9 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
               ? (paymentRun.number ?? '-')
               : bankChange
                 ? (bankChange.number ?? '-')
-                : task.policy
+                : riskOverride
+                  ? (riskOverride.number ?? '-')
+                  : task.policy
               ? policyHeadline(t, locale, task.policy)
               : t('item.untitled')
   const heading = request ? request.title : po ? po.supplier.nameTh : invoice ? t('invoice.heading') : poChange ? poChange.supplier.nameTh : (varianceTitle ?? label)
@@ -285,6 +293,7 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
     ...(po ? [{ label: tv('amounts.gross'), value: money(po.totals.grossSatang) }] : []),
     ...(variance ? [{ label: tLiff('detail.varianceAmount'), value: money(variance.amountSatang) }] : []),
     ...(left ? [{ label: tLiff('detail.budgetLeft'), value: left }] : []),
+    ...(riskOverride && tro ? [{ label: tro('cap'), value: money(riskOverride.capGrossSatang) }] : []),
   ]
   const summaryFacts: Fact[] = [
     ...(po ? [{ label: tLiff('detail.supplier'), value: po.supplier.nameTh }] : []),
@@ -354,6 +363,8 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
         <LiffPaymentRunSummary run={paymentRun} />
       ) : task.subjectType === 'BANK_ACCOUNT_CHANGE' ? (
         <LiffBankAccountChangeSummary change={bankChange} openFile={openFile} />
+      ) : task.subjectType === 'RISK_OVERRIDE' ? (
+        <LiffRiskOverrideSummary override={riskOverride} />
       ) : (
         <PolicySubject task={task} locale={locale} doaLinks={false} doaSimulate={false} orgAuthorityLink={false} />
       )}

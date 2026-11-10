@@ -10,6 +10,7 @@ import { authorize, isAllowed, loadPrincipal, scopesFor, type Principal } from '
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { itemFlagsNow, supplierFacts } from '@/server/queries/payment-runs'
+import { riskOverridesForPayment } from '@/server/queries/risk-overrides'
 import { myRequestsWhere } from '@/server/queries/requests'
 import { listMyTasks } from '@/server/queries/tasks'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
@@ -205,12 +206,14 @@ async function suppliersFlagged(ctx: Ctx): Promise<SuggestionDto[]> {
     const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
     const { recentBankChangeDays } = paymentSettingsOf(org.settings)
     const facts = await supplierFacts(tx, supplierIds)
+    // FR-PAY-101 AC13 (S11-08): the risk overrides on today's pay date, as a run would weigh them
+    const overrides = await riskOverridesForPayment(tx, supplierIds, taxDateOf(ctx.now))
     const names = new Map((await tx.supplier.findMany({ where: { id: { in: supplierIds } }, select: { id: true, nameTh: true, nameEn: true } })).map((s) => [s.id, { th: s.nameTh, en: s.nameEn }]))
     const out: SuggestionDto[] = []
     // one query at a time: they share the transaction's connection
     for (const supplierId of supplierIds) {
       const own = invoices.filter((i) => i.supplierId === supplierId)
-      const { flags } = await itemFlagsNow(tx, { payDate: taxDateOf(ctx.now), recentBankChangeDays, supplier: facts.get(supplierId)!, docIds: own.map((i) => i.id) })
+      const { flags } = await itemFlagsNow(tx, { payDate: taxDateOf(ctx.now), recentBankChangeDays, supplier: facts.get(supplierId)!, docIds: own.map((i) => i.id), riskOverrides: overrides.get(supplierId) ?? [] })
       if (flags.length === 0) continue
       const sorted = [...flags].sort()
       out.push({ kind: 'SUPPLIER_FLAGS', key: `SUPPLIER_FLAGS:${supplierId}:${sorted.join('+')}`, tone: tone('SUPPLIER_FLAGS'), href: `/finance/invoices/${own[0]!.id}`, at: own[0]!.dueDate, supplier: names.get(supplierId)!, flags: sorted, invoices: own.length })

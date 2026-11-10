@@ -3628,7 +3628,14 @@
         "superseded": "Risk assessment replaced by a newer one"
       },
       "risk_override": {
+        "approved": "Override approved",
+        "cancelled": "Override request cancelled",
+        "drafted": "Risk override asked for (draft)",
+        "rejected": "Override rejected",
         "released": "Purchase order no longer draws on the override",
+        "returned": "Override returned for changes",
+        "submitted": "Override request sent to its approvers",
+        "updated": "Override request changed",
         "used": "Override used by a purchase order"
       },
       "risk_policy": {
@@ -5958,6 +5965,7 @@
     "RISK_ASSESSMENT_OPEN": "This supplier already has an open risk assessment.",
     "RISK_ASSESSMENT_REQUIRED": "This supplier is high risk: complete its risk assessment or get an override before the purchase order goes out",
     "RISK_BLOCKED": "No purchase order can go to this supplier: its registry status or its override does not allow it",
+    "RISK_OVERRIDE_OPEN": "This supplier already has an open risk override",
     "RISK_POLICY_NOT_CONFIGURED": "The supplier risk policy is not confirmed yet. Please contact your administrator.",
     "RISK_QUESTIONNAIRE_NOT_PUBLISHED": "No supplier risk questionnaire is in effect yet. Please contact your administrator.",
     "RISK_REASSESSMENT_REQUIRED": "The supplier's risk assessment no longer covers this purchase order: reassess it or get an override",
@@ -9791,8 +9799,10 @@
           "VALIDITY_LAPSED": "This supplier's risk assessment is past its review date: reassess, or ask for an override under the DOA"
         },
         "reasonNeeded": "This supplier has warnings: {warnings}. Give the reason to order from it anyway in the reason field when you {when}",
+        "requestOverride": "Ask for an override",
         "title": "Supplier risk",
         "viewOpen": "See the open assessment {number}",
+        "viewOverride": "See override {number}",
         "when": {
           "SEND": "send it to the supplier",
           "SUBMIT": "send it for approval"
@@ -11386,7 +11396,9 @@
       },
       "errors": {
         "code": {
+          "APPROVER_NOT_FOUND": "No approver was found under the DOA. Please contact the administrator",
           "CONFLICT_VERSION": "Someone changed this before you. Reload the page and check again",
+          "DOA_NOT_CONFIGURED": "The DOA in effect has no risk override rule. Please contact the DOA administrator",
           "FAILED": "That did not work. Try again",
           "FILE_INFECTED": "This file failed the security check, so it cannot be opened.",
           "FILE_NOT_SCANNED": "The file is still being checked for viruses. Try again in a moment.",
@@ -11395,12 +11407,15 @@
           "MODULE_DISABLED": "This organization has not switched on supplier risk",
           "NOT_FOUND": "Not found",
           "NO_ANSWER": "No answer came back. Press again; the same request runs once only",
+          "NO_HIGHER_AUTHORITY": "The DOA has no approver above you. Please let someone else ask for it",
+          "RISK_OVERRIDE_OPEN": "This supplier already has an open risk override",
           "RISK_POLICY_NOT_CONFIGURED": "The supplier risk policy is not confirmed yet. Please contact your administrator",
           "RISK_TIER_NOT_CONFIGURED": "The risk tiers are not set yet. Please contact your administrator",
           "UNAUTHENTICATED": "Your sign-in has ended. Sign in again and retry",
           "VALIDATION_FAILED": "Something is missing or not valid"
         },
         "reason": {
+          "AMOUNT_NOT_POSITIVE": "The cap must be above zero",
           "CHECKSUM": "The questions changed after it was sent. Send it again",
           "CONDITION": "The condition reads something an assessment does not have",
           "DOA_ADMIN_SEPARATED": "The organization separated its DOA administrators. Only a DOA administrator may do this",
@@ -11408,17 +11423,25 @@
           "EFFECTIVE_IN_PAST": "The effective date cannot be before today",
           "LATER_VERSION_SCHEDULED": "Another version takes effect on the same day or later",
           "NOT_A_PERMUTATION": "The new order must name every question",
+          "NOT_REQUESTER": "Only who asked for it changes, sends or cancels it",
           "NO_CHANGE": "The proposal is the same as the values in effect",
+          "NO_DEPARTMENT": "The requester has no main department, so no approver can be found. Please contact the administrator",
           "NO_PENDING_CHANGE": "Nothing is waiting for confirmation any more",
           "OPTION_DUPLICATE": "Two options share a code",
           "OPTION_EVIDENCE": "Only one option may be chosen by evidence",
+          "OVERRIDE_EXPIRY_PAST": "The last day may not be before the day it is sent",
+          "OVERRIDE_EXPIRY_TOO_FAR": "The last day is further than the organization allows from the day it is sent",
           "PENDING_CHANGED": "The proposal has changed. Reload the page and check again",
           "PENDING_CHANGE_EXISTS": "A proposal is already waiting. Confirm or discard it before proposing again",
           "POLICY_UNREADABLE": "The policy in effect cannot be read. Please contact the BCS team",
+          "PO_NOT_OPEN": "The purchase order is closed or cancelled",
+          "PO_OTHER_SUPPLIER": "The purchase order is of another supplier",
+          "REGISTRY_BLOCKED": "The supplier has a registry flag, so no override can be asked for",
           "RISK_LINT": "This version does not pass the checks yet. See the checks before sending",
           "SAME_EDITOR": "Whoever proposed or sent it cannot confirm or publish it. Another administrator must",
           "SCOPE_REQUIRED": "Name the standard or scope asked for",
           "SCREENING_REQUIRED": "Pick every screening answer",
+          "SUPPLIER_INACTIVE": "This supplier is not active",
           "TIER_ORDER": "Lowest points must rise from low to high, and low starts at 0",
           "UNKNOWN_CATEGORY": "A category code the organization uses in neither its catalogue nor its POs"
         }
@@ -11758,6 +11781,139 @@
       "validUntil": "Valid until",
       "work": "The work assessed",
       "workScopes": "Standards the work needs"
+    },
+    "override": {
+      "detail": {
+        "actions": "Send or cancel",
+        "asked": "Asked on {time}",
+        "cancel": "Cancel the request",
+        "cancelBody": "Once cancelled it cannot be changed or sent: a new one must be asked for",
+        "cancelConfirm": "Cancel the request",
+        "cancelTitle": "Cancel this override request?",
+        "cancelled": "Request cancelled",
+        "decision": {
+          "REJECTED": "The approver rejected it",
+          "RETURNED": "The approver returned it for changes"
+        },
+        "draftHeading": "Override request (draft)",
+        "edit": "Change the request",
+        "heading": "Override {number}",
+        "hint": {
+          "APPROVED": "Purchase orders of this supplier pass the gate within the cumulative cap until the last day; the assessment still has to be done",
+          "DRAFT": "This draft has not reached an approver yet. Check it, then press “Send for approval”",
+          "PENDING_APPROVAL": "Waiting for the DOA approver. The approver opens the reason first: there is no approve button in the chat",
+          "RETURNED": "The approver returned it for changes. Change it and send it again; the DOA finds the approvers anew"
+        },
+        "keep": "Keep it",
+        "openTask": "Open the approval task",
+        "poShare": "counts {amount} THB",
+        "posUsing": "Purchase orders let out under it",
+        "route": "Approval route",
+        "rule": "DOA rule",
+        "sent": "Sent for approval",
+        "submit": "Send for approval",
+        "title": "Risk override",
+        "waitingFor": "Waiting for",
+        "working": "Working"
+      },
+      "facts": {
+        "assessment": {
+          "CURRENT": "{number} valid until {date}",
+          "IN_PROGRESS": "In progress {number}: {answered} of {total} questions answered",
+          "NONE": "No assessment yet",
+          "OVERDUE": "{number} lapsed on {date}",
+          "label": "Assessment"
+        },
+        "cap": "Cap with VAT (cumulative)",
+        "capValue": "{amount} THB",
+        "expiresOn": "Valid until",
+        "heading": "Risk override",
+        "po": "Purchase order",
+        "poAll": "Every purchase order of the supplier within the cap",
+        "poDraft": "Draft purchase order",
+        "poValue": "{number} · {amount} THB",
+        "reason": "Reason",
+        "registry": "Registry status",
+        "registryFlag": {
+          "CEASED": "Ceased",
+          "NONE": "Normal",
+          "NOT_FOUND": "Not found in the registry",
+          "VAT_CANCELLED": "VAT registration cancelled"
+        },
+        "requestedBy": "Asked by",
+        "submittedAt": "Sent for approval on",
+        "supplier": "Supplier",
+        "tier": "Risk tier",
+        "tierName": {
+          "HIGH": "High",
+          "LOW": "Low",
+          "MEDIUM": "Medium"
+        },
+        "tierNone": "No tier yet",
+        "tierSource": {
+          "ASSESSMENT": "from the assessment",
+          "SCREENING": "from the screening of the work"
+        },
+        "used": "Used so far",
+        "usedValue": "{count} purchase orders · {amount} THB"
+      },
+      "form": {
+        "backToPo": "Back to the purchase order",
+        "cap": "Cap with VAT (THB)",
+        "capHint": "The gross with VAT of every purchase order let out under it, added up; the DOA finds the approver by it",
+        "capInvalid": "Enter an amount above zero with at most 2 decimals",
+        "create": "Save the request",
+        "dateRequired": "Choose the last day it may be used",
+        "expiresOn": "Valid until",
+        "expiresOnHint": "From today to {last}. Sent on another day, it is checked against the day it is sent",
+        "flagged": "This supplier has a registry flag, so no override can be asked for: it needs a new risk assessment",
+        "fromPo": "Open this form from “Ask for an override” on the supplier risk band of a purchase order the gate holds",
+        "intro": "Give the reason, the cap with VAT of the purchase orders it lets out (counted across all of them) and the last day it may be used. Saved, check it once more before sending it for approval",
+        "label": "Risk override request",
+        "noRule": "The DOA in effect has no risk override rule (RISK_OVERRIDE), so none can be asked for. Please contact the DOA administrator",
+        "notFound": "This purchase order or supplier was not found",
+        "openExists": "This supplier already has an open override ({number}): edit or send that one instead",
+        "openLink": "Open the open request",
+        "pickDate": "Choose a date",
+        "reason": "Reason",
+        "reasonHint": "At least {min} characters. The approver reads it before deciding",
+        "reasonShort": "The reason needs at least {min} characters",
+        "save": "Save the changes",
+        "saved": "Saved",
+        "saving": "Saving",
+        "title": "Ask for a risk override"
+      },
+      "list": {
+        "by": "Asked by {name}",
+        "cap": "Cap {cap} THB · used {used} THB",
+        "draft": "Draft (no number yet)",
+        "empty": "No override in this state yet",
+        "emptyHint": "An override is asked for from the supplier risk band of a purchase order the gate holds",
+        "emptyHintRequest": "Ask for an override from the supplier risk band of a purchase order the gate holds, with “Ask for an override”",
+        "forPo": "For purchase order {number}",
+        "forSupplier": "For every purchase order of the supplier within the cap",
+        "intro": "Requests to let purchase orders go to a supplier the risk gate holds, within a cap and until a last day, approved under the DOA",
+        "row": "{number} · {supplier}",
+        "tab": {
+          "all": "All",
+          "approved": "Approved",
+          "closed": "Closed",
+          "open": "Open"
+        },
+        "tabs": "State of the overrides",
+        "title": "Risk overrides",
+        "until": "Valid until {date}"
+      },
+      "status": {
+        "APPROVED": "Approved",
+        "CANCELLED": "Cancelled",
+        "DRAFT": "Draft",
+        "EXPIRED": "Expired",
+        "PENDING_APPROVAL": "Waiting for approval",
+        "REJECTED": "Rejected",
+        "RETURNED": "Returned for changes"
+      },
+      "toList": "Back to the overrides"
     }
   },
   "riskReview": {

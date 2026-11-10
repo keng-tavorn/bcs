@@ -127,7 +127,20 @@ defineEvents('PurchaseOrder', {
     }),
   },
 })
+// S11-08 (BR-RSK-10 BR-RSK-11 · ADR-226): an override asked, edited, sent under DOA RISK_OVERRIDE and decided — its cap, last
+// day and the PO it names; never the reason's text (it stays on the row and in the Comment of a return or a rejection)
+const overrideFields = z.enum(['reason', 'capGrossSatang', 'expiresOn', 'poId'])
+const day = z.iso.date()
 defineEvents('RiskOverride', {
   'risk_override.used': { schema: z.object({ poId: z.uuid(), grossSatang: satang, trigger: gateTrigger }) },
   'risk_override.released': { schema: z.object({ poId: z.uuid(), grossSatang: satang, trigger: gateTrigger }) },
+  'risk_override.drafted': { schema: z.object({ supplierId: z.uuid(), capGrossSatang: satang, expiresOn: day, poId: z.uuid().nullable(), assessmentId: z.uuid().nullable() }) },
+  'risk_override.updated': { schema: z.object({ fields: z.array(overrideFields), from: z.enum(['DRAFT', 'RETURNED']) }) },
+  'risk_override.submitted': {
+    schema: z.object({ number: z.string(), capGrossSatang: satang, expiresOn: day, poId: z.uuid().nullable(), assessmentId: z.uuid().nullable(), routeId: z.uuid(), resubmitted: z.boolean() }),
+  },
+  'risk_override.approved': { schema: z.object({ number: z.string(), capGrossSatang: satang, expiresOn: day }) },
+  'risk_override.rejected': { schema: z.object({ number: z.string(), reasonCommentId: z.uuid().nullable() }) },
+  'risk_override.returned': { schema: z.object({ number: z.string(), reasonCommentId: z.uuid().nullable() }) },
+  'risk_override.cancelled': { schema: z.object({ from: z.enum(['DRAFT', 'RETURNED']) }) },
 })

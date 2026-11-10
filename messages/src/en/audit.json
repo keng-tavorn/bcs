@@ -709,7 +709,14 @@
     },
     "risk_override": {
       "used": "Override used by a purchase order",
-      "released": "Purchase order no longer draws on the override"
+      "released": "Purchase order no longer draws on the override",
+      "drafted": "Risk override asked for (draft)",
+      "updated": "Override request changed",
+      "submitted": "Override request sent to its approvers",
+      "approved": "Override approved",
+      "rejected": "Override rejected",
+      "returned": "Override returned for changes",
+      "cancelled": "Override request cancelled"
     }
   }
 }

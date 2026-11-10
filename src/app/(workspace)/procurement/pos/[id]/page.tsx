@@ -162,20 +162,26 @@ const CLOSED_PO: readonly string[] = ['CANCELLED', 'REJECTED', 'CLOSED']
  * clears it), the override it would pass with, or the warning whose reason the step asks. Nothing when RISK is off or the
  * gate passes plainly.
  */
-function riskParts(t: PoT, s: PoRiskStatus | null): { band: RiskBandView | null; actions: { blocked: string | null; reasonNeeded: boolean } | null } {
+function riskParts(t: PoT, poId: string, s: PoRiskStatus | null): { band: RiskBandView | null; actions: { blocked: string | null; reasonNeeded: boolean } | null } {
   if (!s) return { band: null, actions: null }
   const number = (n: string | null) => n ?? t('risk.noNumber')
   const openAssessment = s.openAssessment ? { href: `/risk/assessments/${s.openAssessment.id}`, label: t('risk.band.viewOpen', { number: number(s.openAssessment.number) }) } : null
+  // S11-08: the supplier's override still in the works, or the form to ask for one for this PO
+  const openOverride = s.openOverride ? [{ href: `/risk/overrides/${s.openOverride.id}`, label: t('risk.band.viewOverride', { number: number(s.openOverride.number) }) }] : []
   if (!s.decision.allowed) {
     const why = t(`risk.band.reason.${s.decision.reason}`)
     const head = t(s.trigger === 'SUBMIT' ? 'risk.band.blocked' : 'risk.band.blockedSend', { tier: t(`risk.tier.${s.tier}`) })
-    return { band: { tone: 'danger', lines: [head, why], openAssessment, canOpen: s.canOpenAssessment }, actions: { blocked: why, reasonNeeded: false } }
+    const ask = s.canRequestOverride ? [{ href: `/risk/overrides/new?poId=${poId}`, label: t('risk.band.requestOverride') }] : []
+    return { band: { tone: 'danger', lines: [head, why], openAssessment, canOpen: s.canOpenAssessment, overrideLinks: [...openOverride, ...ask] }, actions: { blocked: why, reasonNeeded: false } }
   }
   if (s.reasonNeeded.length > 0) {
     const warnings = s.reasonNeeded.map((w) => t(`risk.warning.${w}`)).join(', ')
-    return { band: { tone: 'warning', lines: [t('risk.band.reasonNeeded', { warnings, when: t(`risk.band.when.${s.trigger}`) })], openAssessment, canOpen: false }, actions: { blocked: null, reasonNeeded: true } }
+    return { band: { tone: 'warning', lines: [t('risk.band.reasonNeeded', { warnings, when: t(`risk.band.when.${s.trigger}`) })], openAssessment, canOpen: false, overrideLinks: openOverride }, actions: { blocked: null, reasonNeeded: true } }
   }
-  if (s.decision.source === 'OVERRIDE' && s.override) return { band: { tone: 'info', lines: [t('risk.band.override', { number: number(s.override.number) })], openAssessment, canOpen: false }, actions: null }
+  if (s.decision.source === 'OVERRIDE' && s.override) {
+    const used = [{ href: `/risk/overrides/${s.override.id}`, label: t('risk.band.viewOverride', { number: number(s.override.number) }) }]
+    return { band: { tone: 'info', lines: [t('risk.band.override', { number: number(s.override.number) })], openAssessment, canOpen: false, overrideLinks: used }, actions: null }
+  }
   return { band: null, actions: null }
 }
 
@@ -219,7 +225,7 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
     po.route ? getRouteStepDetails(ctx, po.route.id) : Promise.resolve([]),
     businessDaysTaken(ctx, po.submittedAt, CLOSED_PO.includes(po.status) ? lastDone : null),
     myTask ? Promise.all([getTaskAccess(ctx, myTask.id), getTaskView(ctx, myTask.id)]) : Promise.resolve(null),
-    poRiskStatus(ctx, po.id, po.status === 'DRAFT' ? po.totals.grossSatang : undefined).then((s) => riskParts(t, s)),
+    poRiskStatus(ctx, po.id, po.status === 'DRAFT' ? po.totals.grossSatang : undefined).then((s) => riskParts(t, po.id, s)),
   ])
   // The decision bar: an open approval task of this PO that the reader may decide (approval.decide, BR-DLG-04)
   const decide = task && task[0] && task[1] && taskRight(principal, task[0]) === 'DECIDE' && task[1].status === 'OPEN' ? task[1] : null

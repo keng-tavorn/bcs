@@ -5,6 +5,8 @@ import {
   maxTier,
   normalizeScope,
   overrideApplies,
+  overrideExpiryCheck,
+  overrideWindow,
   poGate,
   riskConditionHolds,
   riskStatusAt,
@@ -207,5 +209,15 @@ describe('poGate (S11-07 · BR-RSK-09)', () => {
     expect(screeningCovers(assessment, { screening: { processesPersonalData: 'Y' }, categoryCodes: [] }, ['PROF'])).toBe(false)
     expect(screeningCovers(assessment, { screening: { accessesPremises: 'N' }, categoryCodes: ['SUBCON'] }, ['PROF', 'SUBCON'])).toBe(false)
     expect(screeningCovers(assessment, { screening: { processesPersonalData: undefined }, categoryCodes: [] }, [])).toBe(true)
+  })
+})
+
+describe('[FR-RSK-203/AC3] [BR-RSK-10] the last day of an override (S11-08 · the values of GC-RSK-73 to 76)', () => {
+  it('runs from the send day to the send day + overrideMaxDays, both days included', () => {
+    expect(overrideWindow({ submittedOn: '2026-10-16', overrideMaxDays: 90 })).toEqual({ lastAllowed: '2027-01-14' })
+    expect(overrideExpiryCheck({ submittedOn: '2026-10-16', expiresOn: '2026-10-16', overrideMaxDays: 90 })).toEqual({ ok: true })
+    expect(overrideExpiryCheck({ submittedOn: '2026-10-16', expiresOn: '2027-01-14', overrideMaxDays: 90 })).toEqual({ ok: true })
+    expect(overrideExpiryCheck({ submittedOn: '2026-10-16', expiresOn: '2026-10-15', overrideMaxDays: 90 })).toEqual({ ok: false, error: 'VALIDATION_FAILED', reason: 'OVERRIDE_EXPIRY_PAST' })
+    expect(overrideExpiryCheck({ submittedOn: '2026-10-16', expiresOn: '2027-01-15', overrideMaxDays: 90 })).toEqual({ ok: false, error: 'VALIDATION_FAILED', reason: 'OVERRIDE_EXPIRY_TOO_FAR' })
   })
 })

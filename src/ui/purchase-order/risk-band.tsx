@@ -10,7 +10,8 @@ import { useOutcomeAction } from '../procurement/use-outcome-action'
 // The PO page's band "ความเสี่ยงคู่ค้า" (S11-07 · FR-RSK-203 AC6 · BR-RSK-09): the supplier's risk gate at the PO's next
 // step in words — why it would refuse, with the button that clears it ("เปิดแบบประเมินความเสี่ยง", or the way to the
 // assessment already open), the override it would pass with, or the warning whose reason the step asks. The page words
-// every sentence on the server; this part only runs the button. The service checks the capability again.
+// every sentence on the server; this part only runs the button. The service checks the capability again. S11-08 adds the
+// links "ขออนุมัติข้าม" (the override form for this PO) and "ดูการอนุมัติข้าม".
 
 export type RiskBandOutcome = { readonly ok: true; readonly href: string } | { readonly ok: false; readonly code: string }
 const NO_ANSWER: RiskBandOutcome = { ok: false, code: 'NO_ANSWER' }
@@ -22,6 +23,8 @@ export interface RiskBandView {
   readonly openAssessment: { readonly href: string; readonly label: string } | null
   /** The reader may open an assessment from this PO */
   readonly canOpen: boolean
+  /** S11-08: "ขออนุมัติข้าม" (the form for this PO) and "ดูการอนุมัติข้าม" (the supplier's open override, or the one the PO passes with) */
+  readonly overrideLinks: readonly { readonly href: string; readonly label: string }[]
 }
 
 export function RiskBand({ poId, view, open }: { poId: string; view: RiskBandView; open: (poId: string, idempotencyKey: string) => Promise<RiskBandOutcome> }) {
@@ -41,6 +44,11 @@ export function RiskBand({ poId, view, open }: { poId: string; view: RiskBandVie
             {view.openAssessment.label}
           </LightLink>
         ) : null}
+        {view.overrideLinks.map((link) => (
+          <LightLink key={link.href} href={link.href} className="inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline">
+            {link.label}
+          </LightLink>
+        ))}
         {view.canOpen ? (
           <Button
             variant="secondary"

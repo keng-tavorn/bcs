@@ -8,6 +8,7 @@ import { isAllowed, loadPrincipal, scopesFor } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { itemFlagsNow, supplierFacts } from '@/server/queries/payment-runs'
+import { riskOverridesForPayment } from '@/server/queries/risk-overrides'
 import { isUuid } from '@/server/queries/requests'
 import { openAssists, type OpenAssist } from '../ai/assist-contract'
 import { requireModule } from '../modules'
@@ -258,7 +259,9 @@ export async function getApInvoicePage(ctx: Ctx, invoiceId: string): Promise<Res
     if (scopesFor(principal, 'paymentRun.view').has('ORG') && AHEAD_OF_PAYMENT.includes(invoice.status)) {
       const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
       const supplier = (await supplierFacts(tx, [invoice.supplierId])).get(invoice.supplierId)!
-      paymentFlags = (await itemFlagsNow(tx, { payDate: taxDateOf(ctx.now), recentBankChangeDays: paymentSettingsOf(org.settings).recentBankChangeDays, supplier, docIds: [invoice.id] })).flags
+      const payDate = taxDateOf(ctx.now)
+      const riskOverrides = (await riskOverridesForPayment(tx, [invoice.supplierId], payDate)).get(invoice.supplierId) ?? []
+      paymentFlags = (await itemFlagsNow(tx, { payDate, recentBankChangeDays: paymentSettingsOf(org.settings).recentBankChangeDays, supplier, docIds: [invoice.id], riskOverrides })).flags
     }
 
     return ok({

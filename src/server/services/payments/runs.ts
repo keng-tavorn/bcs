@@ -14,6 +14,7 @@ import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import { itemFlagsNow, REASON_FLAGS, supplierFacts, type SupplierFacts } from '@/server/queries/payment-runs'
+import { riskOverridesForPayment } from '@/server/queries/risk-overrides'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { fail, type Fail } from '../ap/common'
 import { holdInvoicesForPayment, releaseInvoicesFromPayment } from '../ap/payment'
@@ -257,6 +258,8 @@ async function refreshRun(tx: TenantTx, ctx: Ctx, paymentRunId: string): Promise
   const retentionLines = await retentionWhtLines(tx, settings, links.filter((l) => l.retention).map((l) => l.retention!))
   const facts = await supplierFacts(tx, items.map((i) => i.supplierId))
   const payDate = dayOf(run.payDate)
+  // FR-PAY-101 AC13 (S11-08): the suppliers' risk overrides on the pay date, for the flag RISK_OVERRIDE_EXPIRED
+  const overrides = await riskOverridesForPayment(tx, items.map((i) => i.supplierId), payDate)
   const out = []
   let payable = 0n
   let wht = 0n
@@ -277,7 +280,7 @@ async function refreshRun(tx: TenantTx, ctx: Ctx, paymentRunId: string): Promise
     }
     const supplier = facts.get(item.supplierId)!
     const docIds = mine.map((l) => l.invoiceId ?? l.retentionId!)
-    const flagged = await itemFlagsNow(tx, { payDate, recentBankChangeDays: payment.recentBankChangeDays, supplier, docIds })
+    const flagged = await itemFlagsNow(tx, { payDate, recentBankChangeDays: payment.recentBankChangeDays, supplier, docIds, riskOverrides: overrides.get(item.supplierId) ?? [] })
     await tx.paymentRunItemWht.deleteMany({ where: { paymentRunItemId: item.id } })
     if (built.whtLines.length) await tx.paymentRunItemWht.createMany({ data: built.whtLines.map((l) => ({ organizationId: ctx.organizationId, paymentRunItemId: item.id, incomeType: l.incomeType, rateBp: l.rateBp, baseSatang: l.baseSatang, whtSatang: l.whtSatang })) })
     // BR-PAY-06: the preparer's reason answers the flags it was given for; a flag needing one that was not there then

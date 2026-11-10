@@ -75,6 +75,21 @@ export const RISK_TEMPLATES: Readonly<Record<string, Template>> = {
     title: { th: `แบบประเมินความเสี่ยง ${what(d)} ถูกตีกลับให้แก้`, en: `Risk assessment ${what(d)} was returned for changes` },
     href: assessmentHref(d),
   }),
+  // S11-08 (BR-NOTI-12): who asked for an override, in the day's digest — approved (with its last day), rejected or returned
+  'risk.override_decided': (d) => {
+    const n = d.number ? ` ${str(d.number)}` : ''
+    const href = d.overrideId ? `/risk/overrides/${str(d.overrideId)}` : '/risk/overrides'
+    if (d.outcome === 'APPROVED') {
+      return {
+        title: { th: `คำขออนุมัติข้ามด่านความเสี่ยง${n} ได้รับอนุมัติ`, en: `Risk override${n} was approved` },
+        body: { th: `ใช้ออกใบสั่งซื้อได้ถึงวันที่ ${str(d.expiresOn)} ภายในเพดานที่อนุมัติ`, en: `It lets purchase orders out until ${str(d.expiresOn)}, within the approved cap` },
+        href,
+      }
+    }
+    return d.outcome === 'RETURNED'
+      ? { title: { th: `คำขออนุมัติข้ามด่านความเสี่ยง${n} ถูกตีกลับให้แก้`, en: `Risk override${n} was returned for changes` }, href }
+      : { title: { th: `คำขออนุมัติข้ามด่านความเสี่ยง${n} ไม่ได้รับอนุมัติ`, en: `Risk override${n} was rejected` }, href }
+  },
   // S11-07 (FR-RSK-203 AC6 · BR-NOTI-12): AUDITOR, in the day's digest, of every PO an override lets out
   'risk.override_used': (d) => ({
     title: {

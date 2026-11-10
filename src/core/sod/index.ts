@@ -122,6 +122,7 @@ export type SodRule =
   | 'BR-SOD-13'
   | 'BR-SOD-14'
   // S11
+  | 'BR-SOD-15'
   | 'BR-SOD-16'
 export type SodResult = { readonly ok: true } | { readonly ok: false; readonly error: 'SOD_VIOLATION'; readonly rule: SodRule }
 
@@ -191,6 +192,9 @@ export function checkSod(action: SodAction, policy: SodPolicy): SodResult {
         return changedRecently(action.actorMemberId, action.recentBankChanges) ? violation('BR-SOD-10') : allowed
       }
       if (action.subject === 'BANK_ACCOUNT_CHANGE') return own ? violation('BR-SOD-05') : allowed
+      // S11 (ADR-226): who asked for a risk override, who made the PO it names and who filled in the supplier's open
+      // assessment never approve it (BR-SOD-15) — one list, before the general rule, so the refusal names the right rule
+      if (action.subject === 'RISK_OVERRIDE') return own ? violation('BR-SOD-15') : allowed
       // S10: the submitter of an award never approves it (BR-SOD-01), nor who created the RFx, scored its bids,
       // requested its lines or recorded a bid on a supplier's behalf (BR-SOD-13) — the one list of awardDecisionSodExtra,
       // which the adapter of S10-10 hands to decide.ts as `extra`, so golden and runtime refuse the same people

@@ -9,6 +9,7 @@ import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { requireModule } from '../modules'
+import { OVERRIDE_CLEARS, overrideOptionsForPo } from './overrides'
 import { mergeScreening, RISK_TIMEZONE } from './screening'
 import { riskPolicyInEffect, riskTiersInEffect } from './tiers'
 
@@ -318,6 +319,10 @@ export interface PoRiskStatus {
   readonly openAssessment: { readonly id: string; readonly number: string | null } | null
   /** The reader may open an assessment from this PO now (risk.assessment.manage · none open · the refusal is one an assessment clears) */
   readonly canOpenAssessment: boolean
+  /** S11-08: the supplier's override still asked, sent or returned ("ดูการอนุมัติข้าม") */
+  readonly openOverride: { readonly id: string; readonly number: string | null } | null
+  /** S11-08: the reader may ask for an override now ("ขออนุมัติข้าม": risk.override.request · a RISK_OVERRIDE rule · none open · the refusal is one an override clears) */
+  readonly canRequestOverride: boolean
 }
 
 /**
@@ -341,6 +346,7 @@ export async function poRiskStatus(ctx: Ctx, poId: string, draftGrossSatang?: bi
     const needed = e.decision.allowed ? e.decision.warnings.filter((w) => REASON_WARNINGS.includes(w)) : []
     const open = await tx.riskAssessment.findFirst({ where: { supplierId: po.supplierId, status: { in: [...OPEN_ASSESSMENT] } }, select: { id: true, number: true } })
     const manage = (await authorize(tx, ctx, 'risk.assessment.manage')).ok
+    const overrides = await overrideOptionsForPo(tx, ctx, po.supplierId)
     return {
       trigger,
       decision: e.decision,
@@ -349,6 +355,8 @@ export async function poRiskStatus(ctx: Ctx, poId: string, draftGrossSatang?: bi
       override: e.decision.allowed && e.decision.source === 'OVERRIDE' && e.override ? { id: e.override.id, number: e.override.number } : null,
       openAssessment: open,
       canOpenAssessment: manage && !open && !e.decision.allowed && OPEN_FOR_ASSESSMENT.includes(e.decision.reason),
+      openOverride: overrides.open,
+      canRequestOverride: overrides.canRequest && !e.decision.allowed && OVERRIDE_CLEARS.includes(e.decision.reason),
     }
   })
 }

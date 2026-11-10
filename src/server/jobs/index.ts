@@ -31,6 +31,7 @@ import { budgetOverrunLapse } from './budget-overrun-lapse'
 import { budgetBurnAlerts } from './budget-burn-alerts'
 import { fileScan, supplierDocumentExpiry, supplierDocumentScannedJob } from './supplier-documents'
 import { bidFileScannedJob, rfxClose, rfxInviteLink, rfxReminder } from './rfx'
+import { preferredSupplierExpiry } from './preferred-supplier-expiry'
 import { riskAssessmentSla, riskEvidenceScannedJob } from './risk-assessments'
 import { supplierNoticeSend, supplierNoticeSweep } from './supplier-notice-send'
 
@@ -80,6 +81,8 @@ export const functions = [
   rfxReminder,
   rfxInviteLink,
   bidFileScannedJob,
+  // S10-13: the preferred suppliers that end within 30 days, warned once per row and end (BR-RFX-14)
+  preferredSupplierExpiry,
   // S8-07: the invoice inbox (ADR-123)
   invoiceInboxPoll,
   // S8-09: retentions whose day has come (ADR-124)

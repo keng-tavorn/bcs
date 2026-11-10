@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
+import { preferredSuppliersLinked } from '@/server/services/sourcing/preferred-view'
 import { listSuppliersForScreen, type SupplierListRowDto } from '@/server/services/suppliers/view'
 import { Notice } from '@/ui/form/notice'
 import { FilterBar, FilterSearch, FilterSelect, FilterSummary } from '@/ui/page/filters'
@@ -72,7 +73,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
   const q = (filters.q ?? '').trim()
   const status = filters.status ?? ''
   const missing = filters.missing === '1'
-  const [t, locale] = await Promise.all([getTranslations('suppliers'), getLocale().then((l) => (l === 'en' ? 'en' : 'th') as 'th' | 'en')])
+  const [t, tPreferred, locale] = await Promise.all([getTranslations('suppliers'), getTranslations('preferredSuppliers'), getLocale().then((l) => (l === 'en' ? 'en' : 'th') as 'th' | 'en')])
   const result = await listSuppliersForScreen(ctx, { q, status, missingExpressCode: missing })
   if (!result.ok) {
     return (
@@ -86,6 +87,8 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
     )
   }
   const list = result.data
+  // S10-13: the preferred suppliers per category, while SOURCING is on or rows set before still fill the form (BR-RFX-16)
+  const preferredLinked = await preferredSuppliersLinked(ctx)
   const full = list.level === 'FULL'
   const filtered = Boolean(q) || status !== '' || (full && missing)
   const searchHint = `${list.taxIdMatch === 'WHOLE_FOR_INDIVIDUALS' ? t('list.filter.searchHintMasked') : full ? t('list.filter.searchHintFull') : t('list.filter.searchHintBasic')}${list.seesPrices ? ` ${t('list.filter.searchHintItems')}` : ''}`
@@ -99,6 +102,11 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
     <Page>
       <PageHeader title={t('list.title')} intro={full ? t('list.introFull') : t('list.introBasic')} actions={list.canManage ? addButton('default') : null}>
         {list.seesPrices ? <p className="text-ink-muted">{t('prices.intro')}</p> : null}
+        {preferredLinked ? (
+          <Link href="/suppliers/preferred" className={linkClass}>
+            {tPreferred('link')}
+          </Link>
+        ) : null}
       </PageHeader>
       <PageBody>
         {list.total > 0 ? (

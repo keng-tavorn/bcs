@@ -3469,6 +3469,8 @@
       },
       "preferred_supplier": {
         "created": "Preferred supplier set",
+        "ended": "Preferred supplier ended early",
+        "expiring": "Preferred supplier ending soon",
         "extended": "Preferred supplier extended"
       },
       "price_agreement": {
@@ -3494,6 +3496,7 @@
         "follower_removed": "Follower removed",
         "info_provided": "Requester answered",
         "info_requested": "More information asked of the requester",
+        "preferred_overridden": "Request sent without the preferred supplier",
         "rejected": "Request rejected",
         "renewal_reminded": "Renewal reminded",
         "resubmitted": "Request sent again",
@@ -5889,6 +5892,7 @@
     "PO_CHANGE_EXCEEDS_REQUEST": "More than is left on the source request ({left} left)",
     "PO_CHANGE_OPEN": "This PO has a change that is not finished",
     "PO_PENDING_PRICE": "The supplier has not confirmed its prices before VAT yet, so no purchase order is made",
+    "PREFERRED_OVERLAP": "This supplier is a preferred supplier of this category already, until {lastDay}",
     "PRIVACY_NOTICE_OUTDATED": "Please read and acknowledge the current privacy notice first.",
     "QUESTION_CUTOFF_PASSED": "Questions closed at {cutoff}",
     "RATE_LIMITED": "Too many attempts. Please try again later",
@@ -9271,6 +9275,149 @@
       "title": "Not available"
     }
   },
+  "preferredSuppliers": {
+    "back": "Back to the supplier register",
+    "col": {
+      "actions": "Actions",
+      "category": "Category",
+      "period": "Period",
+      "source": "Source",
+      "status": "Status",
+      "supplier": "Supplier"
+    },
+    "create": {
+      "cancel": "Cancel",
+      "category": "Category",
+      "categoryChoose": "Choose a category",
+      "categoryHint": "A category of the catalogue's items or of an RFx",
+      "chosen": "{hint} · chosen {date}",
+      "done": "Preferred supplier set",
+      "intro": "The request form fills this supplier for the category throughout the period. A requester who chooses another gives the reason.",
+      "lastDay": "Last day (optional)",
+      "lastDayHint": "Left blank, it applies for {days} days from the first day",
+      "noCategories": "There is no category to choose yet. Add an item to the catalogue or open an RFx of that category first.",
+      "noSuppliers": "There is no supplier in use in the register yet. Add one first.",
+      "note": "Why this supplier",
+      "noteHint": "At least {min} characters. Procurement, finance and auditors see it.",
+      "open": "Set a preferred supplier",
+      "save": "Set the preferred supplier",
+      "saving": "Saving…",
+      "supplier": "Supplier",
+      "supplierChoose": "Choose a supplier",
+      "supplierOption": "{code} · {name}",
+      "title": "Set a preferred supplier",
+      "validFrom": "First day",
+      "validFromHint": "Today or later"
+    },
+    "empty": {
+      "all": "There has never been a preferred supplier",
+      "current": "No preferred supplier is in effect yet",
+      "currentHint": "When a sourcing award is approved, its winner becomes the preferred supplier of the category.",
+      "currentHintManage": "When a sourcing award is approved, its winner becomes the preferred supplier of the category. Or press \"Set a preferred supplier\" to set one yourself.",
+      "noMatch": "No preferred supplier for category {category}",
+      "noMatchHint": "Choose another category, or show all to see those that ended.",
+      "showAll": "Show all, including those that ended"
+    },
+    "end": {
+      "body": "From now on the request form of category {category} no longer fills this supplier. This cannot be undone; to recommend it again, set it again.",
+      "confirm": "End the preferred supplier",
+      "done": "Preferred supplier ended",
+      "keep": "Keep it",
+      "open": "End",
+      "openLabel": "End the preferred supplier {code} of category {category}",
+      "reason": "Why it ends",
+      "reasonHint": "At least {min} characters. Procurement, finance and auditors see it.",
+      "saving": "Saving…",
+      "title": "End the preferred supplier {code} of category {category}?"
+    },
+    "errors": {
+      "ALREADY_ENDED": "This one has ended already. Reload the page to see where it stands.",
+      "BUSY": "The same command is still being saved. Wait a moment and try again.",
+      "CATEGORY": "Choose a category",
+      "CATEGORY_UNKNOWN": "This category is not in the catalogue or any RFx. Choose one from the list.",
+      "DATE": "Enter the date in full",
+      "EXPIRED": "This one's period is over already, so there is nothing to end.",
+      "FAILED": "It could not be saved. Reload the page and try again.",
+      "FORBIDDEN": "Only procurement sets and ends preferred suppliers.",
+      "INPUT": "Some details are missing or wrong. Check each field and try again.",
+      "INTERNAL": "Something went wrong. Try again; if it still fails, tell your admin the reference {requestId}.",
+      "MODULE_DISABLED": "Sourcing is switched off, so no new preferred supplier can be set.",
+      "NOT_FOUND": "This entry was not found. Reload the page and try again.",
+      "NO_ANSWER": "No answer came back. Check the connection and press again; it will not be saved twice.",
+      "OVERLAP": "This supplier is already preferred for this category until {lastDay}. Choose a first day after that, or end the earlier one first.",
+      "PERIOD": "The last day cannot be before the first day",
+      "PERIOD_PAST": "The first day must be today or later",
+      "REASON": "Give a reason of at least 3 characters",
+      "SUPPLIER": "Choose a supplier",
+      "SUPPLIER_UNKNOWN": "This supplier is no longer in use or not in the register. Choose another supplier.",
+      "UNAUTHENTICATED": "Your sign-in has expired. Sign in again and retry."
+    },
+    "failed": "The preferred suppliers could not be opened. Reload the page and try again.",
+    "filter": {
+      "all": "All, including those that ended",
+      "allCategories": "All categories",
+      "category": "Category",
+      "clear": "Clear filters",
+      "count": "{count, plural, one {# entry} other {# entries}}",
+      "current": "In effect and still to come",
+      "label": "Filter the preferred suppliers",
+      "limited": "Showing the first {shown}. Choose a category to see the rest.",
+      "show": "Show",
+      "submit": "Show list"
+    },
+    "forbidden": "This account may not see the supplier register. Ask your organization admin if you need this page.",
+    "home": "Back to home",
+    "intro": "The supplier the request form fills first for each category, from an approved sourcing award or set by procurement. A requester may choose another but gives the reason.",
+    "link": "Preferred suppliers per category",
+    "listLabel": "Preferred suppliers",
+    "risk": {
+      "atRisk": "Recommended but at risk: {why}",
+      "exempt": "A requester who chooses another gives no reason",
+      "flag": {
+        "CEASED": "the registry says it ceased business",
+        "NOT_FOUND": "not found in the registry",
+        "VAT_CANCELLED": "the registry says its VAT registration was cancelled"
+      },
+      "notAssessed": "Risk not assessed yet",
+      "status": {
+        "CURRENT": "assessment valid",
+        "EXPIRING": "assessment expiring soon",
+        "IN_PROGRESS": "assessment in progress",
+        "NOT_ASSESSED": "not assessed",
+        "OVERDUE": "assessment overdue",
+        "REASSESS_REQUIRED": "to be assessed again"
+      },
+      "tier": "Risk tier {tier}",
+      "tierName": {
+        "HIGH": "high",
+        "LOW": "low",
+        "MEDIUM": "medium"
+      },
+      "tierStatus": "Risk tier {tier} · {status}"
+    },
+    "riskIntro": "A preferred supplier at risk still shows on the request form, but a requester who chooses another gives no reason. Procurement may end it.",
+    "row": {
+      "endReason": "Why it ended: {reason}",
+      "endedAt": "Ended on {at}",
+      "fromAward": "From sourcing award {award}",
+      "fromAwardPending": "From a sourcing award",
+      "inactive": "Supplier no longer in use: the request form does not fill it",
+      "label": "Category {category} · {code} {name}",
+      "manual": "Set by procurement",
+      "note": "Reason: {note}",
+      "period": "{from} to {to}",
+      "supplier": "{code} · {name}"
+    },
+    "sourcingOff": "Sourcing is switched off, so no new preferred supplier can be set. Those set before still fill the request form until their last day, and can be ended early.",
+    "status": {
+      "ENDED": "Ended early",
+      "ENDING_SOON": "Ending soon · {days, plural, one {# day} other {# days}} left",
+      "EXPIRED": "Period over",
+      "IN_EFFECT": "In effect",
+      "UPCOMING": "Starts {date}"
+    },
+    "title": "Preferred suppliers"
+  },
   "priceReference": {
     "agreement": "Agreed price with {supplier}: {price} baht/{uom}",
     "alert": {
@@ -9414,6 +9561,7 @@
         "approved": "Approved {date}",
         "noSite": "No delivery site yet",
         "open": "Open request {number}",
+        "preferredOverride": "Not the preferred supplier of the category. Reason: {reason}",
         "requester": "Requested by {name}",
         "selectAll": "Select every line of {number}",
         "site": "Deliver to {site}",
@@ -10555,6 +10703,7 @@
       "NO_HIGHER_AUTHORITY": "It cannot be sent because the DOA has no authority above you for this amount. Contact your organization's administrator",
       "NO_LINES": "A request needs at least one complete item",
       "OVERRUN_PENDING": "This request is waiting for its over-budget approval. Until it is decided, the amount and the budget line cannot change and the request cannot be sent. Wait for the decision, or cancel the over-budget approval on the request page.",
+      "PREFERRED_OVERRIDE_REASON": "A category of the items has a preferred supplier from sourcing. Give the reason for choosing another under the supplier on the quotations and documents step, or choose the preferred supplier.",
       "QUOTE_FILE": "Quotation {n} has no file. Attach it, then send again",
       "QUOTE_LOWEST": "The chosen quotation is not the lowest before VAT (rule QUOTE-LOWEST). Say why you did not choose the lowest, then send again",
       "QUOTE_MORE_THAN_ONE": "Only one quotation can be chosen",
@@ -10661,6 +10810,28 @@
       "unknownTypeTitle": "Request type not found",
       "viewOnly": "Only the requester who created this request can change it. Your account may open it, but not change it"
     },
+    "preferred": {
+      "atRisk": "Recommended but at risk: {risk}",
+      "flag": {
+        "CEASED": "The registry says it ceased business",
+        "VAT_CANCELLED": "The registry says its VAT registration was cancelled"
+      },
+      "fromAward": "recommended by sourcing {award} until {until}",
+      "kept": "This supplier is {source} for category {category}",
+      "left": "Category {category} has a supplier {source}: {code} · {name}",
+      "leftAsk": "You may choose another or none, but give the reason before sending. The approver and procurement see it.",
+      "leftAtRisk": "This preferred supplier is at risk, so you may choose another without a reason.",
+      "manual": "recommended by procurement until {until}",
+      "reasonHint": "The approver of the request and procurement see this reason",
+      "reasonLabel": "Why not the preferred supplier",
+      "reasonMissing": "Give the reason for not using the preferred supplier",
+      "status": {
+        "OVERDUE": "Risk assessment overdue",
+        "REASSESS_REQUIRED": "Risk assessment to be done again"
+      },
+      "tier": "Risk tier {tier}",
+      "useIt": "Use the preferred supplier ({code})"
+    },
     "problems": {
       "AGREEMENT_BEFORE_VAT": "Line {n} takes an agreed price, which is before VAT: untick “The prices I enter include VAT”",
       "AGREEMENT_REASON": "A catalogue item has an agreed price with another supplier: give the reason for not using that supplier",
@@ -10670,6 +10841,7 @@
       "FIELD_REQUIRED": "“{field}” is not answered",
       "LINE_INCOMPLETE": "Item {n} is not complete",
       "NO_LINES": "No complete item yet",
+      "PREFERRED_REASON": "A category of the items has a preferred supplier: give the reason for choosing another under the suggested supplier",
       "QUOTATION_CHOOSE": "No quotation chosen to use",
       "QUOTATION_FILE": "Quotation {n} has no file",
       "QUOTATION_INCOMPLETE": "Quotation {n} is not complete",
@@ -11059,6 +11231,7 @@
       "deliverySiteValue": "{code} · {name}",
       "neededBy": "Needed by",
       "normal": "Normal",
+      "preferredOverrideReason": "Not the preferred supplier of the category. Reason: {reason}",
       "requester": "Requester",
       "requesterDepartment": "Requester’s department",
       "submitted": "Sent",

@@ -215,6 +215,7 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
   const riskOverrideRead = task.subjectType === 'RISK_OVERRIDE' ? await riskOverrideView(ctx, task.subjectId) : null
   const riskOverride = riskOverrideRead?.ok ? riskOverrideRead.data : null
   const tro = riskOverride ? await getTranslations('risk.override.facts') : null
+  const tDecideOverride = riskOverride ? await getTranslations('tasks.decide.override') : null
   // What the reader of a PO sees beside it, with the member's roles: the approver decides on the prices paid before too
   // (FR-P2P-003 AC1), as on the web decision page; the supplier's address and the source requests' files per §2.4
   const reader = po ? poReader(memberPrincipal(page.member.id, (await liffSignedIn(page.member.id))?.roles ?? []), null, po, { prices: true }) : null
@@ -397,12 +398,28 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
           {...common}
           kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : task.review ? 'REVIEW' : 'REQUEST'}
           label={label}
-          amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : paymentRun ? money(paymentRun.totalTransferSatang) : '-'}
+          amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : paymentRun ? money(paymentRun.totalTransferSatang) : riskOverride ? money(riskOverride.capGrossSatang) : '-'}
           stepUp={task.stepUp}
           {...(variance ? { disposition: variance.disposition } : {})}
           decide={decideLiffTaskAction}
           {...(request ? { ask: askLiffRequesterAction } : {})}
           {...(paymentRun ? { subjectInput: { flagsKey: paymentRun.flagsKey } } : {})}
+          {...(riskOverride && tDecideOverride
+            ? {
+                // S11-08: the override's own words and its cap, as on the web (tasks.decide.override)
+                words: {
+                  confirmText: tDecideOverride('confirmText', { label, amount: money(riskOverride.capGrossSatang) }),
+                  returnOption: tDecideOverride('returnOption'),
+                  returnHint: tDecideOverride('returnHint'),
+                  rejectHint: tDecideOverride('rejectHint'),
+                  reasonHint: tDecideOverride('reasonHint'),
+                  submitReturn: tDecideOverride('submitReturn'),
+                  submitReject: tDecideOverride('submitReject'),
+                  returned: tDecideOverride('returned'),
+                  rejected: tDecideOverride('rejected'),
+                },
+              }
+            : {})}
           {...(paymentRun && tPay
             ? {
                 words: {

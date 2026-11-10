@@ -53,7 +53,18 @@ export default async function NewRiskOverridePage({ searchParams }: { searchPara
   if (!form.ok) {
     const code = form.error.code
     const reason = typeof form.error.details?.reason === 'string' ? form.error.details.reason : null
-    const message = code === 'MODULE_DISABLED' ? tAdmin('moduleOff') : code === 'DOA_NOT_CONFIGURED' ? t('form.noRule') : reason === 'REGISTRY_BLOCKED' ? t('form.flagged') : code === 'NOT_FOUND' ? t('form.notFound') : tCommon('forbidden')
+    const message =
+      code === 'MODULE_DISABLED'
+        ? tAdmin('moduleOff')
+        : code === 'DOA_NOT_CONFIGURED'
+          ? t('form.noRule')
+          : reason === 'REGISTRY_BLOCKED'
+            ? t('form.flagged')
+            : reason === 'SUPPLIER_INACTIVE'
+              ? t('form.inactive')
+              : code === 'NOT_FOUND'
+                ? t('form.notFound')
+                : tCommon('forbidden')
     return <NoAccess title={t('form.title')} message={message} homeLabel={tCommon('homeLink')} />
   }
   const f = form.data

@@ -267,7 +267,8 @@ const submitCommand = defineCommand({
           type: 'risk_override.submitted',
           aggregateType: 'RiskOverride',
           aggregateId: row.id,
-          data: { number, capGrossSatang: row.capGrossSatang.toString(), expiresOn: iso(row.expiresOn), poId: row.poId, assessmentId, routeId: route.data.routeId, resubmitted: row.status === 'RETURNED' },
+          // sent before: it has its number (a returned one edited is DRAFT again, but still a resubmission)
+          data: { number, capGrossSatang: row.capGrossSatang.toString(), expiresOn: iso(row.expiresOn), poId: row.poId, assessmentId, routeId: route.data.routeId, resubmitted: row.number !== null },
         },
         ...route.data.events,
       ],
@@ -459,7 +460,8 @@ export async function riskOverrideView(ctx: Ctx, overrideId: string): Promise<Re
         tierSource,
         assessment: state,
         route: routeRow ? { ruleCode: routeRow.ruleCode, openTaskId: openTask?.id ?? null, approver: openTask ? { nameTh: openTask.assignee.displayNameTh, nameEn: openTask.assignee.displayNameEn } : null } : null,
-        lastDecision: last && (row.status === 'RETURNED' || row.status === 'REJECTED') ? { outcome: last.type === 'risk_override.returned' ? 'RETURNED' : 'REJECTED', reason: comment?.body ?? null } : null,
+        // the approver's words stay while the requester fixes a returned one (an edit makes it DRAFT again, with its number)
+        lastDecision: last && (row.status === 'RETURNED' || row.status === 'REJECTED' || (row.status === 'DRAFT' && row.number !== null)) ? { outcome: last.type === 'risk_override.returned' ? 'RETURNED' : 'REJECTED', reason: comment?.body ?? null } : null,
         posUsing: row.posUsing.map((p) => ({ id: p.id, number: p.number, countedGrossSatang: BigInt(storedRiskGate(p.riskGate)?.countedGrossSatang ?? '0') })),
         canEdit: may && (row.status === 'DRAFT' || row.status === 'RETURNED'),
         lastAllowed: overrideWindow({ submittedOn: today, overrideMaxDays: riskSettingsOf(org.settings).overrideMaxDays }).lastAllowed,
@@ -560,8 +562,9 @@ export async function riskOverrideForm(ctx: Ctx, input: { readonly supplierId?: 
     if (input.poId && !po) return fail('NOT_FOUND', 'purchase order not found')
     const supplierId = po?.supplierId ?? input.supplierId
     if (!supplierId) return fail('VALIDATION_FAILED', 'a supplier or a purchase order is needed', { field: 'supplierId', reason: 'REQUIRED' })
-    const supplier = await tx.supplier.findFirst({ where: { id: supplierId }, select: { id: true, code: true, nameTh: true, registryFlag: true } })
+    const supplier = await tx.supplier.findFirst({ where: { id: supplierId }, select: { id: true, code: true, nameTh: true, registryFlag: true, status: true } })
     if (!supplier) return fail('NOT_FOUND', 'supplier not found')
+    if (supplier.status !== 'ACTIVE') return fail('VALIDATION_FAILED', 'the supplier is not active', { field: 'supplierId', reason: 'SUPPLIER_INACTIVE' })
     if (supplier.registryFlag !== 'NONE') return fail('VALIDATION_FAILED', 'the supplier has a registry flag', { field: 'supplierId', reason: 'REGISTRY_BLOCKED', registryFlag: supplier.registryFlag })
     const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
     const today = dateIn(ctx.now, RISK_TIMEZONE)

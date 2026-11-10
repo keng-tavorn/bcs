@@ -434,6 +434,7 @@
       "fromPo": "Open this form from “Ask for an override” on the supplier risk band of a purchase order the gate holds",
       "noRule": "The DOA in effect has no risk override rule (RISK_OVERRIDE), so none can be asked for. Please contact the DOA administrator",
       "flagged": "This supplier has a registry flag, so no override can be asked for: it needs a new risk assessment",
+      "inactive": "This supplier is not active, so no override can be asked for",
       "notFound": "This purchase order or supplier was not found",
       "backToPo": "Back to the purchase order",
       "openExists": "This supplier already has an open override ({number}): edit or send that one instead",

@@ -34,6 +34,8 @@ export interface OverrideFormValues {
 export type OverrideSave = (values: OverrideFormValues, key: string) => Promise<RiskAdminOutcome>
 
 const BAHT = /^\d{1,13}(\.\d{1,2})?$/
+/** Zero in any spelling ("0", "0.00", "000.0"): checked on the text, never as a float (§17.3) */
+const ZERO = /^0+(\.0{1,2})?$/
 
 export function OverrideForm({ initial, today, lastAllowed, save, after }: { initial: OverrideFormValues; today: string; lastAllowed: string; save: OverrideSave; after: 'OPEN' | 'REFRESH' }) {
   const t = useSay('risk.override.form')
@@ -62,7 +64,7 @@ export function OverrideForm({ initial, today, lastAllowed, save, after }: { ini
     event.preventDefault()
     const found: typeof errors = {}
     if (reason.trim().length < RISK_OVERRIDE_REASON_MIN) found.reason = t('reasonShort', { min: RISK_OVERRIDE_REASON_MIN })
-    if (!BAHT.test(cap.trim()) || Number(cap) <= 0) found.cap = t('capInvalid')
+    if (!BAHT.test(cap.trim()) || ZERO.test(cap.trim())) found.cap = t('capInvalid')
     if (!expiresOn) found.date = t('dateRequired')
     setErrors(found)
     if (Object.keys(found).length) return

@@ -1,3 +1,4 @@
+import { satangToAmount } from '@/core/money/dto'
 import type { BadgeLook } from '../document/badge-looks'
 
 // The look of a risk override's state (S11-08 · §9.10 ป้ายสถานะ): a light background with its ink, an icon and a word —
@@ -16,9 +17,5 @@ export const OVERRIDE_BADGES: Readonly<Record<OverrideStatus, BadgeLook>> = {
   EXPIRED: { tone: 'neutral', icon: 'Clock' },
 }
 
-/** Baht with two decimals from satang, as a form field holds it ("120000.00") */
-export function bahtField(satang: bigint): string {
-  const whole = satang / 100n
-  const part = (satang % 100n).toString().padStart(2, '0')
-  return `${whole}.${part}`
-}
+/** Baht with two decimals from satang, as a form field holds it ("120000.00"): the money I/O format of core */
+export const bahtField = satangToAmount

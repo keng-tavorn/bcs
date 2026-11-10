@@ -11868,6 +11868,7 @@
         "expiresOnHint": "From today to {last}. Sent on another day, it is checked against the day it is sent",
         "flagged": "This supplier has a registry flag, so no override can be asked for: it needs a new risk assessment",
         "fromPo": "Open this form from “Ask for an override” on the supplier risk band of a purchase order the gate holds",
+        "inactive": "This supplier is not active, so no override can be asked for",
         "intro": "Give the reason, the cap with VAT of the purchase orders it lets out (counted across all of them) and the last day it may be used. Saved, check it once more before sending it for approval",
         "label": "Risk override request",
         "noRule": "The DOA in effect has no risk override rule (RISK_OVERRIDE), so none can be asked for. Please contact the DOA administrator",

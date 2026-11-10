@@ -175,10 +175,12 @@ describe('[FR-RSK-203/AC2] [BR-RSK-10] asked, sent under DOA RISK_OVERRIDE by it
 
     ok(await updateRiskOverride(proc(), { overrideId: r.overrideId, expectedVersion: await versionOf(r.overrideId), capGross: '30000.00' }, key()))
     expect(await eventsOf(r.overrideId, 'risk_override.updated')).toEqual([expect.objectContaining({ data: { fields: ['capGrossSatang'], from: 'RETURNED' } })])
+    // edited it is a DRAFT again, and the approver's words stay on its page while it is fixed
+    expect(ok(await riskOverrideView(proc(), r.overrideId))).toMatchObject({ status: 'DRAFT', lastDecision: { outcome: 'RETURNED', reason: 'ขอให้ลดเพดานให้เท่ายอดใบสั่งซื้อจริง' } })
     const again = ok(await submitRiskOverride(proc(), { overrideId: r.overrideId, expectedVersion: await versionOf(r.overrideId) }, key()))
     expect(again.number).toBe(first.number)
     expect(again.routeId).not.toBe(first.routeId)
-    expect(await eventsOf(r.overrideId, 'risk_override.submitted')).toHaveLength(2)
+    expect((await eventsOf(r.overrideId, 'risk_override.submitted')).map((e) => (e.data as { resubmitted: boolean }).resubmitted)).toEqual([false, true])
 
     ok(await decideTask(coo(), { taskId: (await openTaskOf(again.routeId)).id, decision: 'REJECT', reason: 'ให้รอผลประเมินความเสี่ยงก่อน' }, key()))
     expect(await prisma.riskOverride.findUniqueOrThrow({ where: { id: r.overrideId } })).toMatchObject({ status: 'REJECTED', decidedAt: NOW })
@@ -329,6 +331,9 @@ describe('[FR-RSK-203/AC3] the last day and the cumulative cap (BR-RSK-10 · BR-
     const r = ok(await request(s, { poId: po.id }))
     expect(await poRiskStatus(proc(), po.id)).toMatchObject({ canRequestOverride: false, openOverride: { id: r.overrideId } })
     expect(ok(await riskOverrideForm(proc(), { poId: po.id }))).toMatchObject({ supplier: { id: s }, po: { id: po.id }, open: { id: r.overrideId }, today: '2026-11-09', lastAllowed: '2027-02-07' })
+    // an inactive supplier gets the reason, not the form
+    const inactive = await supplier('RO-INACT', { status: 'INACTIVE' })
+    expect(await riskOverrideForm(proc(), { supplierId: inactive })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'SUPPLIER_INACTIVE' } } })
   })
 })
 

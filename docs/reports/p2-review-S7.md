@@ -143,6 +143,15 @@
 
 | # | เทสต์ที่ล้ม | เหตุ | ผล |
 | --- | --- | --- | --- |
-| 6 | `uat-config.spec.ts:112` (desktop และ mobile) · `admin.spec.ts:180` `:223` (mobile) | ฉาก e2e ของ S7 (`supplier-applications-scene.ts` `portal-scene.ts` `supplier-report-scene.ts`) และ S11 (`risk-portal-scene.ts`) สร้างองค์กรผ่าน `createP2Org` ซึ่งได้รหัส `D-…` ที่เรียงก่อน `DEMO` ในหน้าของทีม BCS · เทสต์ของทีม BCS กดลูกค้ารายแรกโดยถือว่าองค์กรของฉาก e2e ขึ้นต้นด้วย Z จึงไปเปิดโมดูลหรือสร้างระบบทดลองให้องค์กรของฉากแทน DEMO · ล้มทุกครั้งที่ฉากเหล่านี้รันก่อน | แก้แล้วที่ต้นเหตุ: `createP2Org` ให้รหัส `ZE2E-P2-…` เมื่อรันในฐาน e2e (เทสต์ integration ไม่เปลี่ยน) · รัน 4 เทสต์นี้พร้อมฉากที่สร้างองค์กรก่อน ผ่านทั้ง 8 |
+| 6 | `uat-config.spec.ts:112` (desktop และ mobile) · `admin.spec.ts:180` `:223` (mobile) | ฉาก e2e ของ S7 (`supplier-applications-scene.ts` `portal-scene.ts` `supplier-report-scene.ts`) และ S11 (`risk-portal-scene.ts`) สร้างองค์กรผ่าน `createP2Org` ซึ่งได้รหัส `D-…` ที่เรียงก่อน `DEMO` ในหน้าของทีม BCS · เทสต์ของทีม BCS กดลูกค้ารายแรกโดยถือว่าองค์กรของฉาก e2e ขึ้นต้นด้วย Z จึงไปเปิดโมดูลหรือสร้างระบบทดลองให้องค์กรของฉากแทน DEMO · ล้มทุกครั้งที่ฉากเหล่านี้รันก่อน | แก้แล้วที่ต้นเหตุ: `createDoaOrg` (ซึ่ง `createP1Org` `createP2Org` และ helper อื่นของฉากใช้) ให้รหัส `ZE2E-D-…` เมื่อรันในฐาน e2e (เทสต์ integration ไม่เปลี่ยน · รอบแรกแก้ที่ `createP2Org` ยังไม่พอ ดูข้อ 9) · รัน 4 เทสต์นี้พร้อมฉากที่สร้างองค์กรก่อน ผ่านทั้ง 8 |
 | 7 | `supplier-applications.spec.ts:75` (mobile) | S7-18 ให้แผงเอกสารวาดตารางตั้งแต่ md และรายการใต้ md · เทสต์เลือกคำ "ยืนยันแล้ว" ตัวแรกซึ่งเป็นตัวที่ซ่อนบนมือถือ | แก้เทสต์ให้เลือกตัวที่เห็นบนจอ (`filter({ visible: true })`) แบบเทสต์อื่นใน repo · ผ่านทั้งสองขนาด |
 | 8 | `admin-doa-initial.spec.ts:64` `home-assistant.spec.ts:16` `home.spec.ts:81` (desktop) · `request-form.spec.ts:148` `request-view.spec.ts:34` (mobile) | หมดเวลา 30 วินาทีตอนเครื่องหนัก (ไม่เกี่ยวกับงานของ S7) | รันเดี่ยวผ่านทั้งหมด |
+
+`pnpm verify --strict --e2e` รอบที่สอง (f199f37c · 3 ชม. 40 นาที): ด่านอื่นผ่านทั้งหมด · ฉาก `@demo` 9/9 `@p1demo` 15/15 `@p2demo` 5/5 ผ่าน · e2e หลัก 560 ผ่าน 12 ล้ม
+
+| # | เทสต์ที่ล้ม | เหตุ | ผล |
+| --- | --- | --- | --- |
+| 9 | `uat-config.spec.ts:112` (mobile) | องค์กรของฉากที่สร้างผ่าน `createDoaOrg` โดยตรงยังได้รหัส `D-…` (หน้าจอเปิดระบบทดลองให้ "องค์กรทดสอบ DOA รหัส D-418b8180") | แก้ที่ `createDoaOrg` ตามข้อ 6 |
+| 10 | `ai-document.spec.ts` 7 เคส (mobile) · `document-assistant.spec.ts:64` · `savings.spec.ts:120` (desktop และ mobile) | ฉาก `ai-document-scene.ts on` เรียก `runMonthlyGrant` ซึ่งใช้วันตาม UTC เป็น idempotency key · รอบนี้รันข้ามเที่ยงคืน UTC จึงได้ "the month is granted already" แล้วฉากโยน error (โค้ดของงานรายเดือนถูกต้อง: เดือนนี้ได้ credits แล้ว) | แก้ฉากให้ถือว่า "เดือนนี้ได้แล้ว" คือสิ่งที่ต้องการ · รัน 4 ไฟล์นี้ซ้ำ (worker เดียวตาม config) ผ่าน 30/30 |
+
+`pnpm verify --strict --e2e` รอบที่สาม: (บันทึกเมื่อจบ)

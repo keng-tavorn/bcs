@@ -154,4 +154,4 @@
 | 9 | `uat-config.spec.ts:112` (mobile) | องค์กรของฉากที่สร้างผ่าน `createDoaOrg` โดยตรงยังได้รหัส `D-…` (หน้าจอเปิดระบบทดลองให้ "องค์กรทดสอบ DOA รหัส D-418b8180") | แก้ที่ `createDoaOrg` ตามข้อ 6 |
 | 10 | `ai-document.spec.ts` 7 เคส (mobile) · `document-assistant.spec.ts:64` · `savings.spec.ts:120` (desktop และ mobile) | ฉาก `ai-document-scene.ts on` เรียก `runMonthlyGrant` ซึ่งใช้วันตาม UTC เป็น idempotency key · รอบนี้รันข้ามเที่ยงคืน UTC จึงได้ "the month is granted already" แล้วฉากโยน error (โค้ดของงานรายเดือนถูกต้อง: เดือนนี้ได้ credits แล้ว) | แก้ฉากให้ถือว่า "เดือนนี้ได้แล้ว" คือสิ่งที่ต้องการ · รัน 4 ไฟล์นี้ซ้ำ (worker เดียวตาม config) ผ่าน 30/30 |
 
-`pnpm verify --strict --e2e` รอบที่สาม: (บันทึกเมื่อจบ)
+`pnpm verify --strict --e2e` รอบที่สาม (cc26dd74 · 3 ชม. 30 นาที): **0 FAIL · 19 PASS** · e2e หน้าจอ 543 เคสผ่าน ไม่มีเคสที่ข้าม · `@demo` 9 · `@p1demo` 15 · `@p2demo` 5 ผ่านทั้งหมด · trace AC 275/275

@@ -40,12 +40,13 @@ const as = (code: string, at = NOW) => org.ctxOf(code, at)
 const moduleRow = (name: 'SOURCING' | 'RISK') => ({ organizationId: org.organizationId, module: name, enabled: true, enabledAt: new Date('2026-01-01T00:00:00Z'), contractRef: 'TEST-S10-13', reason: 'ทดสอบผู้ขายที่แนะนำ' })
 const supplier = async (name: string) => (await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `S-PRF-${randomUUID().slice(0, 6)}`, nameTh: name, isForeign: true } })).id
 
+let awardNo = 90000
 /** An award of an RFx of `categoryCode`, as the rows an approved award leaves (its RFx and decision · BR-RFX-14 needs one) */
 async function awardOf(categoryCode: string): Promise<{ id: string; number: string }> {
   const rfx = await prisma.rfxEvent.create({
     data: { organizationId: org.organizationId, kind: 'RFQ', title: `RFQ ${categoryCode}`, description: 'ทดสอบ', categoryCode, sourceKind: 'NEED', requestingDepartmentId: org.department.PROC!, createdById: org.member.proc_officer!, minInvites: 1 },
   })
-  const number = `AWD-2569-${String(Math.floor(Math.random() * 90000) + 10000)}`
+  const number = `AWD-2569-${String(++awardNo).padStart(5, '0')}`
   const award = await prisma.awardDecision.create({ data: { organizationId: org.organizationId, rfxEventId: rfx.id, number, netSatang: 100n, vatSatang: 7n, grossSatang: 107n, createdById: org.member.proc_officer! } })
   return { id: award.id, number }
 }
@@ -292,6 +293,18 @@ describe('[FR-SRC-204/AC7] [BR-RFX-14] RISK on: a preferred supplier S11 would s
     }
     await prisma.supplier.update({ where: { id: s1 }, data: { registryFlag: 'NOT_FOUND' } })
     expect((await send()).result).toMatchObject({ ok: false, error: { details: { reason: 'PREFERRED_OVERRIDE_REASON' } } })
+  })
+
+  it('one preferred supplier at risk and another not: the reason is asked, naming the one not at risk (review ข้อ 2)', async () => {
+    await prisma.supplier.update({ where: { id: s1 }, data: { registryFlag: 'NONE' } })
+    risk('OVERDUE')
+    const brick = ok(await createCatalogItem(as('proc_officer'), { code: 'PRF-RSK-1', nameTh: 'อิฐมอญ', uom: 'ก้อน', categoryCode: 'PRF-RSK', isService: false, refUnitPrice: '2.00' }, key())).catalogItemId
+    ok(await createPreferredSupplier(as('proc_officer'), { categoryCode: 'PRF-RSK', supplierId: s3, note: 'ผู้ขายอิฐรายเดิม' }, key()))
+    const latest = ok(await createPreferredSupplier(as('proc_officer'), { categoryCode: 'PRF-RSK', supplierId: s1, validFrom: '2026-11-09', note: 'ผู้ขายอิฐที่แนะนำ' }, key()))
+    const clean = await prisma.preferredSupplier.findFirstOrThrow({ where: { organizationId: org.organizationId, categoryCode: 'PRF-RSK', supplierId: s3 } })
+    expect((await preferredSuppliersFor(as('req_con'), 'PRF-RSK', '2026-11-09')).map((p) => [p.id, p.riskExempt]).sort()).toEqual([[latest.preferredSupplierId, true], [clean.id, false]].sort())
+    const saved = ok(await createDraft(as('req_con'), { requestTypeCode: 'BUY_GOODS', title: 'อิฐ', suggestedSupplierId: s2, lines: [{ description: 'อิฐมอญ', quantity: '100', uom: 'ก้อน', unitPrice: '2.00', catalogItemId: brick, categoryCode: 'PRF-RSK' }] } as never, key()))
+    expect(await submitRequest(as('req_con'), { requestId: saved.requestId }, key())).toMatchObject({ ok: false, error: { details: { reason: 'PREFERRED_OVERRIDE_REASON', categoryCode: 'PRF-RSK', preferredSupplierId: clean.id } } })
   })
 })
 

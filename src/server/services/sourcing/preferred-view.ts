@@ -8,7 +8,7 @@ import type { Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { requireModule } from '../modules'
 import { supplierAccess } from '../suppliers/access'
-import { PREFERRED_EXPIRY_WARNING_DAYS, PREFERRED_RISK_FLAGS, PREFERRED_RISK_STATUSES, riskOn, type PreferredRisk } from './preferred'
+import { isRiskExempt, PREFERRED_EXPIRY_WARNING_DAYS, riskOn, type PreferredRisk } from './preferred'
 import { supplierRiskStatus } from './risk-link'
 
 // The page /suppliers/preferred (S10-13 · BR-RFX-14 · ADR-207 · docs/sub-specs/S10.md "หน้าจอ"): the preferred suppliers
@@ -98,9 +98,6 @@ export function preferredRowStatus(row: { readonly validFrom: string; readonly v
   return { status: daysLeft <= PREFERRED_EXPIRY_WARNING_DAYS ? 'ENDING_SOON' : 'IN_EFFECT', daysLeft }
 }
 
-const exemptBy = (risk: PreferredRisk | null): boolean =>
-  risk !== null && ((PREFERRED_RISK_STATUSES as readonly string[]).includes(risk.status ?? '') || (PREFERRED_RISK_FLAGS as readonly string[]).includes(risk.registryFlag))
-
 async function distinctCategories(tx: TenantTx): Promise<{ create: string[]; filter: string[] }> {
   const [items, rfx, rows] = await Promise.all([
     tx.catalogItem.findMany({ distinct: ['categoryCode'], select: { categoryCode: true } }),
@@ -188,7 +185,7 @@ export async function preferredSupplierPage(ctx: Ctx, filter: { readonly categor
           daysLeft,
           ended: r.endedAt ? { at: r.endedAt.toISOString(), reason: full ? r.endReason : null } : null,
           risk,
-          riskExempt: exemptBy(risk),
+          riskExempt: isRiskExempt(risk),
           canEnd: canManage && status !== 'ENDED' && status !== 'EXPIRED',
         }
       }),

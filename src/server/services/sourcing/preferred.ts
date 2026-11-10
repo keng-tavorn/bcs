@@ -38,6 +38,10 @@ const memberOf = (ctx: Ctx): string | null => (ctx.actor.type === 'USER' ? ctx.a
 /** BR-RFX-14: the risk of a preferred supplier that releases the requester from giving a reason (with RISK on) */
 export const PREFERRED_RISK_STATUSES = ['OVERDUE', 'REASSESS_REQUIRED'] as const
 export const PREFERRED_RISK_FLAGS = ['CEASED', 'VAT_CANCELLED'] as const
+/** BR-RFX-14: with RISK on, the preferred supplier S11 would stop — a requester who leaves it is not asked why */
+export function isRiskExempt(risk: PreferredRisk | null): boolean {
+  return risk !== null && ((PREFERRED_RISK_STATUSES as readonly string[]).includes(risk.status ?? '') || (PREFERRED_RISK_FLAGS as readonly string[]).includes(risk.registryFlag))
+}
 /** The job warns PROCUREMENT this many days before validTo, once per row and end (BR-RFX-14) */
 export const PREFERRED_EXPIRY_WARNING_DAYS = 30
 
@@ -166,7 +170,7 @@ export async function preferredInEffect(tx: TenantTx, ctx: Ctx, options: { reado
       validFrom: dayOf(r.validFrom),
       validTo: dayOf(r.validTo),
       risk,
-      riskExempt: risk !== null && ((PREFERRED_RISK_STATUSES as readonly string[]).includes(risk.status ?? '') || (PREFERRED_RISK_FLAGS as readonly string[]).includes(risk.registryFlag)),
+      riskExempt: isRiskExempt(risk),
     }
   })
 }
@@ -180,7 +184,7 @@ export async function preferredSuppliersFor(ctx: Ctx, categoryCode: string, day:
 
 export interface PreferredOverride {
   readonly categoryCode: string
-  /** The row the form would have filled (latest validFrom) */
+  /** The row that asks the reason: the latest validFrom not risk-exempt (the one the form fills when none is) */
   readonly preferredSupplierId: string
   readonly supplierId: string
   /** Every preferred supplier of the category is one S11 would stop (RISK on): no reason is asked */
@@ -200,7 +204,9 @@ export async function preferredOverrides(tx: TenantTx, ctx: Ctx, input: { readon
   for (const categoryCode of categories.sort()) {
     const of = rows.filter((r) => r.categoryCode === categoryCode)
     if (of.length === 0 || of.some((r) => r.supplierId === input.supplierId)) continue
-    out.push({ categoryCode, preferredSupplierId: of[0]!.id, supplierId: of[0]!.supplierId, riskExempt: of.every((r) => r.riskExempt) })
+    // review ข้อ 2: name the row that asks the reason, not a risk-exempt one before it
+    const named = of.find((r) => !r.riskExempt) ?? of[0]!
+    out.push({ categoryCode, preferredSupplierId: named.id, supplierId: named.supplierId, riskExempt: of.every((r) => r.riskExempt) })
   }
   return out
 }

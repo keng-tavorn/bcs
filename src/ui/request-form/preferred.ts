@@ -1,3 +1,4 @@
+import { lastDayOf } from '../catalog/model'
 import type { FormValues } from './model'
 import type { PreferredSupplierOption } from './types'
 
@@ -71,8 +72,4 @@ export function showsPreferredReason(values: FormValues): boolean {
 }
 
 /** The last day a preferred supplier is in effect: the day before validTo (not included) */
-export function lastPreferredDay(validTo: string): string {
-  const d = new Date(`${validTo}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() - 1)
-  return d.toISOString().slice(0, 10)
-}
+export const lastPreferredDay = (validTo: string): string => lastDayOf(validTo)

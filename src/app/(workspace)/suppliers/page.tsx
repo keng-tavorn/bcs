@@ -74,7 +74,8 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
   const status = filters.status ?? ''
   const missing = filters.missing === '1'
   const [t, tPreferred, locale] = await Promise.all([getTranslations('suppliers'), getTranslations('preferredSuppliers'), getLocale().then((l) => (l === 'en' ? 'en' : 'th') as 'th' | 'en')])
-  const result = await listSuppliersForScreen(ctx, { q, status, missingExpressCode: missing })
+  // S10-13: the preferred suppliers per category, while SOURCING is on or rows set before still fill the form (BR-RFX-16)
+  const [result, preferredLinked] = await Promise.all([listSuppliersForScreen(ctx, { q, status, missingExpressCode: missing }), preferredSuppliersLinked(ctx)])
   if (!result.ok) {
     return (
       <Page>
@@ -87,8 +88,6 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
     )
   }
   const list = result.data
-  // S10-13: the preferred suppliers per category, while SOURCING is on or rows set before still fill the form (BR-RFX-16)
-  const preferredLinked = await preferredSuppliersLinked(ctx)
   const full = list.level === 'FULL'
   const filtered = Boolean(q) || status !== '' || (full && missing)
   const searchHint = `${list.taxIdMatch === 'WHOLE_FOR_INDIVIDUALS' ? t('list.filter.searchHintMasked') : full ? t('list.filter.searchHintFull') : t('list.filter.searchHintBasic')}${list.seesPrices ? ` ${t('list.filter.searchHintItems')}` : ''}`

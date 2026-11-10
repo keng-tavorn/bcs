@@ -12636,6 +12636,18 @@
       "confirmText": "Approve {label}, total incl. VAT {amount} baht. The decision cannot be changed later.",
       "otherLink": "Return, reject or ask for information",
       "otherTitle": "Return or reject",
+      "override": {
+        "confirmText": "Approve {label} with a cap with VAT of {amount} THB. The decision cannot be changed later",
+        "otherLink": "Return or reject",
+        "reasonHint": "The requester will see this. Say clearly what to change or why it is not approved",
+        "rejectHint": "The request is closed; the supplier's purchase orders stay held until its assessment is done",
+        "rejected": "Request rejected",
+        "returnHint": "The request goes back to the requester to change and send again; the supplier's purchase orders stay held until it is approved",
+        "returnOption": "Return to the requester for changes",
+        "returned": "Returned to the requester",
+        "submitReject": "Reject this request",
+        "submitReturn": "Return to the requester"
+      },
       "overrun": {
         "confirmText": "Approve {label}, over budget by {amount} baht. The amount enters the budget line, set aside for the source request. The decision cannot be changed later.",
         "otherLink": "Return or reject",

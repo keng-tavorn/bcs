@@ -54,7 +54,7 @@ export default async function RiskOverridesPage({ searchParams }: { searchParams
                       <Link href={`/risk/overrides/${r.id}`} className="font-semibold break-words text-primary underline underline-offset-4 hover:no-underline">
                         {t('list.row', { number: r.number ?? t('list.draft'), supplier: `${r.supplier.code} ${r.supplier.nameTh}` })}
                       </Link>
-                      <span className="text-ink-muted">{r.poNumber ? t('list.forPo', { number: r.poNumber }) : t('list.forSupplier')}</span>
+                      <span className="text-ink-muted">{r.po ? t('list.forPo', { number: r.po.number ?? t('facts.poDraft') }) : t('list.forSupplier')}</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
                       <StatusBadge look={OVERRIDE_BADGES[r.status as OverrideStatus]} label={t(`status.${r.status as OverrideStatus}`)} className="text-base md:text-sm" />

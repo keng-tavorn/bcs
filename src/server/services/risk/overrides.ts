@@ -474,7 +474,8 @@ export interface RiskOverrideListItem {
   readonly number: string | null
   readonly status: string
   readonly supplier: { readonly code: string; readonly nameTh: string }
-  readonly poNumber: string | null
+  /** The PO it names (its number null while a draft); null = every PO of the supplier */
+  readonly po: { readonly number: string | null } | null
   readonly capGrossSatang: bigint
   readonly usedGrossSatang: bigint
   readonly expiresOn: string
@@ -524,7 +525,7 @@ export async function listRiskOverrides(ctx: Ctx, filter: OverrideListFilter = '
           number: r.number,
           status: r.status,
           supplier: r.supplier,
-          poNumber: r.po?.number ?? null,
+          po: r.po ? { number: r.po.number } : null,
           capGrossSatang: r.capGrossSatang,
           usedGrossSatang: r.usedGrossSatang,
           expiresOn: iso(r.expiresOn),

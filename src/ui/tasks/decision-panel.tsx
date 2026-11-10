@@ -61,7 +61,7 @@ export interface TaskDecisionInput {
  * BUDGET_TRANSFER: a budget transfer or adjustment (S6-15 · FR-BUD-103), approved, returned or rejected, never asked about;
  * BUDGET_OVERRUN: an over-budget approval (S6-16 · FR-BUD-101), the same three choices, its amount the shortfall (no VAT)
  */
-export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN'
+export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN' | 'RISK_OVERRIDE'
 type Disposition = 'CLOSE_SHORT' | 'ACCEPT_EXCESS' | 'ACCEPT_DAMAGED'
 const HINTED: readonly string[] = ['CLOSE_SHORT', 'ACCEPT_EXCESS', 'ACCEPT_DAMAGED']
 
@@ -183,8 +183,10 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
   const transfer = kind === 'BUDGET_TRANSFER'
   // S6-16: its amount is the shortfall (no VAT); deciding it changes the budget only when approved
   const overrun = kind === 'BUDGET_OVERRUN'
-  // The words of the two budget kinds, under tasks.decide.transfer or tasks.decide.overrun
-  const budget = transfer ? 'transfer' : overrun ? 'overrun' : null
+  // S11-08: an override of the risk gate — no budget is held, a return goes back to the one who asked (BR-RSK-10)
+  const override = kind === 'RISK_OVERRIDE'
+  // The words of the two budget kinds and the override, under tasks.decide.transfer, .overrun or .override
+  const budget = transfer ? 'transfer' : overrun ? 'overrun' : override ? 'override' : null
   const hinted = (disposition && HINTED.includes(disposition) ? disposition : 'other') as Disposition | 'other'
   const ask = kind === 'REQUEST' || review ? actions.ask : undefined
   // The words of each kind; a request keeps the words it always had

@@ -144,7 +144,7 @@ export function OverrideForm({ initial, today, lastAllowed, save, after }: { ini
               {dayText}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0">
+          <PopoverContent className="w-auto p-0" aria-label={t('expiresOn')}>
             <Calendar
               mode="single"
               locale={locale === 'en' ? enUS : th}

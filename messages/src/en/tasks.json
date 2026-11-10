@@ -192,6 +192,18 @@
       "submitReject": "Reject this over-budget approval",
       "returned": "Returned to the requester.",
       "rejected": "Rejected."
+    },
+    "override": {
+      "confirmText": "Approve {label} with a cap with VAT of {amount} THB. The decision cannot be changed later",
+      "otherLink": "Return or reject",
+      "returnOption": "Return to the requester for changes",
+      "returnHint": "The request goes back to the requester to change and send again; the supplier's purchase orders stay held until it is approved",
+      "rejectHint": "The request is closed; the supplier's purchase orders stay held until its assessment is done",
+      "reasonHint": "The requester will see this. Say clearly what to change or why it is not approved",
+      "submitReturn": "Return to the requester",
+      "submitReject": "Reject this request",
+      "returned": "Returned to the requester",
+      "rejected": "Request rejected"
     }
   },
   "policy": {

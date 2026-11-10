@@ -40,6 +40,7 @@
       "requester": "ผู้ขอ {name}",
       "site": "ส่งที่ {site}",
       "noSite": "ยังไม่ระบุสถานที่ส่ง",
+      "preferredOverride": "ไม่ใช้ผู้ขายที่แนะนำของหมวด เหตุผล: {reason}",
       "approved": "อนุมัติเมื่อ {date}",
       "ageToday": "อนุมัติวันนี้",
       "ageDays": "อนุมัติมาแล้ว {days} วัน",

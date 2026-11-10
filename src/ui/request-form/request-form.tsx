@@ -15,6 +15,7 @@ import { Button as UiButton } from '../shadcn/button'
 import { FORM_PAGE } from '../shell/form-page'
 import { DOOR_ASIDE } from '../shell/new-request-door'
 import { catalogProblems } from './catalog-lines'
+import { preferredProblems } from './preferred'
 import { CatalogPicker } from './catalog-picker'
 import { SplitLineDialog } from './split-line-dialog'
 import type { StepProps } from './details-items'
@@ -196,7 +197,7 @@ export function RequestForm({
   const rules = applicableRules(data.form, input)
   const { nets, lowest } = compareFormQuotations(values, data.vatRateBp)
   // S6-10: and what the catalogue's agreed prices still ask (./catalog-lines.ts)
-  const problems: FormProblem[] = [...problemsOf(data, values, input, lowest), ...(purchase ? catalogProblems(values) : [])]
+  const problems: FormProblem[] = [...problemsOf(data, values, input, lowest), ...(purchase ? [...catalogProblems(values), ...preferredProblems(values)] : [])]
 
   // The server's view: the chosen line's balance and the expected route, shortly after amounts or the line change
   const previewLines = values.lines.filter(savableLine).map((l) => ({ quantity: plainNumber(l.quantity), unitPrice: plainNumber(l.unitPrice), vatable: l.vatable }))

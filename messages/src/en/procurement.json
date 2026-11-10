@@ -40,6 +40,7 @@
       "requester": "Requested by {name}",
       "site": "Deliver to {site}",
       "noSite": "No delivery site yet",
+      "preferredOverride": "Not the preferred supplier of the category. Reason: {reason}",
       "approved": "Approved {date}",
       "ageToday": "Approved today",
       "ageDays": "Approved {days} days ago",

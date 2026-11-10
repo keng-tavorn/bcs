@@ -14,4 +14,14 @@ export { openSourcingDocuments } from './usage'
 export { cancelAward, createAward, submitAward, updateAward, type AwardPlan, type AwardSnapshot } from './awards'
 export { applyAward, decideAward } from './award-decide'
 export { confirmNetPrices, releaseAwardPo } from './award-apply'
+export {
+  createPreferredSupplier,
+  endPreferredSupplier,
+  preferredInEffect,
+  preferredSuppliersFor,
+  runPreferredSupplierExpiry,
+  PREFERRED_EXPIRY_WARNING_DAYS,
+  type PreferredRisk,
+  type PreferredSupplierEntry,
+} from './preferred'
 export { awardWorkspace, getAwardTaskView, type AwardFactsDto, type AwardRoutePreview, type AwardWorkspaceDto } from './award-view'

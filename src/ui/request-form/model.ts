@@ -2,9 +2,10 @@ import { compareQuotations, evaluateCondition, evaluateForm, type FormInput } fr
 import { amountToSatang } from '@/core/money/dto'
 import { documentTotals, lineNet, lineNetsBeforeVat, type Satang } from '@/core/money/math'
 import { catalogIndex, pickCatalogLine, unlinkCatalogLine, withAgreedPrices, type CatalogPick, type CatalogProblem } from './catalog-lines'
+import type { PreferredProblem } from './preferred'
 import { splitFormLine, type SplitPart } from './split-lines'
 import type { AiReview } from '../ai/types'
-import type { FormDefinition, RequestFormData } from './types'
+import type { FormDefinition, PreferredSupplierOption, RequestFormData } from './types'
 
 // The request form's state and the rules the screen runs as the requester types (S2-11, §7.9): which fields show, which
 // lines and quotations are complete enough to save, the totals from core/money, and what the attachment rules need.
@@ -66,6 +67,10 @@ export interface FormValues {
   readonly catalog?: Readonly<Record<string, CatalogPick>>
   /** S6-10 (BR-PRC-06): why a catalogue item goes to another supplier than the agreed one; absent where the catalogue is not offered */
   readonly offAgreementReason?: string
+  /** S10-13 (BR-FORM-12): the preferred suppliers in effect today; absent where the catalogue is not offered (./preferred.ts) */
+  readonly preferred?: readonly PreferredSupplierOption[]
+  /** S10-13 (BR-FORM-12): why the request goes to another supplier than a preferred one; absent where the catalogue is not offered */
+  readonly preferredSupplierOverrideReason?: string
   /** What the Intake Agent put into the request at step 0, until the requester confirmed it (FR-AI-302) */
   readonly intakeAi?: AiReview | null
 }
@@ -91,6 +96,8 @@ export type FormAction =
   /** S6-17 (BR-BUD-16): the line becomes its parts, by quantity at the same unit price (./split-lines.ts) */
   | { readonly type: 'splitLine'; readonly key: string; readonly parts: readonly SplitPart[] }
   | { readonly type: 'offAgreementReason'; readonly value: string }
+  /** S10-13 (BR-FORM-12): the reason for another supplier than a preferred one */
+  | { readonly type: 'preferredReason'; readonly value: string }
   /** The Document Agent read the quotation's file: its values go into the quotation, waiting for the requester */
   | { readonly type: 'aiFilled'; readonly key: string; readonly review: AiReview; readonly patch: Partial<Pick<FormQuotation, 'supplierName' | 'supplierId' | 'amount' | 'includesVat'>> }
   /** The Intake Agent read what the requester wrote: its values go into the request, waiting for the requester */
@@ -122,7 +129,16 @@ export function droppedChoice(saved: string | null | undefined, options: Readonl
 export function initialValues(data: RequestFormData): FormValues {
   const opened = openingValues(data)
   // A form that offers the catalogue knows the items of its lines, and their lines take today's agreed prices (S6-10)
-  return data.catalogItems ? withAgreedPrices({ ...opened, catalog: catalogIndex(data.catalogItems), offAgreementReason: data.draft?.offAgreementReason ?? '' }) : opened
+  // and know the preferred suppliers of the items' categories (S10-13)
+  return data.catalogItems
+    ? withAgreedPrices({
+        ...opened,
+        catalog: catalogIndex(data.catalogItems),
+        offAgreementReason: data.draft?.offAgreementReason ?? '',
+        preferred: data.preferredSuppliers ?? [],
+        preferredSupplierOverrideReason: data.draft?.preferredSupplierOverrideReason ?? '',
+      })
+    : opened
 }
 
 function openingValues(data: RequestFormData): FormValues {
@@ -235,6 +251,8 @@ export function formReducer(state: FormValues, action: FormAction): FormValues {
       return splitFormLine(state, action.key, action.parts)
     case 'offAgreementReason':
       return { ...state, offAgreementReason: action.value }
+    case 'preferredReason':
+      return { ...state, preferredSupplierOverrideReason: action.value }
     case 'saved': {
       const ids = new Map(action.lines.map((l) => [l.key, l.id]))
       const stored = new Set(action.quotations)
@@ -291,6 +309,7 @@ export interface DraftPayload {
   readonly quotations?: Array<{ supplierName: string; supplierId?: string; amount: string; includesVat: boolean; fileId?: string; selected: boolean }>
   readonly nonLowestQuoteReason?: string | null
   readonly offAgreementReason?: string | null
+  readonly preferredSupplierOverrideReason?: string | null
   /** What the requester confirmed of one AI reading, carried by the save that also carries its quotation (BR-AI-17) */
   readonly aiAssist?: { agentActionId: string; confirmedPaths: string[] }
 }
@@ -332,6 +351,7 @@ export function draftPayload(values: FormValues, typeName: string, isNew: boolea
   const sentQuotes = quotesReady ? values.quotations.filter(savableQuotation) : null
   const reason = values.nonLowestQuoteReason.trim()
   const offReason = (values.offAgreementReason ?? '').trim()
+  const preferredReason = (values.preferredSupplierOverrideReason ?? '').trim()
   const draft: DraftPayload = {
     ...(title ? { title } : isNew ? { title: typeName.slice(0, TITLE_MAX) } : {}),
     ...(values.budgetLineId ? { budgetLineId: values.budgetLineId } : isNew ? {} : { budgetLineId: null }),
@@ -373,6 +393,8 @@ export function draftPayload(values: FormValues, typeName: string, isNew: boolea
     ...(reason ? { nonLowestQuoteReason: reason } : isNew ? {} : { nonLowestQuoteReason: null }),
     // Only a form that offers the catalogue asks it, so only such a form clears it (the LIFF form leaves it as saved)
     ...(offReason ? { offAgreementReason: offReason } : isNew || values.offAgreementReason === undefined ? {} : { offAgreementReason: null }),
+    // S10-13: likewise the reason for another supplier than a preferred one
+    ...(preferredReason ? { preferredSupplierOverrideReason: preferredReason } : isNew || values.preferredSupplierOverrideReason === undefined ? {} : { preferredSupplierOverrideReason: null }),
   }
   // One AI reading per save, and only with its quotation: the server compares what the AI proposed with what is saved.
   // Only a form that shows the AI's values (the workspace's, which passes aiSent) says anything of them
@@ -519,7 +541,7 @@ export type Problem =
   | { readonly kind: 'ATTACHMENTS'; readonly ruleId: string }
 
 /** A problem the workspace's form lists: those of every form, and the catalogue's (S6-10, ./catalog-lines.ts) */
-export type FormProblem = Problem | CatalogProblem
+export type FormProblem = Problem | CatalogProblem | PreferredProblem
 
 const blank = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && v.length === 0)
 
@@ -576,6 +598,9 @@ export function problemStep(p: FormProblem, documentFields: ReadonlySet<string> 
     case 'AGREEMENT_BEFORE_VAT':
     case 'CATALOG_UNLISTED':
       return 'items'
+    // S10-13: the reason sits with the suggested supplier
+    case 'PREFERRED_REASON':
+      return 'documents'
     default:
       return 'documents'
   }

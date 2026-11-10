@@ -47,4 +47,13 @@ export const SOURCING_TEMPLATES: Readonly<Record<string, Template>> = {
     body: { th: 'ออกใบสั่งซื้อจากผลได้แล้ว', en: 'You can make the purchase orders of the award now' },
     href: `/sourcing/${str(d.rfxEventId)}/award`,
   }),
+  // S10-13 (BR-RFX-14): a preferred supplier ends within 30 days (PROCUREMENT · DIGEST), once per row and end
+  'preferred_supplier.expiring': (d) => ({
+    title: {
+      th: `ผู้ขายที่แนะนำ ${str(d.supplierCode)} ของหมวด ${str(d.categoryCode)} หมดอายุ ${str(d.validTo)}`,
+      en: `The preferred supplier ${str(d.supplierCode)} of category ${str(d.categoryCode)} ends on ${str(d.validTo)}`,
+    },
+    body: { th: 'เปิดหน้าผู้ขายที่แนะนำเพื่อตั้งรายใหม่หรือปล่อยให้หมด', en: 'Open the preferred suppliers to set one again or let it end' },
+    href: `/suppliers/preferred?category=${encodeURIComponent(str(d.categoryCode))}`,
+  }),
 }

@@ -22,6 +22,7 @@ import { closeRoute, startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { formDefinition, type FormDefinition } from '@/server/forms/schema'
 import { checkCatalogLines } from './catalog-lines'
+import { checkPreferredOverride } from '../sourcing/preferred'
 import { flagRequest } from './duplicates'
 import { checkQuotations, MAX_QUOTATIONS, QuotationInput, writeQuotations } from './quotations'
 import { largestLine, releaseForRequest, requestBudgetLines, reserveForRequest } from './budget'
@@ -117,6 +118,8 @@ const DraftInput = z.strictObject({
   suggestedSupplierId: z.uuid().nullable().optional(),
   /** S6-10 (BR-PRC-06): why a catalogue item with an agreed price goes to another supplier */
   offAgreementReason: z.string().trim().max(REASON_MAX_LENGTH).optional(),
+  /** S10-13 (BR-FORM-12): why the request goes to another supplier than a preferred one of its categories */
+  preferredSupplierOverrideReason: z.string().trim().max(REASON_MAX_LENGTH).optional(),
   /** Values an AI action filled in and the person confirmed (BR-AI-17 of S13 · assist-contract.ts) */
   aiAssist: AiAssistInput.optional(),
 })
@@ -323,6 +326,7 @@ export async function draftIn(tx: TenantTx, ctx: Ctx, input: z.output<typeof Dra
       ...(input.deliverySiteId ? { deliverySiteId: input.deliverySiteId } : {}),
       ...(input.suggestedSupplierId ? { suggestedSupplierId: input.suggestedSupplierId } : {}),
       ...(input.offAgreementReason ? { offAgreementReason: input.offAgreementReason } : {}),
+      ...(input.preferredSupplierOverrideReason ? { preferredSupplierOverrideReason: input.preferredSupplierOverrideReason } : {}),
       ...(origin && origin.source !== 'CHAT_INTAKE' ? { sourceRequestId: origin.sourceRequestId, ...(origin.renewalOfRequestLineId ? { renewalOfRequestLineId: origin.renewalOfRequestLineId } : {}) } : {}),
     },
   })
@@ -384,6 +388,9 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest, dupl
   for (const [i, line] of request.lines.entries()) {
     if (line.priceAgreementId !== agreed.agreementIds[i]) await tx.requestLine.update({ where: { id: line.id }, data: { priceAgreementId: agreed.agreementIds[i] ?? null } })
   }
+  // BR-FORM-12 (S10-13): another supplier than a preferred one of the lines' categories needs the requester's reason
+  const preferred = await checkPreferredOverride(tx, ctx, request)
+  if (!preferred.ok) return preferred
   const rates = await listTaxRates()
   const taxDate = taxDateOf(ctx.now)
   const rate = rateFor(taxDate, rates)
@@ -465,7 +472,7 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest, dupl
   // BR-DUP-05 (S6-13): duplicates and splits under the DOA version of this route; never blocking, never rerouting
   const flagged = await flagRequest(tx, ctx, { ...request, chargedDepartmentId }, totals, { routeId: route.data.routeId, doaVersionId: route.data.route.doaVersionId }, duplicateReason)
   if (!flagged.ok) return flagged
-  return { ok: true as const, totals, rateBp: rate.rateBp, taxDate, route: route.data, formData: checked.data, budget, budgetLineId: budgetLine.line.id, chargedDepartmentId, flagged }
+  return { ok: true as const, totals, rateBp: rate.rateBp, taxDate, route: route.data, formData: checked.data, budget, budgetLineId: budgetLine.line.id, chargedDepartmentId, flagged, preferredEvents: preferred.events }
 }
 
 export const submitCommand = defineCommand({
@@ -538,6 +545,7 @@ export const submitCommand = defineCommand({
       ...prepared.budget.events,
       ...route.events,
       ...prepared.flagged.events,
+      ...prepared.preferredEvents,
       ...ai.data,
     ]
     return { ok: true, result: { number, routeId: route.routeId, assigneeMemberId: route.firstTask.assigneeMemberId }, events, notifications: [...route.notifications, ...prepared.flagged.notifications] }
@@ -664,6 +672,7 @@ export const resubmitCommand = defineCommand({
         ...prepared.budget.events,
         ...route.events,
         ...prepared.flagged.events,
+        ...prepared.preferredEvents,
         ...ai.data,
       ],
       notifications: [...route.notifications, ...prepared.flagged.notifications],
@@ -700,6 +709,8 @@ const EditInput = z.strictObject({
   suggestedSupplierId: z.uuid().nullable().optional(),
   /** S6-10 (BR-PRC-06): null clears */
   offAgreementReason: z.string().trim().max(REASON_MAX_LENGTH).nullable().optional(),
+  /** S10-13 (BR-FORM-12): null clears */
+  preferredSupplierOverrideReason: z.string().trim().max(REASON_MAX_LENGTH).nullable().optional(),
   /** Values an AI action filled in and the person confirmed (BR-AI-17 of S13 · assist-contract.ts) */
   aiAssist: AiAssistInput.optional(),
 })
@@ -748,6 +759,7 @@ export const editCommand = defineCommand({
         ...(input.deliverySiteId !== undefined ? { deliverySiteId: input.deliverySiteId } : {}),
         ...(input.suggestedSupplierId !== undefined ? { suggestedSupplierId: input.suggestedSupplierId } : {}),
         ...(input.offAgreementReason !== undefined ? { offAgreementReason: input.offAgreementReason || null } : {}),
+        ...(input.preferredSupplierOverrideReason !== undefined ? { preferredSupplierOverrideReason: input.preferredSupplierOverrideReason || null } : {}),
         version: { increment: 1 },
       },
     })

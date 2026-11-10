@@ -27,6 +27,8 @@ export function requestsOf(t: PoolT, locale: Locale, lines: readonly PoolLineDto
         t('request.requester', { name: locale === 'en' && first.requesterNameEn ? first.requesterNameEn : first.requesterName }),
         first.deliverySite ? t('request.site', { site: first.deliverySite.nameTh }) : t('request.noSite'),
         `${t('request.approved', { date: day(locale, first.approvedAt) })} · ${first.ageDays > 0 ? t('request.ageDays', { days: first.ageDays }) : t('request.ageToday')}`,
+        // S10-13 (BR-FORM-12): the requester left a preferred supplier of the category, and said why
+        ...(first.preferredSupplierOverrideReason ? [t('request.preferredOverride', { reason: first.preferredSupplierOverrideReason })] : []),
       ],
       urgent: first.urgency === 'URGENT',
       suggested: supplierName(first.suggestedSupplierId),

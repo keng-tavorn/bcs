@@ -2,6 +2,7 @@ import type { AttachmentRule, Condition, VisibilityRule } from '@/core/forms'
 import type { FieldDef } from '@/core/forms/fields'
 import { satangToAmount, toMoneyDto, type MoneyDto } from '@/core/money/dto'
 import { err, ok, type Result } from '@/core/result'
+import { agreementDay } from '@/core/pricing'
 import { rateFor, taxDateOf } from '@/core/vat'
 import { authorize, isAllowed, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
@@ -20,6 +21,7 @@ import {
   type ScreenLocale,
 } from '@/server/queries/request-form'
 import { openAssists, type OpenAssist } from '../ai/assist-contract'
+import { preferredInEffect } from '../sourcing/preferred'
 import { attachableKinds, type FileLinkKind } from './attachments'
 
 // What the request form shows (S2-11, spec §7.9, FR-INT-002, FR-INT-003, BR-FORM-02): the form of the request type as
@@ -97,6 +99,8 @@ export interface RequestDraftDto {
   readonly suggestedSupplierId: string | null
   /** S6-10 (BR-PRC-06): why a catalogue item goes to another supplier than the agreed one */
   readonly offAgreementReason: string
+  /** S10-13 (BR-FORM-12): why the request goes to another supplier than a preferred one of its categories */
+  readonly preferredSupplierOverrideReason: string
   /** What the Intake Agent filled at step 0, still waiting for the requester (S13-08) */
   readonly intakeAi: OpenAssist | null
 }
@@ -117,7 +121,28 @@ export interface RequestFormDto {
   readonly defaultDeliverySiteId: string | null
   /** Active suppliers of the register a requester may suggest, basic details only (§2.4 supplier.view) */
   readonly suppliers: readonly FormSupplierDto[]
+  /** S10-13 (BR-FORM-02 BR-FORM-12): the preferred suppliers in effect today, each category's latest validFrom first */
+  readonly preferredSuppliers: readonly FormPreferredSupplierDto[]
   readonly draft: RequestDraftDto | null
+}
+
+/**
+ * A preferred supplier as the request form shows it (BR-RFX-14): the form fills the category's first one when the
+ * requester has chosen no supplier, labels it, and asks for the reason when another is chosen — unless riskExempt.
+ */
+export interface FormPreferredSupplierDto {
+  readonly id: string
+  readonly categoryCode: string
+  readonly supplierId: string
+  readonly supplierCode: string
+  readonly supplierName: string
+  /** AWD-… of the award it came from; null when procurement set it (MANUAL) */
+  readonly awardNumber: string | null
+  /** Not included: the last day it is in effect is the day before */
+  readonly validTo: string
+  /** With RISK on: S11's tier and assessment status and the registry flag; null with RISK off */
+  readonly risk: { readonly tier: string | null; readonly status: string | null; readonly registryFlag: string } | null
+  readonly riskExempt: boolean
 }
 
 const day = (d: Date) => d.toISOString().slice(0, 10)
@@ -144,15 +169,17 @@ async function departmentName(tx: TenantTx, memberId: string, locale: ScreenLoca
  * line is told to ask the budget administrators by their role, not by name: whose names a requester may see is a
  * personal-data decision the spec leaves open (unit a's needs). Supplier names are read only when the reader holds
  * supplier.view (§2.4: every member, basic details).
- * TODO(S10): BR-FORM-02 also prefills the category's preferred supplier (PreferredSupplier, S10) and then the latest
- * supplier of the same category; tier-1 forms have no category, so the suggested supplier starts empty.
+ * S10-13 (BR-FORM-12): the preferred suppliers in effect today, which the form fills by the categories of the lines the
+ * requester picks from the catalogue; the latest supplier of the category, the next step of BR-FORM-02, is S10-28.
  */
 async function formContext(ctx: Ctx, principal: Principal, type: { code: string; documentType: 'PURCHASE_REQUEST' | 'SUPPLIER_REQUEST' }, locale: ScreenLocale) {
-  if (type.documentType === 'SUPPLIER_REQUEST') return { budgetLines: [], defaultBudgetLineId: null, vatRateBp: null, deliverySites: [], defaultDeliverySiteId: null, suppliers: [] }
-  const [budgetLines, deliverySites, suppliers] = await Promise.all([
+  if (type.documentType === 'SUPPLIER_REQUEST') return { budgetLines: [], defaultBudgetLineId: null, vatRateBp: null, deliverySites: [], defaultDeliverySiteId: null, suppliers: [], preferredSuppliers: [] }
+  const seesSuppliers = isAllowed(principal, 'supplier.view')
+  const [budgetLines, deliverySites, suppliers, preferredSuppliers] = await Promise.all([
     listFormBudgetLines(ctx, taxDateOf(ctx.now), locale),
     listFormDeliverySites(ctx),
-    isAllowed(principal, 'supplier.view') ? listFormSuppliers(ctx, locale) : Promise.resolve([]),
+    seesSuppliers ? listFormSuppliers(ctx, locale) : Promise.resolve([]),
+    seesSuppliers ? formPreferredSuppliers(ctx, locale) : Promise.resolve([]),
   ])
   return {
     budgetLines,
@@ -161,7 +188,24 @@ async function formContext(ctx: Ctx, principal: Principal, type: { code: string;
     deliverySites,
     defaultDeliverySiteId: await defaultDeliverySiteId(ctx, deliverySites),
     suppliers,
+    preferredSuppliers,
   }
+}
+
+/** BR-FORM-12: the preferred suppliers in effect on today's Thai day, with the supplier's name in the screen's language */
+async function formPreferredSuppliers(ctx: Ctx, locale: ScreenLocale): Promise<FormPreferredSupplierDto[]> {
+  const rows = await forTenant(ctx.organizationId).$transaction((tx) => preferredInEffect(tx, ctx, { day: agreementDay(ctx.now) }))
+  return rows.map((r) => ({
+    id: r.id,
+    categoryCode: r.categoryCode,
+    supplierId: r.supplierId,
+    supplierCode: r.supplierCode,
+    supplierName: (locale === 'en' ? r.supplierName.en : null) ?? r.supplierName.th,
+    awardNumber: r.awardNumber,
+    validTo: r.validTo,
+    risk: r.risk,
+    riskExempt: r.riskExempt,
+  }))
 }
 
 /** The form for a new request of one type (FR-INT-002, FR-INT-003): NOT_FOUND for a type that is off or has no form */
@@ -268,6 +312,7 @@ export async function getRequestForEdit(ctx: Ctx, requestId: string, locale: Scr
       deliverySiteId: request.deliverySiteId,
       suggestedSupplierId: request.suggestedSupplierId,
       offAgreementReason: request.offAgreementReason ?? '',
+      preferredSupplierOverrideReason: request.preferredSupplierOverrideReason ?? '',
       intakeAi: assists.find((a) => a.purpose === 'INTAKE') ?? null,
     },
   })

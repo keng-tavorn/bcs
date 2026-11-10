@@ -68,6 +68,15 @@ defineEvents('Request', {
   },
   // S6-12 (FR-INT-101 AC2, BR-FORM-08): a service line of the request was reminded at one milestone before it ends
   'request.renewal_reminded': { schema: z.object({ requestLineId: z.uuid(), milestone: z.number().int().positive(), serviceEndDate: z.iso.date() }) },
+  // S10-13 (BR-FORM-12 · FR-SRC-204 AC7): sent to another supplier than a preferred one of its categories; the reason is a
+  // Comment of the request (none when every preferred supplier of the category is one S11 would stop · BR-RFX-14)
+  'request.preferred_overridden': {
+    schema: z.object({
+      supplierId: z.uuid().nullable(),
+      overrides: z.array(z.object({ categoryCode: z.string().min(1), preferredSupplierId: z.uuid(), riskExempt: z.boolean() })).min(1),
+      reasonCommentId: z.uuid().optional(),
+    }),
+  },
   'request.info_requested': { schema: z.object({ taskId: z.uuid(), infoRequestId: z.uuid() }) },
   'request.info_provided': { schema: z.object({ taskId: z.uuid(), infoRequestId: z.uuid() }) },
   // FR-INT-013 AC1 (S16-06): a member follows or stops following a request, by themselves (SELF) or by the requester

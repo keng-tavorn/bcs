@@ -99,6 +99,8 @@ export interface RequestDraft {
   readonly suggestedSupplierId?: string | null
   /** S6-10 (BR-PRC-06): why a catalogue item goes to another supplier than the agreed one; absent: none */
   readonly offAgreementReason?: string
+  /** S10-13 (BR-FORM-12): why the request goes to another supplier than a preferred one; absent: none */
+  readonly preferredSupplierOverrideReason?: string
   /** What the Intake Agent filled at step 0, still waiting for the requester (S13-08) */
   readonly intakeAi?: AiReviewDraft | null
 }
@@ -132,6 +134,26 @@ export interface CatalogItemOption {
   readonly agreements: ReadonlyArray<{ readonly supplierId: string; readonly supplierCode: string; readonly supplierName: string; readonly unitPriceSatang: string }>
 }
 
+/**
+ * A preferred supplier of a category in effect today (S10-13 · BR-RFX-14 · src/server/services/requests/form-view.ts
+ * FormPreferredSupplierDto): the form fills it, labels it, and asks the reason when another supplier is chosen — unless
+ * riskExempt (RISK on and S11 would stop it).
+ */
+export interface PreferredSupplierOption {
+  readonly id: string
+  readonly categoryCode: string
+  readonly supplierId: string
+  readonly supplierCode: string
+  readonly supplierName: string
+  /** AWD-… of the award it came from; null when procurement set it */
+  readonly awardNumber: string | null
+  /** Not included */
+  readonly validTo: string
+  /** With RISK on: S11's tier and status and the registry flag */
+  readonly risk: { readonly tier: string | null; readonly status: string | null; readonly registryFlag: string } | null
+  readonly riskExempt: boolean
+}
+
 export interface RequestFormData {
   readonly type: { readonly code: string; readonly name: string; readonly description: string | null; readonly documentType: DocumentType }
   readonly form: FormDefinition
@@ -148,6 +170,8 @@ export interface RequestFormData {
   readonly suppliers?: readonly SupplierOption[]
   /** S6-10: the catalogue items the draft's lines name, with today's agreed prices (absent: none, or not offered) */
   readonly catalogItems?: readonly CatalogItemOption[]
+  /** S10-13 (BR-FORM-12): the preferred suppliers in effect today, each category's latest validFrom first (absent: none) */
+  readonly preferredSuppliers?: readonly PreferredSupplierOption[]
   readonly draft: RequestDraft | null
 }
 

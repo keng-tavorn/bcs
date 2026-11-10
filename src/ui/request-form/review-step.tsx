@@ -65,6 +65,7 @@ export function mustFixBeforeSending(p: FormProblem): boolean {
     case 'AGREEMENT_REASON':
     case 'AGREEMENT_BEFORE_VAT':
     case 'CATALOG_UNLISTED':
+    case 'PREFERRED_REASON':
       return true
   }
 }
@@ -385,6 +386,7 @@ function problemText(t: T, p: FormProblem, fields: readonly FieldDef[], locale: 
     case 'QUOTATION_CHOOSE':
     case 'QUOTATION_REASON':
     case 'AGREEMENT_REASON':
+    case 'PREFERRED_REASON':
       return t(`problems.${p.kind}`)
     case 'LINE_INCOMPLETE':
     case 'SERVICE_END_DATE':

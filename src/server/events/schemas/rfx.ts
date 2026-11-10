@@ -132,8 +132,11 @@ defineEvents('AwardDecision', {
 })
 
 // S10-11 (BR-RFX-14 · OQ-210): a winner preferred in the RFx's category from the award's approval; a pair still in effect
-// is extended instead of made again (S10-13 adds MANUAL and the end)
+// is extended instead of made again · S10-13: procurement sets one (MANUAL) and ends one early; the daily job warns 30 days
+// before validTo, once per row and end
 defineEvents('PreferredSupplier', {
   'preferred_supplier.created': { schema: z.object({ categoryCode: z.string().min(1), supplierId: z.uuid(), validFrom: z.iso.date(), validTo: z.iso.date(), source: z.enum(['SOURCING', 'MANUAL']), awardDecisionId: z.uuid().optional() }) },
   'preferred_supplier.extended': { schema: z.object({ categoryCode: z.string().min(1), supplierId: z.uuid(), from: z.iso.date(), to: z.iso.date(), awardDecisionId: z.uuid().optional() }) },
+  'preferred_supplier.ended': { schema: z.object({ categoryCode: z.string().min(1), supplierId: z.uuid(), validTo: z.iso.date(), reason: z.string().min(1) }) },
+  'preferred_supplier.expiring': { schema: z.object({ categoryCode: z.string().min(1), supplierId: z.uuid(), validTo: z.iso.date() }) },
 })

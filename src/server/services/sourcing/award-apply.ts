@@ -20,7 +20,7 @@ import { assignSupplierInTx, consolidateInTx } from '../procurement'
 import { biddingSupplier, contactInvite } from './bids'
 import { absorb, effects, orgCodeOf, portalLoginUrl, type Effects } from './invites'
 import { awardStep, lockedAward } from './awards'
-import { preferFromAward } from './preferred'
+import { upsertPreferredFromAward } from './preferred'
 import { gate, lockedRfx, releaseSources } from './rfx'
 
 // What an approved award does (S10-11 · FR-SRC-204 AC3 AC4 AC9 AC10 · BR-RFX-13 BR-RFX-14 · ADR-206 · OQ-203 OQ-205
@@ -37,7 +37,7 @@ import { gate, lockedRfx, releaseSources } from './rfx'
 // po.send and a change. An RFx of a need makes no PO: each line with a catalogue item gets an agreed price at the awarded
 // price for agreementFromAwardDays from the approval, ending the same item and supplier's agreement that runs into it on
 // the day before (an agreement that starts on or after that day is refused: procurement ends it first). Every winner is
-// preferred in the RFx's category (preferFromAward). A winner who bid with VAT included makes nothing of the kind until it
+// preferred in the RFx's category (upsertPreferredFromAward). A winner who bid with VAT included makes nothing of the kind until it
 // confirms its unit prices before VAT on the portal and procurement releases the award (award.releasePo · PENDING_PRICE):
 // the system never rounds a unit price of its own (NEW-50). Any refusal rolls the whole decision back.
 
@@ -251,7 +251,7 @@ export async function applyAward(tx: TenantTx, effectsCtx: Ctx, award: AwardRow,
   const won = new Set(lines.map((l) => l.rfxLineId))
   const lost = (await tx.rfxLine.findMany({ where: { rfxEventId: rfx.id }, select: { id: true } })).filter((l) => !won.has(l.id)).map((l) => l.id)
   if (lost.length) await releaseSources(tx, { rfxEventId: rfx.id, rfxLineIds: lost })
-  const preferred = await preferFromAward(tx, effectsCtx, { awardDecisionId: award.id, categoryCode: rfx.categoryCode, supplierIds: [...new Set(lines.map((l) => l.supplierId))] })
+  const preferred = await upsertPreferredFromAward(tx, effectsCtx, { awardDecisionId: award.id, categoryCode: rfx.categoryCode, supplierIds: [...new Set(lines.map((l) => l.supplierId))] })
   let made: Materialized = { purchaseOrderIds: [], priceAgreementIds: [], linesWithoutAgreement: [], events: [] }
   if (pending.size === 0) {
     const m = await materialize(tx, effectsCtx, award, rfx, lines, approver)

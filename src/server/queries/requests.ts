@@ -895,6 +895,8 @@ export interface RequestViewDto {
   readonly deliverySite: { readonly code: string; readonly name: string; readonly address: string | null } | null
   /** The supplier the requester suggested, with the basic details every member may see (§2.4 supplier.view) */
   readonly suggestedSupplier: { readonly code: string; readonly name: NameDto } | null
+  /** S10-13 (BR-FORM-12): why the request goes to another supplier than a preferred one — for its approver and procurement */
+  readonly preferredSupplierOverrideReason: string | null
   readonly stage: StageDto
   readonly track: readonly TrackEntryDto[]
   readonly actions: RequesterActionsDto
@@ -1556,6 +1558,7 @@ export async function getRequestView(ctx: Ctx, requestId: string): Promise<Reque
     cancelReason: request.status === 'CANCELLED' ? request.cancelReason : null,
     deliverySite: request.deliverySite ? { code: request.deliverySite.code, name: request.deliverySite.nameTh, address: request.deliverySite.address } : null,
     suggestedSupplier: request.suggestedSupplier ? { code: request.suggestedSupplier.code, name: { th: request.suggestedSupplier.nameTh, en: request.suggestedSupplier.nameEn } } : null,
+    preferredSupplierOverrideReason: request.preferredSupplierOverrideReason,
     stage,
     track: [...history, ...liveSteps({ status: request.status, requester: memberRef(request.requester) }, stage, route, openInfoRequest?.question ?? null)],
     actions: requesterActions(request.status, request.documentType),

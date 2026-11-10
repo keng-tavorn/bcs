@@ -78,5 +78,6 @@
   "RFX_CLOSED": "RFx นี้ปิดรับข้อเสนอแล้วเมื่อ {closesAt}",
   "SUPPLIER_NOT_APPROVED": "ยื่นข้อเสนอได้เมื่อการสมัครเป็นผู้ขายได้รับอนุมัติแล้ว",
   "BID_INCOMPLETE": "ข้อเสนอยังขาดราคาของรายการ: {lines}",
-  "VAT_INCLUSIVE_NOT_ALLOWED": "RFx นี้รับเฉพาะราคาก่อน VAT"
+  "VAT_INCLUSIVE_NOT_ALLOWED": "RFx นี้รับเฉพาะราคาก่อน VAT",
+  "PREFERRED_OVERLAP": "ผู้ขายรายนี้เป็นผู้ขายที่แนะนำของหมวดนี้อยู่แล้วถึง {lastDay}"
 }

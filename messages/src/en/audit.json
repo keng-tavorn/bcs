@@ -459,13 +459,14 @@
       "cancelled": "Request cancelled",
       "completed": "Request completed",
       "doa_gap_reported": "DOA has no rule for this request",
-      "draft_expiry_notified": "Expiring draft notified",
       "drafted": "Request drafted",
+      "draft_expiry_notified": "Expiring draft notified",
       "flagged": "Flagged as a duplicate or split",
       "follower_added": "Follower added",
       "follower_removed": "Follower removed",
       "info_provided": "Requester answered",
       "info_requested": "More information asked of the requester",
+      "preferred_overridden": "Request sent without the preferred supplier",
       "rejected": "Request rejected",
       "renewal_reminded": "Renewal reminded",
       "resubmitted": "Request sent again",
@@ -769,7 +770,9 @@
     },
     "preferred_supplier": {
       "created": "Preferred supplier set",
-      "extended": "Preferred supplier extended"
+      "extended": "Preferred supplier extended",
+      "ended": "Preferred supplier ended early",
+      "expiring": "Preferred supplier ending soon"
     }
   }
 }

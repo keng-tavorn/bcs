@@ -78,5 +78,6 @@
   "RFX_CLOSED": "This RFx closed for bids at {closesAt}",
   "SUPPLIER_NOT_APPROVED": "A bid can be sent once the supplier is approved",
   "BID_INCOMPLETE": "The bid lacks the price of lines: {lines}",
-  "VAT_INCLUSIVE_NOT_ALLOWED": "This RFx takes prices before VAT only"
+  "VAT_INCLUSIVE_NOT_ALLOWED": "This RFx takes prices before VAT only",
+  "PREFERRED_OVERLAP": "This supplier is a preferred supplier of this category already, until {lastDay}"
 }

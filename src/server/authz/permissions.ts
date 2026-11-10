@@ -14,6 +14,7 @@
 // (FR-BUD-101, OQ-104). S6-21 added config.export, config.import and platform.sandbox.manage (FR-PLT-101, OQ-108).
 // NEW-125 added admin.ai.view (ORG_ADMIN and AUDITOR read /admin/ai), which the user confirmed with NEW-125 (ADR-080, ADR-083).
 // S10-04 added sourcing.view and sourcing.manage, approved with docs/sub-specs/S10.md (ADR-075 · docs/reports/p2-decisions.md).
+// S10-13 added sourcing.preferred.manage, approved with the same sub-spec (BR-RFX-14 · ADR-207).
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -177,6 +178,9 @@ export const PERMISSIONS = {
   'sourcing.score': [anyMember('ASSIGNED')],
   // S10-10: an award is made, changed, sent and cancelled by procurement (BR-RFX-12 · BR-RFX-16)
   'sourcing.award': PROCUREMENT_ONLY,
+  // S10-13 (BR-RFX-14 · ADR-207): procurement sets a preferred supplier itself (MANUAL, with a reason) and ends one early;
+  // whoever reads suppliers sees them (supplier.view)
+  'sourcing.preferred.manage': PROCUREMENT_ONLY,
   // S11-04 (BR-RSK-02 · ADR-229): the tiers, the gate policy and the questionnaire versions, proposed by one administrator
   // and confirmed or published by another; ORG_ADMIN loses them once the DOA administrators are separated (below)
   'admin.riskTiers': DOA_ADMINS,

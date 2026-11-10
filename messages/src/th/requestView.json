@@ -106,7 +106,8 @@
     "deliverySiteNone": "ยังไม่ระบุ",
     "suggestedSupplier": "ผู้ขายที่แนะนำ",
     "suggestedSupplierValue": "{code} · {name}",
-    "suggestedSupplierNone": "ไม่ระบุ ฝ่ายจัดซื้อเป็นผู้เลือก"
+    "suggestedSupplierNone": "ไม่ระบุ ฝ่ายจัดซื้อเป็นผู้เลือก",
+    "preferredOverrideReason": "ไม่ใช้ผู้ขายที่แนะนำของหมวด เหตุผล: {reason}"
   },
   "amounts": {
     "title": "ยอดเงิน",

@@ -113,6 +113,8 @@
 
 ผลหลังแก้: `tests/integration/risk-overrides.test.ts` 15 เคสผ่าน · ดูผล `pnpm verify` ในบรรทัดของ S11-08
 
+ติ๊ก 2026-11-12: GC-SOD-18 (S7) และ GC-SOD-19 20 (S10) เข้า main แล้ว (910d6336 · รวมเข้าสายใน a8fe95ce) จึงเพิ่ม GC-SOD-21 (ผู้ขออนุมัติข้ามความเสี่ยงอนุมัติเอง · BR-SOD-15) ลง `tests/golden/sod.yaml` และ §7.5 ตาม sub-spec และแถว BR-SOD-15 อ้าง GC-SOD-21 แทน "GC-SOD ข้อ 21" · ตัวรันทั้ง TS (`alsoConflicting`) และ `run_sod` รู้จักกรณี `RISK_OVERRIDE` ตั้งแต่ commit โค้ดของข้อ (b4ca08d6 · รีวิวแล้วข้างบน) จึงไม่รีวิวซ้ำ · `pnpm spec:check` golden:sod 21/21 · golden 61 ไฟล์ · 832 เคส
+
 ## S11-24 ผู้ถือ slot ดาวน์โหลดใบรับรองของคำตอบใน domain ตน (2026-11-12)
 
 รีวิว `/code-review xhigh a8fe95ce...HEAD` ของ commit `924205f3` (grant `SupplierDocumentGrant` ของ `supplierDocument.requestDownload` ใน `src/server/services/suppliers/documents.ts` · `reviewDocumentGrant` ของ `src/server/services/risk/evidence.ts` · ปุ่มเปิดใบรับรองบนหน้า `/risk/reviews/[id]` และลิงก์ของ LIFF · `tests/unit/supplier-document-grant.test.ts`) · 7 ข้อ แก้ 2

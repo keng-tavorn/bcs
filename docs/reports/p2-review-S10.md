@@ -85,6 +85,8 @@
 
 พบระหว่างทำ: CHECK `award_decision_shape` ของ migration S10-01 ให้ `poStatus = PENDING_PRICE` ได้เฉพาะผลที่ APPROVED ผลจึงตั้งค่านี้ตอนอนุมัติ (`applyAward`) ส่วนตอนส่ง event `award.submitted` และ facts ของผู้อนุมัติบอก PENDING_PRICE แล้ว
 
+ติ๊ก 2026-11-11: รวม main ที่มี S7 ครบ (GC-SOD-18 ของ S7 เข้า main ใน 72b53b5c) แล้วเพิ่ม GC-SOD-19 (ผู้ประเมินอนุมัติผลเอง · BR-SOD-13) และ GC-SOD-20 (ผู้ขอของบรรทัดต้นทางให้คะแนน · BR-SOD-14) ลง `tests/golden/sod.yaml` และ §7.5 ตาม sub-spec · ตัวรันทั้ง TS และ `run_sod` รู้จักทั้งสองแบบตั้งแต่ commit โค้ดของข้อ จึงไม่รีวิวซ้ำ · `pnpm spec:check` golden:sod 20/20 · ตอนรวม main แถว "RFx รอยื่น" ของหน้าแรกพอร์ทัลย้ายไปเป็น provider `rfx` ของ `PORTAL_HOME_PROVIDERS` บนหน้า `/portal/[org]/home` ของ S7 (ตาม sub-spec S10 แถว `/portal/home`) แทนแถวสรุปบนหน้า `/portal/[org]` เดิมที่ S7 เปลี่ยนเป็นหน้าส่งต่อ
+
 ## S10-11 PO และราคาตกลงจากผล (2026-11-10)
 
 รีวิว `/code-review xhigh 433262b8~1...HEAD` ของ commit `433262b8` `749a99a2` · พบ 15 ข้อ · แก้ข้อที่กระทบความถูกต้องและเงินพร้อมเทสต์ ข้อที่ต้องให้ผู้ใช้ตัดสินเป็นข้อ `[go-live]` ใหม่

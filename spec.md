@@ -1966,6 +1966,8 @@ cases:
   - { id: GC-SOD-16, title: ผู้เสนอเปลี่ยนบัญชีภายใน 30 วันอนุมัติรอบที่จ่ายเข้าบัญชีนั้น, input: { action: DECIDE_APPROVAL, subject: PAYMENT_RUN, actor: dm_fin, requester: fin_tre1, invoiceRecorders: [fin_ap1], payDate: "2026-10-16", recentBankChangeDays: 30, bankChanges: [{ proposer: dm_fin, effectiveOn: "2026-09-20" }] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-10 } }
   - { id: GC-SOD-17, title: ผู้เชิญอนุมัติใบสมัครผู้ขายเอง, input: { action: DECIDE_APPROVAL, subject: SUPPLIER_APPLICATION, actor: dm_proc, requester: dm_proc }, expect: { error: SOD_VIOLATION, rule: BR-SOD-11 } }
   - { id: GC-SOD-18, title: ผู้รับเรื่องและบันทึกการโทรอนุมัติคำขอเปลี่ยนบัญชีจากพอร์ทัล, input: { action: DECIDE_APPROVAL, subject: BANK_ACCOUNT_CHANGE, source: PORTAL, actor: fin_ap1, proposedByContact: "contact-sp0197", submittedBy: fin_ap1, callVerifiedBy: fin_ap1 }, expect: { error: SOD_VIOLATION, rule: BR-SOD-12 } }
+  - { id: GC-SOD-19, title: ผู้ประเมินอนุมัติผลมอบงานเอง, input: { action: DECIDE_APPROVAL, subject: AWARD_DECISION, actor: proc_mat1, requester: proc_officer, rfxCreator: proc_mat2, evaluators: [proc_mat1, dm_it], sourceRequesters: [req_con] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-13 } }
+  - { id: GC-SOD-20, title: ผู้ขอของบรรทัดต้นทางเป็นผู้ประเมิน, input: { action: SCORE_RFX, actor: req_con, rfxCreator: proc_officer, sourceRequesters: [req_con, asst_con] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-14 } }
 ```
 
 ### 7.6 รักษาการ (Delegation)
@@ -6191,7 +6193,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       60 ไฟล์ · 779 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       60 ไฟล์ · 781 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

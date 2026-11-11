@@ -1,4 +1,3 @@
-import { BP_PER_WHOLE, roundHalfUpDiv, type Satang } from '@/core/money/math'
 import { amountToSatang } from '@/core/money/dto'
 import { formatScore, rfxDraftFromLines, type RfxDraftPlan } from '@/core/sourcing'
 import { rateFor, taxDateOf } from '@/core/vat'
@@ -11,7 +10,8 @@ import type { TenantTx } from '@/server/db/tenant'
 import { registerAssistSubject } from '../ai/assist-contract'
 import { requireModule } from '../modules'
 import { rfxReading } from './access'
-import { comparisonFacts, comparisonOf, type ComparisonFacts } from './comparison'
+import { bidSpread, type RfxBidFacts } from './bid-spread'
+import { comparisonFacts, comparisonOf } from './comparison'
 import { rankingOf } from './ranking'
 
 // The RFx as the Sourcing Agent sees it (S10-16 · FR-AI-305 · BR-AI-31 BR-AI-32 · ADR-209). This file never calls the AI
@@ -92,40 +92,10 @@ export async function rfxDraftSource(tx: TenantTx, ctx: Ctx, rfxEventId: string)
 
 // ---------- BID_SUMMARY NEGOTIATION_POINTS: the facts of the bids ----------
 
+export { bidSpread, type RfxBidFacts } from './bid-spread'
+
 /** The statuses after the close (BR-RFX-06: the envelope is open) */
 const CLOSED_OR_LATER = new Set(['CLOSED', 'EVALUATING', 'AWARDED', 'CONCLUDED'])
-
-export interface RfxBidFacts {
-  readonly rfxEventId: string
-  readonly number: string | null
-  readonly status: string
-  readonly table: ComparisonFacts
-  /** Basis points of the lowest complete bid (BR-AI-32): the highest complete bid's distance from it */
-  readonly spreadBp: number | null
-  /** The incumbent nearest the lowest that is not the lowest itself, with its gap in bp of the lowest (BR-AI-32) */
-  readonly incumbent: { readonly supplierCode: string; readonly gapBp: number } | null
-  /** The scores once the scorecard is revealed, best first: total and each quality criterion as the page shows it */
-  readonly scores: readonly { readonly supplierCode: string; readonly rank: number; readonly total: string; readonly criteria: Readonly<Record<string, string>> }[]
-}
-
-const bpOver = (value: Satang, lowest: Satang): number => Number(roundHalfUpDiv((value - lowest) * BP_PER_WHOLE, lowest))
-
-/**
- * BR-AI-32's two distances, both in bp of the lowest complete bid (as priceScoreBp): the highest complete bid's (spreadBp)
- * and the incumbent nearest the lowest that is not the lowest itself (gapBp). Scene 9: (305,500 − 300,950) × 10000 ÷
- * 300,950 = 151.19 → 151 for both.
- */
-export function bidSpread(table: ComparisonFacts): Pick<RfxBidFacts, 'spreadBp' | 'incumbent'> {
-  const complete = table.bids.filter((b) => !b.partial)
-  if (complete.length === 0) return { spreadBp: null, incumbent: null }
-  const net = (b: (typeof complete)[number]) => amountToSatang(b.net)
-  const lowest = complete.reduce((m, b) => (net(b) < net(m) ? b : m))
-  const lowestNet = net(lowest)
-  if (lowestNet <= 0n) return { spreadBp: null, incumbent: null }
-  const highestNet = complete.reduce((m, b) => (net(b) > m ? net(b) : m), lowestNet)
-  const incumbent = complete.filter((b) => b.tags.includes('INCUMBENT') && b !== lowest).sort((a, b) => (net(a) < net(b) ? -1 : net(a) > net(b) ? 1 : 0))[0]
-  return { spreadBp: bpOver(highestNet, lowestNet), incumbent: incumbent ? { supplierCode: incumbent.supplierCode, gapBp: bpOver(net(incumbent), lowestNet) } : null }
-}
 
 /** The facts of an RFx's bids from code (BR-AI-32), for a reader of its prices (rfxReading) after the close */
 export async function rfxBidFacts(tx: TenantTx, ctx: Ctx, rfxEventId: string, options: { readonly system?: boolean } = {}): Promise<Result<RfxBidFacts>> {

@@ -45,9 +45,9 @@ export const PROMPT_VERSIONS: Readonly<Record<AiPurposeName, string>> = {
   DOA_DRAFT: 'DOA_DRAFT@2',
   SAVINGS_NOTE: 'SAVINGS_NOTE@3',
   SUPPLIER_DOC_READ: 'SUPPLIER_DOC_READ@3',
-  RFX_DRAFT: 'RFX_DRAFT@1',
+  RFX_DRAFT: 'RFX_DRAFT@2',
   BID_SUMMARY: 'BID_SUMMARY@1',
-  NEGOTIATION_POINTS: 'NEGOTIATION_POINTS@1',
+  NEGOTIATION_POINTS: 'NEGOTIATION_POINTS@2',
 }
 
 export const AI_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] as const
@@ -64,8 +64,9 @@ const DEFAULT_MODEL: Readonly<Record<AiAgentName, AiModelId>> = {
   // S7-15 (OQ-145's way · docs/reports/ai-eval/supplier-onboarding-2026-11-08.md): Haiku missed a tax id on a photo of a
   // company certificate, Sonnet read all 12 documents right
   SUPPLIER_ONBOARDING: 'claude-sonnet-5-5',
-  // TODO(OQ-209): S10-19 measures the synthetic RFx set and keeps the cheaper model that passes
-  SOURCING: 'claude-sonnet-5-5',
+  // TODO(OQ-209): S10-19 (OQ-145's way · docs/reports/ai-eval/sourcing-2026-11-12.md): Haiku passed the 10 synthetic RFx
+  // on all three purposes once the draft stopped stating counts (RFX_DRAFT@2) and the points kept short (NEGOTIATION_POINTS@2)
+  SOURCING: 'claude-haiku-5-5',
 }
 
 /** The .env variable that overrides one agent's model (spec Appendix B) */
@@ -184,13 +185,17 @@ export const EVAL_GATES: readonly EvalGate[] = [
   { agent: 'INSIGHT', purpose: 'SAVINGS_NOTE', promptVersion: 'SAVINGS_NOTE@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-11-03-savings_note-config-live.md' },
   // S7-15 (FR-AI-304 AC5 · OQ-186): the 12 synthetic supplier documents, every field at its floor (the real tier waits for S7-23)
   { agent: 'SUPPLIER_ONBOARDING', purpose: 'SUPPLIER_DOC_READ', promptVersion: 'SUPPLIER_DOC_READ@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: 'supplier-onboarding-2026-11-08.md' },
+  // S10-19 (FR-AI-305 AC5 · OQ-209): the 10 synthetic RFx, every floor of OQ-209 (the real tier waits for S10-23)
+  { agent: 'SOURCING', purpose: 'RFX_DRAFT', promptVersion: 'RFX_DRAFT@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: 'sourcing-2026-11-12.md' },
+  { agent: 'SOURCING', purpose: 'BID_SUMMARY', promptVersion: 'BID_SUMMARY@1', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: 'sourcing-2026-11-12.md' },
+  { agent: 'SOURCING', purpose: 'NEGOTIATION_POINTS', promptVersion: 'NEGOTIATION_POINTS@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: 'sourcing-2026-11-12.md' },
 ]
 
 /**
  * Purposes whose evaluation has not run yet, so no gate passes them: live mode refuses them (AI_NOT_EVALUATED) and only
- * fixture mode answers. The Sourcing Agent's three wait for the synthetic RFx set of S10-19 (OQ-209).
+ * fixture mode answers. None now: the Sourcing Agent's three passed the synthetic RFx set of S10-19 (OQ-209).
  */
-export const AWAITING_EVALUATION: readonly AiPurposeName[] = ['RFX_DRAFT', 'BID_SUMMARY', 'NEGOTIATION_POINTS']
+export const AWAITING_EVALUATION: readonly AiPurposeName[] = []
 
 /** The tier an environment needs: production only trusts a REAL evaluation (BR-AI-11) */
 export const requiredGateTier = (appEnv: string): GateTier => (appEnv === 'production' ? 'REAL' : 'SYNTHETIC')
@@ -254,7 +259,7 @@ export const DECISION_ADVICE_WORDS = [
 ] as const
 
 /** Passing marks of the evaluation, demo tier (OQ-141 · BR-AI-26): critical fields 9800 bp with nothing slipped through */
-export const EVAL_THRESHOLDS_BP = { critical: 9800, other: 9000, intakeType: 9500, intakeLines: 9000, briefFlags: 9500, briefText: 9500, insightTools: 9000, supplierKey: 9500, supplierAddress: 9000 } as const // TODO(OQ-141) · supplier* OQ-186 (S7-15)
+export const EVAL_THRESHOLDS_BP = { critical: 9800, other: 9000, intakeType: 9500, intakeLines: 9000, briefFlags: 9500, briefText: 9500, insightTools: 9000, supplierKey: 9500, supplierAddress: 9000, sourcingKind: 9000, sourcingEnglish: 9000, sourcingFlags: 9500 } as const // TODO(OQ-141) · supplier* OQ-186 (S7-15) · sourcing* OQ-209 (S10-19)
 
 /** Limits of BR-AI-11 BR-AI-12 BR-AI-21 and the state machine of AgentAction */
 export const AI_LIMITS = {

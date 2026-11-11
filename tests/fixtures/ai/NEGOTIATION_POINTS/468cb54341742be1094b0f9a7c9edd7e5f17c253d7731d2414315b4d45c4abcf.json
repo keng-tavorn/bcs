@@ -1,0 +1,19 @@
+{
+  "promptVersion": "NEGOTIATION_POINTS@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "ผู้เสนอราคาปัจจุบัน {{v:incumbent.supplierName}} สูงกว่าราคาต่ำสุดอยู่ {{v:incumbent.gap}} บาท คิดเป็น {{v:gapBp}} bp",
+      "รายการที่ {{v:flags.1.lineNo}} ของ {{v:flags.1.supplierName}} สูงกว่าราคาอ้างอิง {{v:flags.1.deviationBp}} bp",
+      "ราคาอ้างอิงจากแคตตาล็อกของรายการนี้คือ {{v:flags.1.reference}} บาท",
+      "ขอให้ชี้แจงที่มาของราคาในรายการที่ {{v:flags.1.lineNo}} กับ {{v:flags.1.supplierName}}"
+    ]
+  },
+  "usage": {
+    "input": 437,
+    "output": 1089,
+    "cacheRead": 711,
+    "cacheWrite": 0
+  }
+}

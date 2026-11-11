@@ -1,0 +1,19 @@
+{
+  "promptVersion": "NEGOTIATION_POINTS@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "มี {{v:vatInclusiveCount}} ข้อเสนอรวม VAT ควรขอให้ยืนยันราคาก่อน VAT",
+      "มี {{v:notVatRegisteredCount}} ผู้เสนอราคาไม่จดทะเบียน VAT ควรขอเอกสารยืนยันสถานะภาษี",
+      "ราคาสูงสุดและต่ำสุดห่างกัน {{v:spreadBp}} bp ควรขอคำอธิบายรายการที่ต่างกันมาก",
+      "ผู้เสนอราคาสูงสุด {{v:highest.supplierName}} ควรขอให้ยืนยันราคาและรายการทั้งหมดอีกครั้ง"
+    ]
+  },
+  "usage": {
+    "input": 243,
+    "output": 1167,
+    "cacheRead": 711,
+    "cacheWrite": 0
+  }
+}

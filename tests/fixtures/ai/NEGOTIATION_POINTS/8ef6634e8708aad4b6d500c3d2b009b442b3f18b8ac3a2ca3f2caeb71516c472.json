@@ -1,0 +1,21 @@
+{
+  "promptVersion": "NEGOTIATION_POINTS@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "ช่วงห่างราคาเสนอทั้งหมดอยู่ที่ {{v:spreadBp}} bp จากราคาต่ำสุดของ {{v:lowest.supplierName}}",
+      "{{v:flags.1.supplierName}} บรรทัดที่ {{v:flags.1.lineNo}} เบี่ยงเบนจากราคาอ้างอิง {{v:flags.1.deviationBp}} bp ขอให้ชี้แจงราคา",
+      "{{v:flags.2.supplierName}} บรรทัดที่ {{v:flags.2.lineNo}} เบี่ยงเบนจากราคาอ้างอิง {{v:flags.2.deviationBp}} bp ขอให้ชี้แจงราคา",
+      "มี {{v:vatInclusiveCount}} ใบเสนอราคารวมภาษีมูลค่าเพิ่ม ขอให้ยืนยันราคาสุทธิ",
+      "มี {{v:notVatRegisteredCount}} ผู้เสนอราคาที่ไม่ได้จดทะเบียนภาษีมูลค่าเพิ่ม ขอให้ยืนยันสถานะภาษี",
+      "มี {{v:foreignCount}} ผู้เสนอราคาจากต่างประเทศ ขอให้ยืนยันเอกสารที่เกี่ยวข้อง"
+    ]
+  },
+  "usage": {
+    "input": 437,
+    "output": 1893,
+    "cacheRead": 711,
+    "cacheWrite": 0
+  }
+}

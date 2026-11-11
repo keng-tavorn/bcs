@@ -1,0 +1,198 @@
+# The evaluation set of the Sourcing Agent, demo tier (S10-19 · FR-AI-305 AC5 · OQ-209): 10 synthetic RFx of the
+# phase-1 company (a contractor), 6 RFQ and 4 RFP, each with the lines a requester wrote and the bids after the close.
+# scripts/ai-eval-sourcing.ts turns each case into what the agent sends Claude (rfxDraftInputText for RFX_DRAFT,
+# sourcingFacts for BID_SUMMARY and NEGOTIATION_POINTS) through the code the app uses (compareBids, priceAnomaly,
+# bidSpread), so the measure is of the call the app makes.
+#
+# The answers a person checked (expect · expectFlags · en · uomEn):
+#   expect.kind     the kind of RFx a buyer would send: RFQ when every line is goods with a reference price, else RFP
+#   expectFlags     every price flag of BR-RFX-11 (the threshold 20 % · OQ-208), worked by hand below each case; the
+#                   loader stops when code's flags differ, so the summary is scored against flags that are right
+#   en              per line, groups of words the English description must hold (any word of each group)
+#   uomEn           per line, the English units a buyer accepts
+# A line's reference: its own agreed price when the bidder has one (AGREEMENT), else the lowest agreed price of another
+# supplier (AGREEMENT_OTHER), else `reference` (CATALOG, HISTORY or MANUAL), as comparison.ts picks it.
+# A bid's VAT rate: 7 % when registered and not abroad, else 0. Prices are before VAT unless priceIncludesVat.
+
+cases:
+  # 6 RFQ ------------------------------------------------------------------------------------------------------------
+  - id: RFX-01
+    number: RFX-2569-00101
+    createdAs: RFQ
+    category: STEEL
+    expect: { kind: RFQ }
+    lines:
+      - { lineNo: 1, description: "เหล็กข้ออ้อย DB16 SD40 ยาว 10 ม.", uom: เส้น, quantity: "400", isService: false, refUnitPrice: "185.00", reference: { source: CATALOG, unitPrice: "185.00" }, en: [[db16, db 16], [sd40, sd 40], [deformed, rebar, reinforc]], uomEn: [bar, piece, pc, length, rod, each, ea, stick] }
+      - { lineNo: 2, description: "เหล็กข้ออ้อย DB12 SD40 ยาว 10 ม.", uom: เส้น, quantity: "300", isService: false, refUnitPrice: "105.00", reference: { source: CATALOG, unitPrice: "105.00" }, en: [[db12, db 12], [sd40, sd 40], [deformed, rebar, reinforc]], uomEn: [bar, piece, pc, length, rod, each, ea, stick] }
+      - { lineNo: 3, description: "ลวดผูกเหล็ก เบอร์ 18", uom: กก., quantity: "50", isService: false, refUnitPrice: "45.00", reference: { source: CATALOG, unitPrice: "45.00" }, en: [[wire], [tie, tying, binding]], uomEn: [kg, kilogram] }
+    bids:
+      - { supplierCode: SP0101, supplier: "บริษัท เหล็กทวีกิจ จำกัด", prices: { 1: "182.00", 2: "104.00", 3: "46.00" } }
+      # 186.00 105.00 46.00 before VAT
+      - { supplierCode: SP0102, supplier: "บริษัท สหเหล็กก่อสร้าง จำกัด", priceIncludesVat: true, prices: { 1: "199.02", 2: "112.35", 3: "49.22" } }
+      # line 3: (60 − 45) ÷ 45 = +33.3 % > 20 % → HIGH
+      - { supplierCode: SP0103, supplier: "ห้างหุ้นส่วนจำกัด รุ่งเจริญค้าเหล็ก", incumbent: true, prices: { 1: "190.00", 2: "108.00", 3: "60.00" } }
+    expectFlags:
+      - { supplierCode: SP0103, lineNo: 3, flag: HIGH }
+
+  - id: RFX-02
+    number: RFX-2569-00102
+    createdAs: RFQ
+    category: CONCRETE
+    expect: { kind: RFQ }
+    lines:
+      - { lineNo: 1, description: "ปูนซีเมนต์ปอร์ตแลนด์ ประเภท 1 ถุงละ 50 กก.", uom: ถุง, quantity: "800", isService: false, refUnitPrice: "135.00", reference: { source: CATALOG, unitPrice: "135.00" }, en: [[cement], [portland]], uomEn: [bag, sack] }
+      - { lineNo: 2, description: "ทรายหยาบ", uom: ลบ.ม., quantity: "60", isService: false, refUnitPrice: "450.00", reference: { source: HISTORY, unitPrice: "450.00" }, en: [[sand]], uomEn: [m3, "m³", cum, cubic meter, cubic metre, cbm, cu m] }
+      - { lineNo: 3, description: "หินเบอร์ 2", uom: ลบ.ม., quantity: "60", isService: false, refUnitPrice: "520.00", reference: { source: HISTORY, unitPrice: "520.00" }, en: [[stone, gravel, aggregate, rock]], uomEn: [m3, "m³", cum, cubic meter, cubic metre, cbm, cu m] }
+    bids:
+      - { supplierCode: SP0201, supplier: "บริษัท ทรายทองวัสดุ จำกัด", vatRegistered: false, prices: { 1: "130.00", 2: "440.00", 3: "500.00" } }
+      # line 2: (300 − 450) ÷ 450 = −33.3 % → LOW · line 1 +11.1 % no flag
+      - { supplierCode: SP0202, supplier: "บริษัท ศรีราชาคอนกรีต จำกัด", prices: { 1: "150.00", 2: "300.00", 3: "530.00" } }
+      # offers line 1 only: a partial bid
+      - { supplierCode: SP0203, supplier: "บริษัท ปูนดีค้าวัสดุ จำกัด", prices: { 1: "128.00", 2: null, 3: null } }
+    expectFlags:
+      - { supplierCode: SP0202, lineNo: 2, flag: LOW }
+
+  - id: RFX-03
+    number: RFX-2569-00103
+    createdAs: RFQ
+    category: SAFETY
+    expect: { kind: RFQ }
+    lines:
+      - { lineNo: 1, description: "หมวกนิรภัย สีขาว มาตรฐาน มอก.", uom: ใบ, quantity: "200", isService: false, refUnitPrice: "120.00", reference: { source: CATALOG, unitPrice: "120.00" }, en: [[helmet, hard hat, hardhat]], uomEn: [piece, pc, each, ea, unit, helmet, nos, no] }
+      - { lineNo: 2, description: "รองเท้าเซฟตี้หัวเหล็ก", uom: คู่, quantity: "150", isService: false, refUnitPrice: "450.00", agreements: [{ supplierCode: SP0301, unitPrice: "430.00" }], en: [[shoe, boot, footwear], [steel]], uomEn: [pair] }
+      - { lineNo: 3, description: "ถุงมือผ้าเคลือบยาง", uom: โหล, quantity: "100", isService: false, refUnitPrice: "180.00", reference: { source: CATALOG, unitPrice: "180.00" }, en: [[glove]], uomEn: [dozen, doz, dz] }
+      - { lineNo: 4, description: "เสื้อกั๊กสะท้อนแสง", uom: ตัว, quantity: "200", isService: false, refUnitPrice: "95.00", reference: { source: CATALOG, unitPrice: "95.00" }, en: [[vest, jacket, waistcoat], [reflect, high vis, hi vis, high visibility]], uomEn: [piece, pc, each, ea, unit, vest, nos, no] }
+    bids:
+      # line 2 above its own agreed price 430.00 → ABOVE_AGREEMENT
+      - { supplierCode: SP0301, supplier: "บริษัท เซฟตี้เฟิร์สซัพพลาย จำกัด", prices: { 1: "118.00", 2: "445.00", 3: "175.00", 4: "90.00" } }
+      # an individual: named by code only (BR-AI-32) · line 4: (60 − 95) ÷ 95 = −36.8 % → LOW · line 2 against SP0301's 430.00 (AGREEMENT_OTHER) −2.3 %
+      - { supplierCode: SP0302, supplier: "นายสมชาย ใจกล้า", individual: true, vatRegistered: false, prices: { 1: "110.00", 2: "420.00", 3: "170.00", 4: "60.00" } }
+      - { supplierCode: SP0303, supplier: "บริษัท ไทยพีพีอีเทรดดิ้ง จำกัด", incumbent: true, prices: { 1: "125.00", 2: "440.00", 3: "185.00", 4: "98.00" } }
+    expectFlags:
+      - { supplierCode: SP0301, lineNo: 2, flag: ABOVE_AGREEMENT }
+      - { supplierCode: SP0302, lineNo: 4, flag: LOW }
+
+  - id: RFX-04
+    number: RFX-2569-00104
+    createdAs: RFQ
+    category: ELECTRICAL
+    expect: { kind: RFQ }
+    lines:
+      - { lineNo: 1, description: "สายไฟ THW 1x4 ตร.มม. ม้วนละ 100 ม.", uom: ม้วน, quantity: "40", isService: false, refUnitPrice: "1450.00", reference: { source: CATALOG, unitPrice: "1450.00" }, en: [[thw], ["4"], [cable, wire]], uomEn: [roll, coil, reel] }
+      - { lineNo: 2, description: "สายไฟ VCT 2x2.5 ตร.มม. ม้วนละ 100 ม.", uom: ม้วน, quantity: "25", isService: false, refUnitPrice: "2300.00", reference: { source: CATALOG, unitPrice: "2300.00" }, en: [[vct], ["2.5"], [cable, wire]], uomEn: [roll, coil, reel] }
+      - { lineNo: 3, description: "เบรกเกอร์ลูกย่อย 1P 20A", uom: ตัว, quantity: "120", isService: false, refUnitPrice: "210.00", reference: { source: CATALOG, unitPrice: "210.00" }, en: [[breaker, mcb], [20a, 20 a, 20 amp]], uomEn: [piece, pc, each, ea, unit, nos, no] }
+    bids:
+      # abroad: no VAT · line 3: (150 − 210) ÷ 210 = −28.6 % → LOW
+      - { supplierCode: SP0401, supplier: "Delta Cable Trading Pte. Ltd.", foreign: true, prices: { 1: "1380.00", 2: "2200.00", 3: "150.00" } }
+      # with VAT: 1496.00 2300.00 210.00 before VAT
+      - { supplierCode: SP0402, supplier: "บริษัท ไฟฟ้าสยามรวมช่าง จำกัด", priceIncludesVat: true, prices: { 1: "1600.72", 2: "2461.00", 3: "224.70" } }
+      # line 1: (1800 − 1450) ÷ 1450 = +24.1 % → HIGH
+      - { supplierCode: SP0403, supplier: "บริษัท บางนาอิเล็คทริค จำกัด", prices: { 1: "1800.00", 2: "2350.00", 3: "215.00" } }
+    expectFlags:
+      - { supplierCode: SP0401, lineNo: 3, flag: LOW }
+      - { supplierCode: SP0403, lineNo: 1, flag: HIGH }
+
+  - id: RFX-05
+    number: RFX-2569-00105
+    createdAs: RFQ
+    category: PLUMBING
+    expect: { kind: RFQ }
+    lines:
+      - { lineNo: 1, description: "ท่อ PVC ชั้น 8.5 ขนาด 4 นิ้ว ยาว 4 ม.", uom: ท่อน, quantity: "150", isService: false, refUnitPrice: "420.00", reference: { source: CATALOG, unitPrice: "420.00" }, en: [[pvc], [pipe], ["8.5"]], uomEn: [piece, pc, length, pipe, each, ea, nos, no, stick] }
+      - { lineNo: 2, description: "ข้อต่อตรง PVC 4 นิ้ว", uom: ตัว, quantity: "200", isService: false, refUnitPrice: "35.00", reference: { source: CATALOG, unitPrice: "35.00" }, en: [[pvc], [coupling, socket, connector, joint, fitting]], uomEn: [piece, pc, each, ea, unit, nos, no] }
+      - { lineNo: 3, description: "กาวทาท่อ PVC กระป๋อง 500 กรัม", uom: กระป๋อง, quantity: "40", isService: false, refUnitPrice: "160.00", reference: { source: CATALOG, unitPrice: "160.00" }, en: [[glue, cement, adhesive, solvent]], uomEn: [can, tin, jar, pot] }
+    bids:
+      - { supplierCode: SP0501, supplier: "บริษัท ท่อน้ำไทยพาณิชย์ จำกัด", incumbent: true, prices: { 1: "430.00", 2: "36.00", 3: "165.00" } }
+      # line 2: (45 − 35) ÷ 35 = +28.6 % → HIGH
+      - { supplierCode: SP0502, supplier: "บริษัท ประปาภัณฑ์ จำกัด", prices: { 1: "400.00", 2: "45.00", 3: "150.00" } }
+    expectFlags:
+      - { supplierCode: SP0502, lineNo: 2, flag: HIGH }
+
+  - id: RFX-06
+    number: RFX-2569-00106
+    createdAs: RFQ
+    category: FORMWORK
+    expect: { kind: RFQ }
+    lines:
+      - { lineNo: 1, description: "ไม้อัดยางแบบหล่อคอนกรีต หนา 20 มม. 4x8 ฟุต", uom: แผ่น, quantity: "300", isService: false, refUnitPrice: "520.00", reference: { source: CATALOG, unitPrice: "520.00" }, en: [[plywood], [formwork, form, shuttering, concrete]], uomEn: [sheet, panel, board, piece, pc] }
+      - { lineNo: 2, description: "ตะปูตอกไม้ 3 นิ้ว", uom: กก., quantity: "100", isService: false, refUnitPrice: "48.00", reference: { source: CATALOG, unitPrice: "48.00" }, en: [[nail]], uomEn: [kg, kilogram] }
+    bids:
+      - { supplierCode: SP0601, supplier: "บริษัท ไม้อัดเมืองทอง จำกัด", prices: { 1: "510.00", 2: "47.00" } }
+      # with VAT: 520.00 48.00 before VAT
+      - { supplierCode: SP0602, supplier: "บริษัท รวมไม้ก่อสร้าง จำกัด", priceIncludesVat: true, prices: { 1: "556.40", 2: "51.36" } }
+      - { supplierCode: SP0603, supplier: "ร้านไม้แบบช่างเอก", vatRegistered: false, prices: { 1: "495.00", 2: "46.00" } }
+    expectFlags: []
+
+  # 4 RFP ------------------------------------------------------------------------------------------------------------
+  - id: RFX-07
+    number: RFX-2569-00107
+    # procurement opened it as an RFQ; services are asked for a proposal (rfxDraftFromLines)
+    createdAs: RFQ
+    category: SCAFFOLD
+    expect: { kind: RFP }
+    lines:
+      - { lineNo: 1, description: "เช่านั่งร้านเหล็กพร้อมติดตั้งและรื้อถอน อาคาร B", uom: ชุด, quantity: "120", isService: true, refUnitPrice: "350.00", reference: { source: MANUAL, unitPrice: "350.00" }, en: [[scaffold]], uomEn: [set, lot, unit] }
+      - { lineNo: 2, description: "ค่าขนส่งนั่งร้านไป-กลับหน้างาน", uom: เที่ยว, quantity: "4", isService: true, refUnitPrice: null, en: [[transport, delivery, haul, shipping, freight, trucking, logistic]], uomEn: [trip, round trip, time, haul] }
+    bids:
+      - { supplierCode: SP0701, supplier: "บริษัท นั่งร้านมั่นคง จำกัด", prices: { 1: "340.00", 2: "3500.00" } }
+      - { supplierCode: SP0702, supplier: "บริษัท สแคฟโฟลด์ไทย จำกัด", incumbent: true, prices: { 1: "380.00", 2: "4000.00" } }
+      # line 1: (260 − 350) ÷ 350 = −25.7 % → LOW
+      - { supplierCode: SP0703, supplier: "บริษัท โครงเหล็กเช่า จำกัด", prices: { 1: "260.00", 2: "3000.00" } }
+    scores:
+      - { supplierCode: SP0703, rank: 1, totalBp: 8850, criteria: { PRICE: 4000, SAFETY: 2550, DELIVERY: 2300 } }
+      - { supplierCode: SP0701, rank: 2, totalBp: 8210, criteria: { PRICE: 3110, SAFETY: 2700, DELIVERY: 2400 } }
+      - { supplierCode: SP0702, rank: 3, totalBp: 7640, criteria: { PRICE: 2740, SAFETY: 2700, DELIVERY: 2200 } }
+    expectFlags:
+      - { supplierCode: SP0703, lineNo: 1, flag: LOW }
+
+  - id: RFX-08
+    number: RFX-2569-00108
+    createdAs: RFP
+    category: ENGINEERING
+    expect: { kind: RFP }
+    lines:
+      - { lineNo: 1, description: "เจาะสำรวจดินพร้อมทดสอบ SPT ลึก 30 ม.", uom: หลุม, quantity: "6", isService: true, refUnitPrice: null, en: [[boring, borehole, bore hole, drilling, drill], [spt, standard penetration]], uomEn: [hole, borehole, bore hole, point, location] }
+      - { lineNo: 2, description: "รายงานผลทดสอบดินและข้อเสนอแนะฐานราก", uom: ชุด, quantity: "1", isService: true, refUnitPrice: null, en: [[report]], uomEn: [set, lot, report, job, lump sum, ls, copy] }
+    bids:
+      - { supplierCode: SP0801, supplier: "บริษัท ธรณีวิศวกรรม จำกัด", prices: { 1: "28000.00", 2: "15000.00" } }
+      - { supplierCode: SP0802, supplier: "บริษัท ซอยล์เทคคอนซัลแทนท์ จำกัด", priceIncludesVat: true, prices: { 1: "32100.00", 2: "16050.00" } }
+      - { supplierCode: SP0803, supplier: "นายวิทยา ดินดี", individual: true, vatRegistered: false, prices: { 1: "25000.00", 2: "12000.00" } }
+    expectFlags: []
+
+  - id: RFX-09
+    number: RFX-2569-00109
+    # goods nobody priced yet: a proposal (rfxDraftFromLines)
+    createdAs: RFQ
+    category: IT
+    expect: { kind: RFP }
+    lines:
+      - { lineNo: 1, description: "คอมพิวเตอร์โน้ตบุ๊กสำหรับงานออกแบบ CAD แรม 32GB", uom: เครื่อง, quantity: "10", isService: false, refUnitPrice: null, en: [[notebook, laptop], ["32"]], uomEn: [unit, set, piece, pc, each, ea, machine, notebook, laptop, computer, nos, no] }
+      - { lineNo: 2, description: "จอภาพ 27 นิ้ว", uom: จอ, quantity: "10", isService: false, refUnitPrice: null, reference: { source: HISTORY, unitPrice: "6500.00" }, en: [[monitor, display, screen], ["27"]], uomEn: [unit, set, piece, pc, each, ea, monitor, screen, display, nos, no] }
+    bids:
+      - { supplierCode: SP0901, supplier: "Orchid Systems Asia Pte. Ltd.", foreign: true, prices: { 1: "52000.00", 2: "6200.00" } }
+      # monitors only: a partial bid
+      - { supplierCode: SP0902, supplier: "บริษัท จอดีไอที จำกัด", prices: { 1: null, 2: "6400.00" } }
+      # line 2: (9000 − 6500) ÷ 6500 = +38.5 % → HIGH
+      - { supplierCode: SP0903, supplier: "บริษัท คอมพ์เซ็นเตอร์พลัส จำกัด", incumbent: true, prices: { 1: "49500.00", 2: "9000.00" } }
+    expectFlags:
+      - { supplierCode: SP0903, lineNo: 2, flag: HIGH }
+
+  - id: RFX-10
+    number: RFX-2569-00110
+    createdAs: RFP
+    category: SECURITY
+    expect: { kind: RFP }
+    lines:
+      - { lineNo: 1, description: "พนักงานรักษาความปลอดภัย กะกลางวัน 12 ชม. ไซต์ลาดกระบัง", uom: คน-เดือน, quantity: "24", isService: true, refUnitPrice: "16500.00", reference: { source: MANUAL, unitPrice: "16500.00" }, en: [[security, guard], [day]], uomEn: [man month, person month, guard month, manmonth, man-month] }
+      - { lineNo: 2, description: "พนักงานรักษาความปลอดภัย กะกลางคืน 12 ชม. ไซต์ลาดกระบัง", uom: คน-เดือน, quantity: "24", isService: true, refUnitPrice: "18000.00", reference: { source: MANUAL, unitPrice: "18000.00" }, en: [[security, guard], [night]], uomEn: [man month, person month, guard month, manmonth, man-month] }
+    bids:
+      - { supplierCode: SP1001, supplier: "บริษัท การ์ดเซอร์วิสไทย จำกัด", incumbent: true, prices: { 1: "17000.00", 2: "18500.00" } }
+      - { supplierCode: SP1002, supplier: "บริษัท ปลอดภัยดีซีเคียวริตี้ จำกัด", prices: { 1: "16000.00", 2: "17500.00" } }
+      # with VAT: 20000.00 18000.00 before VAT · line 1: (20000 − 16500) ÷ 16500 = +21.2 % → HIGH
+      - { supplierCode: SP1003, supplier: "บริษัท พิทักษ์ทรัพย์การ์ด จำกัด", priceIncludesVat: true, prices: { 1: "21400.00", 2: "19260.00" } }
+    scores:
+      - { supplierCode: SP1002, rank: 1, totalBp: 9120, criteria: { PRICE: 5000, EXPERIENCE: 2320, STAFFING: 1800 } }
+      - { supplierCode: SP1001, rank: 2, totalBp: 8760, criteria: { PRICE: 4730, EXPERIENCE: 2430, STAFFING: 1600 } }
+      - { supplierCode: SP1003, rank: 3, totalBp: 7910, criteria: { PRICE: 4210, EXPERIENCE: 2100, STAFFING: 1600 } }
+    expectFlags:
+      - { supplierCode: SP1003, lineNo: 1, flag: HIGH }

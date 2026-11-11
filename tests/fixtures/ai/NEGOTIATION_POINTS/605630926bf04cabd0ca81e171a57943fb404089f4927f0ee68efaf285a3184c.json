@@ -1,0 +1,21 @@
+{
+  "promptVersion": "NEGOTIATION_POINTS@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "ราคาสุทธิของ {{v:incumbent.supplierName}} สูงกว่าราคาต่ำสุด {{v:gapBp}} bp",
+      "ขอให้ยืนยันการคงราคาเสนอตามที่ยื่นไว้",
+      "รายการที่ {{v:flags.1.lineNo}} ของ {{v:flags.1.supplierName}} สูงกว่าราคาอ้างอิง {{v:flags.1.deviationBp}} bp",
+      "ขอให้ชี้แจงที่มาของราคาในรายการดังกล่าว",
+      "มี {{v:vatInclusiveCount}} ใบเสนอราคาที่รวมภาษีมูลค่าเพิ่มแล้ว",
+      "ขอให้ยื่นราคาเสนอใหม่โดยแยกภาษีมูลค่าเพิ่มออกจากราคา"
+    ]
+  },
+  "usage": {
+    "input": 743,
+    "output": 1449,
+    "cacheRead": 711,
+    "cacheWrite": 0
+  }
+}

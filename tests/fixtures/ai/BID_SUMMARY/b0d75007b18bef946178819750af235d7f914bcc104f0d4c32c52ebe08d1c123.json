@@ -1,0 +1,21 @@
+{
+  "promptVersion": "BID_SUMMARY@1",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "มีใบเสนอราคา {{v:bidCount}} ราย สำหรับ RFx เลขที่ {{v:rfx.number}}",
+      "ราคาต่ำสุด (ก่อนภาษี) {{v:lowest.net}} บาท {{v:lowest.supplierCode}}; สูงสุด {{v:highest.net}} บาท {{v:highest.supplierCode}}",
+      "ส่วนต่าง {{v:spreadBp}} bp; {{v:incumbent.supplierCode}} สูงกว่าราคาต่ำสุด {{v:incumbent.gap}} บาท ({{v:gapBp}} bp)",
+      "รวม VAT {{v:vatInclusiveCount}} ราย; ไม่จดทะเบียน VAT {{v:notVatRegisteredCount}} ราย; ไม่ครบรายการ {{v:partialCount}} ราย; ต่างประเทศ {{v:foreignCount}} ราย",
+      "ธงทั้งหมด {{v:flagCount}}: {{v:flags.1.flag}} บรรทัด {{v:flags.1.lineNo}} ของ {{v:flags.1.supplierName}} เบี่ยงเบน {{v:flags.1.deviationBp}} bp",
+      "อีกธง {{v:flags.2.flag}} บรรทัด {{v:flags.2.lineNo}} ของ {{v:lowest.supplierCode}} เบี่ยงเบน {{v:flags.2.deviationBp}} bp จาก {{v:flags.2.referenceSource}}"
+    ]
+  },
+  "usage": {
+    "input": 563,
+    "output": 3685,
+    "cacheRead": 643,
+    "cacheWrite": 0
+  }
+}

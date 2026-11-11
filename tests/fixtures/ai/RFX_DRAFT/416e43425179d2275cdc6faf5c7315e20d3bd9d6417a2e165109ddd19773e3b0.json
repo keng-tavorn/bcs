@@ -1,0 +1,34 @@
+{
+  "promptVersion": "RFX_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "title": "ขอเชิญเสนอราคาเหล็กข้ออ้อยและลวดผูกเหล็ก",
+    "titleEn": "Request for quotation: deformed steel bars and tie wire",
+    "description": "ขอเชิญเสนอราคาเหล็กข้ออ้อย DB16 SD40 และ DB12 SD40 ยาว 10 เมตร และลวดผูกเหล็กเบอร์ 18 ผู้เสนอราคาโปรดระบุราคาต่อรายการเป็นเงินบาท",
+    "descriptionEn": "Quotations are invited for deformed steel bars DB16 SD40 and DB12 SD40, each 10 m long, and tie wire no. 18. Suppliers should quote a price per line in Thai baht.",
+    "lines": [
+      {
+        "lineNo": 1,
+        "descriptionEn": "Deformed steel bar DB16 SD40, 10 m long",
+        "uomEn": "bar"
+      },
+      {
+        "lineNo": 2,
+        "descriptionEn": "Deformed steel bar DB12 SD40, 10 m long",
+        "uomEn": "bar"
+      },
+      {
+        "lineNo": 3,
+        "descriptionEn": "Tie wire, no. 18",
+        "uomEn": "kg"
+      }
+    ]
+  },
+  "usage": {
+    "input": 174,
+    "output": 1039,
+    "cacheRead": 1091,
+    "cacheWrite": 0
+  }
+}

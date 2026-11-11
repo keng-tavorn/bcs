@@ -1,0 +1,34 @@
+{
+  "promptVersion": "RFX_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "title": "ใบขอใช้ราคาสายไฟและเบรกเกอร์ไฟฟ้า",
+    "titleEn": "Request for Quotation: Electrical Cables and Circuit Breaker",
+    "description": "ขอเชิญเสนอราคาสายไฟ THW 1x4 ตร.มม. ม้วนละ 100 ม. สายไฟ VCT 2x2.5 ตร.มม. ม้วนละ 100 ม. และเบรกเกอร์ลูกย่อย 1P 20A โดยให้ผู้เสนอราคาระบุราคาต่อรายการเป็นบาท",
+    "descriptionEn": "Quotations are requested for THW 1x4 sq.mm cable at 100 m per roll, VCT 2x2.5 sq.mm cable at 100 m per roll, and 1P 20A sub-circuit breaker. Suppliers are to quote a price per line in Thai baht.",
+    "lines": [
+      {
+        "lineNo": 1,
+        "descriptionEn": "THW electrical cable 1x4 sq.mm, 100 m per roll",
+        "uomEn": "roll"
+      },
+      {
+        "lineNo": 2,
+        "descriptionEn": "VCT electrical cable 2x2.5 sq.mm, 100 m per roll",
+        "uomEn": "roll"
+      },
+      {
+        "lineNo": 3,
+        "descriptionEn": "1P 20A sub-circuit breaker",
+        "uomEn": "piece"
+      }
+    ]
+  },
+  "usage": {
+    "input": 189,
+    "output": 1131,
+    "cacheRead": 1091,
+    "cacheWrite": 0
+  }
+}

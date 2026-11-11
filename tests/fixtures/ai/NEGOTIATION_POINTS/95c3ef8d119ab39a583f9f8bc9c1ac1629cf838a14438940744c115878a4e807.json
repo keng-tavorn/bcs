@@ -1,0 +1,19 @@
+{
+  "promptVersion": "NEGOTIATION_POINTS@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "มี {{v:partialCount}} ใบเสนอราคาที่ไม่ครบทุกรายการ ควรขอให้ผู้เสนอราคาเติมรายการที่ขาด",
+      "ราคาบรรทัดที่ {{v:flags.1.lineNo}} ของ {{v:flags.1.supplierName}} ห่างจากราคาอ้างอิง {{v:flags.1.deviationBp}} bp ควรขอคำชี้แจง",
+      "ราคาอ้างอิงมาจาก {{v:flags.1.referenceSource}} จำนวน {{v:flags.1.reference}} ควรขอให้ผู้เสนอราคาอธิบายที่มาของราคา",
+      "ผู้เสนอราคาสูงสุดห่างจากผู้เสนอราคาต่ำสุด {{v:spreadBp}} bp ควรขอให้ยืนยันราคาที่เสนอ"
+    ]
+  },
+  "usage": {
+    "input": 340,
+    "output": 2028,
+    "cacheRead": 711,
+    "cacheWrite": 0
+  }
+}

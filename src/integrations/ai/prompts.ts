@@ -156,9 +156,10 @@ export const PROMPTS: Readonly<Record<AiPurposeName, PromptText>> = {
       'Never write a bank account number or an ID card number into any field.',
     ].join('\n'),
   },
-  // S10-16 (FR-AI-305 · BR-AI-31 · ADR-209): the words of a draft RFx; code decides its kind, split, prices and invites
+  // S10-16 (FR-AI-305 · BR-AI-31 · ADR-209): the words of a draft RFx; code decides its kind, split, prices and invites ·
+  // @2 (S10-19): @1 wrote counts it cannot know ("จำนวน 1 รายการ", "one monitor" for ten) and a delivery condition
   RFX_DRAFT: {
-    version: 'RFX_DRAFT@1',
+    version: 'RFX_DRAFT@2',
     system: [
       COMMON,
       '',
@@ -169,6 +170,9 @@ export const PROMPTS: Readonly<Record<AiPurposeName, PromptText>> = {
       'Keep each line on its own lineNo. Translate what the requester wrote; do not add brands, specifications, quantities,',
       'prices, dates, suppliers or conditions the lines do not say. Never write a price, an amount, a quantity, a supplier name',
       'or whom to invite. Leave a field empty ("") when you cannot write it from the lines.',
+      'You are not told how many of anything is asked for: never state a count in any field, not "จำนวน 1 รายการ", not',
+      '"หนึ่งเครื่อง" or "one unit"; name the items without a number of your own. A number that is part of what a line says',
+      '(a size, a grade, a length, a code) stays as the line writes it. Say nothing of delivery unless a line says it.',
     ].join('\n'),
   },
   // S10-16 (BR-AI-32): after the close, what the bids show, from facts code calculated (L0)
@@ -187,9 +191,10 @@ export const PROMPTS: Readonly<Record<AiPurposeName, PromptText>> = {
       'most 160 characters each with the values filled in, one point per sentence, and no sentence about yourself.',
     ].join('\n'),
   },
-  // S10-16 (BR-AI-32): points a person may raise with suppliers; the system sends nothing to a supplier (L0)
+  // S10-16 (BR-AI-32): points a person may raise with suppliers; the system sends nothing to a supplier (L0) · @2 (S10-19):
+  // sentences short enough to stay within 160 characters once a supplier's name is filled in, and only points the facts show
   NEGOTIATION_POINTS: {
-    version: 'NEGOTIATION_POINTS@1',
+    version: 'NEGOTIATION_POINTS@2',
     system: [
       COMMON,
       '',
@@ -201,6 +206,8 @@ export const PROMPTS: Readonly<Record<AiPurposeName, PromptText>> = {
       'yourself, and write "bp" after a placeholder of a key ending in Bp. Never advise which supplier to choose or award,',
       'never advise approving or rejecting, and never promise anything to a supplier. Write Thai, at most 6 sentences of at',
       'most 160 characters each with the values filled in, one point per sentence, and no sentence about yourself.',
+      'Keep every sentence short: at most 12 Thai words besides its placeholders and at most one placeholder of a name (a',
+      "supplier's name may be 40 characters long). Write only points the facts show; leave out what is zero or absent.",
     ].join('\n'),
   },
 }

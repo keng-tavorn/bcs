@@ -1,0 +1,34 @@
+{
+  "promptVersion": "RFX_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "title": "ขอใบเสนอราคาวัสดุงานคอนกรีต: ปูนซีเมนต์ปอร์ตแลนด์ ทรายหยาบ หินเบอร์ 2",
+    "titleEn": "RFQ for concrete materials: Portland cement, coarse sand, stone size No. 2",
+    "description": "ขอเชิญเสนอราคาวัสดุงานคอนกรีตตามรายการที่ระบุ ได้แก่ ปูนซีเมนต์ปอร์ตแลนด์ ประเภท 1 ถุงละ 50 กก. ทรายหยาบ และหินเบอร์ 2 ผู้เสนอราคาโปรดระบุราคาต่อหน่วยเป็นบาทในแต่ละรายการ",
+    "descriptionEn": "Suppliers are invited to quote for the concrete materials listed: Portland cement Type 1 in 50 kg bags, coarse sand, and stone size No. 2. Please quote a unit price in Thai baht for each line.",
+    "lines": [
+      {
+        "lineNo": 1,
+        "descriptionEn": "Portland cement Type 1, 50 kg bag",
+        "uomEn": "bag"
+      },
+      {
+        "lineNo": 2,
+        "descriptionEn": "Coarse sand",
+        "uomEn": "cubic meter"
+      },
+      {
+        "lineNo": 3,
+        "descriptionEn": "Stone size No. 2",
+        "uomEn": "cubic meter"
+      }
+    ]
+  },
+  "usage": {
+    "input": 165,
+    "output": 1166,
+    "cacheRead": 1091,
+    "cacheWrite": 0
+  }
+}

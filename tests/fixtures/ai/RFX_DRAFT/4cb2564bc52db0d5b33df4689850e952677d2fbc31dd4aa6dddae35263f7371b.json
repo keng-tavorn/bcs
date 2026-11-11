@@ -1,0 +1,34 @@
+{
+  "promptVersion": "RFX_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "title": "ขอใบเสนอราคาวัสดุงานท่อ PVC",
+    "titleEn": "Request for quotation: PVC plumbing materials",
+    "description": "บริษัทขอเชิญเสนอราคาวัสดุงานท่อ PVC ได้แก่ ท่อ PVC ชั้น 8.5 ขนาด 4 นิ้ว ยาว 4 ม. ข้อต่อตรง PVC 4 นิ้ว และกาวทาท่อ PVC กระป๋อง 500 กรัม ผู้เสนอราคาโปรดเสนอราคาต่อรายการเป็นเงินบาท",
+    "descriptionEn": "The company invites quotations for PVC plumbing materials: PVC pipe class 8.5, 4 inch, 4 m long; straight PVC coupling 4 inch; and PVC pipe glue, 500 g can. Suppliers should quote each line in Thai baht.",
+    "lines": [
+      {
+        "lineNo": 1,
+        "descriptionEn": "PVC pipe, class 8.5, 4 inch size, 4 m long",
+        "uomEn": "piece"
+      },
+      {
+        "lineNo": 2,
+        "descriptionEn": "Straight PVC coupling, 4 inch",
+        "uomEn": "piece"
+      },
+      {
+        "lineNo": 3,
+        "descriptionEn": "PVC pipe glue, 500 g can",
+        "uomEn": "can"
+      }
+    ]
+  },
+  "usage": {
+    "input": 187,
+    "output": 940,
+    "cacheRead": 1091,
+    "cacheWrite": 0
+  }
+}

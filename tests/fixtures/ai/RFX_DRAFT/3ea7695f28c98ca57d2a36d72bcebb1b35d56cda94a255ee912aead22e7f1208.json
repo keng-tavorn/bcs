@@ -1,0 +1,39 @@
+{
+  "promptVersion": "RFX_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "title": "ขอใบเสนอราคาอุปกรณ์ความปลอดภัย: หมวกนิรภัย รองเท้าเซฟตี้หัวเหล็ก ถุงมือผ้าเคลือบยาง เสื้อกั๊กสะท้อนแสง",
+    "titleEn": "Request for quotation: safety equipment, safety helmets, steel-toe safety shoes, rubber-coated gloves, reflective vests",
+    "description": "ขอเชิญเสนอราคาสำหรับจัดหาอุปกรณ์ความปลอดภัยตามรายการ ได้แก่ หมวกนิรภัยสีขาวมาตรฐาน มอก. รองเท้าเซฟตี้หัวเหล็ก ถุงมือผ้าเคลือบยาง และเสื้อกั๊กสะท้อนแสง ผู้เสนอราคาโปรดระบุราคาต่อรายการเป็นเงินบาท",
+    "descriptionEn": "Quotations are invited for the supply of safety equipment as listed: white safety helmets to TIS standard, steel-toe safety shoes, rubber-coated fabric gloves and reflective safety vests. Suppliers are to quote a price per line in Thai baht.",
+    "lines": [
+      {
+        "lineNo": 1,
+        "descriptionEn": "White safety helmet, TIS standard",
+        "uomEn": "piece"
+      },
+      {
+        "lineNo": 2,
+        "descriptionEn": "Steel-toe safety shoes",
+        "uomEn": "pair"
+      },
+      {
+        "lineNo": 3,
+        "descriptionEn": "Rubber-coated fabric gloves",
+        "uomEn": "dozen"
+      },
+      {
+        "lineNo": 4,
+        "descriptionEn": "Reflective safety vest",
+        "uomEn": "piece"
+      }
+    ]
+  },
+  "usage": {
+    "input": 184,
+    "output": 1471,
+    "cacheRead": 1091,
+    "cacheWrite": 0
+  }
+}

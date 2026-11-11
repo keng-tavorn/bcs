@@ -51,7 +51,7 @@ export interface SendPoResult {
 }
 
 /** Who hears that a PO went out (§10.1 po.sent): the requesters of its PRs and the RECEIVERs of their departments */
-async function sentRecipients(tx: TenantTx, ctx: Ctx, poId: string): Promise<Array<{ memberId: string; forReceiver: boolean }>> {
+export async function sentRecipients(tx: TenantTx, ctx: Ctx, poId: string): Promise<Array<{ memberId: string; forReceiver: boolean }>> {
   const requests = await tx.request.findMany({ where: { lines: { some: { poSources: { some: { poLine: { poId } } } } } }, select: { requesterMemberId: true, requesterDepartmentId: true } })
   const receivers = await departmentReceivers(tx, ctx.organizationId, [...new Set(requests.map((r) => r.requesterDepartmentId))], ctx.now)
   const out = new Map<string, boolean>()

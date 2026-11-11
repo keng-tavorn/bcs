@@ -1,5 +1,6 @@
 import { satangToAmount } from '@/core/money/dto'
 import { netUnitPriceCeiling } from '@/core/sourcing'
+import { formatEnglishBeDateTime, formatThaiDateTime } from '@/core/thai'
 import { rateFor, taxDateOf } from '@/core/vat'
 import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
@@ -72,10 +73,21 @@ export async function listPortalRfx(ctx: Ctx): Promise<PortalRfxRow[]> {
     .sort((a, b) => rank(a) - rank(b))
 }
 
-/** The home's row (S7's home · one row): RFx the contact is invited to, and those still waiting for its bid */
-export async function portalRfxSummary(ctx: Ctx): Promise<{ readonly invited: number; readonly toDo: number }> {
-  const rows = await listPortalRfx(ctx)
-  return { invited: rows.length, toDo: rows.filter((r) => PORTAL_RFX_TO_DO.has(r.portalStatus)).length }
+/**
+ * The home's lines "RFx รอยื่น" (docs/sub-specs/S10.md "/portal/home" · provider of PORTAL_HOME_PROVIDERS): each RFx
+ * still waiting for the contact's bid before its close, to that RFx. The close reads in both languages (dateTh dateEn).
+ */
+export async function listPortalRfxTodos(ctx: Ctx): Promise<Array<{ kind: string; page: string; values: Record<string, string> }>> {
+  const rows = (await listPortalRfx(ctx)).filter((r) => PORTAL_RFX_TO_DO.has(r.portalStatus))
+  return rows.map((r) => {
+    const no = r.number ?? ''
+    const at = r.closesAt
+    return {
+      kind: 'RFX_TO_BID',
+      page: `/rfx/${r.id}`,
+      values: { typeTh: `${no} ${r.title}`.trim(), typeEn: `${no} ${r.titleEn ?? r.title}`.trim(), dateTh: at ? formatThaiDateTime(at) : '', dateEn: at ? formatEnglishBeDateTime(at) : '' },
+    }
+  })
 }
 
 /**

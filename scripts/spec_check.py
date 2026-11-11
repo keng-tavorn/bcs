@@ -532,6 +532,7 @@ def run_sod(d):
             elif subj == "PAYMENT_RUN" and i["actor"] == i.get("requester"): rule = "BR-SOD-09"
             elif subj == "PAYMENT_RUN" and i["actor"] in i.get("invoiceRecorders", []): rule = "BR-SOD-04"
             elif subj == "PAYMENT_RUN" and sod_recent_change(i): rule = "BR-SOD-10"
+            elif subj == "BANK_ACCOUNT_CHANGE" and i.get("source") == "PORTAL" and i["actor"] in [i.get("submittedBy"), i.get("callVerifiedBy")]: rule = "BR-SOD-12"
             elif subj == "BANK_ACCOUNT_CHANGE" and i["actor"] == i.get("requester"): rule = "BR-SOD-05"
             elif i["actor"] == i.get("requester"): rule = "BR-SOD-01"
             elif subj == "PURCHASE_ORDER" and i["actor"] == i.get("poCreator"): rule = "BR-SOD-03"
@@ -2609,6 +2610,75 @@ def run_supplier_documents(d):
     for c in d["cases"]:
         got = fns[c["fn"]](c["input"]); out.append((c["id"], got == c["expect"], got))
     return out
+def run_ai_supplier_verify(d):
+    # BR-AI-29 BR-AI-16 BR-AI-30 (S7-14 · FR-AI-304): checks of a supplier document as read, in a fixed order, each run only when it
+    # has something to compare · confidence = model percent x 100 capped by the field's worst check (FAIL 0 · WARN 5000) · confirmed
+    # one by one when critical (taxId branchCode nameTh isVatRegistered bankCode accountName) or below minConfidenceBp · a field read
+    # without a confidence counts 0 · shouldReadDocument per document from aiReadable and aiReadablePayeeTypes · expect is a subset
+    import unicodedata
+    words = ["ห้างหุ้นส่วนจำกัด", "ห้างหุ้นส่วนสามัญ", "จำกัด (มหาชน)", "company limited", "บริษัท", "(มหาชน)", "co., ltd.", "co.,ltd.",
+             "limited", "บมจ.", "บจก.", "หจก.", "หสน.", "จำกัด", "บจ.", "ltd.", "inc.", "ltd", "plc", "inc"]
+    lat = [w for w in words if re.search("[a-z]", w)]; tha = [w for w in words if w not in lat]
+    edge = lambda ch: ch == "" or ch.isspace() or ch in ".()"
+    def tail(t):
+        for w in tha:
+            if t.endswith(w) and edge(t[len(t) - len(w) - 1] if len(t) > len(w) else ""): return t[:len(t) - len(w)].rstrip()
+        return t
+    def norm(x):
+        t = unicodedata.normalize("NFC", x).strip().lower()
+        while True:
+            b = t
+            for w in lat: t = re.sub(r"(?<![a-z0-9])" + re.escape(w) + r"(?![a-z0-9])", " ", t)
+            t = t.strip()
+            for w in tha:
+                if t.startswith(w) and (w.endswith(".") or edge(t[len(w):len(w) + 1])): t = t[len(w):].lstrip(); break
+            t = re.sub(r"[\s.,-]+", "", tail(t))
+            if t == b: return t
+    sp = lambda x: " ".join(unicodedata.normalize("NFC", x).split())
+    fx, app, reg = d["fixture"], d["application"], d.get("registryData") or {}
+    crit = {"taxId", "branchCode", "nameTh", "isVatRegistered", "bankCode", "accountName"}
+    def taxok(t):
+        t = re.sub(r"\D", "", t)
+        return len(t) == 13 and (11 - sum(int(t[i]) * (13 - i) for i in range(12)) % 11) % 10 == int(t[12])
+    def checks(i):
+        r, out = i["read"], []
+        vd = i.get("validityDays", d["types"].get(i["docType"], {}).get("validityDays"))
+        if r.get("taxId"):
+            out.append(("TAXID_CHECKSUM", "PASS" if taxok(r["taxId"]) else "FAIL", "taxId"))
+            same = re.sub(r"\D", "", r["taxId"]) == app["taxId"] and (not r.get("branchCode") or r["branchCode"] == app["branchCode"])
+            out.append(("TAXID_MISMATCH", "PASS" if same else "FAIL", "taxId"))
+        if r.get("nameTh") and reg.get("name"): out.append(("REGISTRY_NAME_MISMATCH", "PASS" if norm(r["nameTh"]) == norm(reg["name"]) else "WARN", "nameTh"))
+        typed = app.get("address") or reg.get("address")
+        if r.get("registeredAddress") and typed: out.append(("REGISTRY_ADDRESS_MISMATCH", "PASS" if sp(r["registeredAddress"]) == sp(typed) else "WARN", "registeredAddress"))
+        if r.get("issuedOn"):
+            out.append(("DOC_DATE_FUTURE", "FAIL" if r["issuedOn"] > fx["today"] else "PASS", "issuedOn"))
+            if vd: out.append(("DOC_EXPIRED", "FAIL" if (date.fromisoformat(r["issuedOn"]) + timedelta(days=vd - 1)).isoformat() < fx["today"] else "PASS", "issuedOn"))
+        return out
+    out = []
+    for c in d["cases"]:
+        if c.get("fn") == "shouldReadDocument":
+            got = []
+            for i in c["input"]:
+                t = d["types"][i["docType"]]
+                got.append({"read": False, "reason": "NOT_AI_READABLE"} if not t["aiReadable"] else
+                           {"read": False, "reason": "PAYEE_TYPE_EXCLUDED"} if t["aiReadablePayeeTypes"] and i["payeeType"] not in t["aiReadablePayeeTypes"] else {"read": True})
+            out.append((c["id"], got == c["expect"], got)); continue
+        i, ch = c["input"], checks(c["input"])
+        worst = {}
+        for code, res, field in ch:
+            if worst.get(field) is None or ["PASS", "WARN", "FAIL"].index(res) > ["PASS", "WARN", "FAIL"].index(worst[field]): worst[field] = res
+        conf, must = {}, set()
+        for field, v in i["read"].items():
+            if v in (None, ""): continue
+            cap = {"FAIL": 0, "WARN": 5000}.get(worst.get(field), 10000)
+            bp = min(max(0, min(100, i["confidence"].get(field, 0))) * 100, cap)
+            conf[field] = bp
+            if field in crit or bp < fx["minConfidenceBp"]: must.add(field)
+        got = {"checks": [{"code": a, "result": b} for a, b, _ in ch], "confidenceBp": conf, "mustConfirm": sorted(must)}
+        e = c["expect"]
+        ok = all(x in got["checks"] for x in e["checks"]) and all(conf.get(k) == v for k, v in e["confidenceBp"].items()) and sorted(e["mustConfirm"]) == got["mustConfirm"]
+        out.append((c["id"], ok, got))
+    return out
 RISK_DOMAINS = ["GENERAL", "PRIVACY", "INFOSEC", "PREMISES", "FINANCE"]
 def run_risk_review(d):
     # BR-RSK-07 (§7.24 · S11-06): the RISK_ASSESSMENT rules of the workflow version in effect whose condition holds on the
@@ -2651,6 +2721,7 @@ RUNNERS = {
     "ai-eval-score": run_ai_eval_score,
     "ai-intake-channel": run_ai_intake_channel,
     "ai-quotation-map": run_ai_quotation_map,
+    "ai-supplier-verify": run_ai_supplier_verify,
     "ai-text": run_ai_text,
     "ai-verify": run_ai_verify,
     "ap": run_ap,

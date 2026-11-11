@@ -10,8 +10,9 @@ import type { MouseEvent, ReactNode } from 'react'
 // 200 KB gzip with the LINE SDK (§9.4; src/ui/liff/liff-link.tsx), use this one instead. No prefetching: the pages it
 // leads to are dynamic. A link that leaves the app (another site, a page that must load anew) is a plain <a>.
 
-/** Looks like a text link, at least 44 px high (NFR-A11Y-02) */
-export const LIGHT_LINK_CLASS = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
+import { LIGHT_LINK_CLASS } from './light-link-class'
+
+export { LIGHT_LINK_CLASS }
 
 export function LightLink({ href, className, children }: { readonly href: string; readonly className?: string; readonly children: ReactNode }) {
   const router = useRouter()

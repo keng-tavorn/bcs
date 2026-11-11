@@ -50,6 +50,8 @@ import { getPoChangeTaskView } from '@/server/queries/po-changes'
 import { PoChangeBody } from '@/ui/tasks/subjects/po-change'
 import { getAwardTaskView } from '@/server/services/sourcing'
 import { AwardFacts } from '@/ui/sourcing/award-facts'
+import { getSupplierApplicationTaskView } from '@/server/services/suppliers/application-view'
+import { SupplierApplicationBody } from '@/ui/tasks/subjects/supplier-application'
 import { askForInformationAction, decidePolicyTaskAction, decideTaskAction, passkeyOptionsAction } from '../actions'
 
 export async function generateMetadata() {
@@ -174,6 +176,11 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const invoice = task.subjectType === 'INVOICE' ? await getInvoiceTaskView(ctx, task.subjectId) : null
   // S8-13: a change of a sent PO (subject PO_CHANGE)
   const poChange = task.subjectType === 'PO_CHANGE' ? await getPoChangeTaskView(ctx, task.subjectId) : null
+  // S7-09: a supplier application (subject SUPPLIER_APPLICATION · FR-SUP-104 AC5): its approvers read it
+  // (supplier.application.view ASSIGNED); questions go back as a return, so no "ask the requester" (allowsRequestInfo false)
+  const isSupplierApp = task.subjectType === 'SUPPLIER_APPLICATION'
+  const supplierAppRead = isSupplierApp ? await getSupplierApplicationTaskView(ctx, task.subjectId) : null
+  const supplierApp = supplierAppRead?.ok ? supplierAppRead.data : null
   // S10-10: the award of an RFx (subject AWARD_DECISION)
   const award = task.subjectType === 'AWARD_DECISION' ? await getAwardTaskView(ctx, task.subjectId) : null
   const [tp, poAccess] = await Promise.all([getTranslations('purchaseOrder'), po ? getPoAccess(ctx, po.id) : variance ? getPoAccess(ctx, variance.po.id) : Promise.resolve(null)])
@@ -246,9 +253,11 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               ? (invoice.number ?? '-')
               : poChange
                 ? t('poChangeTask.label', { number: poChange.po.number ?? '-', changeNo: poChange.changeNo })
-                : award
-                  ? (award.number ?? '-')
-                  : task.policy
+                : supplierApp
+                  ? supplierApp.label
+                  : award
+                    ? (award.number ?? '-')
+                    : task.policy
                   ? policyHeadline(t, locale, task.policy)
                   : task.workflow
                     ? t(task.workflow.withdrawal ? 'item.workflowWithdrawal' : 'item.workflow', { code: task.workflow.code, version: task.workflow.versionNo })
@@ -370,6 +379,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 <InvoiceVarianceBody invoice={invoice} />
               ) : poChange ? (
                 <PoChangeBody change={poChange} />
+              ) : isSupplierApp ? (
+                supplierApp ? <SupplierApplicationBody application={supplierApp} /> : null
               ) : award ? (
                 <AwardFacts award={award} />
               ) : (
@@ -403,17 +414,21 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   locale={locale}
                   label={label}
                   amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : transfer ? moneyText(transfer.amount) : overrun ? moneyText(overrun.shortfall) : invoice?.variance ? money(invoice.variance.netSatang + invoice.variance.vatSatang) : poChange ? money(poChange.new.grossSatang) : award ? moneyText({ amount: award.gross }) : '-'}
-                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : isOverrun ? 'BUDGET_OVERRUN' : task.review ? 'REVIEW' : 'REQUEST'}
+                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : isOverrun ? 'BUDGET_OVERRUN' : isSupplierApp ? 'SUPPLIER_APPLICATION' : task.review ? 'REVIEW' : 'REQUEST'}
                   stepUp={task.stepUp}
                   hasPasskey={hasPasskey}
                   {...(variance ? { disposition: variance.disposition } : {})}
-                  actions={po || variance || isTransfer || isOverrun || award ? { decide: decideTaskAction, passkeyOptions: passkeyOptionsAction } : { decide: decideTaskAction, ask: askForInformationAction, passkeyOptions: passkeyOptionsAction }}
+                  actions={po || variance || isTransfer || isOverrun || isSupplierApp || award ? { decide: decideTaskAction, passkeyOptions: passkeyOptionsAction } : { decide: decideTaskAction, ask: askForInformationAction, passkeyOptions: passkeyOptionsAction }}
                 />
               )}
             </Panel>
-            <Panel title={tv('timeline.title')} id="timeline">
-              <Timeline items={items} label={timelineLabel} />
-            </Panel>
+            {/* a subject with no track of its own here (a supplier application: its timeline is on its page) draws no empty
+                heading (S7-18) */}
+            {items.length > 0 ? (
+              <Panel title={tv('timeline.title')} id="timeline">
+                <Timeline items={items} label={timelineLabel} />
+              </Panel>
+            ) : null}
           </aside>
         </div>
       </PageBody>

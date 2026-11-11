@@ -1,0 +1,75 @@
+{
+  "promptVersion": "SUPPLIER_DOC_READ@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "docType": "COMPANY_CERT",
+    "nameTh": "บริษัท นครปฐมเหล็กโครงสร้าง จำกัด",
+    "nameEn": "NAKHON PATHOM STRUCTURAL STEEL COMPANY LIMITED",
+    "taxId": "0999998020583",
+    "branchCode": "00000",
+    "registeredAddress": "12 หมู่ 7 ถนนเพชรเกษม ต.ธรรมศาลา อ.เมือง จ.นครปฐม 73000",
+    "registrationDate": "2009-11-23",
+    "issuedOn": "2026-10-12",
+    "isVatRegistered": null,
+    "bankName": null,
+    "accountName": null,
+    "documentNumber": null,
+    "confidence": [
+      {
+        "field": "docType",
+        "value": 98
+      },
+      {
+        "field": "nameTh",
+        "value": 97
+      },
+      {
+        "field": "nameEn",
+        "value": 97
+      },
+      {
+        "field": "taxId",
+        "value": 95
+      },
+      {
+        "field": "branchCode",
+        "value": 90
+      },
+      {
+        "field": "registeredAddress",
+        "value": 94
+      },
+      {
+        "field": "registrationDate",
+        "value": 95
+      },
+      {
+        "field": "issuedOn",
+        "value": 95
+      },
+      {
+        "field": "isVatRegistered",
+        "value": 90
+      },
+      {
+        "field": "bankName",
+        "value": 99
+      },
+      {
+        "field": "accountName",
+        "value": 99
+      },
+      {
+        "field": "documentNumber",
+        "value": 99
+      }
+    ]
+  },
+  "usage": {
+    "input": 1613,
+    "output": 961,
+    "cacheRead": 1747,
+    "cacheWrite": 0
+  }
+}

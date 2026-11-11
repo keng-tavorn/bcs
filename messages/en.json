@@ -136,7 +136,8 @@
           "INVOICE_READ": "Read an invoice",
           "QUESTION": "Answered a question",
           "QUOTATION_READ": "Read a quotation",
-          "SAVINGS_NOTE": "Explained a saving"
+          "SAVINGS_NOTE": "Explained a saving",
+          "SUPPLIER_DOC_READ": "Supplier document reading"
         },
         "showing": "Showing only {filter}",
         "statusDone": "Done",
@@ -197,6 +198,10 @@
         "INTAKE": {
           "description": "Picks the request type and drafts the request from what the requester wrote or attached; the requester confirms before sending",
           "name": "Request helper"
+        },
+        "SUPPLIER_ONBOARDING": {
+          "description": "Reads the company certificate and VAT registration a supplier uploads with its application and fills them in for the supplier or procurement to check field by field; never reads an account number, verifies a document or approves a supplier",
+          "name": "Supplier Onboarding"
         }
       },
       "agentsTitle": "Assistants",
@@ -2554,6 +2559,11 @@
       "retentions": "Retentions",
       "wht": "Withholding tax"
     },
+    "channel": {
+      "EMAIL": "From e-mail",
+      "PORTAL": "From the portal",
+      "UPLOAD": "Uploaded by finance"
+    },
     "empty": {
       "all": "No invoices yet",
       "allHint": "Start by recording a new invoice, or fetch the mail in the inbox.",
@@ -2588,6 +2598,8 @@
       "UNAUTHENTICATED": "Please sign in again"
     },
     "filter": {
+      "allChannels": "All channels",
+      "channel": "Channel",
       "clear": "Clear search",
       "count": "{count} invoices in this tab",
       "label": "Search invoices",
@@ -2680,10 +2692,13 @@
       "duplicate": "Possible duplicate",
       "exceptions": "{count} exceptions",
       "fromEmail": "Came by e-mail",
+      "fromPortal": "From the supplier portal",
       "label": "Invoices in the {tab} tab",
       "limited": "Showing the latest {shown}. Search to find others.",
       "noDue": "Not set",
       "noSupplierNo": "Supplier's invoice number not entered yet",
+      "scanInfected": "File failed the security check: ask the supplier for another",
+      "scanPending": "File waiting for scan",
       "supplierNo": "Supplier's invoice no. {no}"
     },
     "metaTitle": "Invoices",
@@ -3219,6 +3234,7 @@
       "bank_account_change": {
         "approved": "Bank account change approved",
         "cancelled": "Bank account change cancelled",
+        "claimed": "Finance claimed a bank account request from the portal",
         "drafted": "Bank account change drafted",
         "rejected": "Bank account change rejected",
         "returned": "Bank account change returned",
@@ -3430,9 +3446,12 @@
         "paid": "Payment item recorded as paid"
       },
       "po": {
+        "ack_reset": "Revised PO waits for the supplier again",
+        "acknowledged": "Supplier acknowledged the PO",
         "approved": "Purchase order approved",
         "cancelled": "Purchase order cancelled",
         "closed": "Purchase order closed",
+        "delivery_date_changed": "Supplier changed the delivery date",
         "drafted": "Purchase order drafted",
         "milestones_set": "Purchase order split into milestones",
         "rejected": "Purchase order rejected",
@@ -3608,9 +3627,11 @@
         "approved": "Supplier application approved",
         "cancelled": "Supplier application cancelled",
         "drafted": "Supplier started its application",
+        "escalated": "Supplier application overdue, procurement told",
         "expired": "Supplier application expired",
         "invited": "Supplier invited to apply",
         "rejected": "Supplier application not approved",
+        "reminded": "Supplier reminded to finish its application",
         "returned": "Supplier application returned",
         "routed": "Supplier application sent for approval",
         "submitted": "Supplier application sent",
@@ -4288,6 +4309,7 @@
       "approved": "Approved, new account in effect",
       "approvedClose": "Approved, account closed",
       "cancelled": "Request cancelled",
+      "claimed": "Finance took up what the supplier proposed on the portal",
       "decided": {
         "APPROVE": "Approver approved",
         "REJECT": "Approver rejected",
@@ -8926,6 +8948,167 @@
       "RETURNED": "Returned for changes",
       "SUBMITTED": "Sent, being checked"
     },
+    "apply": {
+      "ai": {
+        "byAi": "Filled by AI, please check",
+        "check": {
+          "FAIL": "This value failed a check (invalid number, not the application's, or an expired document). Do not take it until the document is checked.",
+          "WARN": "This value differs from the registry or what was typed. Check it again."
+        },
+        "confidence": "AI {percent}% sure",
+        "doc": {
+          "BANK_BOOK": "Bank book page",
+          "COMPANY_CERT": "Company certificate",
+          "OTHER": "Document",
+          "VAT_CERT": "VAT registration"
+        },
+        "docCheck": {
+          "BANK_UNKNOWN": "The AI read a bank name that is not in the list of banks. Choose the bank yourself in the bank step.",
+          "DOC_DATE_FUTURE": "The date of issue the AI read is in the future. Check the date on the document.",
+          "DOC_EXPIRED": "The AI read the date of issue and found this document expired. Check the date and send a new one if needed."
+        },
+        "done": "The AI values were taken. Check the rest of the form.",
+        "field": {
+          "accountName": "Account name",
+          "address": "Address",
+          "bankCode": "Bank",
+          "branchCode": "Branch",
+          "isVatRegistered": "VAT",
+          "nameEn": "Name (English)",
+          "nameTh": "Name (Thai)",
+          "taxId": "Taxpayer ID"
+        },
+        "intro": "Check each value against the document, tick the right ones and take them. Once you press a button, the values you did not take leave this list and what you typed stays. You always type the account number yourself.",
+        "mustConfirm": "confirm one by one",
+        "no": "Not VAT registered",
+        "takeRest": "Confirm all the other values",
+        "takeTicked": "Take only the ticked values",
+        "taken": "Taken",
+        "title": "Values the AI read from your documents",
+        "yes": "VAT registered"
+      },
+      "back": "Back to the previous step",
+      "bank": {
+        "accountName": "Account name",
+        "accountNo": "Account number",
+        "accountNoKept": "Saved, ending {last4}. Type a new one only to change it.",
+        "bankBranch": "Bank branch",
+        "bankCode": "Bank",
+        "choose": "Choose a bank",
+        "intro": "The account to be paid into. Finance will call you to confirm it before any payment."
+      },
+      "closed": {
+        "APPROVED": "The application was approved.",
+        "CANCELLED": "The application was cancelled.",
+        "EXPIRED": "The application expired. Please ask procurement for a new link.",
+        "PENDING_APPROVAL": "Application {number} is waiting for approval. We will e-mail you the result.",
+        "REJECTED": "The application was not approved.",
+        "SUBMITTED": "Application {number} was sent and procurement is checking it. We will e-mail you the result."
+      },
+      "company": {
+        "address": "Registered address",
+        "category": "Goods or services you sell",
+        "email": "Company e-mail",
+        "intro": "As on your company certificate or ID card",
+        "nameEn": "Name (English)",
+        "nameTh": "Name (Thai)",
+        "payee": {
+          "FOREIGN": "Foreign supplier",
+          "INDIVIDUAL": "Individual",
+          "JURISTIC": "Company"
+        },
+        "payeeType": "Supplier type",
+        "phone": "Phone"
+      },
+      "contact": {
+        "en": "English",
+        "intro": "These contacts may use the portal and get e-mails from {organization}. To add or change one, please ask its procurement team.",
+        "language": "Language of e-mails and the portal",
+        "primary": "Primary contact",
+        "th": "ไทย",
+        "you": "you"
+      },
+      "documents": {
+        "expiresOn": "Expiry date (if any)",
+        "expiresOnRequired": "Expiry date on the document",
+        "file": "File",
+        "intro": "Send PDF files or pictures, 20 MB at most each. Every file is checked for viruses before procurement opens it.",
+        "issuedOn": "Date issued",
+        "optional": "optional",
+        "required": "required",
+        "send": "Send {type}",
+        "sendNew": "Send a new {type}",
+        "state": {
+          "INFECTED": "The file failed the security check: send another",
+          "NONE": "Not sent yet",
+          "PENDING": "Sent, waiting for procurement",
+          "REJECTED": "Not accepted: {reason}",
+          "SCANNING": "Checking the file",
+          "VERIFIED": "Confirmed by procurement"
+        }
+      },
+      "errors": {
+        "ACCOUNT": "The account number is not valid for this bank.",
+        "AI_NOTHING_TAKEN": "Tick at least one value to take",
+        "AI_REVIEW_PENDING": "Some values filled by AI wait for your confirmation. Go to the company or documents step and tick them before sending.",
+        "APPLICATION_INCOMPLETE": "It cannot be sent yet: see what is missing below.",
+        "CONFLICT_VERSION": "The application was just changed elsewhere. Please check the latest and save again.",
+        "DUPLICATE_REASON_REQUIRED": "Please give a reason for each likeness to a registered supplier.",
+        "DUPLICATE_SUPPLIER": "This taxpayer id and branch are registered or applied for already. Please call procurement.",
+        "FORBIDDEN": "You may not do this.",
+        "INVALID_STATE_TRANSITION": "This application can no longer be changed.",
+        "TAXID_CHECKSUM": "The taxpayer id is not valid. Please check it.",
+        "VALIDATION_FAILED": "Please check what you typed."
+      },
+      "required": "required",
+      "returned": "Procurement returned the application for changes: {reason}",
+      "review": {
+        "document": "Document: {type}",
+        "edit": "Change {step}",
+        "field": {
+          "address": "Address",
+          "branchCode": "Branch code",
+          "contact": "Contact",
+          "nameTh": "Name",
+          "taxId": "Taxpayer id"
+        },
+        "intro": "Check before you send. Once sent, it can be changed only if procurement returns it.",
+        "missingNone": "Everything needed is here",
+        "missingTitle": "Still missing before you can send",
+        "notAccount": "Not given",
+        "reason": "Reason",
+        "submit": "Send the application to {organization}",
+        "warning": {
+          "DUPLICATE_EMAIL": "Another supplier uses this e-mail",
+          "DUPLICATE_NAME": "The name looks like a supplier already registered",
+          "SAME_TAXID_OTHER_BRANCH": "This taxpayer id is registered for another branch"
+        },
+        "warningsIntro": "Please say briefly why it is not the same supplier. Procurement will check it.",
+        "warningsTitle": "Looks like a supplier already registered"
+      },
+      "saveNext": "Save and go to the next step",
+      "saved": "Saved",
+      "stepOf": "Step {n} of {total}",
+      "steps": {
+        "bank": "Bank account",
+        "company": "Company",
+        "contact": "Contacts",
+        "documents": "Documents",
+        "review": "Check and send",
+        "tax": "Tax"
+      },
+      "stepsLabel": "Steps of the application",
+      "tax": {
+        "branchCode": "Branch code",
+        "branchHint": "Head office is 00000",
+        "foreign": "A foreign supplier has no Thai taxpayer id to give",
+        "intro": "Your 13-digit taxpayer id and branch",
+        "taxId": "Taxpayer id",
+        "taxIdHint": "13 digits, no dashes",
+        "vat": "Registered for VAT"
+      },
+      "title": "Supplier application"
+    },
     "errors": {
       "FAILED": "That did not work. Please try again.",
       "OTP_EXPIRED": "The code has expired. Please ask for a new sign-in link.",
@@ -8938,14 +9121,124 @@
       "TOKEN_USED": "This link was used already. Please ask for a new sign-in link.",
       "VALIDATION_FAILED": "Please check what you typed."
     },
+    "fileInput": {
+      "choose": "Choose a file",
+      "none": "No file chosen yet"
+    },
+    "help": {
+      "contactGeneral": "Please contact the procurement team of {organization} the way you usually do.",
+      "contactTitle": "Contact procurement",
+      "how": {
+        "code": "No one from the organization will ever ask you for your code.",
+        "documents": "Send documents as PDF files or pictures. We e-mail you before a document expires.",
+        "fill": "Fill in the application step by step and save. You may come back later to go on.",
+        "signIn": "Sign in with the e-mail {organization} has on record. A one-time link and a six-digit code are sent each time."
+      },
+      "howTitle": "How to use the portal",
+      "inviter": "Invited by {name}, e-mail {email}",
+      "title": "Help"
+    },
     "home": {
       "applicationStatus": "Application status: {status}",
       "documents": "Your documents",
       "forApplication": "Supplier application of {name}",
       "forSupplier": "You are signed in for {supplier}",
       "greeting": "Hello {name}",
-      "rfx": "RFx you are invited to: {invited} · waiting for your bid: {toDo}",
-      "signOut": "Sign out"
+      "sections": "Other parts of the portal",
+      "signOut": "Sign out",
+      "todo": {
+        "DOCUMENT_EXPIRED": "{type} has expired: send a new copy",
+        "DOCUMENT_EXPIRING": "{type} expires on {date}: send a new copy",
+        "DOCUMENT_MISSING": "No {type} yet: send it",
+        "INVOICE_REJECTED": "Invoice {type} was rejected: see why and send it again",
+        "RFX_TO_BID": "{type} waits for your bid: closes {date}"
+      },
+      "todoEmpty": "Nothing to do now. When a document is about to expire or new work comes, it shows here and we e-mail you.",
+      "todoTitle": "To do"
+    },
+    "invoices": {
+      "back": "Back to invoices",
+      "choosePo": "Choose a purchase order",
+      "date": "Invoice date",
+      "detail": "PO {po} · dated {date}",
+      "editIntro": "You can change it until finance confirms its accounts. Leave a quantity empty for a line not on this invoice.",
+      "editLines": "Purchase order lines",
+      "editTitle": "Change the invoice",
+      "empty": "No invoices yet. Once you send one, its status shows here.",
+      "errors": {
+        "AMOUNT": "Enter amounts as numbers with at most 2 decimals",
+        "CODING_CONFIRMED": "Finance has confirmed this invoice and it cannot be changed. Contact finance.",
+        "CONFLICT_VERSION": "This invoice was just changed. Open the page again and retry.",
+        "DISCOUNT_ABOVE_AMOUNT": "The discount is above the invoice amount",
+        "FAILED": "That did not work. Please try again.",
+        "FILE_REQUIRED": "Attach the invoice file",
+        "INVALID_STATE_TRANSITION": "This invoice can no longer be changed or sent",
+        "INVOICE_DATE": "Enter the invoice date",
+        "INVOICE_NO": "Enter the invoice number",
+        "LINE": "Enter each line’s quantity and price as numbers",
+        "NOT_A_PO_LINE": "Every line must be a line of this purchase order",
+        "NOT_FOUND": "Purchase order not found",
+        "NO_LINES": "Enter a quantity for at least one line",
+        "QUANTITY_NOT_POSITIVE": "A quantity must be above zero",
+        "RATE_LIMITED": "Too many invoices or files for now. Try again later.",
+        "TOO_LARGE": "The file is larger than 20 MB",
+        "TYPE_NOT_ALLOWED": "The file must be a PDF, JPEG or PNG",
+        "VALIDATION_FAILED": "Please check what you entered"
+      },
+      "file": "Invoice file",
+      "fileHint": "PDF, JPEG or PNG up to 20 MB. The file is checked for safety before finance opens it.",
+      "fileScanned": "File: {name}",
+      "fileScanning": "File: {name} (being checked for safety)",
+      "gross": "Total {amount} THB",
+      "includesVat": "Prices on the invoice include VAT",
+      "intro": "Your invoices and where each one stands. Send a new one for a purchase order sent to you.",
+      "line": "{qty} {uom} × {price} = {net} THB",
+      "lines": "Lines",
+      "locked": "Finance is checking this invoice. To change it, contact finance.",
+      "net": "Before VAT {amount} THB",
+      "new": "Send a new invoice",
+      "newIntro": "Choose the purchase order, attach the invoice file, then enter its number, date and VAT as printed. The lines start from what is not invoiced yet; you can change them on the next page until finance confirms it.",
+      "newTitle": "Send an invoice",
+      "noLines": "No lines yet. Enter quantities of the purchase order lines below.",
+      "noNumber": "Invoice",
+      "noPos": "No purchase order can take an invoice yet",
+      "notFound": "Invoice not found",
+      "off": "This organization does not take invoices on the portal yet. Send them by e-mail as before.",
+      "po": "Purchase order",
+      "poLine": "{no}. {description} (ordered {qty} {uom})",
+      "poOption": "{number} · sent {date} · {amount} THB",
+      "qty": "Quantity",
+      "received": "received as {number}",
+      "required": "required",
+      "row": "PO {po} · dated {date} · total {amount} THB",
+      "save": "Save changes",
+      "saved": "Changes saved",
+      "send": "Send invoice",
+      "sent": "Invoice sent. Finance will check it and its status will show here.",
+      "stage": {
+        "CANCELLED": "Cancelled",
+        "CANCELLED_REASON": "Cancelled: {reason}",
+        "DRAFT": "With finance, waiting for checks",
+        "IN_REVIEW": "A difference was found, being checked",
+        "PAID": "Paid {date}",
+        "PAID_NO_DATE": "Paid",
+        "READY": "Ready to pay, due {date}",
+        "READY_NO_DATE": "Ready to pay",
+        "REJECTED": "Rejected: {reason}"
+      },
+      "supplierNo": "Your invoice number",
+      "timeline": {
+        "paid": "Paid on {date}",
+        "ready": "Ready to pay since {at}",
+        "received": "Received as {number} on {at}",
+        "rejected": "Rejected on {at}",
+        "sent": "Sent {at}"
+      },
+      "title": "Invoices",
+      "unitPrice": "Unit price (THB)",
+      "vat": "VAT (THB)",
+      "vatAmount": "VAT {amount} THB",
+      "vatHint": "As printed on the invoice; 0 if none"
     },
     "link": {
       "intro": "Press the button to get a six-digit code by e-mail. This link works once.",
@@ -8953,11 +9246,24 @@
       "title": "Confirm your sign-in"
     },
     "login": {
+      "closed": "Your account is closed. To use the portal again, please contact procurement.",
       "email": "E-mail",
       "intro": "Type the e-mail this organization has on record. We will send a sign-in link, usable once, to that address.",
       "sent": "If this e-mail is on record, a sign-in link will arrive within a few minutes. Please check your inbox.",
       "submit": "Send me a sign-in link",
       "title": "Sign in to the supplier portal"
+    },
+    "nav": {
+      "apply": "Application",
+      "bank": "Bank account",
+      "documents": "Documents",
+      "help": "Help",
+      "home": "Home",
+      "invoices": "Invoices",
+      "label": "Portal sections",
+      "payments": "Payments",
+      "pos": "Purchase orders",
+      "profile": "My account"
     },
     "of": "of {organization}",
     "otp": {
@@ -8966,11 +9272,90 @@
       "submit": "Sign in",
       "title": "Enter your code"
     },
+    "payments": {
+      "account": "To {bank} account ending {last4}",
+      "amounts": "Invoices {payable} THB · withholding tax {wht} THB",
+      "empty": "No payments yet",
+      "error": "The file could not be opened. Please try again.",
+      "failed": "Transfer failed",
+      "intro": "What was transferred to you, or failed. Only the last four digits of the account are shown.",
+      "invoices": "Invoices: {list}",
+      "paid": "Transferred {date}",
+      "reason": "Reason: {reason}",
+      "run": "run {number}",
+      "title": "Payments",
+      "transfer": "Transferred {amount} THB",
+      "wht": "Download withholding tax certificate {number}"
+    },
+    "pos": {
+      "ack": {
+        "ACKNOWLEDGED": "Acknowledged",
+        "DELIVERY_UPDATED": "New delivery date given",
+        "NOT_ACKNOWLEDGED": "Not acknowledged"
+      },
+      "ackIntro": "Say when you will deliver (optional): the organization sees it on the PO",
+      "ackSubmit": "Acknowledge this purchase order",
+      "ackTitle": "Acknowledge the purchase order",
+      "acked": "Acknowledged",
+      "back": "Back to purchase orders",
+      "changeSubmit": "Send the new delivery date",
+      "changeTitle": "Change the delivery date",
+      "changed": "New delivery date sent",
+      "closed": "This purchase order needs no acknowledgement now",
+      "date": "Delivery date",
+      "empty": "No purchase order sent to you yet. When one comes, it shows here and we e-mail you.",
+      "errors": {
+        "FAILED": "That did not work. Please try again.",
+        "INVALID_STATE_TRANSITION": "This purchase order can no longer do this",
+        "NO_CHANGE": "The delivery date is the same",
+        "PAST_DATE": "The delivery date must be today or later",
+        "VALIDATION_FAILED": "Please check what you typed"
+      },
+      "gross": "Total {amount} baht",
+      "history": "Acknowledgements",
+      "historyAck": "Acknowledged on {at}",
+      "historyChange": "Delivery moved on {at} from {from} to {to}",
+      "intro": "The POs sent to you: acknowledge each and say when you deliver",
+      "line": "{qty} {uom} × {price} baht = {net} baht",
+      "lines": "Lines",
+      "net": "Before VAT {amount} baht",
+      "noNumber": "Purchase order",
+      "notFound": "Purchase order not found",
+      "note": "Note (optional)",
+      "pdf": "Open the purchase order (PDF)",
+      "promised": "Delivering on {date}",
+      "reason": "Why it changes",
+      "revision": "Revision {n}",
+      "row": "Sent on {date} · total {amount} baht",
+      "status": {
+        "CLOSED": "Closed",
+        "PARTIALLY_RECEIVED": "Partly received",
+        "RECEIVED": "Received",
+        "SENT": "Sent"
+      },
+      "title": "Purchase orders",
+      "vat": "VAT {amount} baht"
+    },
     "privacy": {
       "2026-11-01": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them. You may ask its procurement team for a copy, a correction or deletion of your data.",
       "2026-11-08": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to assess supplier risk, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them.\n\nEvidence files of a risk questionnaire that you mark as holding no personal data and readable by the AI assistant are sent to an outside AI provider to draft answers for you to check. Files you do not mark are never sent.\n\nYou may ask its procurement team for a copy, a correction or deletion of your data.",
       "accept": "I have read it",
+      "read": "Read the privacy notice",
+      "short": "{organization} uses what you send through this portal to register suppliers, to assess supplier risk, to contact you about purchases and payments, and for checks the law requires.",
       "title": "Privacy notice"
+    },
+    "profile": {
+      "close": "Close my account and sign out",
+      "closeBody": "Once closed, you cannot sign in with this e-mail again. To come back, procurement has to add you again.",
+      "closeConfirm": "I understand and want to close this account",
+      "closeConfirmNeeded": "Please tick to confirm before closing the account.",
+      "closeLast": "You are the primary contact, so you cannot close the account yourself. Please ask procurement to name a new primary contact first.",
+      "closeTitle": "Close my account",
+      "contactsTitle": "Contacts of {name}",
+      "language": "Language",
+      "languageSaved": "Language changed",
+      "saveLanguage": "Use this language",
+      "title": "My account"
     },
     "rfx": {
       "bid": {
@@ -10044,6 +10429,9 @@
       "approved": {
         "title": "Purchase order approved"
       },
+      "delivery_changed": {
+        "title": "The supplier changed the delivery date"
+      },
       "send_bounced": {
         "title": "Purchase order did not reach the supplier"
       },
@@ -10071,6 +10459,11 @@
       },
       "info_requested": {
         "title": "A question for you"
+      }
+    },
+    "supplier": {
+      "application_escalated": {
+        "title": "A supplier application is overdue"
       }
     },
     "task": {
@@ -10368,6 +10761,10 @@
       "KPI": {
         "description": "The system's goal measures, computed from the event log and the documents: POs through BCS, approvals by the DOA, speed, budget control and approvals on LINE.",
         "name": "KPI G-1 to G-5"
+      },
+      "SUP_G7": {
+        "description": "Business days new suppliers take from invitation to approval, filled in by the supplier or by procurement, with the applications waiting and the expired documents",
+        "name": "New supplier onboarding time (G-7)"
       },
       "WF_BOTTLENECKS": {
         "description": "The positions and people with the most past-due tasks and the longest decision times",
@@ -12994,6 +13391,524 @@
       }
     }
   },
+  "supplierApplicationTask": {
+    "branch": "Branch",
+    "branchHead": "Head office ({code})",
+    "branchValue": "Branch {code}",
+    "category": "Category",
+    "documentCount": "{count, plural, one {# document} other {# documents}}",
+    "documentLine": "{status} · expires {date}",
+    "documentStatus": {
+      "EXPIRED": "Expired",
+      "PENDING": "Waiting to be verified",
+      "REJECTED": "Not accepted",
+      "SUPERSEDED": "Replaced by a newer one",
+      "VERIFIED": "Verified"
+    },
+    "documents": "Documents",
+    "duplicateCode": {
+      "DUPLICATE_EMAIL": "Same e-mail as another supplier or application",
+      "DUPLICATE_NAME": "Same name as another supplier or application",
+      "SAME_TAXID_OTHER_BRANCH": "Same tax ID, another branch"
+    },
+    "duplicateMatches": "Matches {refs}",
+    "duplicateReason": "Procurement's reason: {reason}",
+    "duplicates": "Duplicate warnings",
+    "filledBy": "Filled in for the supplier by",
+    "heading": "Supplier application",
+    "invitedBy": "Invited by",
+    "juristicStatus": "Registry status: {status}",
+    "kind": "Application kind",
+    "kindValue": {
+      "EXISTING": "Registered supplier joining the portal",
+      "NEW": "New supplier"
+    },
+    "noCategory": "Not given",
+    "noDocuments": "No documents",
+    "noDuplicates": "No duplicates found",
+    "noReason": "No reason given yet",
+    "noTaxId": "None (foreign supplier)",
+    "nobody": "-",
+    "number": "Application number",
+    "payeeType": "Supplier type",
+    "payeeTypeValue": {
+      "FOREIGN": "Foreign supplier",
+      "INDIVIDUAL": "Individual",
+      "JURISTIC": "Juristic person"
+    },
+    "people": "People involved",
+    "registry": "Registry check",
+    "registrySource": {
+      "DBD": "Found at the Department of Business Development",
+      "MANUAL": "Not found in the registries; procurement confirmed it with the attached proof",
+      "NONE": "Registries not checked yet",
+      "RD": "Found at the Revenue Department",
+      "STUB": "Found in the test registry"
+    },
+    "returnHint": "To ask for more information, return it with your reason: procurement corrects it or asks the supplier, then sends it again",
+    "routedBy": "Sent for approval by",
+    "supplier": "Supplier",
+    "taxId": "Tax ID",
+    "taxIdMasked": "{taxId} (last 4 digits only)",
+    "vat": "VAT",
+    "vatCancelled": "The registry says its VAT registration was cancelled",
+    "vatNo": "Not VAT registered",
+    "vatYes": "VAT registered",
+    "verifiedBy": "Verified by {name}"
+  },
+  "supplierApplications": {
+    "actions": {
+      "cancel": "Cancel the application",
+      "cancelConfirm": "Cancel the application",
+      "cancelHint": "Its contacts can no longer use the portal with it. This cannot be undone.",
+      "cancelTitle": "Cancel this application?",
+      "close": "Close",
+      "done": "Saved",
+      "errors": {
+        "APPROVER_NOT_FOUND": "No approver found under the DOA. Please tell the administrator.",
+        "CONFLICT_VERSION": "The application just changed. Reload and try again.",
+        "FAILED": "That did not work. Please try again.",
+        "FORBIDDEN": "You may not do this",
+        "INVALID_STATE_TRANSITION": "The application can no longer do this",
+        "REGISTRY_CEASED": "The registry says this business has ceased: it cannot be sent",
+        "REGISTRY_PROOF_REQUIRED": "The registries could not confirm it: attach proof",
+        "SOD_VIOLATION": "You took part in this application, so you may not do this",
+        "SUPPLIER_DOCUMENT_UNVERIFIED": "A required document is not confirmed yet",
+        "VALIDATION_FAILED": "Please check what you typed"
+      },
+      "fill": "Fill in for the supplier",
+      "keep": "Keep it",
+      "label": "What you can do now",
+      "proofAttached": "Attached: {name}",
+      "proofNeeded": "The registries could not confirm this supplier. Attach proof (such as a checked company certificate) and send again.",
+      "proofUpload": "Attach proof",
+      "reason": "Reason",
+      "reinvite": "Send a new invitation",
+      "return": "Return to the supplier",
+      "returnConfirm": "Return with this reason",
+      "returnHint": "The supplier gets an e-mail with this reason",
+      "returnTitle": "Return the application",
+      "route": "Check the registries and send for approval"
+    },
+    "detail": {
+      "ai": {
+        "byAi": "Filled by AI, please check",
+        "check": {
+          "FAIL": "Failed a check",
+          "WARN": "Differs from the registry or what was typed"
+        },
+        "confidence": "{percent}% sure",
+        "doc": {
+          "BANK_BOOK": "Bank book page",
+          "COMPANY_CERT": "Company certificate",
+          "OTHER": "Document",
+          "VAT_CERT": "VAT registration"
+        },
+        "docCheck": {
+          "BANK_UNKNOWN": "Bank name not in the list",
+          "DOC_DATE_FUTURE": "Date of issue read is in the future",
+          "DOC_EXPIRED": "Expired by the date of issue the AI read"
+        },
+        "field": {
+          "accountName": "Account name",
+          "address": "Address",
+          "bankCode": "Bank",
+          "branchCode": "Branch",
+          "isVatRegistered": "VAT",
+          "nameEn": "Name (English)",
+          "nameTh": "Name (Thai)",
+          "taxId": "Taxpayer ID"
+        },
+        "mustConfirm": "confirm one by one",
+        "no": "Not VAT registered",
+        "taken": "Taken by the supplier",
+        "title": "Values the AI read from the documents",
+        "yes": "VAT registered"
+      },
+      "back": "Back to applications",
+      "by": "by {name}",
+      "contacts": "Contacts",
+      "decidedAt": "Decided",
+      "document": "Document: {type}",
+      "documents": "Documents",
+      "expiresAt": "Expires if not sent",
+      "facts": "What was filled in",
+      "field": {
+        "address": "Address",
+        "bank": "Bank account",
+        "branchCode": "Branch",
+        "category": "Goods or services",
+        "email": "Company e-mail",
+        "nameEn": "Name (English)",
+        "nameTh": "Name (Thai)",
+        "no": "No",
+        "notSet": "Not filled in",
+        "payeeType": "Supplier type",
+        "phone": "Phone",
+        "taxId": "Taxpayer id",
+        "vat": "VAT registered",
+        "yes": "Yes"
+      },
+      "filler": "Filled in by",
+      "forbidden": "You may not see this application",
+      "invitedAt": "Invited",
+      "inviter": "Invited by",
+      "lastActivityAt": "Last activity",
+      "manualProof": "Confirmed with proof procurement attached",
+      "matches": "Matches: {refs}",
+      "missing": "Still missing before it can be sent",
+      "noReason": "No reason yet",
+      "notFound": "Application not found",
+      "payee": {
+        "FOREIGN": "Foreign supplier",
+        "INDIVIDUAL": "Individual",
+        "JURISTIC": "Company"
+      },
+      "people": "People",
+      "primary": "Primary contact",
+      "reason": "Reason: {reason}",
+      "registry": "Registry check",
+      "registryName": "Name on the registry",
+      "registryNone": "Not checked yet: checked when procurement sends it for approval",
+      "registrySource": "Source",
+      "registrySources": {
+        "DBD": "Department of Business Development",
+        "MANUAL": "Proof attached by procurement",
+        "RD": "Revenue Department",
+        "STUB": "Test registry"
+      },
+      "registryStatus": "Status on the registry",
+      "returnReason": "Returned because: {reason}",
+      "router": "Sent for approval by",
+      "source": {
+        "AI": "Read by AI from a document",
+        "MANUAL": "Filled in by the supplier",
+        "ON_BEHALF": "Filled in by procurement",
+        "REGISTRY": "From the registry"
+      },
+      "submittedAt": "Sent",
+      "supplierLink": "Open the supplier",
+      "timeline": "Timeline",
+      "timelineEmpty": "Nothing yet",
+      "vatCancelled": "The registry says VAT was cancelled",
+      "warning": {
+        "DUPLICATE_EMAIL": "Another supplier uses this e-mail",
+        "DUPLICATE_NAME": "The name looks like a registered supplier",
+        "SAME_TAXID_OTHER_BRANCH": "This taxpayer id is registered for another branch"
+      },
+      "warnings": "Looks like a registered supplier"
+    },
+    "edit": {
+      "accountKept": "Saved, ending {last4}. Type a new one only to change it.",
+      "accountName": "Account name",
+      "accountNo": "Account number",
+      "back": "Back to the application",
+      "bankBranch": "Bank branch",
+      "bankChoose": "Choose a bank",
+      "bankCode": "Bank",
+      "intro": "Every field you fill in is marked as filled in by procurement, and the supplier gets a copy when it is sent",
+      "reasonFor": "Reason for: {warning}",
+      "save": "Save and go to the next step",
+      "sendIntro": "Check what is missing before sending. Once sent, the supplier gets a copy of the values by e-mail.",
+      "stepOf": "Step {n} of {total}",
+      "steps": {
+        "bank": "Bank account",
+        "company": "Company",
+        "send": "Send",
+        "tax": "Tax"
+      },
+      "submit": "Send the application for the supplier",
+      "title": "Fill in the application for the supplier"
+    },
+    "invite": {
+      "blocked": "This taxpayer id and branch are registered or invited already: {refs}",
+      "branchCode": "Branch",
+      "category": "Goods or services",
+      "contactEmail": "Contact e-mail",
+      "contactLocale": "Language of the e-mails",
+      "contactName": "Contact name",
+      "emailTaken": "This e-mail is a contact of another supplier already",
+      "en": "English",
+      "intro": "A portal link is e-mailed so the contact fills in the application",
+      "inviterPhone": "The supplier's phone as procurement knows it",
+      "inviterPhoneHint": "Finance calls this number to confirm the bank account, never one the supplier typed",
+      "kind": "Whom to invite",
+      "kindExisting": "A registered supplier, to the portal",
+      "kindNew": "A new supplier",
+      "nameTh": "Supplier name",
+      "open": "Open the application",
+      "payeeType": "Supplier type",
+      "sent": "Invitation sent",
+      "submit": "Send the invitation by e-mail",
+      "supplier": "Supplier",
+      "supplierChoose": "Choose a supplier",
+      "taxId": "Taxpayer id",
+      "taxIdHint": "13 digits; a foreign supplier may leave it blank",
+      "taxIdInvalid": "The taxpayer id is not valid",
+      "taxIdRequired": "A Thai supplier has a taxpayer id",
+      "th": "ไทย",
+      "title": "Invite a supplier",
+      "warningsTitle": "Looks like a registered supplier: give a reason before inviting"
+    },
+    "list": {
+      "allStatuses": "All statuses",
+      "clear": "Clear filters",
+      "count": "{matched} of {total}",
+      "emptyHint": "Invite a new supplier: it gets a portal link to fill in its application",
+      "emptyTitle": "No applications yet",
+      "filledOnBehalf": "Filled in by procurement",
+      "filterLabel": "Find applications",
+      "forbidden": "You may not see supplier applications",
+      "intro": "Applications procurement invited, filled in by the supplier on the portal or by procurement for it, then sent for approval",
+      "invite": "Invite a supplier",
+      "invitedBy": "Invited by {name} on {date}",
+      "kindExisting": "Registered supplier invited to the portal",
+      "lastActivity": "Last activity {date}",
+      "moduleOff": "The supplier module is not on",
+      "noMatchHint": "Clear the filters or try other words",
+      "noMatchTitle": "No application matches",
+      "noNumber": "No number yet",
+      "overdueCount": "{count} overdue",
+      "overdueOnly": "Overdue only",
+      "search": "Name, application number or taxpayer id",
+      "status": "Status",
+      "submit": "Search",
+      "title": "Supplier applications"
+    },
+    "overdue": "Overdue",
+    "status": {
+      "APPROVED": "Approved",
+      "CANCELLED": "Cancelled",
+      "DRAFT": "Supplier filling in",
+      "EXPIRED": "Expired",
+      "INVITED": "Invited",
+      "PENDING_APPROVAL": "Waiting for approval",
+      "REJECTED": "Not approved",
+      "RETURNED": "Returned to the supplier",
+      "SUBMITTED": "Sent, procurement checking"
+    },
+    "tabs": {
+      "applications": "Applications",
+      "label": "Supplier sections",
+      "suppliers": "Suppliers"
+    }
+  },
+  "supplierBank": {
+    "finance": {
+      "awaitingClaim": "No one in finance has claimed it yet. Whoever claims it makes the call and sends it, and may not approve it.",
+      "box": "From the portal, waiting to be claimed",
+      "boxRow": "{kind} · {owner}",
+      "callPhone": "Number to call: {phone}",
+      "claim": "Claim it to handle it",
+      "claimedAlready": "Someone else in finance claimed it already",
+      "failed": "It could not be claimed. Please try again.",
+      "findPhone": "Do not use a number the supplier typed. Find one elsewhere and note where it came from in the call note.",
+      "forbidden": "You may not claim this",
+      "fromPortal": "Proposed by the supplier on the portal, by {name}",
+      "phoneSource": {
+        "APPLICANT": "typed by the supplier",
+        "DBD": "from the Department of Business Development",
+        "INVITER": "as the inviting buyer gave it",
+        "REGISTER": "from the supplier register",
+        "UNKNOWN": "no number in the register"
+      },
+      "someone": "someone unknown",
+      "warning": {
+        "CONTACT_ADDED": "A contact of this supplier was added on {at} by {by}",
+        "CONTACT_EMAIL_CHANGED": "A contact's e-mail of this supplier changed on {at} by {by}",
+        "PHONE_CHANGED": "The phone in this supplier's register changed on {at} by {by}"
+      }
+    },
+    "portal": {
+      "account": "{bank} ending {last4} · {name}",
+      "accountName": "Account name",
+      "accountNo": "Account number",
+      "bank": "Bank",
+      "branch": "Bank branch",
+      "choose": "Choose a bank",
+      "current": "Account in force",
+      "currentNone": "No account in force yet. The organization cannot pay you until one is approved.",
+      "errors": {
+        "ACCOUNT": "The account number or bank is not valid",
+        "CHANGE_OPEN": "A request is open already",
+        "FAILED": "The request could not be sent. Please check and try again.",
+        "FORBIDDEN": "You may not propose an account for this company",
+        "NAMES_ACCOUNT": "Do not put the account number in the reason",
+        "NEW_CONTACT_HOLD": "A new contact may propose an account two business days after first signing in",
+        "PROOF_REQUIRED": "Please attach a bank book page or a letter from the bank",
+        "TOO_LARGE": "The file is larger than 20 MB",
+        "TYPE_NOT_ALLOWED": "The file must be a PDF, JPEG or PNG"
+      },
+      "intro": "The account this organization pays you into. A change is checked by finance and approved before it takes effect.",
+      "latest": "Latest request",
+      "latestAccount": "{bank} ending {last4}",
+      "notPrimary": "Only the company's primary contact may propose an account",
+      "open": "A request is still open: propose again once it ends",
+      "proof": "Bank book page or a letter from the bank",
+      "proofHint": "PDF, JPEG or PNG, 20 MB at most",
+      "proposeTitle": "Propose a new account",
+      "reason": "Reason",
+      "reasonHint": "For example, a new account for payments. Do not put the account number here.",
+      "sent": "Request sent. Finance will call the number in your company's register before sending it for approval.",
+      "stage": {
+        "APPROVING": "Waiting for approval",
+        "AWAITING_CLAIM": "Waiting for finance to take it",
+        "CANCELLED": "Cancelled",
+        "CHECKING": "Finance is checking it",
+        "IN_FORCE": "In force",
+        "REJECTED": "Not approved"
+      },
+      "stagesLabel": "Stages of the request",
+      "submit": "Send the request to finance",
+      "title": "Bank account"
+    }
+  },
+  "supplierContacts": {
+    "acks": {
+      "ackStatus": {
+        "ACKNOWLEDGED": "Acknowledged",
+        "DELIVERY_UPDATED": "Delivery moved",
+        "NOT_ACKNOWLEDGED": "Not acknowledged"
+      },
+      "ackedBy": "by {name}",
+      "columns": {
+        "ack": "Acknowledgement",
+        "po": "PO",
+        "promised": "Promised delivery",
+        "sent": "Sent"
+      },
+      "draftNumber": "No number yet",
+      "emptyHint": "When an approved PO is sent to the supplier it is listed here, and once the supplier acknowledges it on the portal you see when and the delivery date promised",
+      "emptyTitle": "No PO has been sent to this supplier yet",
+      "intro": "When a contact of the supplier acknowledges a PO on the portal, you see when, who, and the delivery date the supplier promised",
+      "more": "Showing the latest {limit} of {total}. The others are on the purchase orders page",
+      "noPromise": "Not given",
+      "promisedLabel": "Promised delivery {date}",
+      "revision": "Revision {no}",
+      "sentLabel": "Sent {when}"
+    },
+    "contacts": {
+      "add": "Add a contact",
+      "addDescription": "The supplier's e-mail in the register and the primary contact before are told who was added; nothing is sent to the new address",
+      "addTitle": "Add a contact of the supplier",
+      "addressHidden": "Contacts' e-mails and phone numbers are shown to procurement only",
+      "cancel": "Cancel",
+      "closedOn": "Closed {when}",
+      "columns": {
+        "action": "Actions",
+        "name": "Name",
+        "portal": "Portal",
+        "reach": "E-mail and phone",
+        "status": "Status"
+      },
+      "deactivate": "Close the contact",
+      "deactivateBody": "The contact is signed out of every device at once, can no longer sign in to the portal and no longer receives the supplier's notices. This cannot be undone: to let them in again, add them as a new contact",
+      "deactivateConfirm": "Close this contact",
+      "deactivatePrimary": "This is the primary contact. Make someone else the primary contact first, so the supplier's notices still reach someone",
+      "deactivateTitle": "Close the contact {name}?",
+      "done": {
+        "added": "The contact was added",
+        "deactivated": "The contact was closed and signed out of every device",
+        "portalOff": "{name}'s portal access was switched off and they were signed out of every device",
+        "portalOn": "{name} may now use the portal",
+        "primary": "The primary contact was changed",
+        "revoked": "The contact was signed out of every device"
+      },
+      "emailInvalid": "Enter a valid e-mail, for example name@company.co.th",
+      "emptyHint": "Contacts come from an approved application or are added by procurement; they will be listed here",
+      "emptyHintManage": "Press \"Add a contact\" so a person of the supplier can sign in to the portal and receive the supplier's notices",
+      "emptyTitle": "This supplier has no contact yet",
+      "errors": {
+        "CONFLICT_VERSION": "Someone changed this contact after you opened the page. Reload the page and try again",
+        "EMAIL_TAKEN": "An active contact already has this e-mail. Use another one",
+        "FAILED": "That did not work. Try again",
+        "FORBIDDEN": "You may not manage the supplier's contacts; only procurement can",
+        "INVALID_STATE_TRANSITION": "This contact is already closed",
+        "MODULE_DISABLED": "The organization has not switched the supplier module on",
+        "NOT_FOUND": "This contact was not found or is already closed. Reload the page and try again",
+        "NO_SESSION": "This contact is not signed in on any device",
+        "VALIDATION_FAILED": "Something is not right. Check the name and the e-mail"
+      },
+      "fields": {
+        "email": "E-mail",
+        "emailHint": "The contact signs in to the portal with this e-mail. One e-mail belongs to one contact in the organization",
+        "isPrimary": "Make the primary contact",
+        "isPrimaryHint": "The supplier's notices go to the primary contact; the primary contact before stops being one",
+        "locale": "Language of the e-mails and portal pages",
+        "localeEn": "English",
+        "localeTh": "Thai",
+        "nameEn": "Name (English), optional",
+        "nameTh": "Name (Thai)",
+        "phone": "Phone, optional",
+        "roleHint": "For example sales or accounts",
+        "roleLabel": "Role, optional"
+      },
+      "firstSignedIn": "First signed in {when}",
+      "intro": "A contact is a person of the supplier who signs in to the portal with their own e-mail and receives the supplier's notices",
+      "keep": "Not now",
+      "lastSeen": "Last used {when}",
+      "liveSessions": "Signed in on {count, plural, one {# device} other {# devices}}",
+      "makePrimary": "Make the primary contact",
+      "nameMissing": "Enter the contact's name",
+      "neverSignedIn": "Has never signed in",
+      "noPhone": "No phone number",
+      "portalOff": "Portal access off",
+      "portalOn": "May use the portal",
+      "primary": "Primary contact",
+      "revoke": "Sign out of every device",
+      "revokeBody": "Every device signed in is signed out at once. The contact can still sign in again with their e-mail; to stop that, switch their portal access off or close the contact",
+      "revokeConfirm": "Sign out",
+      "revokeTitle": "Sign {name} out of the portal on every device?",
+      "save": "Save the contact",
+      "saving": "Saving…",
+      "status": {
+        "ACTIVE": "Active",
+        "DEACTIVATED": "Closed"
+      }
+    },
+    "docSummary": {
+      "allOk": "Every required document is in and still valid",
+      "expiresOn": "Expires {date}",
+      "noExpiry": "Does not expire",
+      "none": "No document type is required for this kind of supplier, and the supplier has sent none yet",
+      "notOk": "A required document is missing, or one has expired",
+      "optional": "Optional",
+      "required": "Required",
+      "state": {
+        "EXPIRED": "Expired",
+        "EXPIRING": "Expiring soon",
+        "MISSING": "Missing",
+        "OK": "Valid",
+        "PENDING": "Waiting to be verified"
+      }
+    },
+    "portal": {
+      "contactsHint": "Switching access off signs the contact out of every device at once; it can be switched on again later",
+      "contactsTitle": "Contacts who may use the portal",
+      "inactive": "This supplier is no longer used, so its contacts cannot sign in to the portal",
+      "noContacts": "There is no active contact yet. Add one on the Contacts tab",
+      "off": "This supplier does not use the portal yet",
+      "offHint": "The portal opens for a supplier when its application is approved. To bring an existing supplier onto the portal, invite it from the invite page",
+      "on": "This supplier may use the portal",
+      "onHint": "Contacts with portal access sign in to acknowledge POs and to see and send documents",
+      "readOnly": "The portal of the whole supplier cannot be switched on or off from this page yet. To keep someone out, switch off each contact's portal access below",
+      "switchLabel": "{name} may use the portal",
+      "url": "Portal sign-in address",
+      "urlHint": "Send this address to the contacts. They sign in with their own e-mail and a code the system e-mails them"
+    },
+    "tabs": {
+      "acknowledgements": "PO acknowledgement",
+      "acknowledgementsTitle": "POs sent to the supplier and their acknowledgement",
+      "contacts": "Contacts",
+      "contactsTitle": "The supplier's contacts",
+      "documents": "Documents",
+      "documentsState": "Documents by type",
+      "info": "Details",
+      "label": "Parts of the supplier",
+      "portal": "Portal",
+      "portalTitle": "Use of the supplier portal"
+    }
+  },
   "supplierDocs": {
     "documents": {
       "back": "Back to the portal home",
@@ -13081,6 +13996,80 @@
       "validityDays": "Valid for (days)",
       "validityHint": "Leave empty to use the expiry printed on the document"
     }
+  },
+  "supplierPoAck": {
+    "boardEmpty": "Every PO sent was acknowledged by its supplier",
+    "boardRow": "{number} · {supplier} · sent on {date}",
+    "boardTitle": "POs the supplier has not acknowledged",
+    "movedFrom": "(moved from {date})",
+    "noDate": "not given",
+    "notYet": "The supplier has not acknowledged this PO on the portal yet",
+    "strip": "The supplier acknowledged on {at} · delivering on {date}"
+  },
+  "supplierReport": {
+    "approved": {
+      "caption": "New supplier applications approved in this period, with the business days from invitation to approval",
+      "columns": {
+        "application": "Application",
+        "days": "Business days",
+        "decidedAt": "Approved",
+        "filledBy": "Filled in by",
+        "invitedAt": "Invited",
+        "supplier": "Supplier"
+      },
+      "emptyHint": "Try a longer period: a new supplier often takes weeks from invitation to approval.",
+      "emptyTitle": "No application approved in this period",
+      "title": "Applications approved in this period ({count})"
+    },
+    "back": "Back to reports",
+    "days": "{value} business days",
+    "expired": {
+      "caption": "Suppliers with an expired required document, by category",
+      "columns": {
+        "category": "Supplier category",
+        "suppliers": "Suppliers"
+      },
+      "emptyHint": "When a supplier’s required document expires, its category shows here.",
+      "emptyTitle": "No supplier has an expired required document",
+      "intro": "Suppliers with at least one required document expired as of today, by supplier category.",
+      "noCategory": "No category",
+      "title": "Suppliers with an expired required document"
+    },
+    "export": {
+      "hint": "An Excel file of the applications in the table above, for the same period and scope, with the file’s checksum.",
+      "title": "Export"
+    },
+    "filledBy": {
+      "onBehalf": "Procurement on its behalf",
+      "self": "The supplier"
+    },
+    "intro": "How many business days new suppliers take from invitation to approval (KPI G-7), the applications waiting past their due time, and the suppliers whose documents expired. The figures come from the system, not from AI.",
+    "median": {
+      "all": "All applications",
+      "hint": "Business days on the organization’s calendar (1 day = one working day), one decimal; with an even count, the lower middle value. New suppliers approved in this period only.",
+      "onBehalf": "Filled in by procurement",
+      "self": "Filled in by the supplier",
+      "title": "Median business days from invitation to approval (G-7)"
+    },
+    "moduleOff": "This organization has not switched on the supplier module, so this report is not available yet.",
+    "noNumber": "No number yet",
+    "noneYet": "No application approved in this period yet",
+    "overdue": {
+      "caption": "Applications past their due time",
+      "columns": {
+        "application": "Application",
+        "escalatedAt": "Passed to procurement",
+        "status": "Status",
+        "supplier": "Supplier"
+      },
+      "emptyHint": "An application shows here once it is past the time the system passes it to procurement.",
+      "emptyTitle": "No application is past its due time",
+      "intro": "Applications the supplier has not finished that the system passed to procurement because they are past due, as of now (whatever the period).",
+      "title": "Applications past their due time ({count})"
+    },
+    "periodLabel": "Approval dates",
+    "run": "Show this period",
+    "title": "Supplier report"
   },
   "suppliers": {
     "branch": {
@@ -13443,6 +14432,18 @@
       "stepUpHint": "The amount of this task needs your 6-digit PIN to approve, return or reject it",
       "submitReject": "Reject this request",
       "submitReturn": "Return to the requester for changes",
+      "supplierApplication": {
+        "confirmText": "Approve application {label}: this supplier is added to the supplier register. The decision cannot be changed later.",
+        "otherLink": "Send back or reject",
+        "reasonHint": "Procurement sees this on the application. Say clearly what to fix or why it is not approved.",
+        "rejectHint": "The application is closed, the supplier is told by e-mail and is not added to the supplier register.",
+        "rejected": "Application rejected",
+        "returnHint": "The application goes back to the supplier or procurement to fix and send again. This approval route closes and the supplier is not added yet.",
+        "returnOption": "Send the application back to be fixed",
+        "returned": "Application sent back",
+        "submitReject": "Reject this application",
+        "submitReturn": "Send the application back"
+      },
       "title": "Decide this task",
       "transfer": {
         "confirmText": "Approve {label} of {amount} baht. The decision cannot be changed later.",
@@ -13596,6 +14597,9 @@
       "requester": "{name} · {department}",
       "review": "Review before approval",
       "stepUp": "Needs your PIN",
+      "supplierApplication": "{number} · supplier application of {name}",
+      "supplierApplicationIndividual": "{number} · individual supplier's application",
+      "supplierApplicationMeta": "Category {category}",
       "transfer": {
         "DECREASE": "Budget decrease {number}",
         "INCREASE": "Budget increase {number}",

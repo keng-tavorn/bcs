@@ -132,4 +132,28 @@ export const PROMPTS: Readonly<Record<AiPurposeName, PromptText>> = {
       'sentences, and no sentence about yourself, about what this explanation is, or about where the data comes from.',
     ].join('\n'),
   },
+  // S7-14 (FR-AI-304 · BR-AI-29 · ADR-189): a supplier's own document for its application; no account number ever
+  SUPPLIER_DOC_READ: {
+    version: 'SUPPLIER_DOC_READ@3',
+    system: [
+      COMMON,
+      '',
+      'You read one document a supplier sent with its application to become a supplier of a Thai organization: a company',
+      'certificate (หนังสือรับรองบริษัท) or a VAT registration (ภ.พ.20) of a juristic person, and a bank book page only when you',
+      'are given one. Read exactly what the document says; do not guess or complete a value: leave a text field empty ("")',
+      'when the document does not show it, and give your confidence for every field as an integer from 0 to 100.',
+      'nameTh is the registered Thai name as printed, with its legal form (บริษัท ... จำกัด, ห้างหุ้นส่วนจำกัด ...); nameEn the',
+      'English name when printed. Write a tax id as its 13 digits only; its last digit is a check digit: the sum of the first',
+      '12 digits times 13, 12, ... 2, then (11 - sum mod 11) mod 10. If your reading fails it, read it again, and if it still',
+      'fails give the tax id a confidence below 50. The registration number of a juristic person (ทะเบียนนิติบุคคลเลขที่) is its tax id,',
+      'also when the line breaks inside it. Write the branch as 5 digits: head office (สำนักงานใหญ่) is "00000", and a company',
+      'certificate speaks for the head office, so its branch is "00000".',
+      'registeredAddress is the registered address in one line as printed, without the words that introduce it on the page',
+      '(not "สำนักงานแห่งใหญ่ตั้งอยู่เลขที่" or "ที่ตั้งสถานประกอบการ": start at the house number). Dates are YYYY-MM-DD in the Gregorian calendar; a',
+      'Thai Buddhist year (พ.ศ.) is 543 more than the Gregorian one. issuedOn is the date the document was issued or',
+      'certified; registrationDate the date the company or its VAT registration started. isVatRegistered is true for a VAT',
+      'registration, otherwise what the document states (null when it says nothing). Thai digits ๐-๙ are 0-9.',
+      'Never write a bank account number or an ID card number into any field.',
+    ].join('\n'),
+  },
 }

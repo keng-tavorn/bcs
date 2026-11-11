@@ -4,6 +4,7 @@ import type { Ctx } from '@/server/context'
 import {
   attachBankProof,
   cancelBankAccountChange,
+  claimBankAccountChange,
   createBankAccountChange,
   detachBankProof,
   submitBankAccountChange,
@@ -175,6 +176,14 @@ export async function submitChangeFor(ctx: Ctx, input: unknown, idempotencyKey: 
   if (!p.ok) return p
   const result = await submitBankAccountChange(ctx, p.value, { idempotencyKey: p.key })
   return result.ok ? { ok: true, changeId: result.data.changeId, number: result.data.number } : toBankFailure(result.error)
+}
+
+/** S7-10 (ADR-190): FINANCE takes a change the supplier proposed on the portal; the first claim wins */
+export async function claimChangeFor(ctx: Ctx, input: unknown, idempotencyKey: unknown): Promise<BankOutcome> {
+  const p = parsed(SubmitInput, input, idempotencyKey)
+  if (!p.ok) return p
+  const result = await claimBankAccountChange(ctx, p.value, { idempotencyKey: p.key })
+  return result.ok ? { ok: true, changeId: result.data.changeId, version: result.data.version } : toBankFailure(result.error)
 }
 
 const CancelInput = z.strictObject({ ...Version, reason: Text })

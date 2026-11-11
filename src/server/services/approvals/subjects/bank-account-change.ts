@@ -1,4 +1,5 @@
 import { documentTypeOfSubject } from '@/core/doa'
+import { bankChangePortalConflicts } from '@/core/sod'
 import { changeTitle, decideBankAccountChange, rootDepartmentId } from '../../bank-accounts'
 import type { SubjectAdapter } from './index'
 
@@ -11,7 +12,9 @@ import type { SubjectAdapter } from './index'
 
 export const bankAccountChangeSubject: SubjectAdapter = {
   async facts(tx, id) {
-    const change = await tx.bankAccountChange.findFirst({ where: { id }, select: { number: true, kind: true, submittedById: true, supplier: { select: { code: true } } } })
+    const change = await tx.bankAccountChange.findFirst({ where: { id }, select: { number: true, kind: true, submittedById: true, callVerifiedById: true, source: true, supplier: { select: { code: true } } } })
+    // BR-SOD-12 (S7-10): a change from the portal has no member proposer — the claimer and who recorded the call conflict
+    const portal = change?.source === 'PORTAL' ? bankChangePortalConflicts({ source: 'PORTAL', submittedById: change.submittedById, callVerifiedById: change.callVerifiedById }) : null
     return {
       type: 'BANK_ACCOUNT_CHANGE',
       id,
@@ -22,7 +25,8 @@ export const bankAccountChangeSubject: SubjectAdapter = {
       poId: null,
       ownerMemberId: change?.submittedById ?? null,
       // a route starts only once a member sent it (ADR-190: a change from the portal is claimed first)
-      conflictMemberIds: change?.submittedById ? [change.submittedById] : [],
+      conflictMemberIds: portal ?? (change?.submittedById ? [change.submittedById] : []),
+      ...(portal ? { sodExtra: [{ rule: 'BR-SOD-12', memberIds: portal }] } : {}),
       chargedDepartmentId: change ? await rootDepartmentId(tx) : null,
     }
   },
@@ -32,6 +36,7 @@ export const bankAccountChangeSubject: SubjectAdapter = {
   allowsRequestInfo: false,
   // BR-DOA-25: closed on both, whatever the facts; LIFF takes it with its step-up
   channels: { chatButton: () => false, emailLink: false, liff: true },
-  // BR-SOD-05: the proposer never approves
-  sodContext: (facts) => ({ requesterMemberIds: facts.conflictMemberIds }),
+  // BR-SOD-05: the proposer never approves; BR-SOD-12 (S7-10): for a change from the portal, the claimer and who recorded
+  // the call never approve — named BR-SOD-12 through `extra`, as checkSod names it
+  sodContext: (facts) => (facts.sodExtra ? { requesterMemberIds: [], extra: facts.sodExtra } : { requesterMemberIds: facts.conflictMemberIds }),
 }

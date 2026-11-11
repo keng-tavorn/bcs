@@ -32,6 +32,9 @@
     },
     "sent_receiver": {
       "title": "มีใบสั่งซื้อรอตรวจรับ"
+    },
+    "delivery_changed": {
+      "title": "ผู้ขายเปลี่ยนวันส่ง"
     }
   },
   "request": {
@@ -84,6 +87,11 @@
   "payment_run": {
     "decided": {
       "title": "ตัดสินรอบจ่ายเงินแล้ว"
+    }
+  },
+  "supplier": {
+    "application_escalated": {
+      "title": "ใบสมัครผู้ขายค้างเกินกำหนด"
     }
   }
 }

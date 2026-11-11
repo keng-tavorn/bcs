@@ -362,7 +362,9 @@ const gates: Gate[] = [
       const demoReport = path.join(ROOT, demoDir, 'e2e-results.json')
       const p1demoDir = 'test-results/p1demo'
       const p1demoReport = path.join(ROOT, p1demoDir, 'e2e-results.json')
-      for (const report of [e2eReport, demoReport, p1demoReport]) rmSync(report, { force: true })
+      const p2demoDir = 'test-results/p2demo'
+      const p2demoReport = path.join(ROOT, p2demoDir, 'e2e-results.json')
+      for (const report of [e2eReport, demoReport, p1demoReport, p2demoReport]) rmSync(report, { force: true })
       const readReport = (file: string) => (existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as PlaywrightJson & Record<string, unknown>) : null)
       const screens = sh('pnpm test:e2e')
       const screensReport = readReport(e2eReport)
@@ -373,6 +375,8 @@ const gates: Gate[] = [
       const sets = [
         { folder: 'tests/e2e/demo', flag: 'E2E_DEMO', dir: demoDir, file: demoReport, name: 'ฉาก demo (pnpm test:e2e --grep @demo)', short: 'ฉาก demo' },
         { folder: 'tests/e2e/p1demo', flag: 'E2E_P1DEMO', dir: p1demoDir, file: p1demoReport, name: 'ฉากระยะ 1 (pnpm test:e2e --grep @p1demo)', short: 'ฉากระยะ 1' },
+        // S7-17 (ADR-191): the scenes of phase 2, on their own database seeded with SIMEC
+        { folder: 'tests/e2e/p2demo', flag: 'E2E_P2DEMO', dir: p2demoDir, file: p2demoReport, name: 'ฉากระยะ 2 (pnpm test:e2e --grep @p2demo)', short: 'ฉากระยะ 2' },
       ].filter((set) => hasScenes(set.folder))
       const runs = sets.map((set) => {
         const run = sh('pnpm test:e2e', { env: { [set.flag]: '1', E2E_OUTPUT_DIR: set.dir } })

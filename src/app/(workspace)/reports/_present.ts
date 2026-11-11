@@ -21,9 +21,14 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 const DAY = z.iso.date()
 
 /** Reports the screen has words for; a report without them shows its code */
-export const NAMED_REPORTS = ['KPI', 'WF_CYCLE', 'WF_BOTTLENECKS', 'WF_WRONG_DOA', 'WF_HEATMAP'] as const
+export const NAMED_REPORTS = ['KPI', 'WF_CYCLE', 'WF_BOTTLENECKS', 'WF_WRONG_DOA', 'WF_HEATMAP', 'SUP_G7'] as const
 export type NamedReport = (typeof NAMED_REPORTS)[number]
 export const isNamed = (code: string): code is NamedReport => (NAMED_REPORTS as readonly string[]).includes(code)
+
+/** The supplier report (S7-16 · G-7): its own page /reports/suppliers */
+export const SUPPLIER_REPORT = 'SUP_G7'
+/** The supplier report opens on the last 90 days: an approval comes weeks after the invitation */
+export const SUPPLIER_REPORT_DAYS = 90
 
 /** The period from the address, or the last `days` days; `invalid` when the address asked for a period that cannot be */
 export function periodFrom(params: Params, now: Date, days: number): { from: string; to: string; invalid: boolean } {

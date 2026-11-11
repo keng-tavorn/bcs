@@ -323,6 +323,7 @@ const schema = z
     AI_MODEL_BRIEF: optional(aiModel),
     AI_MODEL_INSIGHT: optional(aiModel),
     AI_MODEL_DOA_DRAFTER: optional(aiModel),
+    AI_MODEL_SUPPLIER_ONBOARDING: optional(aiModel),
 
     // Trimmed: a key pasted into Vercel with a trailing space or line break would otherwise seed codes that no copy of
     // the key (scripts/seed-totp.ts) reproduces

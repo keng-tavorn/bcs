@@ -11,7 +11,16 @@ export const E2E_DEMO = process.env.E2E_DEMO === '1'
 if (process.argv.some((arg) => arg.includes('@p1demo'))) process.env.E2E_P1DEMO = '1'
 export const E2E_P1DEMO = process.env.E2E_P1DEMO === '1'
 if (E2E_DEMO && E2E_P1DEMO) throw new Error('E2E_DEMO and E2E_P1DEMO are two runs on two databases: run @demo and @p1demo one after the other')
-export const E2E_DB = process.env.BCS_E2E_DB ?? (E2E_DEMO ? 'bcs_e2e_demo' : E2E_P1DEMO ? 'bcs_e2e_p1demo' : 'bcs_e2e')
+// The scenes of phase 2 (S7-17 · ADR-191, tests/e2e/p2demo) on a database of their own seeded with SIMEC from the phase-1
+// workbook (its histories of requests, payments and supplier applications), without the scenes of phase 1 before them:
+// `pnpm test:e2e --grep @p2demo` or E2E_P2DEMO=1. A scene script of phase 1 they run (E2E_P1DEMO in its own process) finds
+// the run's database by BCS_E2E_DB (e2eEnv)
+if (process.argv.some((arg) => arg.includes('@p2demo'))) process.env.E2E_P2DEMO = '1'
+export const E2E_P2DEMO = process.env.E2E_P2DEMO === '1'
+if (E2E_DEMO && E2E_P2DEMO) throw new Error('E2E_DEMO and E2E_P2DEMO are two runs on two databases: run @demo and @p2demo one after the other')
+/** The runs whose database is seeded from the phase-1 workbook (SIMEC) */
+export const E2E_PHASE1_WORKBOOK = E2E_P1DEMO || E2E_P2DEMO
+export const E2E_DB = process.env.BCS_E2E_DB ?? (E2E_DEMO ? 'bcs_e2e_demo' : E2E_P2DEMO ? 'bcs_e2e_p2demo' : E2E_P1DEMO ? 'bcs_e2e_p1demo' : 'bcs_e2e')
 export const E2E_PORT = Number(process.env.E2E_PORT ?? 3100)
 export const E2E_BASE_URL = `http://localhost:${E2E_PORT}`
 /** The transaction PIN the e2e seed gives every demo approver (SEED_DEV_PIN; passes the PIN rules of FR-AUTH-005 AC1) */
@@ -75,6 +84,9 @@ export function e2eEnv(env: NodeJS.ProcessEnv = process.env): Record<string, str
     LIFF_MOCK: '1',
     E2E_DEMO: E2E_DEMO ? '1' : '0',
     E2E_P1DEMO: E2E_P1DEMO ? '1' : '0',
+    E2E_P2DEMO: E2E_P2DEMO ? '1' : '0',
+    // the run's database by name, so a scene script started with another mode's flag still finds it (S7-17)
+    BCS_E2E_DB: E2E_DB,
     // AI in fixture mode (ADR-142): nothing shows while an organization keeps the AI module off, as the demo's does; the
     // AI specs switch it on for themselves (tests/e2e/ai-document-scene.ts) and play the background job there
     AI_ENABLED: 'true',
@@ -87,5 +99,6 @@ export function e2eEnv(env: NodeJS.ProcessEnv = process.env): Record<string, str
     AI_MODEL_BRIEF: '',
     AI_MODEL_INSIGHT: '',
     AI_MODEL_DOA_DRAFTER: '',
+    AI_MODEL_SUPPLIER_ONBOARDING: '',
   }
 }

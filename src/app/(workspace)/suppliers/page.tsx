@@ -3,12 +3,14 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { preferredSuppliersLinked } from '@/server/services/sourcing/preferred-view'
+import { canSeeApplicationList } from '@/server/services/suppliers/applications-view'
 import { listSuppliersForScreen, type SupplierListRowDto } from '@/server/services/suppliers/view'
 import { Notice } from '@/ui/form/notice'
 import { FilterBar, FilterSearch, FilterSelect, FilterSummary } from '@/ui/page/filters'
 import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { Button } from '@/ui/shadcn/button'
 import { formatTaxId, HEAD_OFFICE } from '@/ui/suppliers/model'
+import { SupplierSectionTabs } from '@/ui/supplier-applications/section-tabs'
 import { SupplierList, type SupplierRow } from '@/ui/suppliers/supplier-list'
 import { getSession } from '../../_lib/session'
 import { day, money } from '../_tracking/present'
@@ -75,7 +77,12 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
   const missing = filters.missing === '1'
   const [t, tPreferred, locale] = await Promise.all([getTranslations('suppliers'), getTranslations('preferredSuppliers'), getLocale().then((l) => (l === 'en' ? 'en' : 'th') as 'th' | 'en')])
   // S10-13: the preferred suppliers per category, while SOURCING is on or rows set before still fill the form (BR-RFX-16)
-  const [result, preferredLinked] = await Promise.all([listSuppliersForScreen(ctx, { q, status, missingExpressCode: missing }), preferredSuppliersLinked(ctx)])
+  const [result, applications, ta, preferredLinked] = await Promise.all([
+    listSuppliersForScreen(ctx, { q, status, missingExpressCode: missing }),
+    canSeeApplicationList(ctx),
+    getTranslations('supplierApplications.tabs'),
+    preferredSuppliersLinked(ctx),
+  ])
   if (!result.ok) {
     return (
       <Page>
@@ -101,6 +108,17 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
     <Page>
       <PageHeader title={t('list.title')} intro={full ? t('list.introFull') : t('list.introBasic')} actions={list.canManage ? addButton('default') : null}>
         {list.seesPrices ? <p className="text-ink-muted">{t('prices.intro')}</p> : null}
+        {/* S7-09: the applications beside the register, when SUPPLIER is on and the reader may see them */}
+        {applications ? (
+          <SupplierSectionTabs
+            label={ta('label')}
+            current="suppliers"
+            items={[
+              { key: 'suppliers', href: '/suppliers', label: ta('suppliers') },
+              { key: 'applications', href: '/suppliers/applications', label: ta('applications') },
+            ]}
+          />
+        ) : null}
         {preferredLinked ? (
           <Link href="/suppliers/preferred" className={linkClass}>
             {tPreferred('link')}

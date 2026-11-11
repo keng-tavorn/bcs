@@ -48,6 +48,12 @@ const FORM_SCHEMA = {
 }
 
 /**
+ * In an e2e database the organization's code starts with Z, as every e2e scene's does: the pages of the BCS team list the
+ * customers by code and the e2e tests expect DEMO first (uat-config.spec.ts) — a D-… code sorts before it (review S7-19)
+ */
+const inE2eDatabase = () => new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname.startsWith('/bcs_e2e')
+
+/**
  * options.doa false: no DOA version yet, as before an organization's initial package (BR-DOA-19).
  * options.express: the Express layout instead of the test fixture's (a mapping of [] is the demo's: none yet, OQ-10).
  * options.fixtures: another pair of §7.4 fixtures, e.g. org-p1.yaml and doa-versions-p1.yaml (createP1Org, ADR-070).
@@ -58,7 +64,7 @@ export async function createDoaOrg(options: { doa?: boolean; express?: OrgSettin
   const fixture = loadYaml<OrgFixture>(fixtures.org)
   const settings = OrgSettingsSchema.parse({ ...(parseYaml(loadOrgSettingsYaml()) as object), express: options.express ?? TEST_EXPRESS_LAYOUT })
   const org = await prisma.organization.create({
-    data: { code: `D-${randomUUID().slice(0, 8)}`, legalNameTh: 'องค์กรทดสอบ DOA', taxId: '0999999000055', timezone: 'Asia/Bangkok', settings: toJsonSafe(settings) as object },
+    data: { code: `${inE2eDatabase() ? 'ZE2E-' : ''}D-${randomUUID().slice(0, 8)}`, legalNameTh: 'องค์กรทดสอบ DOA', taxId: '0999999000055', timezone: 'Asia/Bangkok', settings: toJsonSafe(settings) as object },
   })
   const organizationId = org.id
 

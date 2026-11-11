@@ -1,0 +1,193 @@
+# The evaluation set of the Supplier Onboarding Agent, demo tier (S7-15 · FR-AI-304 AC5 · ADR-146 · OQ-186): 12 synthetic
+# documents of juristic suppliers — 7 company certificates (หนังสือรับรองบริษัท) and 5 VAT registrations (ภ.พ.20) — drawn
+# by scripts/ai-docs-supplier.ts as the file the AI reads, with the answer a person checked. No bank book: the AI does
+# not read one by default (OQ-186). Every company, person and address is invented; tax ids carry the synthetic prefix
+# 0999998 with a valid check digit (BR-TAXID-01). Dates are Gregorian here; the documents print them in the Buddhist era.
+#   layout   A4_TYPED (PDF) · A4_SCANNED (JPEG, grey and soft) · PHOTO (JPEG, tilted on a desk)
+#   quality  CLEAN · SKEWED · BLURRY · STAMPED (a stamp "สำเนาถูกต้อง" and a signature across the text)
+#   digits   ARABIC · THAI (๐–๙ in numbers and dates)
+#   dates    BE_LONG (20 ตุลาคม 2569) · BE_SHORT (20 ต.ค. 69)
+#   name     FULL (บริษัท … จำกัด) · ABBREVIATED (บจก. … as the header prints it · the truth is the full legal name)
+cases:
+  - id: SC-01
+    docType: COMPANY_CERT
+    layout: A4_TYPED
+    quality: CLEAN
+    digits: ARABIC
+    dates: BE_LONG
+    name: FULL
+    nameTh: บริษัท ราชบุรีคอนสตรัคชั่น จำกัด
+    nameEn: RATCHABURI CONSTRUCTION COMPANY LIMITED
+    taxId: '0999998020010'
+    branchCode: '00000'
+    registeredAddress: 99 หมู่ 4 ต.เจดีย์หัก อ.เมือง จ.ราชบุรี 70000
+    registrationDate: '2015-03-02'
+    issuedOn: '2026-10-20'
+    capital: '5000000'
+    directors: [นายสมศักดิ์ ใจมั่น, นางวรรณา ใจมั่น]
+  - id: SC-02
+    docType: COMPANY_CERT
+    layout: A4_SCANNED
+    quality: CLEAN
+    digits: ARABIC
+    dates: BE_LONG
+    name: FULL
+    nameTh: ห้างหุ้นส่วนจำกัด สุพรรณบุรีวัสดุภัณฑ์
+    nameEn: SUPHANBURI MATERIALS LIMITED PARTNERSHIP
+    taxId: '0999998020354'
+    branchCode: '00000'
+    registeredAddress: 45/2 ถนนมาลัยแมน ต.ท่าพี่เลี้ยง อ.เมือง จ.สุพรรณบุรี 72000
+    registrationDate: '2011-07-15'
+    issuedOn: '2026-09-28'
+    capital: '2000000'
+    directors: [นายประยูร ทองดี]
+  - id: SC-03
+    docType: COMPANY_CERT
+    layout: PHOTO
+    quality: SKEWED
+    digits: ARABIC
+    dates: BE_LONG
+    name: FULL
+    nameTh: บริษัท ชลบุรีวิศวกรรมโยธา จำกัด
+    nameEn: CHONBURI CIVIL ENGINEERING COMPANY LIMITED
+    taxId: '0999998020478'
+    branchCode: '00000'
+    registeredAddress: 188 หมู่ 3 ถนนสุขุมวิท ต.บ้านสวน อ.เมือง จ.ชลบุรี 20000
+    registrationDate: '2018-01-09'
+    issuedOn: '2026-10-05'
+    capital: '10000000'
+    directors: [นายวีระพงษ์ ศรีสมบูรณ์, นายอนุชา ศรีสมบูรณ์]
+  - id: SC-04
+    docType: COMPANY_CERT
+    layout: A4_TYPED
+    quality: CLEAN
+    digits: THAI
+    dates: BE_LONG
+    name: FULL
+    nameTh: บริษัท นครปฐมเหล็กโครงสร้าง จำกัด
+    nameEn: NAKHON PATHOM STRUCTURAL STEEL COMPANY LIMITED
+    taxId: '0999998020583'
+    branchCode: '00000'
+    registeredAddress: 12 หมู่ 7 ถนนเพชรเกษม ต.ธรรมศาลา อ.เมือง จ.นครปฐม 73000
+    registrationDate: '2009-11-23'
+    issuedOn: '2026-10-12'
+    capital: '8000000'
+    directors: [นางสาวพิมพ์ชนก แก้วประเสริฐ]
+  - id: SC-05
+    docType: COMPANY_CERT
+    layout: A4_SCANNED
+    quality: STAMPED
+    digits: ARABIC
+    dates: BE_LONG
+    name: FULL
+    nameTh: บริษัท อยุธยาเครื่องจักรกล จำกัด
+    nameEn: AYUTTHAYA MACHINERY COMPANY LIMITED
+    taxId: '0999998020621'
+    branchCode: '00000'
+    registeredAddress: 77/9 หมู่ 2 ต.คลองสวนพลู อ.พระนครศรีอยุธยา จ.พระนครศรีอยุธยา 13000
+    registrationDate: '2013-05-30'
+    issuedOn: '2026-08-18'
+    capital: '15000000'
+    directors: [นายธนพล รุ่งเรืองกิจ, นายภาณุ รุ่งเรืองกิจ]
+  - id: SC-06
+    docType: COMPANY_CERT
+    layout: A4_SCANNED
+    quality: BLURRY
+    digits: ARABIC
+    dates: BE_LONG
+    name: FULL
+    nameTh: บริษัท สยามคอนกรีตอัดแรง จำกัด (มหาชน)
+    nameEn: SIAM PRESTRESSED CONCRETE PUBLIC COMPANY LIMITED
+    taxId: '0999998020737'
+    branchCode: '00000'
+    registeredAddress: 300 ถนนวิภาวดีรังสิต แขวงจอมพล เขตจตุจักร กรุงเทพมหานคร 10900
+    registrationDate: '2004-02-16'
+    issuedOn: '2026-10-01'
+    capital: '120000000'
+    directors: [นายกิตติศักดิ์ มั่นคงวงศ์, นางสาวอรอุมา มั่นคงวงศ์]
+  - id: SC-07
+    docType: COMPANY_CERT
+    layout: A4_TYPED
+    quality: CLEAN
+    digits: ARABIC
+    dates: BE_SHORT
+    name: ABBREVIATED
+    nameTh: บริษัท ลพบุรีงานระบบ จำกัด
+    nameEn: LOPBURI M&E SYSTEMS COMPANY LIMITED
+    taxId: '0999998020842'
+    branchCode: '00000'
+    registeredAddress: 5 ถนนนารายณ์มหาราช ต.ทะเลชุบศร อ.เมือง จ.ลพบุรี 15000
+    registrationDate: '2020-08-03'
+    issuedOn: '2026-10-26'
+    capital: '3000000'
+    directors: [นายชาญวิทย์ ปัญญาดี]
+  - id: SV-01
+    docType: VAT_CERT
+    layout: A4_TYPED
+    quality: CLEAN
+    digits: ARABIC
+    dates: BE_LONG
+    name: FULL
+    nameTh: บริษัท ราชบุรีคอนสตรัคชั่น จำกัด
+    nameEn: null
+    taxId: '0999998020010'
+    branchCode: '00000'
+    registeredAddress: 99 หมู่ 4 ต.เจดีย์หัก อ.เมือง จ.ราชบุรี 70000
+    registrationDate: '2015-04-01'
+    issuedOn: '2015-04-08'
+  - id: SV-02
+    docType: VAT_CERT
+    layout: A4_TYPED
+    quality: CLEAN
+    digits: ARABIC
+    dates: BE_LONG
+    name: FULL
+    nameTh: บริษัท ขอนแก่นโลจิสติกส์ จำกัด
+    nameEn: null
+    taxId: '0999998020966'
+    branchCode: '00001'
+    registeredAddress: 211 หมู่ 14 ถนนมิตรภาพ ต.ศิลา อ.เมือง จ.ขอนแก่น 40000
+    registrationDate: '2019-06-17'
+    issuedOn: '2022-02-11'
+  - id: SV-03
+    docType: VAT_CERT
+    layout: PHOTO
+    quality: SKEWED
+    digits: ARABIC
+    dates: BE_LONG
+    name: FULL
+    nameTh: บริษัท เชียงใหม่ไฟฟ้าก่อสร้าง จำกัด
+    nameEn: null
+    taxId: '0999998021075'
+    branchCode: '00000'
+    registeredAddress: 58 ถนนช้างคลาน ต.ช้างคลาน อ.เมืองเชียงใหม่ จ.เชียงใหม่ 50100
+    registrationDate: '2016-09-01'
+    issuedOn: '2016-09-14'
+  - id: SV-04
+    docType: VAT_CERT
+    layout: A4_SCANNED
+    quality: CLEAN
+    digits: THAI
+    dates: BE_LONG
+    name: FULL
+    nameTh: ห้างหุ้นส่วนจำกัด ระยองท่อและวาล์ว
+    nameEn: null
+    taxId: '0999998021181'
+    branchCode: '00000'
+    registeredAddress: 9/14 ถนนสุขุมวิท ต.เนินพระ อ.เมืองระยอง จ.ระยอง 21000
+    registrationDate: '2012-03-05'
+    issuedOn: '2012-03-19'
+  - id: SV-05
+    docType: VAT_CERT
+    layout: A4_SCANNED
+    quality: STAMPED
+    digits: ARABIC
+    dates: BE_SHORT
+    name: FULL
+    nameTh: บริษัท นนทบุรีสีและเคมีภัณฑ์ จำกัด
+    nameEn: null
+    taxId: '0999998021296'
+    branchCode: '00002'
+    registeredAddress: 140 ถนนรัตนาธิเบศร์ ต.บางกระสอ อ.เมืองนนทบุรี จ.นนทบุรี 11000
+    registrationDate: '2021-01-11'
+    issuedOn: '2023-07-24'

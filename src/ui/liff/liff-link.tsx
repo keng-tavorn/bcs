@@ -1,4 +1,5 @@
-import { LIGHT_LINK_CLASS, LightLink } from '../light-link'
+import { LightLink } from '../light-link'
+import { LIGHT_LINK_CLASS } from '../light-link-class'
 
 // A link between LIFF pages: the app's light link (../light-link.tsx), an <a href> that moves with router.push on a plain
 // tap, so the LIFF bootstrap stays as it is — liff.init is not run again and the session keeper keeps counting — without

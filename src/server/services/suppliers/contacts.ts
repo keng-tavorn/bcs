@@ -3,7 +3,7 @@ import type { AppError, Result } from '@/core/result'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
-import type { TenantTx } from '@/server/db/tenant'
+import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import type { OutboxDraft } from '@/server/events/outbox'
 import type { NotificationDraft } from '@/server/notifications/create'
@@ -79,6 +79,18 @@ async function allowed(tx: TenantTx, ctx: Ctx): Promise<Fail | null> {
   if (!on.ok) return { ok: false, error: on.error }
   const may = await authorize(tx, ctx, 'supplier.contact.manage')
   return may.ok ? null : { ok: false, error: may.error }
+}
+
+/**
+ * A contact on the portal changes their own account only (S7-08 · docs/sub-specs/S7.md "คำสั่งของขั้น": the language and
+ * closing it); null when `ctx` is a member's, who goes through `allowed` instead
+ */
+async function selfOnly(tx: TenantTx, ctx: Ctx, contactId: string): Promise<Fail | null | 'MEMBER'> {
+  if (ctx.actor.type !== 'SUPPLIER') return 'MEMBER'
+  const on = await requireModule(ctx, 'SUPPLIER', tx)
+  if (!on.ok) return { ok: false, error: on.error }
+  if (ctx.channel !== 'PORTAL' || ctx.actor.supplierContactId !== contactId) return fail('FORBIDDEN', 'a contact changes their own account only', { action: 'portal.contact.self' })
+  return null
 }
 
 // ---------- supplierContact.create ----------
@@ -160,7 +172,11 @@ export const updateSupplierContactCommand = defineCommand({
   capability: 'supplier.contact.manage',
   input: UpdateContactInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ contactId: string; version: number }>> {
-    const refused = await allowed(tx, ctx)
+    const self = await selfOnly(tx, ctx, input.contactId)
+    if (self !== null && self !== 'MEMBER') return self
+    // on the portal, the language only
+    if (self === null && FIELDS.some((f) => f !== 'locale' && input[f] !== undefined)) return fail('FORBIDDEN', 'a contact changes the language of their own account only', { action: 'portal.contact.self' })
+    const refused = self === 'MEMBER' ? await allowed(tx, ctx) : null
     if (refused) return refused
     await lockRowsForUpdate(tx, 'SupplierContact', ctx.organizationId, [input.contactId])
     const contact = await tx.supplierContact.findUnique({ where: { id: input.contactId } })
@@ -203,13 +219,17 @@ export const deactivateSupplierContactCommand = defineCommand({
   capability: 'supplier.contact.manage',
   input: ContactRef,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ contactId: string; sessionsRevoked: number }>> {
-    const refused = await allowed(tx, ctx)
+    const self = await selfOnly(tx, ctx, input.contactId)
+    if (self !== null && self !== 'MEMBER') return self
+    const refused = self === 'MEMBER' ? await allowed(tx, ctx) : null
     if (refused) return refused
     await lockRowsForUpdate(tx, 'SupplierContact', ctx.organizationId, [input.contactId])
-    const contact = await tx.supplierContact.findUnique({ where: { id: input.contactId }, select: { id: true, status: true, version: true, supplierId: true } })
+    const contact = await tx.supplierContact.findUnique({ where: { id: input.contactId }, select: { id: true, status: true, version: true, supplierId: true, isPrimary: true } })
     if (!contact) return fail('NOT_FOUND', 'contact not found')
     if (contact.status !== 'ACTIVE') return fail('INVALID_STATE_TRANSITION', 'the contact is not active', { status: contact.status })
     if (contact.version !== input.expectedVersion) return fail('CONFLICT_VERSION', 'the contact changed since it was opened', { currentVersion: contact.version })
+    // the primary contact cannot leave on their own: procurement names another first (the supplier's notices go to one)
+    if (self === null && contact.isPrimary) return fail('VALIDATION_FAILED', 'the primary contact cannot close their own account', { field: 'contactId', reason: 'PRIMARY_CONTACT' })
     await tx.supplierContact.update({ where: { id: contact.id }, data: { status: 'DEACTIVATED', deactivatedAt: ctx.now, isPrimary: false, version: { increment: 1 } } })
     const revoked = await revokeContactSessions(tx, ctx, contact.id, 'CONTACT_DEACTIVATED')
     return {
@@ -242,3 +262,22 @@ export const deactivateSupplierContact = (ctx: Ctx, input: z.input<typeof Contac
   runCommand(ctx, deactivateSupplierContactCommand, input, opts)
 export const revokeSupplierContactSessions = (ctx: Ctx, input: { contactId: string }, opts: RunOptions): Promise<Result<{ contactId: string; sessionsRevoked: number }>> =>
   runCommand(ctx, revokeSupplierContactSessionsCommand, input, opts)
+
+/** The contact on the portal: the language of their own e-mails and pages (S7-08 · /portal/<org>/profile) */
+export async function setOwnContactLocale(ctx: Ctx, input: { readonly locale: 'th' | 'en' }, opts: RunOptions): Promise<Result<{ contactId: string; version: number }>> {
+  if (ctx.actor.type !== 'SUPPLIER') return { ok: false, error: { code: 'FORBIDDEN', message: 'a contact changes their own account only' } }
+  const contactId = ctx.actor.supplierContactId
+  const contact = await forTenant(ctx.organizationId).supplierContact.findUnique({ where: { id: contactId }, select: { version: true, locale: true } })
+  if (!contact) return { ok: false, error: { code: 'NOT_FOUND', message: 'contact not found' } }
+  if (contact.locale === input.locale) return { ok: true, data: { contactId, version: contact.version } }
+  return runCommand(ctx, updateSupplierContactCommand, { contactId, expectedVersion: contact.version, locale: input.locale }, opts)
+}
+
+/** The contact on the portal closes their own account (S7-08): the sessions end with it; a primary contact cannot */
+export async function closeOwnContact(ctx: Ctx, opts: RunOptions): Promise<Result<{ contactId: string; sessionsRevoked: number }>> {
+  if (ctx.actor.type !== 'SUPPLIER') return { ok: false, error: { code: 'FORBIDDEN', message: 'a contact changes their own account only' } }
+  const contactId = ctx.actor.supplierContactId
+  const contact = await forTenant(ctx.organizationId).supplierContact.findUnique({ where: { id: contactId }, select: { version: true } })
+  if (!contact) return { ok: false, error: { code: 'NOT_FOUND', message: 'contact not found' } }
+  return runCommand(ctx, deactivateSupplierContactCommand, { contactId, expectedVersion: contact.version }, opts)
+}

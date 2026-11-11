@@ -198,6 +198,10 @@
       "DOA_DRAFTER": {
         "name": "DOA draft from a regulation",
         "description": "Drafts approval rules from a regulation document for the admin to check one by one"
+      },
+      "SUPPLIER_ONBOARDING": {
+        "name": "Supplier Onboarding",
+        "description": "Reads the company certificate and VAT registration a supplier uploads with its application and fills them in for the supplier or procurement to check field by field; never reads an account number, verifies a document or approves a supplier"
       }
     },
     "readOnly": "You can read this page only. Switching assistants and changing their notebook is for the organization admin.",
@@ -353,7 +357,8 @@
         "BRIEF": "Summarized a task for the approver",
         "QUESTION": "Answered a question",
         "DOA_DRAFT": "Drafted a DOA from the rules",
-        "SAVINGS_NOTE": "Explained a saving"
+        "SAVINGS_NOTE": "Explained a saving",
+        "SUPPLIER_DOC_READ": "Supplier document reading"
       },
       "statuses": {
         "PENDING": "Working",

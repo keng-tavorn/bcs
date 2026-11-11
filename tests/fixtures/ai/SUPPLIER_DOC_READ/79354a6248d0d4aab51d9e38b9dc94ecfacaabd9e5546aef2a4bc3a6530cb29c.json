@@ -1,0 +1,75 @@
+{
+  "promptVersion": "SUPPLIER_DOC_READ@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "docType": "COMPANY_CERT",
+    "nameTh": "บริษัท ลพบุรีงานระบบ จำกัด",
+    "nameEn": "LOPBURI M&E SYSTEMS COMPANY LIMITED",
+    "taxId": "0999998020842",
+    "branchCode": "00000",
+    "registeredAddress": "5 ถนนนารายณ์มหาราช ต.ทะเลชุบศร อ.เมือง จ.ลพบุรี 15000",
+    "registrationDate": "2020-08-03",
+    "issuedOn": "2026-10-26",
+    "isVatRegistered": null,
+    "bankName": null,
+    "accountName": null,
+    "documentNumber": null,
+    "confidence": [
+      {
+        "field": "docType",
+        "value": 97
+      },
+      {
+        "field": "nameTh",
+        "value": 97
+      },
+      {
+        "field": "nameEn",
+        "value": 96
+      },
+      {
+        "field": "taxId",
+        "value": 95
+      },
+      {
+        "field": "branchCode",
+        "value": 90
+      },
+      {
+        "field": "registeredAddress",
+        "value": 95
+      },
+      {
+        "field": "registrationDate",
+        "value": 93
+      },
+      {
+        "field": "issuedOn",
+        "value": 93
+      },
+      {
+        "field": "isVatRegistered",
+        "value": 90
+      },
+      {
+        "field": "bankName",
+        "value": 99
+      },
+      {
+        "field": "accountName",
+        "value": 99
+      },
+      {
+        "field": "documentNumber",
+        "value": 99
+      }
+    ]
+  },
+  "usage": {
+    "input": 1613,
+    "output": 827,
+    "cacheRead": 1747,
+    "cacheWrite": 0
+  }
+}

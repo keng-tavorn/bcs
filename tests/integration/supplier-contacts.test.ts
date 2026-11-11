@@ -5,7 +5,7 @@ import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { enqueueSupplierNotice, registerSupplierTemplate, sendSupplierNotice, supplierMail } from '@/server/notifications/supplier-notices'
 import { portalAuthorize } from '@/server/portal/authz'
-import { PORTAL_MODEL_NAMES } from '@/server/portal/db'
+import { PORTAL_MODEL_NAMES, PORTAL_MODELS, portalWhere } from '@/server/portal/db'
 import { requireCurrentPrivacyNotice } from '@/server/portal/privacy'
 import { portalCtx } from '@/server/portal/session'
 import { createSupplierContact, deactivateSupplierContact, revokeSupplierContactSessions, updateSupplierContact } from '@/server/services/suppliers/contacts'
@@ -110,6 +110,12 @@ describe('[FR-SUP-101/AC7] supplier.contact.manage is PROCUREMENT\'s, and the mo
     expect(portalAuthorize(applicant, 'portal.application.edit', { applicationStatus: 'RETURNED' })).toMatchObject({ ok: true })
     expect(portalAuthorize(applicant, 'portal.application.edit', { applicationStatus: 'SUBMITTED' })).toMatchObject({ ok: false })
     expect([...PORTAL_MODEL_NAMES]).toEqual(expect.arrayContaining(['supplierContact', 'supplierApplication', 'supplierDocument', 'purchaseOrder']))
+    // portalWhere takes the first entry of a model: two lanes that each append one for the same model would hide the
+    // second's condition, so a model is listed once (S7-14 and S11-05 share agentAction)
+    expect(PORTAL_MODELS.length).toBe(PORTAL_MODEL_NAMES.size)
+    const applicationId = randomUUID()
+    expect(portalWhere(portalCtx(org.organizationId, { id: randomUUID(), supplierId: null, applicationId }, NOW), 'agentAction')).toEqual({ purpose: 'SUPPLIER_DOC_READ', subjectType: 'SUPPLIER_APPLICATION', subjectId: applicationId })
+    expect(portalWhere(ctx, 'agentAction')).toEqual({ subjectType: 'RISK_ASSESSMENT', requestedByContactId: contact.id })
   })
 
   it('[BR-PORTAL-08] the privacy notice: an older version is PRIVACY_NOTICE_OUTDATED, the current one passes', () => {

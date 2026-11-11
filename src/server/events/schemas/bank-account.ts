@@ -41,4 +41,6 @@ defineEvents('BankAccountChange', {
   'bank_account_change.returned': { schema: z.object({ number: z.string().min(1), reasonCommentId: z.uuid().nullable() }) },
   /** The reason is a Comment of the request: free text never goes into Event.data */
   'bank_account_change.cancelled': { schema: z.object({ from: z.enum(['DRAFT', 'PENDING_APPROVAL']), reasonCommentId: z.uuid() }) },
+  // S7-10 (ADR-190): FINANCE takes a change the supplier proposed on the portal
+  'bank_account_change.claimed': { schema: z.object({ claimedById: z.uuid() }) },
 })

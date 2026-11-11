@@ -14,8 +14,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
   const state = await postSession(request, req, field(form, 'csrf'), 'documents')
   if (state === 'NONE') return notFound()
   if (state === 'CSRF') return forbiddenCsrf()
+  // sent from step 5 of the application form (S7-08): the answer is that step again
+  const [page, back] = field(form, 'next') === 'apply' ? ['/apply', { step: 'documents' }] : ['/documents', {}]
   const file = form.get('file')
-  if (!(file instanceof File)) return seeOther(req.org, '/documents', { error: 'VALIDATION_FAILED' })
+  if (!(file instanceof File) || file.size === 0) return seeOther(req.org, page, { ...back, error: 'VALIDATION_FAILED' })
   const r = await uploadSupplierDocument(
     state.ctx,
     {
@@ -30,5 +32,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
     },
     { idempotencyKey: field(form, 'key') || randomUUID() },
   )
-  return r.ok ? seeOther(req.org, '/documents', { sent: 1 }) : seeOther(req.org, '/documents', { error: r.error.code })
+  return r.ok ? seeOther(req.org, page, { ...back, sent: 1 }) : seeOther(req.org, page, { ...back, error: r.error.code })
 }

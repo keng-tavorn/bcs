@@ -9,7 +9,8 @@ import { moduleRequiredDocumentTypes } from '@/core/doa'
 // is not switched on — the seed stops instead (the same check as organization.set_module, on the version in effect). The phase-1 sheet Org has no list of modules, so the list is here; the
 // lanes never seed modules again. A second run changes nothing.
 
-export const P1_SEED_MODULES = ['PAY', 'AI', 'BCS_GO'] as const
+// SUPPLIER (S7-13 · phase 2) once the DOA has SA-01: the supplier portal of the synthetic organization
+export const P1_SEED_MODULES = ['PAY', 'AI', 'BCS_GO', 'SUPPLIER'] as const
 const CONTRACT_REF = 'SEED-P1'
 // Shown in the organization's history like any other reason, so it is written in Thai like the demo data
 const REASON = 'เปิดโมดูลของระยะ 1 สำหรับข้อมูลสังเคราะห์ (ADR-070)'

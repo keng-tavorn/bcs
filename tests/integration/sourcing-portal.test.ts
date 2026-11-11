@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
-import { listPortalRfx, portalRfx, portalRfxLanding, portalRfxSummary } from '@/server/portal/queries-rfx'
+import { listPortalTodos } from '@/server/portal/queries'
+import { listPortalRfx, listPortalRfxTodos, portalRfx, portalRfxLanding } from '@/server/portal/queries-rfx'
 import { consumePortalLink } from '@/server/portal/commands'
 import { resolvePortalOrg } from '@/server/portal/org'
 import { portalCtx } from '@/server/portal/session'
@@ -161,13 +162,14 @@ describe('[FR-SRC-202/AC1] the contact\'s own state through the RFx\'s life, the
     const { rfxEventId, lines } = await openRfq([me, other, idle])
     const state = async (p: typeof me, now = MON) => (await portalRfx(p.ctx(now), rfxEventId))!.portalStatus
     expect(await state(me)).toBe('NOT_SUBMITTED')
-    expect(await portalRfxSummary(me.ctx())).toEqual({ invited: 1, toDo: 1 })
+    // the home's line "RFx รอยื่น" goes to the RFx, through S7's registry of the home (PORTAL_HOME_PROVIDERS)
+    expect((await listPortalTodos(me.ctx())).filter((x) => x.kind === 'RFX_TO_BID')).toEqual([expect.objectContaining({ page: `/rfx/${rfxEventId}` })])
     ok(await saveBid(me.ctx(), { rfxEventId, lines: priced(lines, ['150.00', '600.00']) }, key()))
     expect(await state(me)).toBe('DRAFT')
     ok(await submitBid(me.ctx(), { rfxEventId, lines: priced(lines, ['150.00', '600.00']) }, key()))
     ok(await submitBid(other.ctx(), { rfxEventId, lines: priced(lines, ['160.00', '650.00']) }, key()))
     expect(await state(me)).toBe('SUBMITTED')
-    expect(await portalRfxSummary(me.ctx())).toEqual({ invited: 1, toDo: 0 })
+    expect(await listPortalRfxTodos(me.ctx())).toEqual([])
     ok(await amendRfx(proc(), { rfxEventId, expectedVersion: await version(rfxEventId), summary: 'แก้รายละเอียดการส่ง', description: 'ขอราคา ส่งหน้างาน' }, key()))
     expect(await state(me)).toBe('RECONFIRM')
     expect((await listPortalRfx(me.ctx()))[0]).toMatchObject({ id: rfxEventId, portalStatus: 'RECONFIRM' })

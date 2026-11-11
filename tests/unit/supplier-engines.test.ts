@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BusinessCalendar } from '@/core/sla'
-import { addDays, canVerify, dateIn, documentExpiry, documentStatus, normalizeScope } from '@/core/supplier-docs'
+import { addDays, canVerify, dateIn, documentExpiry, documentStatus, isIsoDate, normalizeScope } from '@/core/supplier-docs'
 import { checkSod } from '@/core/sod'
 import { applicationSla, businessDayMinutes, findSupplierDuplicates, g7Median, normalizeSupplierName, sameHash, verifyOtp } from '@/core/supplier-onboarding'
 
@@ -91,5 +91,17 @@ describe('[BR-SOD-11] the conflicted people of a supplier application never appr
     const policy = { approverMayReceive: false, requesterMayReceive: true }
     expect(checkSod({ kind: 'DECIDE_APPROVAL', subject: 'SUPPLIER_APPLICATION', actorMemberId: 'inviter', requesterMemberIds: ['inviter', 'verifier'] }, policy)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-11' })
     expect(checkSod({ kind: 'DECIDE_APPROVAL', subject: 'SUPPLIER_APPLICATION', actorMemberId: 'manager', requesterMemberIds: ['inviter', 'verifier'] }, policy)).toEqual({ ok: true })
+  })
+})
+
+describe('[BR-SDOC-02] a date that is a real day (S7-14 review)', () => {
+  it('the shape alone is not enough: no 13th month, no 30th of February; such a date is DATE, never a crash or a roll-over', () => {
+    expect(isIsoDate('2028-02-29')).toBe(true)
+    expect(isIsoDate('2026-1-01')).toBe(false)
+    expect(isIsoDate('2026-13-01')).toBe(false)
+    expect(isIsoDate('2026-02-30')).toBe(false)
+    const terms = { validityDays: 180, reminderDaysBefore: 30 }
+    expect(documentExpiry(terms, { issuedOn: '2026-25-10' })).toEqual({ ok: false, code: 'VALIDATION_FAILED', reason: 'DATE' })
+    expect(documentExpiry({ validityDays: null, reminderDaysBefore: 30 }, { issuedOn: '2026-10-01', expiresOn: '2027-02-30' })).toEqual({ ok: false, code: 'VALIDATION_FAILED', reason: 'DATE' })
   })
 })

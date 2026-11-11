@@ -32,6 +32,9 @@
     },
     "sent_receiver": {
       "title": "A purchase order to receive"
+    },
+    "delivery_changed": {
+      "title": "The supplier changed the delivery date"
     }
   },
   "request": {
@@ -84,6 +87,11 @@
   "payment_run": {
     "decided": {
       "title": "Payment run decided"
+    }
+  },
+  "supplier": {
+    "application_escalated": {
+      "title": "A supplier application is overdue"
     }
   }
 }

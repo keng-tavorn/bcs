@@ -1,5 +1,6 @@
 {
   "title": "Supplier portal",
+  "fileInput": { "choose": "Choose a file", "none": "No file chosen yet" },
   "of": "of {organization}",
   "unavailable": {
     "title": "Not available",
@@ -10,7 +11,8 @@
     "intro": "Type the e-mail this organization has on record. We will send a sign-in link, usable once, to that address.",
     "email": "E-mail",
     "submit": "Send me a sign-in link",
-    "sent": "If this e-mail is on record, a sign-in link will arrive within a few minutes. Please check your inbox."
+    "sent": "If this e-mail is on record, a sign-in link will arrive within a few minutes. Please check your inbox.",
+    "closed": "Your account is closed. To use the portal again, please contact procurement."
   },
   "link": {
     "title": "Confirm your sign-in",
@@ -30,7 +32,16 @@
     "applicationStatus": "Application status: {status}",
     "signOut": "Sign out",
     "documents": "Your documents",
-    "rfx": "RFx you are invited to: {invited} · waiting for your bid: {toDo}"
+    "todoTitle": "To do",
+    "todoEmpty": "Nothing to do now. When a document is about to expire or new work comes, it shows here and we e-mail you.",
+    "todo": {
+      "DOCUMENT_EXPIRING": "{type} expires on {date}: send a new copy",
+      "DOCUMENT_EXPIRED": "{type} has expired: send a new copy",
+      "DOCUMENT_MISSING": "No {type} yet: send it",
+      "INVOICE_REJECTED": "Invoice {type} was rejected: see why and send it again",
+      "RFX_TO_BID": "{type} waits for your bid: closes {date}"
+    },
+    "sections": "Other parts of the portal"
   },
   "applicationStatus": {
     "INVITED": "Invited",
@@ -47,6 +58,8 @@
     "title": "Privacy notice",
     "accept": "I have read it",
     "2026-11-01": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them. You may ask its procurement team for a copy, a correction or deletion of your data.",
+    "short": "{organization} uses what you send through this portal to register suppliers, to assess supplier risk, to contact you about purchases and payments, and for checks the law requires.",
+    "read": "Read the privacy notice",
     "2026-11-08": "This organization keeps the names, e-mails, phone numbers and documents you send through the portal to register suppliers, to assess supplier risk, to contact you about purchases and payments, and for checks the law requires. They are kept for the period the organization sets and shown only to those whose work needs them.\n\nEvidence files of a risk questionnaire that you mark as holding no personal data and readable by the AI assistant are sent to an outside AI provider to draft answers for you to check. Files you do not mark are never sent.\n\nYou may ask its procurement team for a copy, a correction or deletion of your data."
   },
   "errors": {
@@ -60,6 +73,353 @@
     "VALIDATION_FAILED": "Please check what you typed.",
     "PRIVACY_NOTICE_OUTDATED": "Please read and acknowledge the current privacy notice first.",
     "FAILED": "That did not work. Please try again."
+  },
+  "nav": {
+    "label": "Portal sections",
+    "home": "Home",
+    "apply": "Application",
+    "documents": "Documents",
+    "profile": "My account",
+    "help": "Help",
+    "bank": "Bank account",
+    "pos": "Purchase orders",
+    "invoices": "Invoices",
+    "payments": "Payments"
+  },
+  "apply": {
+    "title": "Supplier application",
+    "stepOf": "Step {n} of {total}",
+    "stepsLabel": "Steps of the application",
+    "steps": {
+      "company": "Company",
+      "tax": "Tax",
+      "contact": "Contacts",
+      "bank": "Bank account",
+      "documents": "Documents",
+      "review": "Check and send"
+    },
+    "saveNext": "Save and go to the next step",
+    "back": "Back to the previous step",
+    "saved": "Saved",
+    "required": "required",
+    "returned": "Procurement returned the application for changes: {reason}",
+    "company": {
+      "intro": "As on your company certificate or ID card",
+      "nameTh": "Name (Thai)",
+      "nameEn": "Name (English)",
+      "payeeType": "Supplier type",
+      "payee": {
+        "JURISTIC": "Company",
+        "INDIVIDUAL": "Individual",
+        "FOREIGN": "Foreign supplier"
+      },
+      "address": "Registered address",
+      "phone": "Phone",
+      "email": "Company e-mail",
+      "category": "Goods or services you sell"
+    },
+    "tax": {
+      "intro": "Your 13-digit taxpayer id and branch",
+      "taxId": "Taxpayer id",
+      "taxIdHint": "13 digits, no dashes",
+      "branchCode": "Branch code",
+      "branchHint": "Head office is 00000",
+      "vat": "Registered for VAT",
+      "foreign": "A foreign supplier has no Thai taxpayer id to give"
+    },
+    "contact": {
+      "intro": "These contacts may use the portal and get e-mails from {organization}. To add or change one, please ask its procurement team.",
+      "primary": "Primary contact",
+      "you": "you",
+      "language": "Language of e-mails and the portal",
+      "th": "ไทย",
+      "en": "English"
+    },
+    "bank": {
+      "intro": "The account to be paid into. Finance will call you to confirm it before any payment.",
+      "bankCode": "Bank",
+      "choose": "Choose a bank",
+      "accountNo": "Account number",
+      "accountNoKept": "Saved, ending {last4}. Type a new one only to change it.",
+      "accountName": "Account name",
+      "bankBranch": "Bank branch"
+    },
+    "documents": {
+      "intro": "Send PDF files or pictures, 20 MB at most each. Every file is checked for viruses before procurement opens it.",
+      "required": "required",
+      "optional": "optional",
+      "state": {
+        "NONE": "Not sent yet",
+        "SCANNING": "Checking the file",
+        "PENDING": "Sent, waiting for procurement",
+        "VERIFIED": "Confirmed by procurement",
+        "REJECTED": "Not accepted: {reason}",
+        "INFECTED": "The file failed the security check: send another"
+      },
+      "file": "File",
+      "issuedOn": "Date issued",
+      "expiresOn": "Expiry date (if any)",
+      "send": "Send {type}",
+      "sendNew": "Send a new {type}",
+      "expiresOnRequired": "Expiry date on the document"
+    },
+    "review": {
+      "intro": "Check before you send. Once sent, it can be changed only if procurement returns it.",
+      "edit": "Change {step}",
+      "missingTitle": "Still missing before you can send",
+      "missingNone": "Everything needed is here",
+      "field": {
+        "nameTh": "Name",
+        "taxId": "Taxpayer id",
+        "branchCode": "Branch code",
+        "address": "Address",
+        "contact": "Contact"
+      },
+      "document": "Document: {type}",
+      "warningsTitle": "Looks like a supplier already registered",
+      "warningsIntro": "Please say briefly why it is not the same supplier. Procurement will check it.",
+      "warning": {
+        "SAME_TAXID_OTHER_BRANCH": "This taxpayer id is registered for another branch",
+        "DUPLICATE_NAME": "The name looks like a supplier already registered",
+        "DUPLICATE_EMAIL": "Another supplier uses this e-mail"
+      },
+      "reason": "Reason",
+      "notAccount": "Not given",
+      "submit": "Send the application to {organization}"
+    },
+    "closed": {
+      "SUBMITTED": "Application {number} was sent and procurement is checking it. We will e-mail you the result.",
+      "PENDING_APPROVAL": "Application {number} is waiting for approval. We will e-mail you the result.",
+      "APPROVED": "The application was approved.",
+      "REJECTED": "The application was not approved.",
+      "EXPIRED": "The application expired. Please ask procurement for a new link.",
+      "CANCELLED": "The application was cancelled."
+    },
+    "errors": {
+      "APPLICATION_INCOMPLETE": "It cannot be sent yet: see what is missing below.",
+      "VALIDATION_FAILED": "Please check what you typed.",
+      "TAXID_CHECKSUM": "The taxpayer id is not valid. Please check it.",
+      "DUPLICATE_SUPPLIER": "This taxpayer id and branch are registered or applied for already. Please call procurement.",
+      "DUPLICATE_REASON_REQUIRED": "Please give a reason for each likeness to a registered supplier.",
+      "CONFLICT_VERSION": "The application was just changed elsewhere. Please check the latest and save again.",
+      "INVALID_STATE_TRANSITION": "This application can no longer be changed.",
+      "ACCOUNT": "The account number is not valid for this bank.",
+      "FORBIDDEN": "You may not do this.",
+      "AI_REVIEW_PENDING": "Some values filled by AI wait for your confirmation. Go to the company or documents step and tick them before sending.",
+      "AI_NOTHING_TAKEN": "Tick at least one value to take"
+    },
+    "ai": {
+      "title": "Values the AI read from your documents",
+      "intro": "Check each value against the document, tick the right ones and take them. Once you press a button, the values you did not take leave this list and what you typed stays. You always type the account number yourself.",
+      "byAi": "Filled by AI, please check",
+      "confidence": "AI {percent}% sure",
+      "mustConfirm": "confirm one by one",
+      "taken": "Taken",
+      "yes": "VAT registered",
+      "no": "Not VAT registered",
+      "takeTicked": "Take only the ticked values",
+      "takeRest": "Confirm all the other values",
+      "done": "The AI values were taken. Check the rest of the form.",
+      "doc": {
+        "COMPANY_CERT": "Company certificate",
+        "VAT_CERT": "VAT registration",
+        "BANK_BOOK": "Bank book page",
+        "OTHER": "Document"
+      },
+      "field": {
+        "nameTh": "Name (Thai)",
+        "nameEn": "Name (English)",
+        "taxId": "Taxpayer ID",
+        "branchCode": "Branch",
+        "address": "Address",
+        "isVatRegistered": "VAT",
+        "bankCode": "Bank",
+        "accountName": "Account name"
+      },
+      "check": {
+        "WARN": "This value differs from the registry or what was typed. Check it again.",
+        "FAIL": "This value failed a check (invalid number, not the application's, or an expired document). Do not take it until the document is checked."
+      },
+      "docCheck": {
+        "DOC_EXPIRED": "The AI read the date of issue and found this document expired. Check the date and send a new one if needed.",
+        "DOC_DATE_FUTURE": "The date of issue the AI read is in the future. Check the date on the document.",
+        "BANK_UNKNOWN": "The AI read a bank name that is not in the list of banks. Choose the bank yourself in the bank step."
+      }
+    }
+  },
+  "profile": {
+    "title": "My account",
+    "contactsTitle": "Contacts of {name}",
+    "language": "Language",
+    "saveLanguage": "Use this language",
+    "languageSaved": "Language changed",
+    "closeTitle": "Close my account",
+    "closeBody": "Once closed, you cannot sign in with this e-mail again. To come back, procurement has to add you again.",
+    "closeConfirm": "I understand and want to close this account",
+    "close": "Close my account and sign out",
+    "closeLast": "You are the primary contact, so you cannot close the account yourself. Please ask procurement to name a new primary contact first.",
+    "closeConfirmNeeded": "Please tick to confirm before closing the account."
+  },
+  "help": {
+    "title": "Help",
+    "howTitle": "How to use the portal",
+    "how": {
+      "signIn": "Sign in with the e-mail {organization} has on record. A one-time link and a six-digit code are sent each time.",
+      "fill": "Fill in the application step by step and save. You may come back later to go on.",
+      "documents": "Send documents as PDF files or pictures. We e-mail you before a document expires.",
+      "code": "No one from the organization will ever ask you for your code."
+    },
+    "contactTitle": "Contact procurement",
+    "inviter": "Invited by {name}, e-mail {email}",
+    "contactGeneral": "Please contact the procurement team of {organization} the way you usually do."
+  },
+  "pos": {
+    "title": "Purchase orders",
+    "intro": "The POs sent to you: acknowledge each and say when you deliver",
+    "empty": "No purchase order sent to you yet. When one comes, it shows here and we e-mail you.",
+    "row": "Sent on {date} · total {amount} baht",
+    "noNumber": "Purchase order",
+    "ack": {
+      "NOT_ACKNOWLEDGED": "Not acknowledged",
+      "ACKNOWLEDGED": "Acknowledged",
+      "DELIVERY_UPDATED": "New delivery date given"
+    },
+    "status": {
+      "SENT": "Sent",
+      "PARTIALLY_RECEIVED": "Partly received",
+      "RECEIVED": "Received",
+      "CLOSED": "Closed"
+    },
+    "promised": "Delivering on {date}",
+    "back": "Back to purchase orders",
+    "notFound": "Purchase order not found",
+    "revision": "Revision {n}",
+    "lines": "Lines",
+    "line": "{qty} {uom} × {price} baht = {net} baht",
+    "net": "Before VAT {amount} baht",
+    "vat": "VAT {amount} baht",
+    "gross": "Total {amount} baht",
+    "pdf": "Open the purchase order (PDF)",
+    "ackTitle": "Acknowledge the purchase order",
+    "ackIntro": "Say when you will deliver (optional): the organization sees it on the PO",
+    "date": "Delivery date",
+    "note": "Note (optional)",
+    "ackSubmit": "Acknowledge this purchase order",
+    "changeTitle": "Change the delivery date",
+    "reason": "Why it changes",
+    "changeSubmit": "Send the new delivery date",
+    "history": "Acknowledgements",
+    "historyAck": "Acknowledged on {at}",
+    "historyChange": "Delivery moved on {at} from {from} to {to}",
+    "acked": "Acknowledged",
+    "changed": "New delivery date sent",
+    "closed": "This purchase order needs no acknowledgement now",
+    "errors": {
+      "PAST_DATE": "The delivery date must be today or later",
+      "NO_CHANGE": "The delivery date is the same",
+      "INVALID_STATE_TRANSITION": "This purchase order can no longer do this",
+      "VALIDATION_FAILED": "Please check what you typed",
+      "FAILED": "That did not work. Please try again."
+    }
+  },
+  "invoices": {
+    "title": "Invoices",
+    "intro": "Your invoices and where each one stands. Send a new one for a purchase order sent to you.",
+    "new": "Send a new invoice",
+    "newTitle": "Send an invoice",
+    "newIntro": "Choose the purchase order, attach the invoice file, then enter its number, date and VAT as printed. The lines start from what is not invoiced yet; you can change them on the next page until finance confirms it.",
+    "off": "This organization does not take invoices on the portal yet. Send them by e-mail as before.",
+    "empty": "No invoices yet. Once you send one, its status shows here.",
+    "noNumber": "Invoice",
+    "row": "PO {po} · dated {date} · total {amount} THB",
+    "received": "received as {number}",
+    "back": "Back to invoices",
+    "notFound": "Invoice not found",
+    "noPos": "No purchase order can take an invoice yet",
+    "po": "Purchase order",
+    "choosePo": "Choose a purchase order",
+    "poOption": "{number} · sent {date} · {amount} THB",
+    "required": "required",
+    "file": "Invoice file",
+    "fileHint": "PDF, JPEG or PNG up to 20 MB. The file is checked for safety before finance opens it.",
+    "supplierNo": "Your invoice number",
+    "date": "Invoice date",
+    "vat": "VAT (THB)",
+    "vatHint": "As printed on the invoice; 0 if none",
+    "includesVat": "Prices on the invoice include VAT",
+    "send": "Send invoice",
+    "sent": "Invoice sent. Finance will check it and its status will show here.",
+    "saved": "Changes saved",
+    "detail": "PO {po} · dated {date}",
+    "fileScanned": "File: {name}",
+    "fileScanning": "File: {name} (being checked for safety)",
+    "lines": "Lines",
+    "noLines": "No lines yet. Enter quantities of the purchase order lines below.",
+    "line": "{qty} {uom} × {price} = {net} THB",
+    "net": "Before VAT {amount} THB",
+    "vatAmount": "VAT {amount} THB",
+    "gross": "Total {amount} THB",
+    "editTitle": "Change the invoice",
+    "editIntro": "You can change it until finance confirms its accounts. Leave a quantity empty for a line not on this invoice.",
+    "editLines": "Purchase order lines",
+    "poLine": "{no}. {description} (ordered {qty} {uom})",
+    "qty": "Quantity",
+    "unitPrice": "Unit price (THB)",
+    "save": "Save changes",
+    "locked": "Finance is checking this invoice. To change it, contact finance.",
+    "stage": {
+      "DRAFT": "With finance, waiting for checks",
+      "IN_REVIEW": "A difference was found, being checked",
+      "READY": "Ready to pay, due {date}",
+      "READY_NO_DATE": "Ready to pay",
+      "PAID": "Paid {date}",
+      "PAID_NO_DATE": "Paid",
+      "REJECTED": "Rejected: {reason}",
+      "CANCELLED": "Cancelled",
+      "CANCELLED_REASON": "Cancelled: {reason}"
+    },
+    "timeline": {
+      "sent": "Sent {at}",
+      "received": "Received as {number} on {at}",
+      "ready": "Ready to pay since {at}",
+      "paid": "Paid on {date}",
+      "rejected": "Rejected on {at}"
+    },
+    "errors": {
+      "FILE_REQUIRED": "Attach the invoice file",
+      "TYPE_NOT_ALLOWED": "The file must be a PDF, JPEG or PNG",
+      "TOO_LARGE": "The file is larger than 20 MB",
+      "INVOICE_NO": "Enter the invoice number",
+      "INVOICE_DATE": "Enter the invoice date",
+      "AMOUNT": "Enter amounts as numbers with at most 2 decimals",
+      "LINE": "Enter each line’s quantity and price as numbers",
+      "NO_LINES": "Enter a quantity for at least one line",
+      "CODING_CONFIRMED": "Finance has confirmed this invoice and it cannot be changed. Contact finance.",
+      "CONFLICT_VERSION": "This invoice was just changed. Open the page again and retry.",
+      "INVALID_STATE_TRANSITION": "This invoice can no longer be changed or sent",
+      "DISCOUNT_ABOVE_AMOUNT": "The discount is above the invoice amount",
+      "NOT_A_PO_LINE": "Every line must be a line of this purchase order",
+      "QUANTITY_NOT_POSITIVE": "A quantity must be above zero",
+      "RATE_LIMITED": "Too many invoices or files for now. Try again later.",
+      "NOT_FOUND": "Purchase order not found",
+      "VALIDATION_FAILED": "Please check what you entered",
+      "FAILED": "That did not work. Please try again."
+    }
+  },
+  "payments": {
+    "title": "Payments",
+    "intro": "What was transferred to you, or failed. Only the last four digits of the account are shown.",
+    "empty": "No payments yet",
+    "paid": "Transferred {date}",
+    "failed": "Transfer failed",
+    "run": "run {number}",
+    "transfer": "Transferred {amount} THB",
+    "amounts": "Invoices {payable} THB · withholding tax {wht} THB",
+    "account": "To {bank} account ending {last4}",
+    "invoices": "Invoices: {list}",
+    "reason": "Reason: {reason}",
+    "wht": "Download withholding tax certificate {number}",
+    "error": "The file could not be opened. Please try again."
   },
   "risk": {
     "list": {

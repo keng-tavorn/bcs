@@ -34,7 +34,7 @@ export async function generateMetadata() {
 export default async function BankAccountsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null
-  const [t, locale] = await Promise.all([getTranslations('bankAccount'), getLocale().then(localeOf)])
+  const [t, tb, locale] = await Promise.all([getTranslations('bankAccount'), getTranslations('supplierBank.finance'), getLocale().then(localeOf)])
   const asked = one((await searchParams).tab)
   const tab: Tab = (TABS as readonly string[]).includes(asked ?? '') ? (asked as Tab) : 'payers'
   const changeTab: BankChangeTab = tab === 'payers' ? 'open' : tab
@@ -87,6 +87,22 @@ export default async function BankAccountsPage({ searchParams }: { searchParams:
     <Page>
       <PageHeader title={t('list.title')} intro={t('list.intro')} actions={propose} />
       <PageBody>
+        {/* S7-10 (ADR-190): what suppliers proposed on the portal, waiting for FINANCE to claim it on its page */}
+        {list.rows.some((r) => r.awaitingClaim) ? (
+          <Panel title={tb('box')} id="from-portal">
+            <ul className="flex flex-col gap-2">
+              {list.rows
+                .filter((r) => r.awaitingClaim)
+                .map((r) => (
+                  <li key={r.id}>
+                    <Link href={`/finance/bank-accounts/changes/${r.id}`} className={linkClass}>
+                      {tb('boxRow', { kind: t(`kind.${r.kind}`), owner: changeOwnerText(t, locale, r) })}
+                    </Link>
+                  </li>
+                ))}
+            </ul>
+          </Panel>
+        ) : null}
         <Panel label={t('tabs.label')}>
           <BankTabs current={tab} label={t('tabs.label')} tabs={TABS.map((key) => ({ key, label: t(`tabs.${key}`, { count: counts[key] }), href: hrefOf(key) }))}>
             {tab === 'payers' ? (

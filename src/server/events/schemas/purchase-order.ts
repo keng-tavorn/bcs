@@ -45,6 +45,10 @@ defineEvents('PurchaseOrder', {
   'po.returned': { schema: z.object({ taskId: z.uuid(), reasonCommentId: z.uuid() }) },
   // FR-P2P-005 AC1, AC3: e-mailed to the supplier with its PDF; every send after the first carries a reason
   'po.sent': { schema: z.object({ from: z.string().min(1), resend: z.boolean(), reasonCommentId: z.uuid().nullable(), pdfFileId: z.uuid() }) },
+  // S7-11 (FR-SUP-105 · BR-SUP-14): the supplier on the portal acknowledges a revision, or moves the date it delivers
+  'po.acknowledged': { schema: z.object({ revisionNo: z.number().int().min(0), promisedDeliveryOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() }) },
+  'po.delivery_date_changed': { schema: z.object({ revisionNo: z.number().int().min(0), from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }) },
+  'po.ack_reset': { schema: z.object({ revisionNo: z.number().int().min(1) }) },
   // FR-P2P-005 AC2 (NEW-25): the supplier's mail server refused the e-mail; the PO keeps its status
   'po.send_bounced': { schema: z.object({ status: z.string().min(1), code: z.string().min(1), resend: z.boolean(), reasonCommentId: z.uuid().nullable(), pdfFileId: z.uuid() }) },
   // BR-BUD-06: what happens to the request lines, and the requests whose status moved

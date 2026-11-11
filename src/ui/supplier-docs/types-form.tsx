@@ -78,12 +78,16 @@ export function DocumentTypeForm({ save }: { readonly save: (input: DocumentType
         <Field id="validityDays" name="validityDays" type="number" inputMode="numeric" min={1} label={t('types.validityDays')} hint={t('types.validityHint')} />
         <Field id="reminderDaysBefore" name="reminderDaysBefore" type="number" inputMode="numeric" min={0} defaultValue={30} label={t('types.reminderDaysBefore')} />
       </div>
-      {(['required', 'sensitive', 'singleInstance'] as const).map((f) => (
-        <label key={f} className="flex min-h-11 items-center gap-3">
-          <Checkbox checked={flags[f]} onCheckedChange={(v) => setFlags((cur) => ({ ...cur, [f]: v === true }))} aria-label={t(`types.${f}`)} />
-          <span>{t(`types.${f}`)}</span>
-        </label>
-      ))}
+      {/* the three rules of a type are one question, as "for which suppliers" is (§9.9: at most 8 fields a step · S7-18) */}
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-1 font-medium text-ink">{t('types.columns.flags')}</legend>
+        {(['required', 'sensitive', 'singleInstance'] as const).map((f) => (
+          <label key={f} className="flex min-h-11 items-center gap-3">
+            <Checkbox checked={flags[f]} onCheckedChange={(v) => setFlags((cur) => ({ ...cur, [f]: v === true }))} aria-label={t(`types.${f}`)} />
+            <span>{t(`types.${f}`)}</span>
+          </label>
+        ))}
+      </fieldset>
       <Button type="submit" disabled={busy || appliesTo.length === 0} className="self-start">
         {t('types.save')}
       </Button>

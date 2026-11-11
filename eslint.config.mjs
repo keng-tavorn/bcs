@@ -305,6 +305,24 @@ export default defineConfig([
       ],
     },
   },
+  // INV-SUP-04 (S7-10 · ADR-190): S7 reaches bank accounts through proposeBankAccountChange only — the portal and the
+  // supplier services never import the bank-accounts service (or write BankAccount) anywhere else. The Prisma pattern
+  // above is repeated: a later block replaces the rule for its files
+  {
+    files: [`src/server/portal/**/*.${CODE}`, `src/server/services/suppliers/**/*.${CODE}`],
+    ignores: ['src/server/services/suppliers/bank-proposal.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@prisma/*', '**/server/db/generated/**', '@/server/db/generated/**'], message: 'Prisma ใช้ได้เฉพาะใน src/server/db (§4.10)' },
+            { group: ['**/bank-accounts', '**/bank-accounts/**', '@/server/services/bank-accounts', '@/server/services/bank-accounts/**'], message: 'บัญชีธนาคารจาก S7 ผ่าน proposeBankAccountChange เท่านั้น (INV-SUP-04 · ADR-190)' },
+          ],
+        },
+      ],
+    },
+  },
   // Functional core: no I/O, no ambient time, randomness or environment (§4.2, §17.3)
   {
     files: [`src/core/**/*.${CODE}`],

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { E2E_DB, E2E_P1DEMO } from '../../../support/e2e-env'
+import { E2E_DB, E2E_PHASE1_WORKBOOK } from '../../../support/e2e-env'
 
 // Run by the demo scenes (tests/e2e/demo, through support.ts) against the demo e2e database only — and by the scenes of
 // phase 1 (tests/e2e/p1demo, P1-08) against theirs, on SIMEC of the phase-1 workbook (E2E_P1DEMO): what the people of the
@@ -57,7 +57,8 @@ async function main(command: string | undefined, args: readonly string[]): Promi
   // one, the script follows it with no change
   const now = () => systemClock.now()
   // The scenes of phase 1 (P1-08, tests/e2e/p1demo/support.ts) run this script too, on SIMEC of the phase-1 workbook
-  const workbook = await loadInputWorkbook(E2E_P1DEMO ? INPUT_WORKBOOKS.p1 : undefined)
+  // the phase-1 workbook in p1demo and p2demo mode (S7-17): SIMEC
+  const workbook = await loadInputWorkbook(E2E_PHASE1_WORKBOOK ? INPUT_WORKBOOKS.p1 : undefined)
   const orgCode = workbook.keyValues('Org').get('code')?.value
   if (!orgCode) throw new Error('the Org sheet names no organization code')
   const org = await prisma.organization.findUniqueOrThrow({ where: { code: orgCode }, select: { id: true, code: true } })

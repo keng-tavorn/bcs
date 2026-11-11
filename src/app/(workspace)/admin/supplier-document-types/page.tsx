@@ -24,16 +24,36 @@ export default async function SupplierDocumentTypesPage() {
   if (!ctx) return null
   const view = await listSupplierDocumentTypes(ctx)
   if (!view.ok) return <NoAccess title={t('types.title')} message={tCommon('forbidden')} homeLabel={tCommon('homeLink')} />
+  const flagLabels = { required: t('types.flagRequired'), sensitive: t('types.flagSensitive'), many: t('types.flagMany') }
   return (
     <Page>
       <PageHeader title={t('types.title')} intro={t('types.intro')} />
       <PageBody>
-        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-6">
+        {/* the list across the page, the form under it: beside it the table's last columns were cut off at 1440 px; a phone
+            reads each type as a short list, never a table that scrolls sideways (§9.9 · S7-18) */}
+        <div className="flex flex-col gap-4 lg:gap-6">
           <Panel title={t('types.listTitle')} id="types">
             {view.data.length === 0 ? (
               <p className="text-ink-muted">{t('types.empty')}</p>
             ) : (
-              <div className="-mx-4 overflow-x-auto sm:mx-0">
+              <>
+                <ul className="flex flex-col divide-y divide-line md:hidden">
+                  {view.data.map((type) => (
+                    <li key={type.code} className="flex flex-col gap-1 py-3">
+                      <span className="font-medium">{type.nameTh}</span>
+                      <span className="text-base text-ink-muted">{type.code}</span>
+                      <span>
+                        {t('types.columns.appliesTo')}: {type.appliesTo.map((p) => t(`types.payee.${p}`)).join(', ')}
+                      </span>
+                      <span className="tabular">
+                        {t('types.columns.rule')}: {type.validityDays ? t('types.days', { count: type.validityDays }) : t('types.noExpiry')} / {t('types.days', { count: type.reminderDaysBefore })}
+                      </span>
+                      <TypeFlags type={type} labels={flagLabels} />
+                      {type.active ? <CloseTypeButton code={type.code} close={closeDocumentTypeAction} /> : <span className="text-ink-muted">{t('types.closed')}</span>}
+                    </li>
+                  ))}
+                </ul>
+              <div className="hidden md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -49,18 +69,14 @@ export default async function SupplierDocumentTypesPage() {
                       <TableRow key={type.code}>
                         <TableCell>
                           <div className="font-medium">{type.nameTh}</div>
-                          <div className="text-sm text-ink-muted">{type.code}</div>
+                          <div className="text-base text-ink-muted md:text-sm">{type.code}</div>
                         </TableCell>
                         <TableCell>{type.appliesTo.map((p) => t(`types.payee.${p}`)).join(', ')}</TableCell>
                         <TableCell className="tabular">
                           {type.validityDays ? t('types.days', { count: type.validityDays }) : t('types.noExpiry')} / {t('types.days', { count: type.reminderDaysBefore })}
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {type.required ? <Badge variant="secondary">{t('types.flagRequired')}</Badge> : null}
-                            {type.sensitive ? <Badge variant="secondary">{t('types.flagSensitive')}</Badge> : null}
-                            {!type.singleInstance ? <Badge variant="secondary">{t('types.flagMany')}</Badge> : null}
-                          </div>
+                          <TypeFlags type={type} labels={flagLabels} />
                         </TableCell>
                         <TableCell>{type.active ? <CloseTypeButton code={type.code} close={closeDocumentTypeAction} /> : <span className="text-ink-muted">{t('types.closed')}</span>}</TableCell>
                       </TableRow>
@@ -68,6 +84,7 @@ export default async function SupplierDocumentTypesPage() {
                   </TableBody>
                 </Table>
               </div>
+              </>
             )}
           </Panel>
           <Panel title={t('types.formTitle')} id="form">
@@ -76,5 +93,16 @@ export default async function SupplierDocumentTypesPage() {
         </div>
       </PageBody>
     </Page>
+  )
+}
+
+/** A type's rules as badges with words (required, sensitive, many per scope) */
+function TypeFlags({ type, labels }: { readonly type: { readonly required: boolean; readonly sensitive: boolean; readonly singleInstance: boolean }; readonly labels: { readonly required: string; readonly sensitive: string; readonly many: string } }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {type.required ? <Badge variant="secondary">{labels.required}</Badge> : null}
+      {type.sensitive ? <Badge variant="secondary">{labels.sensitive}</Badge> : null}
+      {!type.singleInstance ? <Badge variant="secondary">{labels.many}</Badge> : null}
+    </div>
   )
 }

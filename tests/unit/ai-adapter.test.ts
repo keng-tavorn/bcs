@@ -16,7 +16,7 @@ import {
   type FixtureAnswer,
 } from '@/integrations/ai'
 import { unionParameters, wireOf } from '@/integrations/ai/wire-schema'
-import { AGENT_OF_PURPOSE, AI_AGENTS, AI_PURPOSES, EVAL_GATES, isGated, modelFor, modelForPurpose, MODEL_PRICES, PROMPT_VERSIONS, requiredGateTier } from '@/lib/ai-config'
+import { AGENT_OF_PURPOSE, AI_AGENTS, AI_PURPOSES, AWAITING_EVALUATION, EVAL_GATES, isGated, modelFor, modelForPurpose, MODEL_PRICES, PROMPT_VERSIONS, requiredGateTier } from '@/lib/ai-config'
 import { BriefText, DoaDraft, IntakeDraft, QuestionPlan } from '@/lib/ai-schemas/agents'
 import { DocumentReading } from '@/lib/ai-schemas/document'
 
@@ -62,12 +62,14 @@ describe('[BR-AI-09] prompts carry the version ai-config names (ADR-143)', () =>
     for (const purpose of AI_PURPOSES) expect(Object.hasOwn(MODEL_PRICES, modelForPurpose(purpose, {})), purpose).toBe(true)
   })
 
-  it('[BR-AI-11] every purpose has a SYNTHETIC gate for its prompt and model, with its report on disk', () => {
-    for (const purpose of AI_PURPOSES) {
+  it('[BR-AI-11] every purpose has a SYNTHETIC gate for its prompt and model, with its report on disk (but the ones awaiting their evaluation, which have none)', () => {
+    for (const purpose of AI_PURPOSES.filter((p) => !AWAITING_EVALUATION.includes(p))) {
       const call = { agent: AGENT_OF_PURPOSE[purpose], purpose, promptVersion: PROMPT_VERSIONS[purpose], model: modelForPurpose(purpose, {}), tier: 'SYNTHETIC' as const }
       expect(isGated(EVAL_GATES, call), purpose).toBe(true)
     }
     for (const g of EVAL_GATES) expect(existsSync(path.join(process.cwd(), 'docs', 'reports', 'ai-eval', g.report)), g.report).toBe(true)
+    // a purpose awaiting its evaluation is never gated by mistake (live mode refuses it)
+    for (const purpose of AWAITING_EVALUATION) expect(EVAL_GATES.some((g) => g.purpose === purpose), purpose).toBe(false)
   })
 
   it('[BR-AI-11] production needs a REAL gate, every other environment a SYNTHETIC one, and a gate names one exact set', () => {

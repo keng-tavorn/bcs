@@ -1,0 +1,75 @@
+{
+  "promptVersion": "SUPPLIER_DOC_READ@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "docType": "VAT_CERT",
+    "nameTh": "บริษัท ราชบุรีคอนสตรัคชั่น จำกัด",
+    "nameEn": null,
+    "taxId": "0999998020010",
+    "branchCode": "00000",
+    "registeredAddress": "99 หมู่ 4 ต.เจดีย์หัก อ.เมือง จ.ราชบุรี 70000",
+    "registrationDate": "2015-04-01",
+    "issuedOn": "2015-04-08",
+    "isVatRegistered": true,
+    "bankName": null,
+    "accountName": null,
+    "documentNumber": null,
+    "confidence": [
+      {
+        "field": "docType",
+        "value": 98
+      },
+      {
+        "field": "nameTh",
+        "value": 97
+      },
+      {
+        "field": "nameEn",
+        "value": 95
+      },
+      {
+        "field": "taxId",
+        "value": 96
+      },
+      {
+        "field": "branchCode",
+        "value": 95
+      },
+      {
+        "field": "registeredAddress",
+        "value": 95
+      },
+      {
+        "field": "registrationDate",
+        "value": 96
+      },
+      {
+        "field": "issuedOn",
+        "value": 96
+      },
+      {
+        "field": "isVatRegistered",
+        "value": 98
+      },
+      {
+        "field": "bankName",
+        "value": 95
+      },
+      {
+        "field": "accountName",
+        "value": 95
+      },
+      {
+        "field": "documentNumber",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 1613,
+    "output": 741,
+    "cacheRead": 1747,
+    "cacheWrite": 0
+  }
+}

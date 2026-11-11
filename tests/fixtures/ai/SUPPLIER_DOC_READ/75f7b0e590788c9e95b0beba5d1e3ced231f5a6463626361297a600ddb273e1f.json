@@ -1,0 +1,75 @@
+{
+  "promptVersion": "SUPPLIER_DOC_READ@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "docType": "VAT_CERT",
+    "nameTh": "บริษัท นนทบุรีสีและเคมีภัณฑ์ จำกัด",
+    "nameEn": null,
+    "taxId": "0999998021296",
+    "branchCode": "00002",
+    "registeredAddress": "140 ถนนรัตนาธิเบศร์ ต.บางกระสอ อ.เมืองนนทบุรี จ.นนทบุรี 11000",
+    "registrationDate": "2021-01-11",
+    "issuedOn": "2023-07-24",
+    "isVatRegistered": true,
+    "bankName": null,
+    "accountName": null,
+    "documentNumber": null,
+    "confidence": [
+      {
+        "field": "docType",
+        "value": 98
+      },
+      {
+        "field": "nameTh",
+        "value": 96
+      },
+      {
+        "field": "nameEn",
+        "value": 95
+      },
+      {
+        "field": "taxId",
+        "value": 95
+      },
+      {
+        "field": "branchCode",
+        "value": 93
+      },
+      {
+        "field": "registeredAddress",
+        "value": 93
+      },
+      {
+        "field": "registrationDate",
+        "value": 90
+      },
+      {
+        "field": "issuedOn",
+        "value": 90
+      },
+      {
+        "field": "isVatRegistered",
+        "value": 98
+      },
+      {
+        "field": "bankName",
+        "value": 95
+      },
+      {
+        "field": "accountName",
+        "value": 95
+      },
+      {
+        "field": "documentNumber",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 1501,
+    "output": 803,
+    "cacheRead": 1747,
+    "cacheWrite": 0
+  }
+}

@@ -16,6 +16,11 @@ export const PORTAL_SUPPLIER_TEMPLATES = {
   applicationReturned: 'supplier.application_returned',
   applicationRejected: 'supplier.application_rejected',
   applicationApproved: 'supplier.application_approved',
+  // S7-07 (BR-SUP ข้อ 12)
+  applicationReminder: 'supplier.application_reminder',
+  applicationExpired: 'supplier.application_expired',
+  // S7-11 (FR-SUP-105): the supplier's own confirmation of its acknowledgement
+  poDeliveryAck: 'supplier.po_delivery_ack',
   // S7-06 (BR-SDOC ข้อ 03 ข้อ 04)
   documentRejected: 'supplier.document_rejected',
   documentExpiring: 'supplier.document_expiring',
@@ -120,6 +125,39 @@ registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.applicationApproved, (d, c) =
   ),
 )
 
+// ---------- S7-07: an application waiting for its supplier (BR-SUP ข้อ 12) ----------
+
+const list = (v: unknown) => (Array.isArray(v) ? v.map(str).filter(Boolean) : [])
+
+registerSupplierTemplate(
+  PORTAL_SUPPLIER_TEMPLATES.applicationReminder,
+  (d, c) => {
+    const th = list(d.missingTh)
+    const en = list(d.missingEn)
+    return supplierMail(
+      `ใบสมัครผู้ขายของ ${c.organizationName} ยังไม่เสร็จ / Your application is not finished`,
+      [
+        `เรียน ${c.supplierName}`,
+        `ใบสมัครผู้ขายของท่านที่ ${c.organizationName} ยังไม่ได้ส่ง${th.length ? ' ยังขาด:' : ' โปรดตรวจและส่งใบสมัคร'}`,
+        ...th.map((m) => `- ${m}`),
+        `กดลิงก์นี้เพื่อเข้าพอร์ทัลและกรอกต่อ (ใช้ได้ครั้งเดียว ภายใน ${at(d.expiresAt)}):`,
+        str(d.url),
+        `ใบสมัครจะหมดอายุ ${at(d.applicationExpiresAt)} หากยังไม่ส่ง`,
+      ],
+      [`Your supplier application with ${c.organizationName} is not sent yet.${en.length ? ` Still missing: ${en.join(', ')}.` : ' Please check it and send it.'}`, `Open this link to continue (once, until ${atEn(d.expiresAt)}):`, str(d.url), `The application expires ${atEn(d.applicationExpiresAt)} if it is not sent.`],
+    )
+  },
+  { redactAfterSend: ['url'] },
+)
+
+registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.applicationExpired, (_d, c) =>
+  supplierMail(
+    `ใบสมัครผู้ขายของ ${c.organizationName} หมดอายุแล้ว / Your application expired`,
+    [`เรียน ${c.supplierName}`, `ใบสมัครผู้ขายของท่านที่ ${c.organizationName} หมดอายุแล้วเพราะไม่ได้ส่งภายในกำหนด`, `หากยังต้องการขึ้นทะเบียน โปรดติดต่อฝ่ายจัดซื้อของ ${c.organizationName} เพื่อขอลิงก์ใหม่`],
+    [`Your supplier application with ${c.organizationName} expired: it was not sent in time.`, 'If you still wish to register, please ask its procurement team for a new link.'],
+  ),
+)
+
 // ---------- S7-06: documents ----------
 
 registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.documentRejected, (d, c) =>
@@ -135,5 +173,15 @@ registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.documentExpiring, (d, c) =>
     `เอกสาร ${str(d.typeName)} จะหมดอายุวันที่ ${str(d.expiresOn)} / A document expires soon`,
     [`เรียน ${c.supplierName}`, `เอกสาร ${str(d.typeName)} ของท่านที่ ${c.organizationName} ใช้ได้ถึงวันที่ ${str(d.expiresOn)}`, 'โปรดเข้าพอร์ทัลเพื่อส่งฉบับใหม่ก่อนวันหมดอายุ'],
     [`Your ${str(d.typeName)} with ${c.organizationName} is valid until ${str(d.expiresOn)}.`, 'Please sign in to the portal and send a new copy before then.'],
+  ),
+)
+
+// ---------- S7-11: a PO acknowledged ----------
+
+registerSupplierTemplate(PORTAL_SUPPLIER_TEMPLATES.poDeliveryAck, (d, c) =>
+  supplierMail(
+    `รับทราบใบสั่งซื้อ ${str(d.number)} แล้ว / Purchase order acknowledged`,
+    [`เรียน ${c.supplierName}`, `${c.organizationName} ได้รับการรับทราบใบสั่งซื้อเลขที่ ${str(d.number)} ของท่านแล้ว${d.promisedDeliveryOn ? ` วันส่งที่แจ้ง ${str(d.promisedDeliveryOn)}` : ''}`, 'หากต้องเปลี่ยนวันส่ง โปรดแจ้งในพอร์ทัลพร้อมเหตุผล'],
+    [`${c.organizationName} has your acknowledgement of PO ${str(d.number)}${d.promisedDeliveryOn ? `, delivering on ${str(d.promisedDeliveryOn)}` : ''}.`, 'To change the delivery date, tell us on the portal with the reason.'],
   ),
 )

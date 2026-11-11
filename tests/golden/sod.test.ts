@@ -14,6 +14,10 @@ interface SodCase {
     action: 'DECIDE_APPROVAL' | 'POST_GR' | 'PROPOSE_ORG_AUTHORITY_CHANGE' | 'PREPARE_PAYMENT' | 'SCORE_RFX'
     actor: string
     requester?: string
+    source?: 'INTERNAL' | 'PORTAL'
+    proposedByContact?: string
+    submittedBy?: string
+    callVerifiedBy?: string
     approvers?: string[]
     subject?: ApprovalSubject
     poCreator?: string
@@ -51,6 +55,7 @@ function action(i: SodCase['input']): SodAction {
     ...(i.subject === 'AWARD_DECISION'
       ? { rfxCreatorMemberIds: i.rfxCreator ? [i.rfxCreator] : [], evaluatorMemberIds: i.evaluators ?? [], sourceRequesterMemberIds: i.sourceRequesters ?? [], recordedOnBehalfMemberIds: i.recordedOnBehalfBy ?? [] }
       : {}),
+    ...(i.source ? { bankChange: { source: i.source, submittedById: i.submittedBy ?? null, callVerifiedById: i.callVerifiedBy ?? null } } : {}),
   }
 }
 

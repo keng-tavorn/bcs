@@ -59,9 +59,11 @@ export interface TaskDecisionInput {
 /**
  * What the task decides; each has its own choices and words. REVIEW: a reviewer's task of a request (S6 · BR-WF-09);
  * BUDGET_TRANSFER: a budget transfer or adjustment (S6-15 · FR-BUD-103), approved, returned or rejected, never asked about;
- * BUDGET_OVERRUN: an over-budget approval (S6-16 · FR-BUD-101), the same three choices, its amount the shortfall (no VAT)
+ * BUDGET_OVERRUN: an over-budget approval (S6-16 · FR-BUD-101), the same three choices, its amount the shortfall (no VAT);
+ * SUPPLIER_APPLICATION: a new supplier's application (S7-05 · FR-SUP-104), approved, returned or rejected, never asked
+ * about, in the words of an application (S7-18: it read as a request with a budget)
  */
-export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN'
+export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN' | 'SUPPLIER_APPLICATION'
 type Disposition = 'CLOSE_SHORT' | 'ACCEPT_EXCESS' | 'ACCEPT_DAMAGED'
 const HINTED: readonly string[] = ['CLOSE_SHORT', 'ACCEPT_EXCESS', 'ACCEPT_DAMAGED']
 
@@ -183,8 +185,9 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
   const transfer = kind === 'BUDGET_TRANSFER'
   // S6-16: its amount is the shortfall (no VAT); deciding it changes the budget only when approved
   const overrun = kind === 'BUDGET_OVERRUN'
-  // The words of the two budget kinds, under tasks.decide.transfer or tasks.decide.overrun
-  const budget = transfer ? 'transfer' : overrun ? 'overrun' : null
+  // The words of the two budget kinds and of a supplier application, under tasks.decide.transfer, .overrun or
+  // .supplierApplication (the same keys)
+  const budget = transfer ? 'transfer' : overrun ? 'overrun' : kind === 'SUPPLIER_APPLICATION' ? 'supplierApplication' : null
   const hinted = (disposition && HINTED.includes(disposition) ? disposition : 'other') as Disposition | 'other'
   const ask = kind === 'REQUEST' || review ? actions.ask : undefined
   // The words of each kind; a request keeps the words it always had

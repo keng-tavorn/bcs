@@ -1,0 +1,146 @@
+{
+  "tabs": {
+    "label": "Parts of the supplier",
+    "info": "Details",
+    "documents": "Documents",
+    "contacts": "Contacts",
+    "acknowledgements": "PO acknowledgement",
+    "portal": "Portal",
+    "documentsState": "Documents by type",
+    "contactsTitle": "The supplier's contacts",
+    "acknowledgementsTitle": "POs sent to the supplier and their acknowledgement",
+    "portalTitle": "Use of the supplier portal"
+  },
+  "docSummary": {
+    "allOk": "Every required document is in and still valid",
+    "notOk": "A required document is missing, or one has expired",
+    "required": "Required",
+    "optional": "Optional",
+    "expiresOn": "Expires {date}",
+    "noExpiry": "Does not expire",
+    "none": "No document type is required for this kind of supplier, and the supplier has sent none yet",
+    "state": {
+      "OK": "Valid",
+      "EXPIRING": "Expiring soon",
+      "EXPIRED": "Expired",
+      "MISSING": "Missing",
+      "PENDING": "Waiting to be verified"
+    }
+  },
+  "contacts": {
+    "intro": "A contact is a person of the supplier who signs in to the portal with their own e-mail and receives the supplier's notices",
+    "addressHidden": "Contacts' e-mails and phone numbers are shown to procurement only",
+    "emptyTitle": "This supplier has no contact yet",
+    "emptyHint": "Contacts come from an approved application or are added by procurement; they will be listed here",
+    "emptyHintManage": "Press \"Add a contact\" so a person of the supplier can sign in to the portal and receive the supplier's notices",
+    "columns": {
+      "name": "Name",
+      "reach": "E-mail and phone",
+      "portal": "Portal",
+      "status": "Status",
+      "action": "Actions"
+    },
+    "primary": "Primary contact",
+    "status": {
+      "ACTIVE": "Active",
+      "DEACTIVATED": "Closed"
+    },
+    "portalOn": "May use the portal",
+    "portalOff": "Portal access off",
+    "neverSignedIn": "Has never signed in",
+    "lastSeen": "Last used {when}",
+    "firstSignedIn": "First signed in {when}",
+    "liveSessions": "Signed in on {count, plural, one {# device} other {# devices}}",
+    "closedOn": "Closed {when}",
+    "noPhone": "No phone number",
+    "add": "Add a contact",
+    "addTitle": "Add a contact of the supplier",
+    "addDescription": "The supplier's e-mail in the register and the primary contact before are told who was added; nothing is sent to the new address",
+    "fields": {
+      "nameTh": "Name (Thai)",
+      "nameEn": "Name (English), optional",
+      "email": "E-mail",
+      "emailHint": "The contact signs in to the portal with this e-mail. One e-mail belongs to one contact in the organization",
+      "phone": "Phone, optional",
+      "roleLabel": "Role, optional",
+      "roleHint": "For example sales or accounts",
+      "isPrimary": "Make the primary contact",
+      "isPrimaryHint": "The supplier's notices go to the primary contact; the primary contact before stops being one",
+      "locale": "Language of the e-mails and portal pages",
+      "localeTh": "Thai",
+      "localeEn": "English"
+    },
+    "nameMissing": "Enter the contact's name",
+    "emailInvalid": "Enter a valid e-mail, for example name@company.co.th",
+    "save": "Save the contact",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "makePrimary": "Make the primary contact",
+    "revoke": "Sign out of every device",
+    "revokeTitle": "Sign {name} out of the portal on every device?",
+    "revokeBody": "Every device signed in is signed out at once. The contact can still sign in again with their e-mail; to stop that, switch their portal access off or close the contact",
+    "revokeConfirm": "Sign out",
+    "deactivate": "Close the contact",
+    "deactivateTitle": "Close the contact {name}?",
+    "deactivateBody": "The contact is signed out of every device at once, can no longer sign in to the portal and no longer receives the supplier's notices. This cannot be undone: to let them in again, add them as a new contact",
+    "deactivatePrimary": "This is the primary contact. Make someone else the primary contact first, so the supplier's notices still reach someone",
+    "deactivateConfirm": "Close this contact",
+    "keep": "Not now",
+    "done": {
+      "added": "The contact was added",
+      "deactivated": "The contact was closed and signed out of every device",
+      "revoked": "The contact was signed out of every device",
+      "primary": "The primary contact was changed",
+      "portalOn": "{name} may now use the portal",
+      "portalOff": "{name}'s portal access was switched off and they were signed out of every device"
+    },
+    "errors": {
+      "FORBIDDEN": "You may not manage the supplier's contacts; only procurement can",
+      "MODULE_DISABLED": "The organization has not switched the supplier module on",
+      "NOT_FOUND": "This contact was not found or is already closed. Reload the page and try again",
+      "CONFLICT_VERSION": "Someone changed this contact after you opened the page. Reload the page and try again",
+      "INVALID_STATE_TRANSITION": "This contact is already closed",
+      "EMAIL_TAKEN": "An active contact already has this e-mail. Use another one",
+      "NO_SESSION": "This contact is not signed in on any device",
+      "VALIDATION_FAILED": "Something is not right. Check the name and the e-mail",
+      "FAILED": "That did not work. Try again"
+    }
+  },
+  "acks": {
+    "intro": "When a contact of the supplier acknowledges a PO on the portal, you see when, who, and the delivery date the supplier promised",
+    "emptyTitle": "No PO has been sent to this supplier yet",
+    "emptyHint": "When an approved PO is sent to the supplier it is listed here, and once the supplier acknowledges it on the portal you see when and the delivery date promised",
+    "columns": {
+      "po": "PO",
+      "sent": "Sent",
+      "ack": "Acknowledgement",
+      "promised": "Promised delivery"
+    },
+    "revision": "Revision {no}",
+    "draftNumber": "No number yet",
+    "ackStatus": {
+      "NOT_ACKNOWLEDGED": "Not acknowledged",
+      "ACKNOWLEDGED": "Acknowledged",
+      "DELIVERY_UPDATED": "Delivery moved"
+    },
+    "ackedBy": "by {name}",
+    "noPromise": "Not given",
+    "sentLabel": "Sent {when}",
+    "promisedLabel": "Promised delivery {date}",
+    "more": "Showing the latest {limit} of {total}. The others are on the purchase orders page"
+  },
+  "portal": {
+    "on": "This supplier may use the portal",
+    "off": "This supplier does not use the portal yet",
+    "onHint": "Contacts with portal access sign in to acknowledge POs and to see and send documents",
+    "offHint": "The portal opens for a supplier when its application is approved. To bring an existing supplier onto the portal, invite it from the invite page",
+    "readOnly": "The portal of the whole supplier cannot be switched on or off from this page yet. To keep someone out, switch off each contact's portal access below",
+    "inactive": "This supplier is no longer used, so its contacts cannot sign in to the portal",
+    "url": "Portal sign-in address",
+    "urlHint": "Send this address to the contacts. They sign in with their own e-mail and a code the system e-mails them",
+    "contactsTitle": "Contacts who may use the portal",
+    "contactsHint": "Switching access off signs the contact out of every device at once; it can be switched on again later",
+    "noContacts": "There is no active contact yet. Add one on the Contacts tab",
+    "switchLabel": "{name} may use the portal"
+  }
+}

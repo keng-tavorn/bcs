@@ -1,6 +1,6 @@
 import { getEnv } from '@/lib/env'
 import { aiActionsExpire } from './ai-actions-expire'
-import { aiAgentRun } from './ai-agent-run'
+import { aiAgentRun, supplierDocumentAi } from './ai-agent-run'
 import { aiApprovalBrief } from './ai-approval-brief'
 import { chatIntakeAi } from './chat-intake-ai'
 import { chatIntakeImage } from './chat-intake-image'
@@ -29,7 +29,8 @@ import { backtestRun } from './backtest-run'
 import { renewalReminders } from './renewal-reminders'
 import { budgetOverrunLapse } from './budget-overrun-lapse'
 import { budgetBurnAlerts } from './budget-burn-alerts'
-import { fileScan, supplierDocumentExpiry, supplierDocumentScannedJob } from './supplier-documents'
+import { fileScan, poAckReset, supplierDocumentExpiry, supplierDocumentScannedJob } from './supplier-documents'
+import { supplierApplicationSla } from './supplier-application-sla'
 import { bidFileScannedJob, rfxClose, rfxInviteLink, rfxReminder } from './rfx'
 import { preferredSupplierExpiry } from './preferred-supplier-expiry'
 import { riskAssessmentSla, riskEvidenceScannedJob } from './risk-assessments'
@@ -72,10 +73,13 @@ export const functions = [
   // S7-06: the central scan of uploaded files, S7's listener of it, and the daily expiry of supplier documents
   fileScan,
   supplierDocumentScannedJob,
+  supplierDocumentAi,
+  supplierDocumentExpiry,
+  supplierApplicationSla,
+  poAckReset,
   // S11-05
   riskAssessmentSla,
   riskEvidenceScannedJob,
-  supplierDocumentExpiry,
   // S10-04
   rfxClose,
   rfxReminder,

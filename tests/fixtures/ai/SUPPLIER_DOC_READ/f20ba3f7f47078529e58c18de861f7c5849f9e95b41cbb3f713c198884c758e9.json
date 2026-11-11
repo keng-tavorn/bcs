@@ -1,0 +1,75 @@
+{
+  "promptVersion": "SUPPLIER_DOC_READ@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "docType": "VAT_CERT",
+    "nameTh": "บริษัท เชียงใหม่ไฟฟ้าก่อสร้าง จำกัด",
+    "nameEn": null,
+    "taxId": "0999998021075",
+    "branchCode": "00000",
+    "registeredAddress": "58 ถนนช้างคลาน ต.ช้างคลาน อ.เมืองเชียงใหม่ จ.เชียงใหม่ 50100",
+    "registrationDate": "2016-09-01",
+    "issuedOn": "2016-09-14",
+    "isVatRegistered": true,
+    "bankName": null,
+    "accountName": null,
+    "documentNumber": null,
+    "confidence": [
+      {
+        "field": "docType",
+        "value": 98
+      },
+      {
+        "field": "nameTh",
+        "value": 95
+      },
+      {
+        "field": "nameEn",
+        "value": 95
+      },
+      {
+        "field": "taxId",
+        "value": 95
+      },
+      {
+        "field": "branchCode",
+        "value": 93
+      },
+      {
+        "field": "registeredAddress",
+        "value": 93
+      },
+      {
+        "field": "registrationDate",
+        "value": 95
+      },
+      {
+        "field": "issuedOn",
+        "value": 95
+      },
+      {
+        "field": "isVatRegistered",
+        "value": 98
+      },
+      {
+        "field": "bankName",
+        "value": 95
+      },
+      {
+        "field": "accountName",
+        "value": 95
+      },
+      {
+        "field": "documentNumber",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 1501,
+    "output": 796,
+    "cacheRead": 1747,
+    "cacheWrite": 0
+  }
+}

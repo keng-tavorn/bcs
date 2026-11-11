@@ -59,12 +59,21 @@ export interface ApInvoiceRowDto {
   readonly openExceptions: number
   /** The match flagged it as a possible duplicate, not dismissed (BR-MATCH-08) */
   readonly possibleDuplicate: boolean
+  /** S7-12: its file came from the supplier portal and waits for the central scan (FINANCE opens it once clean) */
+  readonly scanPending: boolean
+  /** S7-12: the scan found its file infected — it is not submitted (FILE_INFECTED); ask the supplier for another */
+  readonly scanInfected: boolean
   readonly createdAt: Date
 }
+
+/** S7-12: the channels an invoice came by, for the list's filter ("จากพอร์ทัล") */
+export const AP_LIST_CHANNELS = ['PORTAL', 'EMAIL', 'UPLOAD'] as const
+export type ApListChannel = (typeof AP_LIST_CHANNELS)[number]
 
 export interface ApInvoiceListDto {
   readonly tab: ApListTab
   readonly q: string
+  readonly channel: ApListChannel | null
   readonly rows: readonly ApInvoiceRowDto[]
   readonly limited: boolean
   /** How many invoices each tab holds under the search */
@@ -84,7 +93,7 @@ function searchWhere(q: string) {
 }
 
 /** /finance/invoices with PAY on: FINANCE (invoice.record) */
-export async function listApInvoices(ctx: Ctx, filter: { tab?: ApListTab | null; q?: string | null } = {}): Promise<Result<ApInvoiceListDto>> {
+export async function listApInvoices(ctx: Ctx, filter: { tab?: ApListTab | null; q?: string | null; channel?: ApListChannel | null } = {}): Promise<Result<ApInvoiceListDto>> {
   const db = forTenant(ctx.organizationId)
   const access = await db.$transaction(async (tx) => {
     const who = await guard(tx, ctx, 'invoice.record')
@@ -94,7 +103,8 @@ export async function listApInvoices(ctx: Ctx, filter: { tab?: ApListTab | null;
   if (!access.ok) return err(access.error.code, access.error.message, access.error.details)
   const tab: ApListTab = filter.tab ?? 'draft'
   const q = (filter.q ?? '').trim().slice(0, SEARCH_MAX)
-  const search = searchWhere(q)
+  const channel = filter.channel && (AP_LIST_CHANNELS as readonly string[]).includes(filter.channel) ? filter.channel : null
+  const search = { ...searchWhere(q), ...(channel ? { channel } : {}) }
   const statuses = TAB_STATUSES[tab]
   const [grouped, rows] = await Promise.all([
     db.invoice.groupBy({ by: ['status'], where: search, _count: { _all: true } }),
@@ -118,6 +128,7 @@ export async function listApInvoices(ctx: Ctx, filter: { tab?: ApListTab | null;
         supplier: { select: { code: true, nameTh: true, nameEn: true } },
         po: { select: { id: true, number: true } },
         exceptions: { where: { status: { in: ['OPEN', 'ACCEPT_REQUESTED'] } }, select: { type: true, status: true } },
+        sourceFile: { select: { scanStatus: true } },
       },
     }),
   ])
@@ -130,6 +141,7 @@ export async function listApInvoices(ctx: Ctx, filter: { tab?: ApListTab | null;
   return ok({
     tab,
     q,
+    channel,
     limited: rows.length > LIST_LIMIT,
     counts,
     canManageInbox: access.canManageInbox,
@@ -151,6 +163,8 @@ export async function listApInvoices(ctx: Ctx, filter: { tab?: ApListTab | null;
       payableSatang: r.payableSatang,
       openExceptions: r.exceptions.length,
       possibleDuplicate: r.exceptions.some((e) => e.type === 'POSSIBLE_DUPLICATE' && e.status === 'OPEN'),
+      scanPending: r.sourceFile?.scanStatus === 'PENDING',
+      scanInfected: r.sourceFile?.scanStatus === 'INFECTED',
       createdAt: r.createdAt,
     })),
   })

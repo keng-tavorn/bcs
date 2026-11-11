@@ -1,0 +1,65 @@
+{
+  "title": "Supplier report",
+  "intro": "How many business days new suppliers take from invitation to approval (KPI G-7), the applications waiting past their due time, and the suppliers whose documents expired. The figures come from the system, not from AI.",
+  "back": "Back to reports",
+  "moduleOff": "This organization has not switched on the supplier module, so this report is not available yet.",
+  "periodLabel": "Approval dates",
+  "run": "Show this period",
+  "noneYet": "No application approved in this period yet",
+  "noNumber": "No number yet",
+  "days": "{value} business days",
+  "median": {
+    "title": "Median business days from invitation to approval (G-7)",
+    "all": "All applications",
+    "self": "Filled in by the supplier",
+    "onBehalf": "Filled in by procurement",
+    "hint": "Business days on the organization’s calendar (1 day = one working day), one decimal; with an even count, the lower middle value. New suppliers approved in this period only."
+  },
+  "filledBy": {
+    "self": "The supplier",
+    "onBehalf": "Procurement on its behalf"
+  },
+  "approved": {
+    "title": "Applications approved in this period ({count})",
+    "caption": "New supplier applications approved in this period, with the business days from invitation to approval",
+    "emptyTitle": "No application approved in this period",
+    "emptyHint": "Try a longer period: a new supplier often takes weeks from invitation to approval.",
+    "columns": {
+      "application": "Application",
+      "supplier": "Supplier",
+      "invitedAt": "Invited",
+      "decidedAt": "Approved",
+      "days": "Business days",
+      "filledBy": "Filled in by"
+    }
+  },
+  "overdue": {
+    "title": "Applications past their due time ({count})",
+    "intro": "Applications the supplier has not finished that the system passed to procurement because they are past due, as of now (whatever the period).",
+    "caption": "Applications past their due time",
+    "emptyTitle": "No application is past its due time",
+    "emptyHint": "An application shows here once it is past the time the system passes it to procurement.",
+    "columns": {
+      "application": "Application",
+      "supplier": "Supplier",
+      "status": "Status",
+      "escalatedAt": "Passed to procurement"
+    }
+  },
+  "expired": {
+    "title": "Suppliers with an expired required document",
+    "intro": "Suppliers with at least one required document expired as of today, by supplier category.",
+    "caption": "Suppliers with an expired required document, by category",
+    "emptyTitle": "No supplier has an expired required document",
+    "emptyHint": "When a supplier’s required document expires, its category shows here.",
+    "noCategory": "No category",
+    "columns": {
+      "category": "Supplier category",
+      "suppliers": "Suppliers"
+    }
+  },
+  "export": {
+    "title": "Export",
+    "hint": "An Excel file of the applications in the table above, for the same period and scope, with the file’s checksum."
+  }
+}

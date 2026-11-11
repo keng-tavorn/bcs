@@ -72,7 +72,16 @@ P1_ONLY = {'Budget': ['fiscalYear','code','budgetKey','department','costCenter',
  'Supplier_Documents': ['supplierCode','docType','docNumber','issuer','scope','issuedDaysAgo','expiresDaysAhead','issuedOn','expiresOn','status','verifiedBy'],
  'Supplier_Applications': ['ref','kind','nameTh','taxId','branchCode','payeeType','category','contactName','contactEmail','inviterPhone','invitedBy','routedBy','verifiedBy',
                            'invitedDaysAgo','lastActivityDaysAgo','status','filledOnBehalf','missingDocs','decidedDaysAgo','expectedApprover','expectedG7Days'],
- 'Demo_Script_P2': ['scene','core','stage','titleTh','actor','others','portalActor','supplier','module','expectJson','minutes','stepsTh','notes']}
+ 'Demo_Script_P2': ['scene','core','stage','titleTh','actor','others','portalActor','supplier','module','expectJson','minutes','stepsTh','notes'],
+ # S10-14: sourcing of phase 2
+ 'RFx_Suppliers': ['ref','nameEn','nameTh','country','payeeType','taxId','category','contactName','contactEmail','contactLocale','invitedBy','routedBy','verifiedBy',
+                   'invitedDaysAgo','expectedApprover','expectedG7Days'],
+ 'RFx_Scenarios': ['ref','expectedNumber','kind','title','titleEn','description','categoryCode','sourceKind','historyRefs','needLines','creator','evaluators','weightsJson',
+                   'invitedSuppliers','openBusinessDaysAgo','openTime','closeAfterBusinessDays','closeTime','questionsJson','awardAfterBusinessDays','awardTime',
+                   'decideAfterBusinessDays','decideTime','awardReason','conclusionNote','allowVatInclusiveBids','demoLive','expectedStatus','expectedWinner',
+                   'expectedAwardNet','expectedAwardGross','expectedRule','expectedApprover','expectedBaseline','expectedSavings','expectedCycleDays'],
+ 'RFx_Bids': ['rfxRef','supplier','lineNo','unitPrice','includesVat','offered','submitAfterBusinessDays','submitTime','deliveryDays'],
+ 'RFx_Scores': ['rfxRef','evaluator','supplier','criterion','score']}
 REQ = {**COMMON, **(DEMO_ONLY if PROFILE == 'demo' else P1_ONLY)}
 miss = [s for s in REQ if s not in wb.sheetnames]
 check(not miss, 'ชีตครบ', f'{len(REQ)} ชีตข้อมูล', f'ขาด {miss}', 'ข้อมูลส่วนนั้นจะไม่ถูกนำเข้า', 'เพิ่มชีตที่ขาดโดยคัดลอกหัวตารางจากไฟล์ v1' if PROFILE == 'demo' else 'สร้างไฟล์ใหม่ด้วย scripts/inputs_p1/make.py')
@@ -172,7 +181,7 @@ check(sig in USR, 'ผู้มีอำนาจลงนามมีบัญ�
 RULES, rprob = {}, []
 # The DOA document types of src/core/doa (DOA_DOCUMENT_TYPES · P1-07): a type without an amount takes no band (BR-DOA-22)
 DOCS = {'PURCHASE_REQUEST','PURCHASE_ORDER','GR_VARIANCE','DOA_CHANGE','ORG_AUTHORITY_CHANGE',
-        'BUDGET_TRANSFER','OVER_BUDGET','INVOICE_EXCEPTION','PO_CHANGE','PAYMENT_RUN','BANK_ACCOUNT_CHANGE','SUPPLIER_APPROVAL'}
+        'BUDGET_TRANSFER','OVER_BUDGET','INVOICE_EXCEPTION','PO_CHANGE','PAYMENT_RUN','BANK_ACCOUNT_CHANGE','SUPPLIER_APPROVAL','RFX_AWARD'}
 NO_AMOUNT_DOCS = {'BANK_ACCOUNT_CHANGE', 'SUPPLIER_APPROVAL'}
 # The seed of the phase-1 file switches PAY on (ADR-070), so its DOA needs PAY's types (BR-DOA-23 BR-DOA-24)
 PAY_DOCS = ('INVOICE_EXCEPTION', 'PAYMENT_RUN', 'BANK_ACCOUNT_CHANGE')
@@ -195,6 +204,8 @@ if not RS: rprob.append(f'ไม่มีข้อ DOA ของฉบับ {VE
 if PROFILE == 'p1': rprob += [f'ฉบับ {VER} ไม่มีข้อของ {d} ที่โมดูล PAY ต้องมี' for d in PAY_DOCS if not any(r['doc'] == d for r in RS)]
 # S7-13: the seed of the phase-1 file switches SUPPLIER on too (BR-SUP-16), so its DOA needs the supplier's approval
 if PROFILE == 'p1' and not any(r['doc'] == 'SUPPLIER_APPROVAL' for r in RS): rprob.append(f'ฉบับ {VER} ไม่มีข้อของ SUPPLIER_APPROVAL ที่โมดูล SUPPLIER ต้องมี')
+# S10-14: and SOURCING (P1_SEED_MODULES), so its DOA needs the award of an RFx (BR-DOA-23 BR-DOA-24 · RA-01 to RA-03)
+if PROFILE == 'p1' and not any(r['doc'] == 'RFX_AWARD' for r in RS): rprob.append(f'ฉบับ {VER} ไม่มีข้อของ RFX_AWARD ที่โมดูล SOURCING ต้องมี')
 check(not rprob, 'ข้อมูล DOA และนโยบาย', f'ฉบับ {VER}: {len(RS)} ข้อ · ฐาน {BASIS} · step-up {baht(STEPUP)}', '; '.join(rprob), 'engine คำนวณเส้นทางไม่ได้', 'แก้ช่องที่ระบุในชีต DOA หรือ DOA_Policy')
 def is_amt(r): return r['gt'] is not None or r['lte'] is not None
 def lower(r): return r['gt'] or 0
@@ -1536,16 +1547,16 @@ if PROFILE == 'p1':
         if s_(d['payeeType']) not in ('JURISTIC', 'INDIVIDUAL'): ap_.append(f'{ref} payeeType ต้องเป็น JURISTIC หรือ INDIVIDUAL (ใบ FOREIGN เป็นของ S10)')
         if st not in APP_STATUS: ap_.append(f'{ref} status ไม่รู้จัก {st}')
         if s_(d['invitedBy']) not in PROC: ap_.append(f'{ref} invitedBy ต้องเป็นผู้ใช้ PROCUREMENT')
-        approver = s_(d['expectedApprover'])
+        app_approver = s_(d['expectedApprover'])
         for col in ('invitedBy', 'routedBy', 'verifiedBy', 'filledOnBehalf'):
             v = s_(d[col])
             if v and v not in USR: ap_.append(f'{ref} {col} ไม่มีผู้ใช้ {v}')
-            if v and approver and v == approver: ap_.append(f'{ref} {col} เป็นผู้อนุมัติ {approver} เองไม่ได้ (BR-SOD-11)')
+            if v and app_approver and v == app_approver: ap_.append(f'{ref} {col} เป็นผู้อนุมัติ {app_approver} เองไม่ได้ (BR-SOD-11)')
         em = s_(d['contactEmail'])
         if em in CEMAIL or em in APP.values(): ap_.append(f'{ref} อีเมลผู้ติดต่อ {em} ซ้ำ')
         APP[ref] = em
         if st == 'APPROVED':
-            if approver != 'dm_proc': ap_.append(f'{ref} ผู้อนุมัติที่คาดต้องเป็นผู้ดำรง PROC_MGR (dm_proc · ข้อ SA-01)')
+            if app_approver != 'dm_proc': ap_.append(f'{ref} ผู้อนุมัติที่คาดต้องเป็นผู้ดำรง PROC_MGR (dm_proc · ข้อ SA-01)')
             want = d['expectedG7Days']
             if not isinstance(want, (int, float)): ap_.append(f'{ref} ต้องมี expectedG7Days'); continue
             day = TODAY - timedelta(days=whole(d['invitedDaysAgo'], 0))
@@ -1562,6 +1573,228 @@ if PROFILE == 'p1':
     if want_g7 is not None and str(median) != str(want_g7): ap_.append(f'มัธยฐาน G-7 {median} แต่ฉาก 7 อ้าง {want_g7}')
     check(not ap_, 'พอร์ทัลผู้ขาย: ใบสมัคร (Supplier_Applications)', f'{len(APP)} ใบ · G-7 มัธยฐาน {median} วันทำการ ({", ".join(str(x) for x in g7)})', '; '.join(ap_[:8]),
           'seed เล่นใบสมัครไม่ได้ หรือ KPI G-7 ของ demo ไม่ตรงที่ฉาก 7 พูด', 'แก้ SUPPLIER_APPLICATIONS ใน scripts/inputs_p1/p1_suppliers_portal.py')
+
+    # ---------- จัดหา (S10-14 · docs/sub-specs/S10.md "การอ่านชีตของไฟล์ระยะ 1") ----------
+    # Each value is computed again here from the other sheets with the rules of S10, mirrored (never imported) from the
+    # source named at each: the earliest close (BR-RFX-07), minInvites (BR-RFX-01), the comparison before VAT and the
+    # ranking (BR-RFX-08 to BR-RFX-10 · src/core/sourcing), the award and its DOA route (BR-RFX-12 · RA-01 to RA-03), the
+    # savings and the business days of G-8 (BR-RFX-15). Times are business days after the opening, which opens some
+    # business days before the seed's business day (scripts/inputs_p1/p1_sourcing.py), so they hold on any day.
+    def _hm(v):
+        m = re.fullmatch(r'(\d\d):(\d\d)', s_(v))
+        return int(m.group(1)) * 60 + int(m.group(2)) if m and CAL_START <= int(m.group(1)) * 60 + int(m.group(2)) <= CAL_END else None
+    def _bday(day, k):  # k business days after (k > 0) or before (k < 0) a business day
+        while k:
+            day += timedelta(days=1 if k > 0 else -1)
+            if _biz(day): k += -1 if k > 0 else 1
+        return day
+    ANCHOR = TODAY
+    while not _biz(ANCHOR): ANCHOR -= timedelta(days=1)
+    def _at(day, minutes): return datetime.combine(day, datetime.min.time()) + timedelta(minutes=minutes)
+    def _js(v):
+        try: return json.loads(s_(v)) if s_(v) else None
+        except ValueError: return 'BAD'
+    def _lines_net(qty, unit): return rhu(int(Decimal(str(qty)) * 10000) * unit, 10000)  # lineNet of src/core/money/math.ts
+    MIN_OPEN = {k: whole(setv(f'sourcing.minOpenBusinessDays.{k}', d), d) for k, d in (('RFQ', 3), ('RFP', 10), ('RFI', 5))}
+    CUTOFF = whole(setv('sourcing.questionCutoffBusinessDays', 2), 2)
+    THRESH, ABOVE = money(setv('sourcing.minInvitesThresholdGross', '100000')) or 0, whole(setv('sourcing.minInvitesAboveThreshold', 3), 3)
+    MIN_EVAL = whole(setv('sourcing.minEvaluators', 2), 2)
+    VAT_INCL = s_(setv('sourcing.allowVatInclusiveBids', 'N')) == 'Y'
+    sr_ = []
+    if s_(setv('sourcing.minInvitesThresholdGross', '')) != s_(setv('quoteThresholdGross', '')): sr_.append('sourcing.minInvitesThresholdGross ต้องเท่ากับ quoteThresholdGross (OQ-08)')
+    for k in ('numbering.RFX', 'numbering.AWD'):
+        if '{SEQ' not in s_(setv(k, '')): sr_.append(f'Settings ไม่มีแถว {k} ที่มีลำดับ {{SEQn}}')
+
+    # RFx_Suppliers: the foreign supplier S7 has not (FR-INT-201), played through S7's application (BR-SUP-02 BR-SOD-11)
+    FOREIGN, FEMAIL = {}, {}
+    foreign_types = [c for c, t in DT.items() if 'FOREIGN' in t['applies'] and s_(next((d['required'] for r, d in table('Supplier_Document_Types') if s_(d['code']) == c), 'N')) == 'Y']
+    if not foreign_types: sr_.append('ชีต Supplier_Document_Types ไม่มีประเภทบังคับที่ใช้กับ FOREIGN (seed ส่งใบสมัครไม่ได้ BR-SUP-11)')
+    for r, d in table('RFx_Suppliers'):
+        ref, em = s_(d['ref']), s_(d['contactEmail'])
+        if s_(d['payeeType']) != 'FOREIGN': sr_.append(f'{at("RFx_Suppliers", "payeeType", r)} ต้องเป็น FOREIGN (ค่าของ enum PayeeType · JURISTIC INDIVIDUAL FOREIGN)')
+        if s_(d['taxId']): sr_.append(f'{ref} ผู้ขายต่างชาติไม่มีเลขผู้เสียภาษีไทย (BR-SUP-02)')
+        if not re.fullmatch(r'[A-Z]{2}', s_(d['country'])) or s_(d['country']) == 'TH': sr_.append(f'{at("RFx_Suppliers", "country", r)} ต้องเป็นรหัสประเทศอื่นที่ไม่ใช่ TH')
+        if s_(d['contactLocale']) != 'en': sr_.append(f'{ref} ผู้ติดต่อต้องใช้ภาษา en (ฉาก 13)')
+        if em != em.lower() or em in CEMAIL or em in APP.values() or em in {u['email'] for u in USR.values()}: sr_.append(f'{ref} อีเมล {em} ซ้ำหรือไม่ใช่ตัวพิมพ์เล็ก')
+        if s_(d['invitedBy']) not in PROC: sr_.append(f'{ref} invitedBy ต้องเป็นผู้ใช้ PROCUREMENT')
+        appr = s_(d['expectedApprover'])
+        if appr != route('SUPPLIER_APPROVAL', None, s_(d['routedBy']), USR.get(s_(d['routedBy']), {}).get('dept'), conflicts=(s_(d['invitedBy']), s_(d['verifiedBy']))).get('approver'): sr_.append(f'{ref} ผู้อนุมัติที่คาด {appr} ไม่ตรงข้อ SA-01')
+        for col in ('invitedBy', 'routedBy', 'verifiedBy'):
+            if s_(d[col]) not in USR: sr_.append(f'{ref} {col} ไม่มีผู้ใช้ {s_(d[col])}')
+            elif s_(d[col]) == appr: sr_.append(f'{ref} {col} เป็นผู้อนุมัติ {appr} เองไม่ได้ (BR-SOD-11)')
+        want = d['expectedG7Days']
+        if not isinstance(want, (int, float)): sr_.append(f'{ref} ต้องมี expectedG7Days'); continue
+        invited = add_bmin(_at(TODAY - timedelta(days=whole(d['invitedDaysAgo'], 0)), CAL_START), 90)
+        decided = add_bmin(invited, int(Decimal(str(want)) * DAY_MIN))
+        # outside the G-7 report of the last 90 days (S7 scene 7 keeps its median · SUPPLIER_REPORT_DAYS)
+        if (TODAY - decided.date()).days <= 90: sr_.append(f'{ref} อนุมัติ {decided.date()} อยู่ในช่วงรายงาน G-7 90 วัน มัธยฐานของฉาก 7 จะเปลี่ยน · เพิ่ม invitedDaysAgo')
+        FOREIGN[ref] = {'decided': decided, 'vat': False}
+        FEMAIL[ref] = em
+
+    # RFx_Scenarios with their bids and scores
+    BIDS, SCORES = {}, {}
+    for r, d in table('RFx_Bids'): BIDS.setdefault(s_(d['rfxRef']), []).append((r, d))
+    for r, d in table('RFx_Scores'): SCORES.setdefault(s_(d['rfxRef']), []).append((r, d))
+    RFX, order = {}, []
+    for r, d in table('RFx_Scenarios'):
+        ref, kind, src = s_(d['ref']), s_(d['kind']), s_(d['sourceKind'])
+        e = lambda msg: sr_.append(f'{ref}: {msg}')
+        if kind not in MIN_OPEN: e(f'kind {kind} ต้องเป็น RFQ RFP RFI'); continue
+        creator = s_(d['creator'])
+        if creator not in PROC: e(f'ผู้สร้าง {creator} ต้องมี role PROCUREMENT')
+        cat = s_(d['categoryCode'])
+        # the lines: the history rows (APPROVED, in the pool) or the need, one category (BR-RFX-01)
+        lines, requesters = [], set()
+        if src == 'REQUEST_LINES':
+            for h in [x.strip() for x in s_(d['historyRefs']).split(';') if x.strip()]:
+                row = HIST.get(h)
+                if not row: e(f'ไม่มี {h} ในชีต Request_History'); continue
+                if s_(row['status']) != 'APPROVED': e(f'{h} สถานะ {s_(row["status"])} ไม่ใช่ APPROVED (อยู่ในกอง)')
+                it = ITEM.get(s_(row['itemCode']))
+                if not it or s_(it['category']) != cat: e(f'{h} รายการ {s_(row["itemCode"])} ไม่อยู่หมวด {cat}')
+                ref_unit = money(it['refUnitPrice']) if it else None
+                lines.append({'qty': row['qty'], 'ref': ref_unit or money(row['unitPrice']), 'base': sat(row['net'])})
+                requesters.add(s_(row['requester']))
+        elif src == 'NEED':
+            nl = _js(d['needLines'])
+            if not isinstance(nl, list) or not nl: e('needLines ต้องเป็น JSON รายการบรรทัด'); nl = []
+            for l in nl:
+                code = l.get('catalogItemCode')
+                it = ITEM.get(code) if code else None
+                if code and (not it or s_(it['category']) != cat): e(f'รายการ {code} ไม่อยู่หมวด {cat}')
+                ref_unit = money(l.get('refUnitPrice')) or (money(it['refUnitPrice']) if it else None) or 0
+                lines.append({'qty': l.get('quantity'), 'ref': ref_unit, 'base': _lines_net(l.get('quantity'), ref_unit)})
+        else: e(f'sourceKind {src} ต้องเป็น REQUEST_LINES หรือ NEED')
+        estimate = sum(_lines_net(l['qty'], l['ref']) for l in lines)
+        min_inv = ABOVE if estimate + rhu(estimate * RATE_BP, 10000) > THRESH else 1
+        invited = [x.strip() for x in s_(d['invitedSuppliers']).split(';') if x.strip()]
+        for s in invited:
+            if s not in SUP and s not in FOREIGN: e(f'ผู้ขาย {s} ไม่มีในชีต Suppliers หรือ RFx_Suppliers')
+            elif s in SUP and s not in CEMAIL.values(): e(f'ผู้ขาย {s} ไม่มีผู้ติดต่อในชีต Supplier_Contacts')
+        if len(invited) < min_inv: e(f'เชิญ {len(invited)} ราย ยอดประมาณรวม VAT {baht(estimate + rhu(estimate * RATE_BP, 10000))} ต้องเชิญอย่างน้อย {min_inv} ราย (BR-RFX-01)')
+        weights = _js(d['weightsJson']) if kind != 'RFI' else None
+        evaluators = [x.strip() for x in s_(d['evaluators']).split(';') if x.strip()]
+        if kind != 'RFI':
+            if not isinstance(weights, list) or sum(whole(w.get('weightBp'), 0) for w in weights) != 10000 or 'PRICE' not in [w.get('code') for w in weights]:
+                e('weightsJson ต้องมีเกณฑ์ PRICE และน้ำหนักรวม 10000 (BR-RFX-09)'); weights = [{'code': 'PRICE', 'weightBp': 10000}]
+            if any(w['code'] != 'PRICE' for w in weights) and len(evaluators) < MIN_EVAL: e(f'ผู้ประเมิน {len(evaluators)} คน ต้องอย่างน้อย {MIN_EVAL} (OQ-206)')
+        for v in evaluators:
+            if v not in USR: e(f'ไม่มีผู้ประเมิน {v}')
+            if v == creator or v in requesters: e(f'ผู้ประเมิน {v} เป็นผู้สร้างหรือผู้ขอของบรรทัดต้นทางไม่ได้ (BR-SOD-14)')
+        # times: the opening on a business day back from the seed's, the close no sooner than the minimum (BR-RFX-07)
+        ot, ct = _hm(d['openTime']), _hm(d['closeTime'])
+        ago, after = whole(d['openBusinessDaysAgo'], -1), whole(d['closeAfterBusinessDays'], -1)
+        if ot is None or ct is None or ago < 0 or after < 0: e('openBusinessDaysAgo openTime closeAfterBusinessDays closeTime ต้องเป็นวันทำการและเวลาในเวลาทำการ'); continue
+        opened = _at(_bday(ANCHOR, -ago), ot)
+        closes = _at(_bday(opened.date(), after), ct)
+        if closes < add_bmin(opened, MIN_OPEN[kind] * DAY_MIN): e(f'ปิดรับ {closes} เร็วกว่าที่ระบบยอม ({add_bmin(opened, MIN_OPEN[kind] * DAY_MIN)} · {MIN_OPEN[kind]} วันทำการ)')
+        cutoff_day = _bday(closes.date(), -CUTOFF)
+        for q in (_js(d['questionsJson']) or []):
+            asked = _at(_bday(opened.date(), whole(q.get('afterBusinessDays'), 0)), CAL_START + 60)
+            if q.get('supplier') not in invited: e(f'คำถามจากผู้ขาย {q.get("supplier")} ที่ไม่ได้เชิญ')
+            if asked >= _at(cutoff_day, ct): e('คำถามถามหลังปิดรับคำถาม (BR-RFX-04)')
+        live = s_(d['demoLive']) == 'Y'
+        st = s_(d['expectedStatus'])
+        if live and st != 'OPEN': e('RFx ที่เล่นสดต้องหยุดที่ OPEN')
+        if live and ago != 0: e('RFx ที่เล่นสดเปิดในวันทำการของวัน seed (openBusinessDaysAgo 0) ให้ยังเปิดรับตอน demo')
+        if not live and closes.date() >= TODAY: e(f'ปิดรับ {closes.date()} ไม่อยู่ในอดีต · เพิ่ม openBusinessDaysAgo')
+        if kind == 'RFI' and st != 'CONCLUDED' and not live: e('RFI ต้องจบที่ CONCLUDED (BR-RFX-02)')
+        if kind != 'RFI' and st not in ('AWARDED', 'OPEN'): e(f'สถานะที่คาด {st} ต้องเป็น AWARDED หรือ OPEN')
+        for f_ in FOREIGN.values():
+            if f_['decided'] >= opened: e('ผู้ขายต่างชาติต้องได้รับอนุมัติก่อน RFx ใบแรกเปิด')
+        decide = None
+        if s_(d['decideAfterBusinessDays']) and _hm(d['decideTime']) is not None:
+            decide = _at(_bday(opened.date(), whole(d['decideAfterBusinessDays'], 0)), _hm(d['decideTime']))
+            if decide <= closes: e('อนุมัติผลหรือสรุปก่อนปิดรับ')
+            if kind != 'RFI':
+                award_at = _at(_bday(opened.date(), whole(d['awardAfterBusinessDays'], 0)), _hm(d['awardTime']) or CAL_START)
+                if not closes < award_at < decide: e('ส่งผลมอบงานต้องอยู่ระหว่างปิดรับกับการอนุมัติ')
+            if decide.date() >= TODAY: e(f'อนุมัติ {decide.date()} ไม่อยู่ในอดีต')
+        elif not live: e('ต้องมี decideAfterBusinessDays และ decideTime')
+        # bids: invited suppliers, before the close, every line, VAT included only where the RFx and the supplier allow
+        bids = {}
+        for br, b in BIDS.get(ref, []):
+            s = s_(b['supplier'])
+            if s not in invited: e(f'ข้อเสนอของ {s} ที่ไม่ได้เชิญ'); continue
+            sub = _at(_bday(opened.date(), whole(b['submitAfterBusinessDays'], 0)), _hm(b['submitTime']) or CAL_START)
+            if not opened < sub < closes: e(f'ข้อเสนอของ {s} ยื่นนอกช่วงเปิดรับ ({sub})')
+            incl = s_(b['includesVat']) == 'Y'
+            if incl and not (s_(d['allowVatInclusiveBids']) == 'Y' and VAT_INCL and VATREG.get(s, False)): e(f'{s} ยื่นราคารวม VAT ได้เฉพาะ RFx ที่เปิดให้ ผู้ขายจด VAT และ Settings ยอม (OQ-212)')
+            bids.setdefault(s, {'incl': incl, 'lines': {}, 'at': sub})['lines'][whole(b['lineNo'], 0)] = money(b['unitPrice'])
+        if kind == 'RFI' and bids: e('RFI ไม่มีราคา (BR-RFX-02)')
+        rows = {}
+        for s, b in bids.items():
+            if sorted(b['lines']) != list(range(1, len(lines) + 1)) or any(v is None or v <= 0 for v in b['lines'].values()): e(f'ข้อเสนอของ {s} ไม่ครบทุกบรรทัด'); continue
+            amts = [_lines_net(lines[n - 1]['qty'], b['lines'][n]) for n in range(1, len(lines) + 1)]
+            tot, rate = sum(amts), (RATE_BP if VATREG.get(s, s not in FOREIGN) else 0)
+            if b['incl']: vat = rhu(tot * rate, 10000 + rate); net = tot - vat
+            else: net, vat = tot, rhu(tot * rate, 10000)
+            rows[s] = {'net': net, 'rate': rate, 'units': b['lines'], 'at': b['at']}
+        # scores: the evaluators', 0–100, of every bid and criterion other than PRICE; the ranking (src/core/sourcing rankBids)
+        crit = [w['code'] for w in (weights or []) if w['code'] != 'PRICE']
+        given = {}
+        for sr, sc in SCORES.get(ref, []):
+            ev, s, c, v = s_(sc['evaluator']), s_(sc['supplier']), s_(sc['criterion']), sc['score']
+            if ev not in evaluators: e(f'{ev} ไม่ใช่ผู้ประเมินของ RFx นี้')
+            if c not in crit: e(f'เกณฑ์ {c} ไม่อยู่ใน weightsJson หรือเป็น PRICE')
+            if not whole_in(v, 0, 100): e(f'คะแนน {v} ต้องเป็นจำนวนเต็ม 0–100')
+            given[(ev, s, c)] = whole(v, 0)
+        if crit and rows and set(given) != {(ev, s, c) for ev in evaluators for s in rows for c in crit}: e('คะแนนไม่ครบทุกผู้ประเมิน ข้อเสนอ และเกณฑ์')
+        totals, ranking = {}, []
+        if rows:
+            low = min(v['net'] for v in rows.values())
+            for s, v in rows.items():
+                parts = {'PRICE': rhu(low * 10000, v['net'])}
+                for c in crit: parts[c] = rhu(sum(given.get((ev, s, c), 0) for ev in evaluators) * 100, max(1, len(evaluators)))
+                totals[s] = rhu(sum(whole(w['weightBp'], 0) * parts[w['code']] for w in weights), 10000)
+            ranking = sorted(rows, key=lambda s: (-totals[s], rows[s]['net'], rows[s]['at'], s))
+        won = ranking[0] if ranking else None
+        if kind != 'RFI' and s_(d['expectedWinner']) != (won or ''): e(f'ผู้ชนะที่คำนวณได้ {won} ไม่ตรง {s_(d["expectedWinner"])}')
+        award = None
+        if won:
+            net = sum(_lines_net(lines[n - 1]['qty'], rows[won]['units'][n]) for n in range(1, len(lines) + 1)) if not bids[won]['incl'] else rows[won]['net']
+            gross = net + rhu(net * rows[won]['rate'], 10000)
+            base = sum(l['base'] for l in lines)
+            rt = route('RFX_AWARD', gross if BASIS == 'GROSS' else net, creator, USR.get(creator, {}).get('dept'), conflicts=(*evaluators, *requesters))
+            cyc = rhu(bmin_between(opened, decide) * 10, DAY_MIN) if decide else None
+            # a live RFx is decided in the demo: its business days are the sheet's own (G-8 after scene 9)
+            award = {'net': net, 'gross': gross, 'base': base, 'savings': base - net, 'live': live,
+                     'cycle': cyc if not live else int(Decimal(s_(d['expectedCycleDays']) or '0') * 10)}
+            want = {'expectedAwardNet': net, 'expectedAwardGross': gross, 'expectedBaseline': base, 'expectedSavings': base - net}
+            for k, v in want.items():
+                if money(d[k]) != v: e(f'{k} คำนวณได้ {baht(v)} ไม่ตรง {s_(d[k])}')
+            if rt.get('rule') != s_(d['expectedRule']) or rt.get('approver') != s_(d['expectedApprover']): e(f'เส้นทาง DOA คำนวณได้ {rt} ไม่ตรง {s_(d["expectedRule"])} {s_(d["expectedApprover"])}')
+            if not live and f'{cyc // 10}.{cyc % 10}' != s_(d['expectedCycleDays']): e(f'วันทำการเปิดถึงอนุมัติคำนวณได้ {cyc // 10}.{cyc % 10} ไม่ตรง {s_(d["expectedCycleDays"])}')
+            if any(rows[s]['net'] < net for s in rows) and not s_(d['awardReason']): e('ผู้ชนะไม่ใช่ราคาต่ำสุด ต้องมี awardReason (BR-RFX-12)')
+        RFX[ref] = {'opened': opened, 'number': s_(d['expectedNumber']), 'rows': rows, 'totals': totals, 'ranking': ranking, 'award': award, 'rule': s_(d['expectedRule']), 'approver': s_(d['expectedApprover'])}
+        order.append(ref)
+    # numbers in the order of opening (BR-NUM-01 · the seed plays them so)
+    by_open = sorted(order, key=lambda x: RFX[x]['opened'])
+    if [RFX[x]['number'][-5:] for x in by_open] != [f'{i:05d}' for i in range(1, len(by_open) + 1)]: sr_.append(f'expectedNumber ต้องเรียงตามวันเปิด ({", ".join(f"{x} {RFX[x]["number"]}" for x in by_open)})')
+    # Demo_Script_P2 of S10 against the computation: scenes 9 and 10, and G-8 of scene 15 (lower median · BR-RFX-15)
+    def _two(n): return f'{n // 100}.{n % 100:02d}'
+    for r, d in P2:
+        if s_(d['stage']) != 'S10': continue
+        ej = _ej(d) or {}
+        x = RFX.get(ej.get('rfx'))
+        if x and x['award']:
+            got = {'compareNet': {s: f'{v["net"] // 100}.{v["net"] % 100:02d}' for s, v in x['rows'].items()}, 'totals': {s: _two(v) for s, v in x['totals'].items()},
+                   'ranking': x['ranking'], 'awardNet': f'{x["award"]["net"] // 100}.{x["award"]["net"] % 100:02d}', 'awardGross': f'{x["award"]["gross"] // 100}.{x["award"]["gross"] % 100:02d}',
+                   'rule': x['rule'], 'approver': x['approver'], 'savings': f'{x["award"]["savings"] // 100}.{x["award"]["savings"] % 100:02d}'}
+            for k, v in got.items():
+                if k in ej and ej[k] != v: sr_.append(f'ฉาก {d["scene"]} {k} {ej[k]} ไม่ตรงที่คำนวณได้ {v}')
+        if 'afterSeed' in ej:
+            for key, live_too in (('afterSeed', False), ('afterScene9', True)):
+                aw = [v['award'] for v in RFX.values() if v['award'] and (live_too or not v['award']['live'])]
+                base, sav = sum(a['base'] for a in aw), sum(a['savings'] for a in aw)
+                cyc = sorted(a['cycle'] for a in aw)
+                got = {'awards': len(aw), 'baseline': f'{base // 100}.{base % 100:02d}', 'savings': f'{sav // 100}.{sav % 100:02d}' if sav >= 0 else f'-{(-sav) // 100}.{(-sav) % 100:02d}',
+                       'savingsBp': (1 if sav >= 0 else -1) * rhu(abs(sav) * 10000, base) if base else 0, 'medianDays': f'{cyc[(len(cyc) - 1) // 2] // 10}.{cyc[(len(cyc) - 1) // 2] % 10}' if cyc else None}
+                if ej[key] != got: sr_.append(f'ฉาก {d["scene"]} {key} {ej[key]} ไม่ตรงที่คำนวณได้ {got}')
+    check(not sr_, 'จัดหา (RFx_Scenarios RFx_Bids RFx_Scores RFx_Suppliers)',
+          f'{len(RFX)} RFx · ข้อเสนอ {sum(len(v["rows"]) for v in RFX.values())} ใบ · ผลมอบงานหลัง seed {sum(1 for v in RFX.values() if v["award"] and not v["award"]["live"])} ผล · ผู้ขายต่างชาติ {len(FOREIGN)} ราย ({TODAY})',
+          '; '.join(sr_[:8]), 'seed เล่น RFx ไม่ได้ หรือยอดในฉาก demo 9 ถึง 15 ไม่ตรงที่ระบบคำนวณ', 'แก้ scripts/inputs_p1/p1_sourcing.py หรือแถว sourcing.* ใน p1_master.py แล้วสร้างไฟล์ใหม่')
+    APP.update(FEMAIL)  # the scenes of S10 name the foreign supplier and its contact
 
     # Demo_Script_P2 (the shared sheet of phase 2): scenes 1–8 of S7 there, numbers in order without gaps, every name known
     pp, nums = [], []
@@ -1580,6 +1813,9 @@ if PROFILE == 'p1':
         if _ej(d) is None: pp.append(f'ฉาก {n} expectJson ไม่ใช่ JSON')
     s7 = sorted(d['scene'] for r, d in P2 if s_(d['stage']) == 'S7')
     if s7 != list(range(1, 9)): pp.append(f'ฉากของ S7 ต้องเป็น 1–8 (ได้ {s7})')
+    s10 = sorted(d['scene'] for r, d in P2 if s_(d['stage']) == 'S10')
+    if s10 != list(range(9, 16)): pp.append(f'ฉากของ S10 ต้องเป็น 9–15 (ได้ {s10})')
+    pp += [f'ฉาก {d["scene"]} (core) ต้องมี expectJson' for r, d in P2 if s_(d['core']) == 'Y' and not _ej(d)]
     if sorted(nums) != list(range(1, len(nums) + 1)): pp.append('เลขฉากซ้ำหรือไม่ต่อเนื่อง')
     check(not pp, 'สคริปต์ demo ระยะ 2 (Demo_Script_P2)', f'{len(nums)} ฉาก · S7 ฉาก 1–8', '; '.join(pp[:8]), 'ฉาก e2e @p2demo อ่านแถวของตนไม่ได้', 'แก้ demo_p2_rows() ของขั้นนั้นแล้วสร้างไฟล์ใหม่')
 

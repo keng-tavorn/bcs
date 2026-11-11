@@ -213,6 +213,23 @@ SETTINGS = [
     ('supplier.contactRetentionDays', 365, 'ลบตัวตนของผู้ติดต่อที่ปิดบัญชีหลังกี่วัน', 'OQ-188'),
     ('supplier.newContactBankHoldBusinessDays', 2, 'ผู้ติดต่อใหม่ต้องรอกี่วันทำการก่อนเสนอบัญชีธนาคาร', 'OQ-192'),
     ('numbering.SUP', 'SUP-{BE}-{SEQ5}', 'รูปแบบเลขใบสมัครผู้ขาย (ระบบออกตอนส่ง)', 'OQ-12'),
+    # S10-14: sourcing of phase 2 (src/lib/org-settings.ts SourcingSettingsSchema · the OQ defaults) and its numbers
+    ('sourcing.minOpenBusinessDays.RFQ', 3, 'RFQ เปิดรับอย่างน้อยกี่วันทำการ', 'BR-RFX-07'),
+    ('sourcing.minOpenBusinessDays.RFP', 10, 'RFP เปิดรับอย่างน้อยกี่วันทำการ', 'BR-RFX-07'),
+    ('sourcing.minOpenBusinessDays.RFI', 5, 'RFI เปิดรับอย่างน้อยกี่วันทำการ', 'BR-RFX-07'),
+    ('sourcing.questionCutoffBusinessDays', 2, 'ปิดรับคำถามก่อนปิดรับข้อเสนอกี่วันทำการ', 'BR-RFX-04'),
+    ('sourcing.bidValidityDays', 30, 'ข้อเสนอยืนราคากี่วัน', 'BR-RFX-11'),
+    ('sourcing.sealedBids', 'Y', 'ปิดซองจนปิดรับ (จัดซื้อไม่เห็นราคาก่อนปิด)', 'OQ-201'),
+    ('sourcing.allowVatInclusiveBids', 'Y', 'รับราคาแบบรวม VAT (เปิดให้ RFQ ของฉาก 9 · ค่าเริ่มต้นของ OQ คือไม่รับ)', 'OQ-212'),
+    ('sourcing.minInvitesThresholdGross', 100000, 'ยอดประมาณรวม VAT ที่เกินแล้วต้องเชิญหลายราย (ค่าเดียวกับ quoteThresholdGross)', 'OQ-08'),
+    ('sourcing.minInvitesAboveThreshold', 3, 'เกินยอดนั้นต้องเชิญอย่างน้อยกี่ราย', 'BR-RFX-01'),
+    ('sourcing.minEvaluators', 2, 'ต้องมีผู้ประเมินอย่างน้อยกี่คน', 'OQ-206'),
+    ('sourcing.priceAnomalyBp', 2000, 'ราคาต่างจากราคาอ้างอิงเกินเท่านี้จึงติดธง (basis point · 2000 = 20%)', 'OQ-208'),
+    ('sourcing.preferredSupplierDays', 365, 'ผู้ชนะเป็นผู้ขายที่แนะนำของหมวดกี่วัน', 'OQ-210'),
+    ('sourcing.agreementFromAwardDays', 365, 'ราคาตกลงจากผลการจัดหามีผลกี่วัน', 'OQ-210'),
+    ('sourcing.aiAssist', 'Y', 'ให้ AI ช่วยร่าง RFx สรุปข้อเสนอ และเสนอประเด็นเจรจา', 'OQ-209'),
+    ('numbering.RFX', 'RFX-{BE}-{SEQ5}', 'รูปแบบเลข RFx (ระบบออกตอนเปิด)', 'OQ-12'),
+    ('numbering.AWD', 'AWD-{BE}-{SEQ5}', 'รูปแบบเลขผลมอบงาน (ระบบออกตอนส่งอนุมัติ)', 'OQ-12'),
     ('priceAlertPct', 0.1, 'เตือนเมื่อราคาใหม่แพงกว่าครั้งก่อนเกินเท่านี้', 'FR-P2P-003'),
     ('digest.budgetLowPct', 0.1, 'สรุปรายวันแจ้งบรรทัดงบที่เหลือต่ำกว่านี้', 'FR-LINE-006'),
     ('vatRounding', 'DOCUMENT', 'คิด VAT ระดับเอกสาร', 'OQ-17'),
@@ -280,6 +297,10 @@ DOA_RULES = [  # version, ruleCode, documentType, gt, lte, approverKind, approve
     # Phase 2 (S7-13 · drafted in S7-02): a new supplier approved by the procurement manager, a draft the customer confirms (OQ-182)
     (1, 'SA-01', 'SUPPLIER_APPROVAL', None, None, 'POSITION_OF_ORG', 'PROC_MGR', None, 16, 'อนุมัติผู้ขายใหม่ → ผู้จัดการจัดซื้อ (ร่างระยะ 2 · รอลูกค้ายืนยัน OQ-182)'),
     (1, 'BA-01', 'BANK_ACCOUNT_CHANGE', None, None, 'POSITION_OF_ORG', 'CFO', None, 8, 'เพิ่มหรือเปลี่ยนบัญชีรับเงินของผู้ขาย → CFO (ผู้แก้ห้ามอนุมัติ BR-SOD-05) (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    # Phase 2 (S10-14 · drafted in S10-02 · tests/golden/fixtures/doa-versions-p2.yaml): the award of an RFx by its amount with VAT (OQ-207)
+    (1, 'RA-01', 'RFX_AWARD', 0, 500000, 'POSITION_OF_ORG', 'PROC_MGR', None, 16, 'อนุมัติผลการจัดหาไม่เกิน 500,000 บาท → ผู้จัดการจัดซื้อ (ร่างระยะ 2 · รอลูกค้ายืนยัน OQ-207)'),
+    (1, 'RA-02', 'RFX_AWARD', 500000, 5000000, 'POSITION_OF_ORG', 'COO', None, 16, 'อนุมัติผลการจัดหาเกิน 500,000 ถึง 5,000,000 บาท → COO (ร่างระยะ 2 · รอลูกค้ายืนยัน OQ-207)'),
+    (1, 'RA-03', 'RFX_AWARD', 5000000, None, 'POSITION_OF_ORG', 'CEO', None, 24, 'อนุมัติผลการจัดหาเกิน 5,000,000 บาท → กรรมการผู้จัดการ (ร่างระยะ 2 · รอลูกค้ายืนยัน OQ-207)'),
 ]
 
 WORKFLOW_REVIEWERS = [  # ruleCode, requestType, conditionTh, reviewerPosition, reviewerDepartment, mode, sla, descriptionTh, ref,

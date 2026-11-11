@@ -684,7 +684,8 @@ def _p2_row(v):
 
 def scenes_p2():
     from p1_suppliers_portal import demo_p2_rows as s7_rows
-    rows = [_p2_row(r) for r in s7_rows()]
+    from p1_sourcing import demo_p2_rows as s10_rows
+    rows = [_p2_row(r) for r in s7_rows()] + [_p2_row(r) for r in s10_rows()]
     return sorted(rows, key=lambda r: r['scene'])
 
 

@@ -27,6 +27,8 @@ from p1_texts import (README, INPUTS, QUESTIONS_Q, QUESTIONS_B, SCENARIOS,  # no
 from p1_demo import COLUMNS as DEMO_COLUMNS, SCENES as DEMO_SCENES, P2_COLUMNS as DEMO_P2_COLUMNS, SCENES_P2 as DEMO_P2_SCENES  # noqa: E402
 from p1_suppliers_portal import (CONTACT_COLUMNS, SUPPLIER_CONTACTS, DOC_TYPE_COLUMNS, DOC_TYPES, DOCUMENT_COLUMNS, SUPPLIER_DOCUMENTS,  # noqa: E402
                                  APPLICATION_COLUMNS, SUPPLIER_APPLICATIONS)
+from p1_sourcing import (RFX_SUPPLIER_COLUMNS, RFX_SUPPLIERS, RFX_SCENARIO_COLUMNS, RFX_BID_COLUMNS, RFX_BIDS, RFX_SCORE_COLUMNS, RFX_SCORES,  # noqa: E402
+                         scenario_rows as rfx_scenario_rows)
 
 REAL, DEFAULT, SYNTH = 'real', 'default', 'synthetic'
 FILL = {REAL: '1F3864', DEFAULT: '7F7F7F', SYNTH: 'BF8F00'}
@@ -220,6 +222,11 @@ def main():
         t(sheet('Supplier_Documents'), SYNTH, DOCUMENT_COLUMNS, SUPPLIER_DOCUMENTS)
         t(sheet('Supplier_Applications'), SYNTH, APPLICATION_COLUMNS, SUPPLIER_APPLICATIONS)
         t(sheet('Demo_Script_P2'), SYNTH, DEMO_P2_COLUMNS, DEMO_P2_SCENES)
+        # S10-14: sourcing of phase 2 — the foreign supplier, the RFx played by the seed, their bids and scores
+        t(sheet('RFx_Suppliers'), SYNTH, RFX_SUPPLIER_COLUMNS, RFX_SUPPLIERS)
+        t(sheet('RFx_Scenarios'), SYNTH, RFX_SCENARIO_COLUMNS, rfx_scenario_rows())
+        t(sheet('RFx_Bids'), SYNTH, RFX_BID_COLUMNS, RFX_BIDS)
+        t(sheet('RFx_Scores'), SYNTH, RFX_SCORE_COLUMNS, RFX_SCORES)
     deterministic(wb, out)
 
     if not blank:
@@ -229,6 +236,7 @@ def main():
         print(f'เขียน {out}')
         print(f'  ผู้ใช้ {len(USERS)} · หน่วยงาน {len(DEPARTMENTS)} · ผู้ขาย {len(SUPPLIERS)} · รายการสินค้า {len(ITEMS)} · บรรทัดงบ {len(budget_rows())}')
         print(f'  พอร์ทัลผู้ขาย: ผู้ติดต่อ {len(SUPPLIER_CONTACTS)} · ประเภทเอกสาร {len(DOC_TYPES)} · เอกสาร {len(SUPPLIER_DOCUMENTS)} · ใบสมัคร {len(SUPPLIER_APPLICATIONS)} · ฉากระยะ 2 {len(DEMO_P2_SCENES)}')
+        print(f'  จัดหา: RFx {len(rfx_scenario_rows())} · ข้อเสนอ {len(RFX_BIDS)} บรรทัด · คะแนน {len(RFX_SCORES)} · ผู้ขายต่างชาติ {len(RFX_SUPPLIERS)}')
         print(f'  ประวัติ {len(history)} คำขอ ({", ".join(f"{k} {v}" for k, v in sorted(st.items()))}) · เอกสาร AI {len(samples)} ฉบับ')
     else:
         print(f'เขียนแบบฟอร์มว่าง {out}')

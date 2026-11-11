@@ -130,8 +130,9 @@ export const RISK_TEMPLATES: Readonly<Record<string, Template>> = {
     }
     return {
       title: { th: `แบบประเมินความเสี่ยงของผู้ขาย ${who} เลยรอบแล้ว`, en: `The risk assessment of supplier ${who} is overdue` },
-      body: d.tier === 'HIGH'
-        ? { th: 'ผู้ขายระดับสูงออกใบสั่งซื้อใหม่ไม่ได้จนกว่าจะประเมินซ้ำเสร็จ', en: 'A high-risk supplier gets no new purchase order until its reassessment completes' }
+      // blocks: the gate's rule for an OVERDUE assessment (the tier's blocksPo, or MEDIUM under mediumOverdueBlocks)
+      body: d.blocks
+        ? { th: 'ผู้ขายรายนี้ออกใบสั่งซื้อใหม่ไม่ได้จนกว่าจะประเมินซ้ำเสร็จ', en: 'This supplier gets no new purchase order until its reassessment completes' }
         : { th: 'ใบสั่งซื้อใหม่ต้องกรอกเหตุผลจนกว่าจะประเมินซ้ำเสร็จ', en: 'New purchase orders need a reason until its reassessment completes' },
       href,
     }

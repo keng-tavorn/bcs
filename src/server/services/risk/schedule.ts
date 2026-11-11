@@ -15,7 +15,7 @@ import { defineCommand, runCommand, type CommandDefinition, type CommandOutcome,
 import { requireModule } from '../modules'
 import { contextOf, createAssessment, inviteToAnswer, openAssessmentOf, refreshSupplierRisk, RISK_TIMEZONE } from './assessments'
 import { questionnaireInEffect, supersedeDueQuestionnaires } from './questionnaire'
-import { riskPolicyInEffect } from './tiers'
+import { riskPolicyInEffect, riskTiersInEffect } from './tiers'
 
 // Reassessment and the registry's flags (S11-09 · FR-RSK-205 · BR-RSK-12 BR-RSK-13 BR-RSK-14 · ADR-227):
 // - risk-review-daily (07:15 Asia/Bangkok, every organization with RISK on, the day the idempotency key): a COMPLETED
@@ -80,7 +80,18 @@ async function openReview(
   tx: TenantTx,
   ctx: Ctx,
   supplier: Supplier,
-  input: { reason: ReviewReason; tier: RiskTierCode | null; dueAt: Date; sourceAssessmentId?: string; sourceOverrideId?: string; registryFlag?: Flag; openedAssessmentId?: string | null },
+  input: {
+    reason: ReviewReason
+    tier: RiskTierCode | null
+    dueAt: Date
+    sourceAssessmentId?: string
+    sourceOverrideId?: string
+    registryFlag?: Flag
+    /** The assessment this command opened for the review (the event says so) */
+    openedAssessmentId?: string | null
+    /** The assessment the notice links to: the one opened, or the one already open */
+    linkAssessmentId?: string | null
+  },
 ): Promise<{ id: string; events: EventDraft[]; notifications: NotificationDraft[] }> {
   const row = await tx.riskReview.create({
     data: {
@@ -100,7 +111,7 @@ async function openReview(
   const notifications: NotificationDraft[] = (await procurementIds(tx)).map((memberId) => ({
     recipientMemberId: memberId,
     templateKey: flagged ? 'risk.status_changed' : 'risk.review_due',
-    data: { reviewId: row.id, supplierId: supplier.id, supplierCode: supplier.code, reason: input.reason, dueOn: dateIn(input.dueAt, RISK_TIMEZONE), tier: input.tier, registryFlag: input.registryFlag ?? null, to: flagged ? 'REASSESS_REQUIRED' : null, assessmentId: input.openedAssessmentId ?? null },
+    data: { reviewId: row.id, supplierId: supplier.id, supplierCode: supplier.code, reason: input.reason, dueOn: dateIn(input.dueAt, RISK_TIMEZONE), tier: input.tier, registryFlag: input.registryFlag ?? null, to: flagged ? 'REASSESS_REQUIRED' : null, assessmentId: input.linkAssessmentId ?? input.openedAssessmentId ?? null },
     urgency: flagged ? 'IMMEDIATE' : 'DIGEST',
     dedupeKey: `risk.review:${row.id}:${memberId}`,
     subjectType: 'Supplier',
@@ -129,22 +140,38 @@ async function openReview(
   }
 }
 
-/** The supplier's projection and, when it turns OVERDUE (or REASSESS_REQUIRED by the day), PROCUREMENT's DIGEST notice */
-async function projectionOf(tx: TenantTx, ctx: Ctx, supplier: Supplier): Promise<{ events: EventDraft[]; notifications: NotificationDraft[] }> {
+/**
+ * Whether a new PO of the supplier is blocked once its assessment is OVERDUE (the gate's rule · BR-RSK-09 ข้อ 5): its tier
+ * blocks POs, or it is MEDIUM and the policy blocks a lapsed MEDIUM (RiskPolicy.mediumOverdueBlocks)
+ */
+async function overdueBlocks(tx: TenantTx, tier: RiskTierCode | null): Promise<boolean> {
+  if (!tier) return false
+  const tiers = await riskTiersInEffect(tx)
+  const policy = await riskPolicyInEffect(tx)
+  const def = tiers.ok ? tiers.data.find((t) => t.code === tier) : undefined
+  return Boolean(def?.blocksPo) || (tier === 'MEDIUM' && policy.ok && policy.data.mediumOverdueBlocks)
+}
+
+/**
+ * The supplier's projection and, when it turned OVERDUE in this command (by this refresh or by one the command ran
+ * before it, given as `earlier` — createAssessment refreshes too), the reviews past their dueAt (risk_review.overdue,
+ * the state stays OPEN) and PROCUREMENT's DIGEST notice
+ */
+async function projectionOf(tx: TenantTx, ctx: Ctx, supplier: Supplier, earlier: readonly EventDraft[] = []): Promise<{ events: EventDraft[]; notifications: NotificationDraft[] }> {
   const events = await refreshSupplierRisk(tx, ctx, supplier.id)
-  const changed = events.find((e) => e.type === 'supplier.risk_status_changed')
-  const to = (changed?.data as { to?: string } | undefined)?.to
+  const changes = [...earlier, ...events].filter((e) => e.type === 'supplier.risk_status_changed')
+  const to = (changes.at(-1)?.data as { to?: string } | undefined)?.to
   if (to !== 'OVERDUE') return { events, notifications: [] }
-  // the reviews that were due (the scheduled one at validUntil) are now past it: the state stays OPEN
-  const due = await tx.riskReview.findMany({ where: { supplierId: supplier.id, status: 'OPEN', dueAt: { lte: ctx.now } }, select: { id: true, status: true, dueAt: true } })
+  const due = await tx.riskReview.findMany({ where: { supplierId: supplier.id, status: 'OPEN', dueAt: { lte: ctx.now } }, select: { id: true, status: true, dueAt: true }, orderBy: { id: 'asc' } })
   for (const r of due) {
     const t = transition(RISK_REVIEW_MACHINE, r.status, 'risk_review.overdue')
     if (t.ok) events.push({ type: 'risk_review.overdue', aggregateType: 'RiskReview', aggregateId: r.id, data: { dueAt: r.dueAt.toISOString() } })
   }
+  const blocks = await overdueBlocks(tx, supplier.riskTier)
   const notifications: NotificationDraft[] = (await procurementIds(tx)).map((memberId) => ({
     recipientMemberId: memberId,
     templateKey: 'risk.status_changed',
-    data: { supplierId: supplier.id, supplierCode: supplier.code, to, tier: supplier.riskTier },
+    data: { supplierId: supplier.id, supplierCode: supplier.code, to, tier: supplier.riskTier, blocks },
     urgency: 'DIGEST',
     dedupeKey: `risk.status_changed:${supplier.id}:${to}:${dateIn(ctx.now, RISK_TIMEZONE)}:${memberId}`,
     subjectType: 'Supplier',
@@ -174,6 +201,10 @@ const scheduleCommand = defineCommand({
     if (a.status !== 'COMPLETED' || !a.remindOn || !a.validUntil || iso(a.remindOn) > today) return nothing('NOT_DUE')
     if (supplier.status !== 'ACTIVE') return nothing('SUPPLIER_INACTIVE')
     if (await tx.riskReview.findFirst({ where: { supplierId: supplier.id, reason: 'SCHEDULED', status: 'OPEN' }, select: { id: true } })) return nothing('REVIEW_OPEN')
+    // once per completed assessment: a review of it DONE, or cancelled by a person, is not opened again; one the job
+    // cancelled while the supplier was not ACTIVE is, once the supplier is ACTIVE again
+    const before = await tx.riskReview.findFirst({ where: { sourceAssessmentId: a.id, reason: 'SCHEDULED', NOT: { status: 'CANCELLED', cancelReason: 'SUPPLIER_INACTIVE' } }, select: { id: true } })
+    if (before) return nothing('REVIEWED')
 
     // the new assessment, unless one is open already (INV-RSK-02): the old one's work, the version and policy of today
     const events: EventDraft[] = []
@@ -213,8 +244,9 @@ const scheduleCommand = defineCommand({
         outbox.push(...opened.outbox)
       }
     }
-    const review = await openReview(tx, ctx, supplier, { reason: 'SCHEDULED', tier: a.tier as RiskTierCode | null, dueAt: endOfDay(iso(a.validUntil)), sourceAssessmentId: a.id, openedAssessmentId })
-    const projection = await projectionOf(tx, ctx, supplier)
+    const review = await openReview(tx, ctx, supplier, { reason: 'SCHEDULED', tier: a.tier as RiskTierCode | null, dueAt: endOfDay(iso(a.validUntil)), sourceAssessmentId: a.id, openedAssessmentId, linkAssessmentId: openedAssessmentId ?? open?.id ?? null })
+    // the day may already be past validUntil (a job that missed days): the refresh inside createAssessment saw it first
+    const projection = await projectionOf(tx, ctx, supplier, events)
     return {
       ok: true,
       result: { reviewId: review.id, openedAssessmentId },
@@ -253,6 +285,8 @@ const remindExpiryCommand = defineCommand({
     const today = dateIn(ctx.now, RISK_TIMEZONE)
     const last = iso(row.expiresOn)
     if (row.status !== 'APPROVED' || last < today || last > addCalendarDays(today, OVERRIDE_EXPIRY_NOTICE_DAYS)) return nothing('NOT_EXPIRING')
+    // told once, whichever of the seven days the job first saw it
+    if ((await tx.event.count({ where: { aggregateId: row.id, type: 'risk_override.expiring' } })) > 0) return nothing('TOLD')
     const daysLeft = Math.round((Date.parse(last) - Date.parse(today)) / MS_PER_DAY)
     return {
       ok: true,
@@ -291,7 +325,7 @@ const expireCommand = defineCommand({
     let reviewId: string | null = null
     if (!valid && supplier.status === 'ACTIVE' && !(await tx.riskReview.findFirst({ where: { supplierId: supplier.id, reason: 'OVERRIDE_EXPIRED', status: 'OPEN' }, select: { id: true } }))) {
       const open = await openAssessmentOf(tx, supplier.id)
-      const review = await openReview(tx, ctx, supplier, { reason: 'OVERRIDE_EXPIRED', tier: supplier.riskTier, dueAt: endOfDay(iso(row.expiresOn)), sourceOverrideId: row.id, openedAssessmentId: open?.id ?? null })
+      const review = await openReview(tx, ctx, supplier, { reason: 'OVERRIDE_EXPIRED', tier: supplier.riskTier, dueAt: endOfDay(iso(row.expiresOn)), sourceOverrideId: row.id, openedAssessmentId: null, linkAssessmentId: open?.id ?? null })
       reviewId = review.id
       events.push(...review.events)
       notifications.push(...review.notifications)
@@ -321,7 +355,7 @@ const expireCommand = defineCommand({
 // ---------- reviews of a supplier no longer ACTIVE (the RiskReview table: OPEN → CANCELLED) ----------
 
 const cancelInactiveCommand = defineCommand({
-  name: 'riskReview.cancel',
+  name: 'risk_review.cancel_inactive',
   capability: 'system.risk',
   input: z.strictObject({ supplierId: z.uuid() }),
   async execute(tx, input, ctx): Promise<CommandOutcome<{ cancelled: number }>> {
@@ -399,7 +433,7 @@ export async function runRiskReviewDaily(organizationId: string, now: Date, opti
       if ((await run(expireCommand, { overrideId: o.id }, `expire:${o.id}`)).ok) overridesExpired++
     } else if (last <= addCalendarDays(today, OVERRIDE_EXPIRY_NOTICE_DAYS)) {
       // once per override, whichever day of the seven the job first sees it
-      if ((await run(remindExpiryCommand, { overrideId: o.id }, `expiring:${o.id}`)).ok) overridesExpiring++
+      if ((await run(remindExpiryCommand, { overrideId: o.id }, `expiring:${today}:${o.id}`)).ok) overridesExpiring++
     }
   }
 
@@ -416,14 +450,13 @@ export async function runRiskReviewDaily(organizationId: string, now: Date, opti
     select: { id: true },
     orderBy: { id: 'asc' },
   })
-  // once per completed assessment: a review cancelled or done is not opened again for the same one
-  for (const a of due) if ((await run(scheduleCommand, { assessmentId: a.id }, `schedule:${a.id}`)).ok) reviewsScheduled++
+  for (const a of due) if ((await run(scheduleCommand, { assessmentId: a.id }, `schedule:${today}:${a.id}`)).ok) reviewsScheduled++
 
   // the state of the day where it moves: CURRENT → EXPIRING at remindOn (a review opened above already did it), EXPIRING
-  // → OVERDUE after validUntil
+  // → OVERDUE after validUntil; IN_PROGRESS of a supplier assessed before is the rule before S11-09, corrected here
   let suppliersRefreshed = 0
   const assessed = await db.supplier.findMany({
-    where: { riskStatus: { in: ['CURRENT', 'EXPIRING'] }, currentRiskAssessment: { isNot: null } },
+    where: { riskStatus: { in: ['CURRENT', 'EXPIRING', 'IN_PROGRESS'] }, currentRiskAssessment: { isNot: null } },
     select: { id: true, riskStatus: true, currentRiskAssessment: { select: { validUntil: true, remindOn: true } } },
     orderBy: { id: 'asc' },
   })
@@ -436,15 +469,8 @@ export async function runRiskReviewDaily(organizationId: string, now: Date, opti
   return { questionnairesSuperseded, overridesExpiring, overridesExpired, reviewsScheduled, reviewsCancelled, suppliersRefreshed }
 }
 
-/** The 07:15 run over every organization with RISK on */
-export async function runAllRiskReviewDaily(now: Date): Promise<RiskReviewDailyResult> {
-  const total = { questionnairesSuperseded: 0, overridesExpiring: 0, overridesExpired: 0, reviewsScheduled: 0, reviewsCancelled: 0, suppliersRefreshed: 0 }
-  for (const organizationId of await organizationsWithRisk()) {
-    const r = await runRiskReviewDaily(organizationId, now)
-    for (const k of Object.keys(total) as (keyof typeof total)[]) total[k] += r[k]
-  }
-  return total
-}
+/** The organizations risk-review-daily runs for (RISK on): one step each in the job */
+export const riskReviewOrganizations = (): Promise<string[]> => organizationsWithRisk()
 
 // ---------- the registry's flag (BR-RSK-12 · FR-RSK-205 AC3 · job risk-status-changed) ----------
 

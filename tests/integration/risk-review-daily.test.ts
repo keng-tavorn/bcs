@@ -257,3 +257,73 @@ describe('[FR-RSK-205/AC4] the reassessment is a new assessment: completed, it s
     expect(await prisma.riskReview.findFirstOrThrow({ where: { supplierId: s.supplierId, status: 'OPEN' } })).toMatchObject({ reason: 'SCHEDULED', sourceAssessmentId: renewal.id })
   })
 })
+
+describe('[FR-RSK-205/AC2] the review of S11-09: a late run, a supplier back to ACTIVE, the state written by the old rule', () => {
+  let o: DoaOrg
+  beforeAll(async () => {
+    o = await createP2Org()
+    await riskOrg(o)
+  })
+
+  it('the first run after validUntil (days missed): the review, OVERDUE, risk_review.overdue and the notice that POs are blocked', async () => {
+    const s = await supplierWithContact('RR-LATE', o)
+    await assessedAt(s, COMPLETED_AT, o)
+    const run = await daily('2026-12-16', o)
+    expect(run.reviewsScheduled).toBe(1)
+    const review = await prisma.riskReview.findFirstOrThrow({ where: { supplierId: s.supplierId } })
+    expect(review).toMatchObject({ reason: 'SCHEDULED', status: 'OPEN' })
+    expect((await supplierOf(s.supplierId)).riskStatus).toBe('OVERDUE')
+    expect(await eventsOf(review.id, 'risk_review.overdue')).toHaveLength(1)
+    const told = await prisma.notification.findMany({ where: { subjectId: s.supplierId, templateKey: 'risk.status_changed' } })
+    expect(told.length).toBeGreaterThan(0)
+    expect(told.every((n) => n.urgency === 'DIGEST' && (n.data as { blocks?: boolean }).blocks === true)).toBe(true)
+  })
+
+  it('a supplier made INACTIVE has its review cancelled; ACTIVE again, the job opens a new one; replays count nothing', async () => {
+    const s = await supplierWithContact('RR-BACK', o)
+    await assessedAt(s, COMPLETED_AT, o)
+    expect((await daily('2026-11-15', o)).reviewsScheduled).toBe(1)
+    await prisma.supplier.update({ where: { id: s.supplierId }, data: { status: 'INACTIVE' } })
+    await daily('2026-11-16', o)
+    expect(await prisma.riskReview.findFirstOrThrow({ where: { supplierId: s.supplierId } })).toMatchObject({ status: 'CANCELLED', cancelReason: 'SUPPLIER_INACTIVE' })
+    await prisma.supplier.update({ where: { id: s.supplierId }, data: { status: 'ACTIVE' } })
+    expect((await daily('2026-11-17', o)).reviewsScheduled).toBe(1)
+    expect(await prisma.riskReview.findMany({ where: { supplierId: s.supplierId }, select: { status: true }, orderBy: { createdAt: 'asc' } })).toEqual([{ status: 'CANCELLED' }, { status: 'OPEN' }])
+    // the assessment the first review opened is still the one to answer: no second assessment
+    expect(await prisma.riskAssessment.count({ where: { supplierId: s.supplierId, status: 'DRAFT' } })).toBe(1)
+    // the next days: nothing scheduled again, nothing counted
+    expect((await daily('2026-11-18', o)).reviewsScheduled).toBe(0)
+    expect((await daily('2026-11-18', o)).reviewsScheduled).toBe(0)
+  })
+
+  it('a review a person cancelled is not opened again for the same assessment', async () => {
+    const s = await supplierWithContact('RR-CXL', o)
+    await assessedAt(s, COMPLETED_AT, o)
+    await daily('2026-11-15', o)
+    await prisma.riskReview.updateMany({ where: { supplierId: s.supplierId }, data: { status: 'CANCELLED', cancelReason: 'จัดซื้อยกเลิก' } })
+    await daily('2026-11-16', o)
+    expect(await prisma.riskReview.count({ where: { supplierId: s.supplierId } })).toBe(1)
+  })
+
+  it('IN_PROGRESS written by the rule before S11-09 for an assessed supplier is corrected to the state of the day', async () => {
+    const s = await supplierWithContact('RR-OLD', o)
+    await assessedAt(s, COMPLETED_AT, o)
+    await prisma.supplier.update({ where: { id: s.supplierId }, data: { riskStatus: 'IN_PROGRESS' } })
+    expect((await daily('2026-11-10', o)).suppliersRefreshed).toBeGreaterThanOrEqual(1)
+    expect((await supplierOf(s.supplierId)).riskStatus).toBe('CURRENT')
+  })
+
+  it('an override that lapses while an assessment is open: the review links to it, the event opens none', async () => {
+    const s = await supplierWithContact('RR-OPEN', o)
+    const opened = ok(await openRiskAssessment(o.ctxOf('proc_officer', morning('2026-11-02')), { supplierId: s.supplierId, screening: SCREEN_HIGH }, key()))
+    const row = await prisma.riskOverride.create({
+      data: { organizationId: o.organizationId, number: 'RO-OPEN', supplierId: s.supplierId, reason: 'งานด่วน', capGrossSatang: 1_000_000n, expiresOn: new Date('2026-11-05'), requestedById: o.member.proc_officer!, submittedAt: COMPLETED_AT, decidedAt: COMPLETED_AT, status: 'APPROVED' },
+    })
+    await daily('2026-11-06', o)
+    const review = await prisma.riskReview.findFirstOrThrow({ where: { supplierId: s.supplierId, reason: 'OVERRIDE_EXPIRED' } })
+    expect(review.sourceOverrideId).toBe(row.id)
+    expect((await eventsOf(review.id, 'risk_review.scheduled'))[0]).toMatchObject({ data: { openedAssessmentId: null } })
+    const notice = await prisma.notification.findFirstOrThrow({ where: { subjectId: s.supplierId, templateKey: 'risk.review_due' } })
+    expect(notice.data).toMatchObject({ reason: 'OVERRIDE_EXPIRED', assessmentId: opened.assessmentId })
+  })
+})

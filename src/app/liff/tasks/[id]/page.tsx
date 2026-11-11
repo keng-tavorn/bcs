@@ -45,6 +45,8 @@ import { getPoChangeTaskView } from '@/server/queries/po-changes'
 import { LiffPoChangeSummary } from '@/ui/liff/tasks/subjects/po-change'
 import { LiffRiskOverrideSummary } from '@/ui/liff/tasks/subjects/risk-override'
 import { riskOverrideView } from '@/server/services/risk'
+import { getAwardTaskView } from '@/server/services/sourcing'
+import { LiffAwardSummary } from '@/ui/liff/tasks/subjects/award'
 import { getPaymentRunTaskView } from '@/server/queries/payment-runs'
 import { getBankAccountChange } from '@/server/services/bank-accounts/view'
 import { LiffBankAccountChangeSummary } from '@/ui/liff/tasks/subjects/bank-account-change'
@@ -209,6 +211,8 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
   // S8: the price variance of an invoice, and a change of a sent PO
   const invoice = task.subjectType === 'INVOICE' ? await getInvoiceTaskView(ctx, task.subjectId) : null
   const poChange = task.subjectType === 'PO_CHANGE' ? await getPoChangeTaskView(ctx, task.subjectId) : null
+  // S10-10: the award of an RFx
+  const award = task.subjectType === 'AWARD_DECISION' ? await getAwardTaskView(ctx, task.subjectId) : null
   // S9: a payment run with its flags now (BR-PAY-07), and a bank account change masked (BR-SUP-07)
   const paymentRun = task.subjectType === 'PAYMENT_RUN' ? await getPaymentRunTaskView(ctx, task.subjectId) : null
   const bankChange = task.subjectType === 'BANK_ACCOUNT_CHANGE' ? await getBankAccountChange(ctx, { changeId: task.subjectId }).then((r) => (r.ok ? r.data : null)) : null
@@ -285,6 +289,8 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
                   ? (riskOverride.number ?? '-')
                   : supplierApp
                     ? supplierApp.label
+                    : award
+                      ? (award.number ?? '-')
                     : task.policy
               ? policyHeadline(t, locale, task.policy)
               : t('item.untitled')
@@ -373,6 +379,8 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
         <LiffRiskOverrideSummary override={riskOverride} />
       ) : task.subjectType === 'SUPPLIER_APPLICATION' ? (
         <LiffSupplierApplicationSummary application={supplierApp} />
+      ) : task.subjectType === 'AWARD_DECISION' ? (
+        <LiffAwardSummary award={award} />
       ) : (
         <PolicySubject task={task} locale={locale} doaLinks={false} doaSimulate={false} orgAuthorityLink={false} />
       )}

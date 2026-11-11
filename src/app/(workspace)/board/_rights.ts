@@ -11,5 +11,6 @@ export function linkRights(memberId: string, roles: Iterable<StoredRole>): LinkR
     purchaseOrders: scopesFor(principal, 'po.view').has('ORG'),
     doaVersions: isAllowed(principal, 'admin.doa.draft'),
     orgAuthorityChanges: isAllowed(principal, 'admin.orgAuthority.propose'),
+    sourcing: scopesFor(principal, 'sourcing.view').has('ORG'),
   }
 }

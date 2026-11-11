@@ -84,7 +84,8 @@ function placeFacts(tv: ViewT, locale: Locale, view: RequestViewDto): PlaceFact[
     {
       label: tv('facts.suggestedSupplier'),
       value: supplier ? tv('facts.suggestedSupplierValue', { code: supplier.code, name: nameIn(locale, supplier.name) }) : tv('facts.suggestedSupplierNone'),
-      detail: null,
+      // S10-13 (BR-FORM-12): the requester's reason for leaving a preferred supplier, for the approver and procurement
+      detail: view.preferredSupplierOverrideReason ? tv('facts.preferredOverrideReason', { reason: view.preferredSupplierOverrideReason }) : null,
       set: supplier !== null,
     },
   ]

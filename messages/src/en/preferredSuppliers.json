@@ -1,0 +1,143 @@
+{
+  "title": "Preferred suppliers",
+  "intro": "The supplier the request form fills first for each category, from an approved sourcing award or set by procurement. A requester may choose another but gives the reason.",
+  "riskIntro": "A preferred supplier at risk still shows on the request form, but a requester who chooses another gives no reason. Procurement may end it.",
+  "back": "Back to the supplier register",
+  "link": "Preferred suppliers per category",
+  "forbidden": "This account may not see the supplier register. Ask your organization admin if you need this page.",
+  "failed": "The preferred suppliers could not be opened. Reload the page and try again.",
+  "home": "Back to home",
+  "sourcingOff": "Sourcing is switched off, so no new preferred supplier can be set. Those set before still fill the request form until their last day, and can be ended early.",
+  "filter": {
+    "label": "Filter the preferred suppliers",
+    "category": "Category",
+    "allCategories": "All categories",
+    "show": "Show",
+    "current": "In effect and still to come",
+    "all": "All, including those that ended",
+    "submit": "Show list",
+    "clear": "Clear filters",
+    "count": "{count, plural, one {# entry} other {# entries}}",
+    "limited": "Showing the first {shown}. Choose a category to see the rest."
+  },
+  "listLabel": "Preferred suppliers",
+  "col": {
+    "category": "Category",
+    "supplier": "Supplier",
+    "source": "Source",
+    "period": "Period",
+    "status": "Status",
+    "actions": "Actions"
+  },
+  "empty": {
+    "current": "No preferred supplier is in effect yet",
+    "currentHint": "When a sourcing award is approved, its winner becomes the preferred supplier of the category.",
+    "currentHintManage": "When a sourcing award is approved, its winner becomes the preferred supplier of the category. Or press \"Set a preferred supplier\" to set one yourself.",
+    "all": "There has never been a preferred supplier",
+    "noMatch": "No preferred supplier for category {category}",
+    "noMatchHint": "Choose another category, or show all to see those that ended.",
+    "showAll": "Show all, including those that ended"
+  },
+  "row": {
+    "label": "Category {category} · {code} {name}",
+    "supplier": "{code} · {name}",
+    "inactive": "Supplier no longer in use: the request form does not fill it",
+    "fromAward": "From sourcing award {award}",
+    "fromAwardPending": "From a sourcing award",
+    "manual": "Set by procurement",
+    "note": "Reason: {note}",
+    "period": "{from} to {to}",
+    "endedAt": "Ended on {at}",
+    "endReason": "Why it ended: {reason}"
+  },
+  "status": {
+    "IN_EFFECT": "In effect",
+    "ENDING_SOON": "Ending soon · {days, plural, one {# day} other {# days}} left",
+    "UPCOMING": "Starts {date}",
+    "ENDED": "Ended early",
+    "EXPIRED": "Period over"
+  },
+  "risk": {
+    "tier": "Risk tier {tier}",
+    "tierStatus": "Risk tier {tier} · {status}",
+    "notAssessed": "Risk not assessed yet",
+    "tierName": {
+      "LOW": "low",
+      "MEDIUM": "medium",
+      "HIGH": "high"
+    },
+    "status": {
+      "NOT_ASSESSED": "not assessed",
+      "IN_PROGRESS": "assessment in progress",
+      "CURRENT": "assessment valid",
+      "EXPIRING": "assessment expiring soon",
+      "OVERDUE": "assessment overdue",
+      "REASSESS_REQUIRED": "to be assessed again"
+    },
+    "flag": {
+      "CEASED": "the registry says it ceased business",
+      "VAT_CANCELLED": "the registry says its VAT registration was cancelled",
+      "NOT_FOUND": "not found in the registry"
+    },
+    "atRisk": "Recommended but at risk: {why}",
+    "exempt": "A requester who chooses another gives no reason"
+  },
+  "create": {
+    "open": "Set a preferred supplier",
+    "title": "Set a preferred supplier",
+    "intro": "The request form fills this supplier for the category throughout the period. A requester who chooses another gives the reason.",
+    "category": "Category",
+    "categoryChoose": "Choose a category",
+    "categoryHint": "A category of the catalogue's items or of an RFx",
+    "noCategories": "There is no category to choose yet. Add an item to the catalogue or open an RFx of that category first.",
+    "supplier": "Supplier",
+    "supplierChoose": "Choose a supplier",
+    "supplierOption": "{code} · {name}",
+    "noSuppliers": "There is no supplier in use in the register yet. Add one first.",
+    "validFrom": "First day",
+    "validFromHint": "Today or later",
+    "lastDay": "Last day (optional)",
+    "lastDayHint": "Left blank, it applies for {days} days from the first day",
+    "chosen": "{hint} · chosen {date}",
+    "note": "Why this supplier",
+    "noteHint": "At least {min} characters. Procurement, finance and auditors see it.",
+    "cancel": "Cancel",
+    "save": "Set the preferred supplier",
+    "saving": "Saving…",
+    "done": "Preferred supplier set"
+  },
+  "end": {
+    "open": "End",
+    "openLabel": "End the preferred supplier {code} of category {category}",
+    "title": "End the preferred supplier {code} of category {category}?",
+    "body": "From now on the request form of category {category} no longer fills this supplier. This cannot be undone; to recommend it again, set it again.",
+    "reason": "Why it ends",
+    "reasonHint": "At least {min} characters. Procurement, finance and auditors see it.",
+    "keep": "Keep it",
+    "confirm": "End the preferred supplier",
+    "saving": "Saving…",
+    "done": "Preferred supplier ended"
+  },
+  "errors": {
+    "CATEGORY": "Choose a category",
+    "CATEGORY_UNKNOWN": "This category is not in the catalogue or any RFx. Choose one from the list.",
+    "SUPPLIER": "Choose a supplier",
+    "SUPPLIER_UNKNOWN": "This supplier is no longer in use or not in the register. Choose another supplier.",
+    "DATE": "Enter the date in full",
+    "PERIOD_PAST": "The first day must be today or later",
+    "PERIOD": "The last day cannot be before the first day",
+    "REASON": "Give a reason of at least 3 characters",
+    "OVERLAP": "This supplier is already preferred for this category until {lastDay}. Choose a first day after that, or end the earlier one first.",
+    "ALREADY_ENDED": "This one has ended already. Reload the page to see where it stands.",
+    "EXPIRED": "This one's period is over already, so there is nothing to end.",
+    "MODULE_DISABLED": "Sourcing is switched off, so no new preferred supplier can be set.",
+    "FORBIDDEN": "Only procurement sets and ends preferred suppliers.",
+    "NOT_FOUND": "This entry was not found. Reload the page and try again.",
+    "UNAUTHENTICATED": "Your sign-in has expired. Sign in again and retry.",
+    "BUSY": "The same command is still being saved. Wait a moment and try again.",
+    "NO_ANSWER": "No answer came back. Check the connection and press again; it will not be saved twice.",
+    "INTERNAL": "Something went wrong. Try again; if it still fails, tell your admin the reference {requestId}.",
+    "INPUT": "Some details are missing or wrong. Check each field and try again.",
+    "FAILED": "It could not be saved. Reload the page and try again."
+  }
+}

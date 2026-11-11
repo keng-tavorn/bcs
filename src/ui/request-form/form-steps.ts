@@ -172,6 +172,9 @@ export function targetOfProblem(p: FormProblem): StepTarget {
       return { section: 'quotations' }
     case 'ATTACHMENTS':
       return { section: 'rules' }
+    // S10-13 (BR-FORM-12): the reason sits under the suggested supplier
+    case 'PREFERRED_REASON':
+      return { section: 'supplier' }
   }
 }
 
@@ -187,7 +190,7 @@ export function targetOfFailure(f: FormFailure): StepTarget | null {
   if (BUDGET_LINE_KEYS.has(key)) return { section: 'budgetLine' }
   if (key === 'SITE_UNKNOWN') return { section: 'deliverySite' }
   if (key === 'NO_LINES' || key === 'SERVICE_END_DATE' || key === 'BUDGET_INSUFFICIENT' || field.startsWith('lines') || field === 'offAgreementReason' || field === 'priceIncludesVat') return { section: 'lines' }
-  if (key === 'SUPPLIER_UNKNOWN') return { section: 'supplier' }
+  if (key === 'SUPPLIER_UNKNOWN' || key === 'PREFERRED_OVERRIDE_REASON' || field === 'preferredSupplierOverrideReason') return { section: 'supplier' }
   if (key.startsWith('QUOTE_') || field.startsWith('quotations') || field === 'nonLowestQuoteReason') return { section: 'quotations' }
   if (key === 'ATTACHMENT_RULE_FAILED') return { section: 'rules' }
   return null

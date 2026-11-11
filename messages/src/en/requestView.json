@@ -106,7 +106,8 @@
     "deliverySiteNone": "Not chosen yet",
     "suggestedSupplier": "Suggested supplier",
     "suggestedSupplierValue": "{code} · {name}",
-    "suggestedSupplierNone": "None: procurement chooses"
+    "suggestedSupplierNone": "None: procurement chooses",
+    "preferredOverrideReason": "Not the preferred supplier of the category. Reason: {reason}"
   },
   "amounts": {
     "title": "Amounts",

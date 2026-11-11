@@ -10,6 +10,8 @@ const requestStatus = z.object({ requestId: z.uuid(), status: z.string().min(1) 
 
 defineEvents('PurchaseOrder', {
   'po.drafted': {
+    // S10-11 (schemaVersion 2 · ADR-206): a draft of an approved award, priced at what it awarded
+    schemaVersion: 2,
     schema: z.object({
       supplierId: z.uuid(),
       deliverySiteId: z.uuid().nullable(),
@@ -20,6 +22,7 @@ defineEvents('PurchaseOrder', {
       netSatang: satang,
       consolidationRunId: z.uuid().nullable(),
       via: z.enum(['CONSOLIDATION', 'MANUAL']),
+      awardDecisionId: z.uuid().optional(),
     }),
   },
   // FR-P2P-003 AC2 (NEW-22): the draft changed before it is sent for approval

@@ -21,6 +21,7 @@ export type MenuKey =
   | 'pool'
   | 'pos'
   | 'savings'
+  | 'sourcing'
   | 'suppliers'
   | 'catalog'
   | 'invoices'
@@ -90,6 +91,9 @@ export const MENU: readonly MenuItem[] = [
   // NEW-123 (FR-VIS-008): the savings the assistant finds, for whoever reads every PO — every one of them reads every
   // request too (§2.4), which the page checks again with the PO's scope
   { key: 'savings', href: '/procurement/savings', group: 'procurement', capability: 'po.view', scopes: ['ORG'], module: 'CORE', ready: true },
+  // S10-12 (FR-SRC-201): the RFx of the organization, for whoever reads every one (sourcing.view at ORG: PROCUREMENT FINANCE
+  // EXECUTIVE AUDITOR), once the BCS team switched SOURCING on (§9.9: no menu of a module that is off · NG-13)
+  { key: 'sourcing', href: '/sourcing', group: 'procurement', capability: 'sourcing.view', scopes: ['ORG'], module: 'SOURCING', ready: true },
   { key: 'receiving', href: '/receiving', group: 'procurement', capability: 'gr.post', scopes: ['DEPT', 'ASSIGNED'], module: 'CORE', ready: true },
   { key: 'suppliers', href: '/suppliers', group: 'procurement', capability: 'supplier.view', module: 'CORE', ready: true },
   // The catalogue with its agreed prices (S6-10, FR-INT-102): every member searches it; PROCUREMENT keeps it from its page

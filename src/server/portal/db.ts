@@ -59,10 +59,31 @@ export const PORTAL_MODELS: PortalModel[] = [
   { model: 'riskAssessment', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : NONE) },
   { model: 'riskAnswer', where: (a) => (a.supplierId ? { assessment: { supplierId: a.supplierId } } : NONE) },
   { model: 'riskQuestion', where: (a) => (a.supplierId ? { questionnaire: { assessments: { some: { supplierId: a.supplierId } } } } : NONE) },
-  // a file link names its answer by id only (no relation), so this condition cannot pin the supplier: every portal query
-  // of fileLink MUST add subjectId ∈ the answers it read through riskAnswer (review S11-05 ข้อ 6)
-  { model: 'fileLink', where: (a) => (a.supplierId ? { kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer' } : NONE) },
+  // a file link names its subject by id only (no relation), so this condition cannot pin the supplier: every portal query
+  // of fileLink MUST add subjectId ∈ the rows it read through their own model — S11's evidence through riskAnswer
+  // (review S11-05 ข้อ 6), S10-07's files of an RFx (RFX_DOC) and of a bid (BID_DOC) through rfxEvent or bid. One entry
+  // per model (S7's guard in tests/integration/supplier-contacts.test.ts), so the steps share it
+  {
+    model: 'fileLink',
+    where: (a) => ({ OR: [...(a.supplierId ? [{ kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer' }] : []), { kind: 'RFX_DOC', subjectType: 'RfxEvent' }, { kind: 'BID_DOC', subjectType: 'Bid' }] }),
+  },
 ]
+
+// S10-06 (INV-RFX-01 · BR-RFX-06): an RFx the contact's supplier or application is invited to (never a draft, never a
+// removed invite), its lines and amendments, the questions answered to all or asked from its own invite; its own invites
+// and bids only
+const invitedTo = (a: SupplierActor) => ({ status: { not: 'DRAFT' }, invites: { some: { ...bySupplierOrApplication(a), status: { not: 'REMOVED' } } } })
+PORTAL_MODELS.push(
+  { model: 'rfxInvite', where: (a) => ({ ...bySupplierOrApplication(a), status: { not: 'REMOVED' } }) },
+  { model: 'rfxEvent', where: invitedTo },
+  { model: 'rfxLine', where: (a) => ({ rfxEvent: invitedTo(a) }) },
+  { model: 'rfxAmendment', where: (a) => ({ rfxEvent: invitedTo(a) }) },
+  { model: 'rfxQuestion', where: (a) => ({ rfxEvent: invitedTo(a), OR: [{ status: 'ANSWERED', visibility: 'ALL' }, { invite: bySupplierOrApplication(a) }] }) },
+  { model: 'bid', where: (a) => (a.supplierId ? { supplierId: a.supplierId } : NONE) },
+  { model: 'bidLine', where: (a) => (a.supplierId ? { bid: { supplierId: a.supplierId } } : NONE) },
+  // the lines awarded to the supplier by an approved award (the result page · never another supplier's line)
+  { model: 'awardLine', where: (a) => (a.supplierId ? { supplierId: a.supplierId, awardDecision: { status: 'APPROVED' } } : NONE) },
+)
 
 export const PORTAL_MODEL_NAMES: ReadonlySet<string> = new Set(PORTAL_MODELS.map((m) => m.model))
 

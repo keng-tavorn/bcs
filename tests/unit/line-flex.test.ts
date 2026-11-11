@@ -339,3 +339,26 @@ describe('[FR-DOA-101/AC2] S6-11: one price badge per card, counts and percents 
     expect(textsOf(approvalCard({ ...base, locale: 'en', priceBadge: { high: { lines: 1, maxPct: 8 }, low: null } }))).toContain('Above the past median: 1 line(s), up to +8%')
   })
 })
+
+describe('[FR-SRC-204/AC5] S10-10: an award\'s card counts its bids and winners and says when it is not the lowest — no supplier, line or price (BR-NOTI-01)', () => {
+  const award: ApprovalCardData = { ...base, subjectType: 'AWARD_DECISION', typeName: null, label: 'AWD-2569-00001', requester: null, budget: null, amountSatang: 32_201_650n, stepUp: true, doa: { code: 'DOA-P2', versionNo: 1, ruleCode: 'RA-01' } }
+
+  it('one row of counts beside the number and the amount; "ไม่ใช่ราคาต่ำสุด" in the warning colour when it costs more than the lowest', () => {
+    const plain = textsOf(approvalCard({ ...award, award: { bids: 3, winners: 1, notLowest: false } }))
+    expect(plain).toContain('ผลการจัดหา')
+    expect(plain).toContain('ข้อเสนอ 3 ราย · ผู้ชนะ 1 ราย')
+    expect(plain).toContain('322,016.50 บาท (รวม VAT)')
+    const split = textsOf(approvalCard({ ...award, award: { bids: 3, winners: 2, notLowest: true } }))
+    expect(split).toContain('ข้อเสนอ 3 ราย · ผู้ชนะ 2 ราย · ไม่ใช่ราคาต่ำสุด')
+    expect(textsOf(approvalCard({ ...award, locale: 'en', award: { bids: 3, winners: 2, notLowest: true } }))).toContain('3 bid(s) · 2 winner(s) · not the lowest price')
+    // no unit price, supplier or line anywhere on the card
+    for (const text of split) expect(text).not.toMatch(/23,150|ชลบุรี|DB12/)
+    // the other subjects' cards are unchanged
+    expect(textsOf(approvalCard(base))).not.toContain('ผลการจัดหา')
+  })
+
+  it('fits LINE\'s limits with the most a card can say (a step-up, an acting holder, escalated, past due)', () => {
+    expectWithinLineLimits(approvalCard({ ...award, acting: true, escalated: true, overdue: true, award: { bids: 999, winners: 200, notLowest: true } }))
+    expectWithinLineLimits(approvalCard({ ...award, locale: 'en', acting: true, escalated: true, overdue: true, award: { bids: 999, winners: 200, notLowest: true } }))
+  })
+})

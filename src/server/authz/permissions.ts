@@ -13,6 +13,8 @@
 // budget.transfer.submit and the ASSIGNED reader of budget.view (FR-BUD-103, OQ-105). S6-16 added budget.overrun.submit
 // (FR-BUD-101, OQ-104). S6-21 added config.export, config.import and platform.sandbox.manage (FR-PLT-101, OQ-108).
 // NEW-125 added admin.ai.view (ORG_ADMIN and AUDITOR read /admin/ai), which the user confirmed with NEW-125 (ADR-080, ADR-083).
+// S10-04 added sourcing.view and sourcing.manage, approved with docs/sub-specs/S10.md (ADR-075 · docs/reports/p2-decisions.md).
+// S10-13 added sourcing.preferred.manage, approved with the same sub-spec (BR-RFX-14 · ADR-207).
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -166,6 +168,19 @@ export const PERMISSIONS = {
   'supplier.document.verify': PROCUREMENT_ONLY,
   'supplier.document.manage': PROCUREMENT_ONLY,
   'admin.supplierDocumentTypes': ORG_ADMIN_ONLY,
+  // S10-04 (BR-RFX-01 to 06 · docs/sub-specs/S10.md "สิทธิ์"): who reads an RFx — the requesters of its source requests and
+  // whoever has a task of it (an evaluator, the approver of its award) see it, never a sealed price before it closes —
+  // and PROCUREMENT that runs it
+  'sourcing.view': [anyMember('OWN'), anyMember('ASSIGNED'), ...roles(['PROCUREMENT', 'FINANCE', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
+  'sourcing.manage': PROCUREMENT_ONLY,
+  // S10-08 (BR-RFX-09 · BR-SOD-14): the evaluators of an RFx's scorecard score it — any member set as one (the service
+  // passes the scorecard's evaluators as the assignees; who may not be one is BR-SOD-14's, checked by the service)
+  'sourcing.score': [anyMember('ASSIGNED')],
+  // S10-10: an award is made, changed, sent and cancelled by procurement (BR-RFX-12 · BR-RFX-16)
+  'sourcing.award': PROCUREMENT_ONLY,
+  // S10-13 (BR-RFX-14 · ADR-207): procurement sets a preferred supplier itself (MANUAL, with a reason) and ends one early;
+  // whoever reads suppliers sees them (supplier.view)
+  'sourcing.preferred.manage': PROCUREMENT_ONLY,
   // S11-04 (BR-RSK-02 · ADR-229): the tiers, the gate policy and the questionnaire versions, proposed by one administrator
   // and confirmed or published by another; ORG_ADMIN loses them once the DOA administrators are separated (below)
   'admin.riskTiers': DOA_ADMINS,

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { consolidate } from '@/core/consolidation'
-import { documentTotals, lineNet } from '@/core/money/math'
+import { documentTotals, lineNet, type Satang } from '@/core/money/math'
 import { formatQuantity } from '@/core/receiving'
 import { latestSlot, localDay, parseCron } from '@/core/schedule'
 import { rateFor, taxDateOf } from '@/core/vat'
@@ -56,15 +56,32 @@ async function lockPoolRequests(tx: TenantTx, ctx: Ctx, requestIds?: readonly st
   )
 }
 
+/**
+ * What an award gives a round (S10-11 · ADR-206 · BR-RFX-13); none of them = the round as it always was. `requestLineIds`
+ * keeps only those lines (a sibling line of the same request whose supplier waits for the next round stays in the pool);
+ * `unitPriceOverrides` is the price before VAT a line is ordered at, by request line (the awarded one, not the request's);
+ * `vatRateBpOverrides` the VAT rate of a supplier's drafts, by supplier (0 for a winner not registered for VAT or abroad ·
+ * BR-VAT-04), instead of today's rate of the organization. `award` stamps its drafts with the award and its RFx — only
+ * with `requestLineIds`, so every line of such a draft is the award's (INV-RFX-04).
+ */
+export interface AwardRoundOptions {
+  readonly requestLineIds?: readonly string[]
+  readonly unitPriceOverrides?: ReadonlyMap<string, Satang>
+  readonly vatRateBpOverrides?: ReadonlyMap<string, number>
+  readonly award?: { readonly awardDecisionId: string; readonly rfxEventId: string }
+}
+
 /** Drafts the POs of one round inside the caller's transaction (the caller has locked nothing yet) */
 export async function consolidateInTx(
   tx: TenantTx,
   ctx: Ctx,
-  options: { trigger: ConsolidationTrigger; scheduledFor?: Date | null; requestIds?: readonly string[] },
+  options: { trigger: ConsolidationTrigger; scheduledFor?: Date | null; requestIds?: readonly string[] } & AwardRoundOptions,
 ): Promise<ConsolidationOutcome> {
+  if (options.award && !options.requestLineIds) throw new Error('an award drafts only its own request lines (requestLineIds)')
   const locked = await lockPoolRequests(tx, ctx, options.requestIds)
+  const only = options.requestLineIds ? new Set(options.requestLineIds) : null
   // TODO(NEW-50): lines of a request whose prices include VAT wait in the pool
-  const lines = locked.length ? (await freeLines(tx, { requestIds: locked, withSupplierOnly: true })).filter((l) => draftBlock(l) === null) : []
+  const lines = locked.length ? (await freeLines(tx, { requestIds: locked, withSupplierOnly: true })).filter((l) => draftBlock(l) === null && (!only || only.has(l.requestLineId))) : []
   const byId = new Map(lines.map((l) => [l.requestLineId, l]))
   const grouped = consolidate(
     lines.map((l) => ({ ref: l.requestLineId, requestNo: l.requestNo, lineNo: l.lineNo, supplierId: l.supplierId, siteId: l.deliverySiteId, kind: l.kind, urgent: l.urgent })),
@@ -88,7 +105,11 @@ export async function consolidateInTx(
     },
   })
   const events: EventDraft[] = []
-  for (const draft of drafts) events.push(await createDraft(tx, ctx, draft.id, draft.lines, { rateBp, runId, via: 'CONSOLIDATION' }))
+  for (const draft of drafts) {
+    const supplierId = draft.lines[0]!.supplierId!
+    const supplierRate = options.vatRateBpOverrides?.get(supplierId)
+    events.push(await createDraft(tx, ctx, draft.id, draft.lines, { rateBp: supplierRate ?? rateBp, runId, via: 'CONSOLIDATION', unitPriceOverrides: options.unitPriceOverrides, award: options.award }))
+  }
   events.push({
     type: 'consolidation_run.completed',
     aggregateType: 'ConsolidationRun',
@@ -109,18 +130,21 @@ async function createDraft(
   ctx: Ctx,
   poId: string,
   lines: readonly FreeLine[],
-  options: { rateBp: number | null; runId: string | null; via: 'CONSOLIDATION' | 'MANUAL' },
+  options: { rateBp: number | null; runId: string | null; via: 'CONSOLIDATION' | 'MANUAL'; unitPriceOverrides?: ReadonlyMap<string, Satang> | undefined; award?: AwardRoundOptions['award'] },
 ): Promise<EventDraft> {
   const first = lines[0]!
   // A draft is priced before VAT at the request's own unit price: a price that includes VAT never gets here, or the
   // PO would need a unit price rounded outside BR-MONEY-02 (NEW-50)
   if (lines.some((l) => l.priceIncludesVat)) throw new Error('a line whose price includes VAT is never put on a draft PO (NEW-50)')
+  // S10-11 (ADR-206): an award orders its lines at the price it awarded, before VAT; the request's price still gives back
+  // what the request reserved (releasableFor)
   const poLines = lines.map((l, i) => {
     const quantity = formatQuantity(l.free)
-    return { id: newId(), line: l, lineNo: i + 1, quantity, netSatang: lineNet(quantity, l.unitPriceSatang) }
+    const unitPriceSatang = options.unitPriceOverrides?.get(l.requestLineId) ?? l.unitPriceSatang
+    return { id: newId(), line: l, lineNo: i + 1, quantity, unitPriceSatang, netSatang: lineNet(quantity, unitPriceSatang) }
   })
   const totals = documentTotals(
-    poLines.map((p) => ({ quantity: p.quantity, unitPriceSatang: p.line.unitPriceSatang, vatable: p.line.vatable })),
+    poLines.map((p) => ({ quantity: p.quantity, unitPriceSatang: p.unitPriceSatang, vatable: p.line.vatable })),
     options.rateBp ?? 0,
     false,
   )
@@ -143,6 +167,7 @@ async function createDraft(
       vatRateBp: options.rateBp,
       createdById: ctx.actor.type === 'USER' ? ctx.actor.memberId : null,
       consolidationRunId: options.runId,
+      ...(options.award ? { awardDecisionId: options.award.awardDecisionId, rfxEventId: options.award.rfxEventId } : {}),
     },
   })
   await tx.poLine.createMany({
@@ -155,7 +180,7 @@ async function createDraft(
       categoryCode: p.line.categoryCode,
       quantity: p.quantity,
       uom: p.line.uom,
-      unitPriceSatang: p.line.unitPriceSatang,
+      unitPriceSatang: p.unitPriceSatang,
       netSatang: p.netSatang,
       vatable: p.line.vatable,
       budgetLineId: p.line.budgetLineId,
@@ -184,6 +209,7 @@ async function createDraft(
       netSatang: totals.net.toString(),
       consolidationRunId: options.runId,
       via: options.via,
+      ...(options.award ? { awardDecisionId: options.award.awardDecisionId } : {}),
     },
   }
 }

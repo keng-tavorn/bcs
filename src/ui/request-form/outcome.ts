@@ -157,6 +157,8 @@ export const FAILURE_KEYS = [
   'AGREEMENT_PRICE_LOCKED',
   'AGREEMENT_PRICE_BEFORE_VAT',
   'AGREEMENT_OFF',
+  // S10-13 (BR-FORM-12): another supplier than a preferred one needs the reason
+  'PREFERRED_OVERRIDE_REASON',
   'CATALOG_UNKNOWN',
   'DUPLICATE_UNACKNOWLEDGED',
   'OVERRUN_PENDING',
@@ -205,6 +207,8 @@ function validationKey(f: FormFailure): FailureKey {
   if (reason === 'DUPLICATE_UNACKNOWLEDGED') return 'DUPLICATE_UNACKNOWLEDGED'
   // The catalogue's agreed prices (S6-10, BR-PRC-06)
   if (reason === 'AGREEMENT_PRICE_LOCKED' || reason === 'AGREEMENT_PRICE_BEFORE_VAT' || reason === 'AGREEMENT_OFF') return reason
+  // The preferred suppliers of the lines' categories (S10-13, BR-FORM-12)
+  if (reason === 'PREFERRED_OVERRIDE_REASON') return reason
   if (/^lines\.\d+\.catalogItemId$/.test(f.field ?? '')) return 'CATALOG_UNKNOWN'
   // A delivery site closed or a supplier deactivated since the form opened (S4-02)
   if (f.field === 'deliverySiteId') return 'SITE_UNKNOWN'
@@ -258,7 +262,7 @@ export function failureStep(f: FormFailure, documentFields: ReadonlySet<string> 
   if (key === 'FORM_FIELD' || field.startsWith('formData.') || field === 'title') return 'details'
   if (BUDGET_LINE_REASONS.includes(key) || key === 'BUDGET_LINE_CLOSED') return 'details'
   if (key === 'NO_LINES' || key === 'SERVICE_END_DATE' || key === 'BUDGET_INSUFFICIENT' || key === 'SITE_UNKNOWN' || field.startsWith('lines') || field === 'offAgreementReason' || field === 'priceIncludesVat') return 'items'
-  if (key === 'ATTACHMENT_RULE_FAILED' || key === 'SUPPLIER_UNKNOWN' || key.startsWith('QUOTE_') || field.startsWith('quotations') || field === 'nonLowestQuoteReason') return 'documents'
+  if (key === 'ATTACHMENT_RULE_FAILED' || key === 'SUPPLIER_UNKNOWN' || key === 'PREFERRED_OVERRIDE_REASON' || key.startsWith('QUOTE_') || field.startsWith('quotations') || field === 'nonLowestQuoteReason') return 'documents'
   return null
 }
 

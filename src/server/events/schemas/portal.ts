@@ -4,7 +4,8 @@ import { defineEvents } from '../registry'
 // The supplier portal's identity, kept on the contact's own aggregate (S7-04 · BR-PORTAL ข้อ 01 ถึง ข้อ 04 · docs/sub-specs/S7.md "event"): contacts and
 // their sessions. Ids and codes only: never a one-time code, a token, an e-mail address or an IP in clear (NFR-SEC-09).
 
-const linkPurpose = z.enum(['INVITATION', 'LOGIN', 'DOCUMENT_REQUEST', 'RISK_QUESTIONNAIRE'])
+// every PortalInviteLinkPurpose: an RFx's invite (S10 · the link of its e-mail) as well as S7's and S11's
+const linkPurpose = z.enum(['INVITATION', 'LOGIN', 'DOCUMENT_REQUEST', 'RFX_INVITE', 'RISK_QUESTIONNAIRE'])
 
 defineEvents('SupplierContact', {
   'portal_session.link_requested': { schema: z.object({ contactId: z.uuid(), linkId: z.uuid(), purpose: linkPurpose }) },

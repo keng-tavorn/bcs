@@ -16,7 +16,7 @@ import { createP2Org, P2_FIXTURES } from '../support/p2-org'
 // S10-02 (BR-DOA-27 · ADR-202): the DOA document type RFX_AWARD. What the golden files doa-p2.yaml doa-p2-lint.yaml
 // cannot hold (spec §7.4): the version without the RA rules lints clean while SOURCING is off, an award routes on a
 // real organization by its amount with VAT, a vacant PROC_MGR is APPROVER_NOT_FOUND, an award of no amount is refused,
-// a task of the subject stays with the empty adapter until S10-10, the DOA try-out takes the type, and
+// a task of the subject with no award behind it stays open (S10-10's adapter refuses it as the empty one did), the DOA try-out takes the type, and
 // organization.set_module switches SOURCING on only with the RA rules and off only when no RFx or award is open.
 
 const NOW = new Date('2026-11-08T03:00:00Z')
@@ -77,7 +77,7 @@ describe('[BR-DOA-27] an award routes by its amount with VAT on a real organizat
     expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({ status: 'OPEN' })
   })
 
-  it('below stepUpThreshold the decision reaches the empty adapter, which keeps the task open until S10-10 (VALIDATION_FAILED SUBJECT)', async () => {
+  it('below stepUpThreshold the decision reaches the adapter, which keeps a task with no award behind it open (VALIDATION_FAILED SUBJECT · S10-10)', async () => {
     const org = await createP2Org()
     const routed = await routedAward(org, { netSatang: 4_672_897n, vatSatang: 327_103n })
     if (!routed.ok) throw new Error(JSON.stringify(routed.error))
@@ -92,6 +92,19 @@ describe('[BR-DOA-27] an award routes by its amount with VAT on a real organizat
     if (!routed.ok) throw new Error(JSON.stringify(routed.error))
     expect(routed.data.route).toMatchObject({ ruleCode: 'RA-02' })
     expect(routed.data.firstTask.assigneeMemberId).toBe(org.member.coo)
+  })
+
+  it('[GC-DOA-77] [GC-DOA-78] [GC-DOA-79] the band edges on the database: 500,000.00 is RA-01, 500,000.01 is RA-02, and the CEO in conflict at the top band is NO_HIGHER_AUTHORITY (S10-10)', async () => {
+    const org = await createP2Org()
+    const edge = await routedAward(org, { netSatang: 46_728_972n, vatSatang: 3_271_028n })
+    if (!edge.ok) throw new Error(JSON.stringify(edge.error))
+    expect(edge.data.route).toMatchObject({ ruleCode: 'RA-01', basisAmountSatang: 50_000_000n })
+    expect(edge.data.firstTask.assigneeMemberId).toBe(org.member.dm_proc)
+    const above = await routedAward(org, { netSatang: 46_728_973n, vatSatang: 3_271_028n })
+    if (!above.ok) throw new Error(JSON.stringify(above.error))
+    expect(above.data.route).toMatchObject({ ruleCode: 'RA-02', basisAmountSatang: 50_000_001n })
+    expect(above.data.firstTask.assigneeMemberId).toBe(org.member.coo)
+    expect(await routedAward(org, { netSatang: 467_289_721n, vatSatang: 32_710_280n }, ['ceo'])).toMatchObject({ ok: false, error: { code: 'NO_HIGHER_AUTHORITY' } })
   })
 
   it('an award of no amount is refused (REQUIRED · BR-DOA-21) and nothing is written', async () => {

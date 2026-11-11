@@ -15,9 +15,13 @@ defineEvents('CatalogItem', {
   'catalog_item.updated': { schema: z.object({ code: z.string().min(1), fields: z.array(z.enum(CATALOG_ITEM_FIELDS)).min(1) }) },
 })
 
+// AWARD (S10-11 · schemaVersion 2): from an approved award of a need, with its number as sourceRef (AWD-…)
+const agreementVia = z.enum(['SEED', 'ADMIN', 'CONFIG_IMPORT', 'AWARD'])
+
 defineEvents('PriceAgreement', {
   'price_agreement.created': {
-    schema: z.object({ catalogItemId: z.uuid(), supplierId: z.uuid(), unitPriceSatang: satang, validFrom: day, validTo: day, via }),
+    schemaVersion: 2,
+    schema: z.object({ catalogItemId: z.uuid(), supplierId: z.uuid(), unitPriceSatang: satang, validFrom: day, validTo: day, via: agreementVia, sourceRef: z.string().min(1).optional() }),
   },
   // Ended early: the period now stops at validTo (the day it no longer applies)
   'price_agreement.ended': { schema: z.object({ catalogItemId: z.uuid(), supplierId: z.uuid(), validTo: day }) },

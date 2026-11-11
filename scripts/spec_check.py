@@ -541,11 +541,15 @@ def run_sod(d):
             elif subj == "RISK_OVERRIDE" and i["actor"] in [i.get("requester"), *i.get("alsoConflicting", [])]: rule = "BR-SOD-15"
             elif i["actor"] == i.get("requester"): rule = "BR-SOD-01"
             elif subj == "PURCHASE_ORDER" and i["actor"] == i.get("poCreator"): rule = "BR-SOD-03"
+            # S10-10: the RFx's creator, its evaluators, the requesters of its source lines and who recorded a bid for a supplier
+            elif subj == "AWARD_DECISION" and i["actor"] in [i.get("rfxCreator"), *i.get("evaluators", []), *i.get("sourceRequesters", []), *i.get("recordedOnBehalfBy", [])]: rule = "BR-SOD-13"
         elif i["action"] == "PREPARE_PAYMENT":
             if sod_recent_change(i): rule = "BR-SOD-10"
         elif i["action"] == "DECIDE_RISK_REVIEW":
             # S11-06 (BR-SOD-16): who opened the assessment or filled it in for the supplier never reviews it
             if i["actor"] in [i.get("assessmentOpenedBy"), i.get("filledOnBehalfBy")]: rule = "BR-SOD-16"
+        elif i["action"] == "SCORE_RFX":  # S10-08: the RFx's creator and the requesters of its source lines
+            if i["actor"] == i.get("rfxCreator") or i["actor"] in i.get("sourceRequesters", []): rule = "BR-SOD-14"
         elif i["action"] == "POST_GR":
             if not st["approverMayReceive"] and i["actor"] in i.get("approvers", []): rule = "BR-SOD-02"
             elif i["actor"] == i.get("requester") and not st["requesterMayReceive"]: rule = "BR-SOD-07"

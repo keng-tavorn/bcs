@@ -1,6 +1,7 @@
 import { formatSatang } from '@/core/money/format'
 import { PIN_FAILURE_LIMIT, PIN_LOCK_MINUTES } from '@/core/pin'
 import { PAYMENT_TEMPLATES } from './payments'
+import { SOURCING_TEMPLATES } from './sourcing'
 import { SUPPLIER_TEMPLATES } from './suppliers'
 import { SLA_TEMPLATES } from './sla'
 import { RISK_TEMPLATES } from './risk'
@@ -481,6 +482,7 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
   ...SUPPLIER_TEMPLATES,
   // S11 supplier risk, in lane 3's own file
   ...RISK_TEMPLATES,
+  ...SOURCING_TEMPLATES,
 }
 
 const FALLBACK: Template = () => ({ title: { th: 'มีการแจ้งเตือนใหม่', en: 'New notification' }, href: null })

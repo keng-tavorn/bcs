@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
+import { preferredSuppliersLinked } from '@/server/services/sourcing/preferred-view'
 import { canSeeApplicationList } from '@/server/services/suppliers/applications-view'
 import { listSuppliersForScreen, type SupplierListRowDto } from '@/server/services/suppliers/view'
 import { Notice } from '@/ui/form/notice'
@@ -74,8 +75,14 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
   const q = (filters.q ?? '').trim()
   const status = filters.status ?? ''
   const missing = filters.missing === '1'
-  const [t, locale] = await Promise.all([getTranslations('suppliers'), getLocale().then((l) => (l === 'en' ? 'en' : 'th') as 'th' | 'en')])
-  const [result, applications, ta] = await Promise.all([listSuppliersForScreen(ctx, { q, status, missingExpressCode: missing }), canSeeApplicationList(ctx), getTranslations('supplierApplications.tabs')])
+  const [t, tPreferred, locale] = await Promise.all([getTranslations('suppliers'), getTranslations('preferredSuppliers'), getLocale().then((l) => (l === 'en' ? 'en' : 'th') as 'th' | 'en')])
+  // S10-13: the preferred suppliers per category, while SOURCING is on or rows set before still fill the form (BR-RFX-16)
+  const [result, applications, ta, preferredLinked] = await Promise.all([
+    listSuppliersForScreen(ctx, { q, status, missingExpressCode: missing }),
+    canSeeApplicationList(ctx),
+    getTranslations('supplierApplications.tabs'),
+    preferredSuppliersLinked(ctx),
+  ])
   if (!result.ok) {
     return (
       <Page>
@@ -111,6 +118,11 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
               { key: 'applications', href: '/suppliers/applications', label: ta('applications') },
             ]}
           />
+        ) : null}
+        {preferredLinked ? (
+          <Link href="/suppliers/preferred" className={linkClass}>
+            {tPreferred('link')}
+          </Link>
         ) : null}
       </PageHeader>
       <PageBody>

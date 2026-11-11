@@ -1,5 +1,6 @@
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import type { FormLine, FormValues } from './model'
+import { preferredToSuggest } from './preferred'
 import type { CatalogItemOption } from './types'
 
 // The request form's lines from the catalogue (S6-10 · FR-INT-102 AC2 · BR-PRC-06), as the screen works them out while
@@ -102,8 +103,8 @@ export function withAgreedPrices(values: FormValues): FormValues {
 }
 
 /**
- * A line takes an item of the catalogue: its name, unit and id; the supplier of its lowest agreed price when none is
- * suggested yet (one of `offered`); then the agreed price with the suggested supplier. Without one, a price that is
+ * A line takes an item of the catalogue: its name, unit and id; when no supplier is suggested yet (one of `offered`), the
+ * preferred supplier of its category (S10-13), else the supplier of its lowest agreed price; then the agreed price with the suggested supplier. Without one, a price that is
  * blank — or was the agreed price of the item chosen before — takes the item's reference price (before VAT) when the
  * request's prices are before VAT.
  */
@@ -112,7 +113,8 @@ export function pickCatalogLine(values: FormValues, key: string, item: CatalogPi
   if (!before) return values
   const wasLocked = lineAgreement(before, values).kind === 'LOCKED'
   const catalog = { ...(values.catalog ?? {}), [item.id]: item }
-  const suggestedSupplierId = values.suggestedSupplierId || supplierToSuggest(item, offered) || ''
+  // BR-FORM-02 BR-FORM-12 (S10-13): the category's preferred supplier first, then the item's lowest agreed price
+  const suggestedSupplierId = values.suggestedSupplierId || preferredToSuggest(values, item.categoryCode, offered) || supplierToSuggest(item, offered) || ''
   const lines = values.lines.map((l) => (l.key === key ? { ...l, description: item.nameTh, uom: item.uom, catalogItemId: item.id } : l))
   const next = withAgreedPrices({ ...values, catalog, suggestedSupplierId, lines })
   const reference = /[1-9]/.test(item.refUnitPrice) && !values.priceIncludesVat && !agreementWith(item, suggestedSupplierId) && (wasLocked || !before.unitPrice.trim())

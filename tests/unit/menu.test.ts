@@ -102,6 +102,8 @@ describe('[FR-PLT-013/AC2] [FR-PLT-002/AC1] the sidebar follows the table of §9
     ['procurement', 'pos', '/procurement/pos'],
     // NEW-123 (FR-VIS-008): the savings assistant, for whoever reads every PO and request
     ['procurement', 'savings', '/procurement/savings'],
+    // S10-12 (FR-SRC-201): the RFx of the organization, once SOURCING is on, for sourcing.view at ORG
+    ['procurement', 'sourcing', '/sourcing'],
     ['procurement', 'receiving', '/receiving'],
     ['procurement', 'suppliers', '/suppliers'],
     // S6-10 (FR-INT-102): the catalogue with its agreed prices, every member's (catalog.view)

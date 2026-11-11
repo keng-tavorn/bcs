@@ -66,6 +66,15 @@ async function rateOfToday(ctx: Ctx): Promise<number | null> {
 }
 
 /**
+ * The VAT rate a PO is sent for approval at: today's (§6.4) — except a PO of an award to a winner without VAT (not
+ * registered, or abroad), which keeps the 0 its award gave it so its amount stays the award's (S10-11 · INV-RFX-04 ·
+ * BR-VAT-04). The rate 0 for every other supplier without VAT is go-live item S8-20.
+ */
+export function poRateBp(po: { readonly awardDecisionId: string | null; readonly vatRateBp: number | null }, todayRateBp: number): number {
+  return po.awardDecisionId !== null && po.vatRateBp === 0 ? 0 : todayRateBp
+}
+
+/**
  * A draft's totals at today's rate, from core/money (FR-P2P-003 AC3): what sending it for approval will compute, so the
  * list, the page and the preview of the route show one amount. The stored totals keep the rate of the round that made
  * the draft (or of an earlier sending), which may be another period's.
@@ -376,6 +385,8 @@ export async function listPurchaseOrders(ctx: Ctx, filter: PoListFilter = {}): P
         netSatang: true,
         vatSatang: true,
         grossSatang: true,
+        vatRateBp: true,
+        awardDecisionId: true,
         createdAt: true,
         updatedAt: true,
         approvedAt: true,
@@ -412,7 +423,7 @@ export async function listPurchaseOrders(ctx: Ctx, filter: PoListFilter = {}): P
     counts,
     rows: pos.map((p) => {
       // A draft is listed at today's rate, as its page and the sending show it
-      const totals = p.status === 'DRAFT' && todayBp !== null ? draftTotals(p.lines, todayBp) : { netSatang: p.netSatang, vatSatang: p.vatSatang, grossSatang: p.grossSatang }
+      const totals = p.status === 'DRAFT' && todayBp !== null ? draftTotals(p.lines, poRateBp(p, todayBp)) : { netSatang: p.netSatang, vatSatang: p.vatSatang, grossSatang: p.grossSatang }
       return {
         id: p.id,
         number: p.number,
@@ -906,8 +917,10 @@ export interface PoViewDto {
   readonly version: number
   readonly kind: 'GOODS' | 'SERVICE'
   readonly urgency: 'NORMAL' | 'URGENT'
-  readonly supplier: { readonly id: string; readonly code: string; readonly nameTh: string; readonly email: string | null; readonly active: boolean }
+  readonly supplier: { readonly id: string; readonly code: string; readonly nameTh: string; readonly email: string | null; readonly active: boolean; readonly foreign: boolean }
   readonly deliverySite: { readonly code: string; readonly nameTh: string; readonly address: string | null } | null
+  /** S10-11: the approved award of an RFx it was drafted from (its page links back to it · OQ-203); null for any other PO */
+  readonly fromAward: { readonly awardDecisionId: string; readonly number: string | null; readonly rfxEventId: string; readonly rfxNumber: string | null } | null
   /** Who made the draft: the member who ran the round by hand or chose the supplier of an urgent request; null when a scheduled round made it */
   readonly createdBy: MemberRefDto | null
   /** Who sent it for approval the last time (the actor of its latest po.submitted Event); null while nobody has */
@@ -985,8 +998,9 @@ export async function getPurchaseOrderView(ctx: Ctx, poId: string): Promise<PoVi
   const po = await db.purchaseOrder.findUnique({
     where: { id: poId },
     include: {
-      supplier: { select: { id: true, code: true, nameTh: true, email: true, status: true } },
+      supplier: { select: { id: true, code: true, nameTh: true, email: true, status: true, isForeign: true } },
       deliverySite: { select: { code: true, nameTh: true, address: true } },
+      awardDecision: { select: { id: true, number: true, rfxEventId: true, rfxEvent: { select: { number: true } } } },
       lines: {
         orderBy: { lineNo: 'asc' },
         include: {
@@ -1197,8 +1211,9 @@ export async function getPurchaseOrderView(ctx: Ctx, poId: string): Promise<PoVi
     version: po.version,
     kind: po.kind,
     urgency: po.urgency,
-    supplier: { id: po.supplier.id, code: po.supplier.code, nameTh: po.supplier.nameTh, email: po.supplier.email, active: po.supplier.status === 'ACTIVE' },
+    supplier: { id: po.supplier.id, code: po.supplier.code, nameTh: po.supplier.nameTh, email: po.supplier.email, active: po.supplier.status === 'ACTIVE', foreign: po.supplier.isForeign },
     deliverySite: po.deliverySite,
+    fromAward: po.awardDecision ? { awardDecisionId: po.awardDecision.id, number: po.awardDecision.number, rfxEventId: po.awardDecision.rfxEventId, rfxNumber: po.awardDecision.rfxEvent.number } : null,
     createdBy: creatorId ? (members.get(creatorId) ?? null) : null,
     submittedBy: submittedById ? (members.get(submittedById) ?? null) : null,
     createdAt: po.createdAt,
@@ -1215,7 +1230,7 @@ export async function getPurchaseOrderView(ctx: Ctx, poId: string): Promise<PoVi
     notesToSupplier: po.notesToSupplier,
     totals:
       po.status === 'DRAFT' && todayBp !== null
-        ? { ...draftTotals(po.lines, todayBp), basis: 'TODAY' }
+        ? { ...draftTotals(po.lines, poRateBp(po, todayBp)), basis: 'TODAY' }
         : { netSatang: po.netSatang, vatSatang: po.vatSatang, grossSatang: po.grossSatang, vatRateBp: po.vatRateBp, basis: 'STORED' },
     lines,
     prices: prices ?? { alertPct: 0, lines: [] },

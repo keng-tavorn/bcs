@@ -5,6 +5,7 @@ import { supplierDocumentStatusInTx } from '@/server/services/suppliers/document
 import { portalWhere } from './db'
 import { PORTAL_PRIVACY_NOTICE_VERSION } from './privacy'
 import { listPortalRejectedInvoiceTodos } from './queries-invoices'
+import { listPortalRfxTodos } from './queries-rfx'
 
 // Queries of the portal (BR-PORTAL ข้อ 05 · INV-SUP-01): each reads through portalWhere, so a contact sees only its own
 // supplier or application. tests/generated/portal-isolation.test.ts calls every export of this file (and of
@@ -223,6 +224,8 @@ export const PORTAL_HOME_PROVIDERS: Array<{ readonly key: string; readonly load:
   },
   // S7-12: invoices rejected in the last 30 days, to send again (BR-SUP ข้อ 15)
   { key: 'invoices', load: listPortalRejectedInvoiceTodos },
+  // S10-07: each RFx still waiting for the contact's bid (docs/sub-specs/S10.md "/portal/home")
+  { key: 'rfx', load: listPortalRfxTodos },
 ]
 
 /** The home's to-do list of a registered supplier's contact, every provider in order */

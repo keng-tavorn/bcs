@@ -8,7 +8,7 @@ import { pageOrg, pageSession, portalNav, Unavailable } from '../_lib/page'
 // from the providers of PORTAL_HOME_PROVIDERS (S7: documents; S7-11 S7-12 S10 S11 add theirs), each a link to where it is
 // done. A contact of an application goes to the application; the privacy notice comes first (BR-PORTAL ข้อ 08).
 
-const KINDS = ['DOCUMENT_EXPIRING', 'DOCUMENT_EXPIRED', 'DOCUMENT_MISSING', 'INVOICE_REJECTED'] as const
+const KINDS = ['DOCUMENT_EXPIRING', 'DOCUMENT_EXPIRED', 'DOCUMENT_MISSING', 'INVOICE_REJECTED', 'RFX_TO_BID'] as const
 
 export default async function PortalHome({ params }: { params: Promise<{ org: string }> }) {
   const org = await pageOrg((await params).org)
@@ -32,7 +32,7 @@ export default async function PortalHome({ params }: { params: Promise<{ org: st
             {todos.map((x, i) => (
               <li key={`${x.kind}-${i}`}>
                 <a href={`/portal/${org.code}${x.page}`} className="flex min-h-11 items-center py-2 text-primary underline-offset-4 hover:underline">
-                  {t(`home.todo.${x.kind as (typeof KINDS)[number]}`, { type: locale === 'en' ? (x.values.typeEn ?? '') : (x.values.typeTh ?? ''), date: x.values.date ?? '' })}
+                  {t(`home.todo.${x.kind as (typeof KINDS)[number]}`, { type: locale === 'en' ? (x.values.typeEn ?? '') : (x.values.typeTh ?? ''), date: (locale === 'en' ? x.values.dateEn : x.values.dateTh) ?? x.values.date ?? '' })}
                 </a>
               </li>
             ))}

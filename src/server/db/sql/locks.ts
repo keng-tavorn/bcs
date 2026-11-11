@@ -56,6 +56,14 @@ const LOCKABLE = [
   'SupplierApplication',
   // S7-06: a document verified, rejected or superseded one change at a time
   'SupplierDocument',
+  // S10: an RFx changed one command at a time (its lines, invites, open, close); an invite removed once; a scorecard
+  // counted once when the last evaluator submits (BR-RFX-18)
+  'RfxEvent',
+  'RfxInvite',
+  'RfxQuestion',
+  // S10-06: a bid saved, submitted, withdrawn or disqualified one command at a time (INV-RFX-02)
+  'Bid',
+  'Scorecard',
   // S11-04: a tier or the policy proposed, confirmed or discarded one change at a time; a questionnaire version changed
   // one command at a time (BR-RSK-02)
   'RiskTier',
@@ -65,6 +73,8 @@ const LOCKABLE = [
   'RiskAssessment',
   // S11-07: an override's use by POs counted one PO at a time (BR-RSK-09 ข้อ 4 · BR-RSK-19)
   'RiskOverride',
+  // S10-10: an award made, changed, sent, decided or cancelled one command at a time (one open award per RFx)
+  'AwardDecision',
 ] as const
 export type LockableTable = (typeof LOCKABLE)[number]
 /** Tables whose key is not "id": a budget line's balance is keyed by the line (§6.2) */

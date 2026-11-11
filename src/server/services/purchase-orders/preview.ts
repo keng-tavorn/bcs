@@ -7,6 +7,7 @@ import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
 import { forTenant } from '@/server/db/tenant'
 import { loadRoutePolicy } from '@/server/doa/policy'
+import { poRateBp } from '@/server/queries/purchase-orders'
 import { approverRoles, isUuid, membersById, type ApproverRoleDto, type DoaRefDto, type MemberRefDto } from '@/server/queries/requests'
 
 // What PROCUREMENT sees before pressing "ส่งขออนุมัติ" on a draft PO (spec §9.9 principle 3, FR-P2P-004 AC1, BR-BUD-05):
@@ -58,26 +59,30 @@ export async function previewPoSubmit(ctx: Ctx, poId: string): Promise<Result<Po
         id: true,
         status: true,
         createdById: true,
+        awardDecisionId: true,
+        vatRateBp: true,
         supplier: { select: { status: true } },
         lines: { orderBy: { lineNo: 'asc' }, select: { quantity: true, unitPriceSatang: true, vatable: true, netSatang: true, budgetLineId: true, sources: { select: { releasableSatang: true } } } },
       },
     })
     if (!po) return refused({ code: 'NOT_FOUND', message: 'purchase order not found' })
     if (po.status !== 'DRAFT') return refused({ code: 'INVALID_STATE_TRANSITION', message: 'only a draft is sent for approval', details: { from: po.status, command: 'po.submit' } })
-    const totals = rate.ok
-      ? documentTotals(
-          po.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
-          rate.rateBp,
-          false,
-        )
-      : null
+    const rateBp = rate.ok ? poRateBp(po, rate.rateBp) : null
+    const totals =
+      rateBp !== null
+        ? documentTotals(
+            po.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
+            rateBp,
+            false,
+          )
+        : null
     const extraReserveSatang = po.lines.reduce((sum, l) => {
       const delta = l.netSatang - l.sources.reduce((s, src) => s + src.releasableSatang, 0n)
       return delta > 0n ? sum + delta : sum
     }, 0n)
     const supplierActive = po.supplier.status === 'ACTIVE'
-    if (!totals || !rate.ok) return { kind: 'blocked' as const, totals: null, rateBp: null, code: 'TAX_RATE_NOT_CONFIGURED', extraReserveSatang, supplierActive }
-    if (po.lines.length === 0) return { kind: 'blocked' as const, totals, rateBp: rate.rateBp, code: 'NO_LINES', extraReserveSatang, supplierActive }
+    if (!totals || rateBp === null) return { kind: 'blocked' as const, totals: null, rateBp: null, code: 'TAX_RATE_NOT_CONFIGURED', extraReserveSatang, supplierActive }
+    if (po.lines.length === 0) return { kind: 'blocked' as const, totals, rateBp, code: 'NO_LINES', extraReserveSatang, supplierActive }
     // The same route input as submitPo: whoever sends it owns it when the round drafted it
     const creator = po.createdById ?? actor
     const requests = await tx.request.findMany({ where: { lines: { some: { poSources: { some: { poLine: { poId: po.id } } } } } }, select: { requesterMemberId: true } })
@@ -97,7 +102,7 @@ export async function previewPoSubmit(ctx: Ctx, poId: string): Promise<Result<Po
     // The band of the rule the amount fell into (before an escalation), as the route's own page shows it
     const bandRule = resolved.ok ? versionAt(policy.versions, ctx.now)?.rules.find((x) => x.code === (resolved.data.escalatedFromRuleCode ?? resolved.data.ruleCode)) : undefined
     const band = bandRule?.when.amount ? bandOf(bandRule.when.amount) : null
-    return { kind: 'resolved' as const, totals, rateBp: rate.rateBp, resolved, band, extraReserveSatang, supplierActive }
+    return { kind: 'resolved' as const, totals, rateBp, resolved, band, extraReserveSatang, supplierActive }
   })
   if (loaded.kind === 'refused') return { ok: false, error: loaded.error }
 

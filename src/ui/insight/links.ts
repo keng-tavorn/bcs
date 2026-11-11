@@ -8,6 +8,8 @@ export interface DocumentRef {
   readonly id: string
   /** The purchase order a variance, a receipt or an invoice belongs to */
   readonly poId?: string | null
+  /** S10-12: the RFx an award decision belongs to */
+  readonly rfxEventId?: string | null
 }
 
 export interface LinkRights {
@@ -19,6 +21,8 @@ export interface LinkRights {
   readonly doaVersions: boolean
   /** admin.orgAuthority.propose */
   readonly orgAuthorityChanges: boolean
+  /** S10-12: sourcing.view over the organization — the award page of an RFx (its page checks rfxReading again) */
+  readonly sourcing?: boolean
 }
 
 /** The page of a document, or the reader's own task when the document has no page they may open */
@@ -28,6 +32,7 @@ export function documentHref(doc: DocumentRef, rights: LinkRights, ownTaskId?: s
   if (['VARIANCE', 'GOODS_RECEIPT', 'INVOICE'].includes(doc.type) && rights.purchaseOrders && doc.poId) return `/procurement/pos/${doc.poId}`
   if (doc.type === 'DOA_VERSION' && rights.doaVersions) return `/admin/doa/${doc.id}`
   if (doc.type === 'ORG_AUTHORITY_CHANGE' && rights.orgAuthorityChanges) return '/admin/org-authority'
+  if (doc.type === 'AWARD_DECISION' && rights.sourcing && doc.rfxEventId) return `/sourcing/${doc.rfxEventId}/award`
   return ownTaskId ? `/tasks/${ownTaskId}` : null
 }
 

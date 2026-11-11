@@ -70,5 +70,18 @@
   "RATE_LIMITED": "Too many attempts. Please try again later",
   "EXTERNAL_SERVICE_ERROR": "An external system is not responding ({service})",
   "INTERNAL": "Something went wrong (reference {requestId})",
-  "CONFIG_PACKAGE_INVALID": "The configuration package is not valid or was changed ({reason})"
+  "CONFIG_PACKAGE_INVALID": "The configuration package is not valid or was changed ({reason})",
+  "ALREADY_INVITED": "This supplier is invited to this RFx already",
+  "SUPPLIER_FLAGGED": "The registry flags this supplier ({flag})",
+  "SCORECARD_INCOMPLETE": "The criteria must weigh 100% in all and the scorecard needs at least {min} evaluators",
+  "SCORES_INCOMPLETE": "{missing} scores are still missing (every criterion of every bid)",
+  "AWARD_REASON_REQUIRED": "Give the reason for this award ({reason})",
+  "AWARD_PRICE_EXCEEDS_BID": "The confirmed price before VAT of line {line} plus VAT is above the price bid (or the total is above the total bid with VAT)",
+  "PO_PENDING_PRICE": "The supplier has not confirmed its prices before VAT yet, so no purchase order is made",
+  "QUESTION_CUTOFF_PASSED": "Questions closed at {cutoff}",
+  "RFX_CLOSED": "This RFx closed for bids at {closesAt}",
+  "SUPPLIER_NOT_APPROVED": "A bid can be sent once the supplier is approved",
+  "BID_INCOMPLETE": "The bid lacks the price of lines: {lines}",
+  "VAT_INCLUSIVE_NOT_ALLOWED": "This RFx takes prices before VAT only",
+  "PREFERRED_OVERLAP": "This supplier is a preferred supplier of this category already, until {lastDay}"
 }

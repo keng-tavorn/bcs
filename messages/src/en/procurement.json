@@ -40,6 +40,7 @@
       "requester": "Requested by {name}",
       "site": "Deliver to {site}",
       "noSite": "No delivery site yet",
+      "preferredOverride": "Not the preferred supplier of the category. Reason: {reason}",
       "approved": "Approved {date}",
       "ageToday": "Approved today",
       "ageDays": "Approved {days} days ago",
@@ -86,7 +87,9 @@
       "urgentConfirm": "The lines you ticked include {count} urgent requests. Choosing {supplier} drafts their POs at once, and a draft cannot be thrown away or given another supplier yet.",
       "urgentConfirmButton": "Confirm: use this supplier and draft now",
       "back": "Check again first",
-      "nothingToClear": "The selected lines have no supplier, so there is none to remove. To give them one, choose it in the list and press \"Use this supplier for the selected lines\"."
+      "nothingToClear": "The selected lines have no supplier, so there is none to remove. To give them one, choose it in the list and press \"Use this supplier for the selected lines\".",
+      "rfxCategory": "The ticked lines must have one category, and a category, to open an RFx",
+      "rfxHasSupplier": "A ticked line has its supplier already. Take the supplier off before opening an RFx."
     },
     "round": {
       "title": "Make draft POs",
@@ -145,6 +148,12 @@
     "blocked": {
       "PRICE_INCLUDES_VAT": "Prices include VAT: this request cannot go on a draft PO yet, until a decision is made on how prices that include VAT become purchase order prices"
     },
-    "draftLink": "Open the draft PO of {supplier} · {site} · {kind}"
+    "draftLink": "Open the draft PO of {supplier} · {site} · {kind}",
+    "rfx": {
+      "open": "Open an RFx from the ticked lines",
+      "in": "In RFx {number}",
+      "inDraft": "In a draft RFx",
+      "held": "its supplier is chosen when the RFx ends"
+    }
   }
 }

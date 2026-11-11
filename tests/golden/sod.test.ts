@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { checkSod, paymentRunSodExtra, type ApprovalSubject, type OrgAuthorityChangeKind, type SodAction } from '@/core/sod'
+import { awardDecisionSodExtra, checkSod, paymentRunSodExtra, type ApprovalSubject, type OrgAuthorityChangeKind, type SodAction } from '@/core/sod'
 import { loadYaml, pick } from './doa-fixtures'
 
-// tests/golden/sod.yaml (spec §7.5): GC-SOD-01 to GC-SOD-16 (GC-SOD-10 on: the payment run and the bank account change of S9).
+// tests/golden/sod.yaml (spec §7.5): GC-SOD-01 to GC-SOD-16 (GC-SOD-10 on: the payment run and the bank account change of S9),
+// GC-SOD-17 and GC-SOD-18 (S7), GC-SOD-19 (the people of an award · BR-SOD-13) and GC-SOD-20 (SCORE_RFX · BR-SOD-14) of S10-10.
+// Both S10 rules are also checked directly below with every kind of person they stop.
 
 interface SodCase {
   id: string
   title?: string
   input: {
-    action: 'DECIDE_APPROVAL' | 'POST_GR' | 'PROPOSE_ORG_AUTHORITY_CHANGE' | 'PREPARE_PAYMENT' | 'DECIDE_RISK_REVIEW'
+    action: 'DECIDE_APPROVAL' | 'POST_GR' | 'PROPOSE_ORG_AUTHORITY_CHANGE' | 'PREPARE_PAYMENT' | 'DECIDE_RISK_REVIEW' | 'SCORE_RFX'
     actor: string
     requester?: string
     source?: 'INTERNAL' | 'PORTAL'
@@ -29,6 +31,10 @@ interface SodCase {
     /** DECIDE_RISK_REVIEW (S11-06 · BR-SOD-16) */
     assessmentOpenedBy?: string
     filledOnBehalfBy?: string
+    rfxCreator?: string
+    sourceRequesters?: string[]
+    evaluators?: string[]
+    recordedOnBehalfBy?: string[]
   }
   expect: Record<string, unknown>
 }
@@ -38,6 +44,7 @@ const suite = loadYaml<{ sodPolicy: { approverMayReceive: boolean; requesterMayR
 function action(i: SodCase['input']): SodAction {
   const recentBankChanges = i.bankChanges ? { payDate: i.payDate!, recentBankChangeDays: i.recentBankChangeDays!, changes: i.bankChanges.map((b) => ({ proposerMemberId: b.proposer, effectiveOn: b.effectiveOn })) } : undefined
   if (i.action === 'DECIDE_RISK_REVIEW') return { kind: 'DECIDE_RISK_REVIEW', actorMemberId: i.actor, assessmentPreparerMemberIds: [i.assessmentOpenedBy, i.filledOnBehalfBy].filter((m): m is string => Boolean(m)) }
+  if (i.action === 'SCORE_RFX') return { kind: 'SCORE_RFX', actorMemberId: i.actor, rfxCreatorMemberIds: i.rfxCreator ? [i.rfxCreator] : [], sourceRequesterMemberIds: i.sourceRequesters ?? [] }
   if (i.action === 'PREPARE_PAYMENT') return { kind: 'PREPARE_PAYMENT', actorMemberId: i.actor, recentBankChanges: recentBankChanges! }
   if (i.action === 'POST_GR') return { kind: 'POST_GR', actorMemberId: i.actor, requesterMemberIds: i.requester ? [i.requester] : [], approverMemberIds: i.approvers ?? [] }
   if (i.action === 'PROPOSE_ORG_AUTHORITY_CHANGE') return { kind: 'PROPOSE_ORG_AUTHORITY_CHANGE', changeKind: i.kind!, actorMemberId: i.actor, beneficiaryMemberId: i.beneficiary ?? null }
@@ -49,6 +56,10 @@ function action(i: SodCase['input']): SodAction {
     poCreatorMemberId: i.poCreator ?? null,
     ...(i.invoiceRecorders ? { invoiceRecorderMemberIds: i.invoiceRecorders } : {}),
     ...(recentBankChanges ? { recentBankChanges } : {}),
+    // S10-10 (BR-SOD-13): the people of an award besides its submitter
+    ...(i.subject === 'AWARD_DECISION'
+      ? { rfxCreatorMemberIds: i.rfxCreator ? [i.rfxCreator] : [], evaluatorMemberIds: i.evaluators ?? [], sourceRequesterMemberIds: i.sourceRequesters ?? [], recordedOnBehalfMemberIds: i.recordedOnBehalfBy ?? [] }
+      : {}),
     ...(i.source ? { bankChange: { source: i.source, submittedById: i.submittedBy ?? null, callVerifiedById: i.callVerifiedBy ?? null } } : {}),
   }
 }
@@ -66,6 +77,24 @@ describe('golden sod.yaml', () => {
 
 describe('[FR-DOA-007/AC1] separation of duties beyond the golden cases', () => {
   const policy = { approverMayReceive: false, requesterMayReceive: true }
+  it('[BR-SOD-13] who may not approve an award: its submitter (BR-SOD-01) first, then the RFx creator, its evaluators, the requesters of its lines and who recorded a bid for a supplier (S10-10 · GC-SOD-19)', () => {
+    const people = { rfxCreatorMemberIds: ['proc_mat2'], evaluatorMemberIds: ['proc_mat1', 'dm_it'], sourceRequesterMemberIds: ['req_con'], recordedOnBehalfMemberIds: ['proc_rec'] }
+    const decide = (actor: string) => checkSod({ kind: 'DECIDE_APPROVAL', subject: 'AWARD_DECISION', actorMemberId: actor, requesterMemberIds: ['proc_officer'], ...people }, policy)
+    // GC-SOD-19's input: an evaluator approves
+    expect(decide('proc_mat1')).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-13' })
+    for (const actor of ['proc_mat2', 'dm_it', 'req_con', 'proc_rec']) expect(decide(actor)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-13' })
+    expect(decide('proc_officer')).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-01' })
+    expect(decide('dm_proc')).toEqual({ ok: true })
+    // the runtime list the adapter hands approvals/decide.ts is the same people
+    expect(awardDecisionSodExtra(people)).toEqual([{ rule: 'BR-SOD-13', memberIds: ['proc_mat2', 'proc_mat1', 'dm_it', 'req_con', 'proc_rec'] }])
+  })
+
+  it('[BR-SOD-14] who may not score an RFx: its creator and the requesters of its source lines (S10-08 · GC-SOD-20)', () => {
+    const conflicts = { rfxCreatorMemberIds: ['proc_officer'], sourceRequesterMemberIds: ['req_con', 'asst_con'] }
+    expect(checkSod({ kind: 'SCORE_RFX', actorMemberId: 'req_con', ...conflicts }, policy)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-14' })
+    expect(checkSod({ kind: 'SCORE_RFX', actorMemberId: 'proc_officer', ...conflicts }, policy)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-14' })
+    expect(checkSod({ kind: 'SCORE_RFX', actorMemberId: 'dm_it', ...conflicts }, policy)).toEqual({ ok: true })
+  })
   it('lets an approver receive only when the version allows it, and stops the requester when it does not', () => {
     const gr = { kind: 'POST_GR' as const, actorMemberId: 'vp_ops', requesterMemberIds: ['req_con'], approverMemberIds: ['vp_ops'] }
     expect(checkSod(gr, { ...policy, approverMayReceive: true })).toEqual({ ok: true })

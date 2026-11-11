@@ -304,7 +304,8 @@
     "ATTACHMENTS": "Documents are missing under rule {rule}",
     "AGREEMENT_REASON": "A catalogue item has an agreed price with another supplier: give the reason for not using that supplier",
     "AGREEMENT_BEFORE_VAT": "Line {n} takes an agreed price, which is before VAT: untick “The prices I enter include VAT”",
-    "CATALOG_UNLISTED": "Line {n} is no longer in the catalogue: choose another item or type it yourself"
+    "CATALOG_UNLISTED": "Line {n} is no longer in the catalogue: choose another item or type it yourself",
+    "PREFERRED_REASON": "A category of the items has a preferred supplier: give the reason for choosing another under the suggested supplier"
   },
   "submit": {
     "send": "Send for approval",
@@ -383,7 +384,8 @@
     "OVERRUN_PENDING": "This request is waiting for its over-budget approval. Until it is decided, the amount and the budget line cannot change and the request cannot be sent. Wait for the decision, or cancel the over-budget approval on the request page.",
     "LINE_BUDGET_LINE_NOT_ALLOWED": "The budget line of item {n} belongs to another department and you have not been allowed to use it. Choose another budget line for this item, or Same as the request.",
     "LINE_BUDGET_LINE_YEAR": "The budget line of item {n} is of another fiscal year. Choose a budget line of this year for this item, or Same as the request.",
-    "LINE_BUDGET_LINE": "The budget line of item {n} was not found. Choose another budget line for this item, or Same as the request."
+    "LINE_BUDGET_LINE": "The budget line of item {n} was not found. Choose another budget line for this item, or Same as the request.",
+    "PREFERRED_OVERRIDE_REASON": "A category of the items has a preferred supplier from sourcing. Give the reason for choosing another under the supplier on the quotations and documents step, or choose the preferred supplier."
   },
   "site": {
     "label": "Delivery site",
@@ -402,6 +404,28 @@
     "hint": "If you know a suitable supplier, suggest it here. Procurement chooses the actual supplier of each item",
     "noneInRegister": "There are no suppliers in the register to choose from yet. Procurement will choose one",
     "dropped": "The suggested supplier is no longer in use. Choose another supplier or none"
+  },
+  "preferred": {
+    "fromAward": "recommended by sourcing {award} until {until}",
+    "manual": "recommended by procurement until {until}",
+    "kept": "This supplier is {source} for category {category}",
+    "left": "Category {category} has a supplier {source}: {code} · {name}",
+    "leftAsk": "You may choose another or none, but give the reason before sending. The approver and procurement see it.",
+    "leftAtRisk": "This preferred supplier is at risk, so you may choose another without a reason.",
+    "useIt": "Use the preferred supplier ({code})",
+    "tier": "Risk tier {tier}",
+    "status": {
+      "OVERDUE": "Risk assessment overdue",
+      "REASSESS_REQUIRED": "Risk assessment to be done again"
+    },
+    "flag": {
+      "CEASED": "The registry says it ceased business",
+      "VAT_CANCELLED": "The registry says its VAT registration was cancelled"
+    },
+    "atRisk": "Recommended but at risk: {risk}",
+    "reasonLabel": "Why not the preferred supplier",
+    "reasonHint": "The approver of the request and procurement see this reason",
+    "reasonMissing": "Give the reason for not using the preferred supplier"
   },
   "sent": {
     "send": "Sent for approval",

@@ -5,6 +5,8 @@ import { defineEvents } from '../registry'
 
 defineEvents('Security', {
   // A decision or action refused by separation of duties (BR-SOD-01..08); kept even though the command is refused
+  // S10-06 (BR-RFX-06): a member asked for the prices of a sealed RFx before its close and was refused
+  'security.sealed_bid_denied': { schema: z.object({ rfxEventId: z.uuid(), bidId: z.uuid(), actorMemberId: z.uuid().nullable() }) },
   'security.sod_blocked': {
     schema: z.object({ rule: z.string().min(1), action: z.string().min(1), subjectType: z.string().min(1), subjectId: z.uuid(), actorMemberId: z.uuid() }),
   },

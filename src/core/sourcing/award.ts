@@ -31,18 +31,60 @@ export interface AwardAmount {
  * gets its own PO, so its own document VAT); gross = net + vat. A supplier's lines share one rate.
  */
 export function awardAmount(lines: readonly AwardLineInput[]): AwardAmount {
+  return awardTotals(lines.map((l) => ({ ref: l.ref, supplierId: l.supplierId, lineNetSatang: lineNet(l.quantity, l.unitPriceSatang), vatRateBp: l.vatRateBp })))
+}
+
+/**
+ * BR-RFX-12 from the amounts before VAT of the lines as the comparison table holds them (S10-10): a line won by a bid
+ * that included VAT has its share of that bid's amount before VAT (OQ-212), not quantity × a price. VAT as awardAmount.
+ */
+export function awardTotals(lines: ReadonlyArray<{ readonly ref: string; readonly supplierId: string; readonly lineNetSatang: Satang; readonly vatRateBp: number }>): AwardAmount {
   const suppliers = new Map<string, { net: Satang; rateBp: number }>()
   const nets = lines.map((l) => {
-    const amount = lineNet(l.quantity, l.unitPriceSatang)
+    if (l.lineNetSatang < 0n) throw new RangeError(`line ${l.ref} has a negative amount`)
     const s = suppliers.get(l.supplierId)
     if (s && s.rateBp !== l.vatRateBp) throw new RangeError(`supplier ${l.supplierId} has two VAT rates in one award`)
-    suppliers.set(l.supplierId, { net: (s?.net ?? 0n) + amount, rateBp: l.vatRateBp })
-    return [l.ref, amount] as const
+    suppliers.set(l.supplierId, { net: (s?.net ?? 0n) + l.lineNetSatang, rateBp: l.vatRateBp })
+    return [l.ref, l.lineNetSatang] as const
   })
   const perSupplier = [...suppliers].map(([supplierId, s]) => ({ supplierId, net: s.net, vat: vatFromNet(s.net, s.rateBp).vat }))
   const net = perSupplier.reduce((a, s) => a + s.net, 0n)
   const vat = perSupplier.reduce((a, s) => a + s.vat, 0n)
   return { net, vat, gross: net + vat, isSplit: suppliers.size > 1, perSupplier, lineNet: nets }
+}
+
+/**
+ * OQ-212: the highest unit price before VAT a winner who quoted with VAT may confirm — ⌊quoted × 10000 ÷ (10000 + rate)⌋,
+ * the price an award line holds until the winner confirms its own (S10-10; S10-11 takes the confirmed one).
+ */
+export function netUnitPriceCeiling(vatRateBp: number, quotedUnitPriceSatang: Satang): Satang {
+  if (!Number.isInteger(vatRateBp) || vatRateBp < 0) throw new RangeError(`invalid VAT rate: ${vatRateBp} bp`)
+  if (quotedUnitPriceSatang < 0n) throw new RangeError('a negative price')
+  return (quotedUnitPriceSatang * BP_PER_WHOLE) / (BP_PER_WHOLE + BigInt(vatRateBp))
+}
+
+/**
+ * BR-RFX-12: why an award needs its reason, in this order — not the first ranked on a line, split, a foreign winner, a
+ * winning bid past its validity, a winner flagged by the registry or short of required documents (read live), above
+ * what the source requests approved, and (RISK on) a high-risk winner not yet cleared.
+ */
+export const AWARD_REASON_CODES = ['NOT_TOP_SCORE', 'SPLIT', 'FOREIGN', 'BID_EXPIRED', 'SUPPLIER_FLAGGED', 'DOCS_INCOMPLETE', 'ABOVE_REQUEST', 'RISK_NOT_CLEARED'] as const
+export type AwardReasonCode = (typeof AWARD_REASON_CODES)[number]
+
+/** The codes in their fixed order, each once */
+export function orderReasonCodes(codes: Iterable<AwardReasonCode>): AwardReasonCode[] {
+  const set = new Set(codes)
+  return AWARD_REASON_CODES.filter((c) => set.has(c))
+}
+
+/**
+ * BR-RFX-12 (จ · S11 BR-RSK-12): a winner of high risk is cleared when its assessment is CURRENT or EXPIRING or an override
+ * is open; a tier other than HIGH needs nothing. An unknown status of a HIGH winner counts as not cleared.
+ */
+export function riskCleared(risk: { readonly tier: string | null; readonly status?: string | null; readonly openOverrideId?: string | null }): boolean {
+  if (risk.tier !== 'HIGH') return true
+  if (risk.openOverrideId) return true
+  return risk.status === 'CURRENT' || risk.status === 'EXPIRING'
 }
 
 /**

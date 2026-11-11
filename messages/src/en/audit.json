@@ -156,13 +156,20 @@
     "supplier_application": "Supplier application",
     "supplier_document": "Supplier documents",
     "supplier_document_type": "Supplier document types",
+    "rfx": "Sourcing (RFx)",
+    "rfx_invite": "Bid invitations",
+    "scorecard": "Scoring",
+    "bid": "Supplier bids",
     "risk_tier": "Risk tiers",
     "risk_policy": "Risk check policy",
     "risk_questionnaire": "Risk questionnaire",
     "risk_assessment": "Supplier risk assessments",
     "review_task": "Risk reviewer tasks",
     "risk_review": "Reassessments",
-    "risk_override": "Risk overrides"
+    "risk_override": "Risk overrides",
+    "score": "Scoring",
+    "award": "Sourcing award",
+    "preferred_supplier": "Preferred suppliers"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -225,13 +232,19 @@
     "SupplierApplication": "Supplier application",
     "SupplierDocument": "Supplier documents",
     "SupplierDocumentType": "Supplier document types",
+    "RfxEvent": "RFx",
+    "RfxInvite": "Bid invitation",
+    "Scorecard": "Scorecard",
+    "AwardDecision": "Sourcing award",
+    "Bid": "Bid",
     "RiskTier": "Risk tier",
     "RiskPolicy": "Risk check policy",
     "RiskQuestionnaire": "Risk questionnaire version",
     "RiskAssessment": "Risk assessment",
     "ReviewTask": "Risk reviewer task",
     "RiskReview": "Reassessment",
-    "RiskOverride": "Risk override"
+    "RiskOverride": "Risk override",
+    "PreferredSupplier": "Preferred supplier"
   },
   "events": {
     "approval_step": {
@@ -454,13 +467,14 @@
       "cancelled": "Request cancelled",
       "completed": "Request completed",
       "doa_gap_reported": "DOA has no rule for this request",
-      "draft_expiry_notified": "Expiring draft notified",
       "drafted": "Request drafted",
+      "draft_expiry_notified": "Expiring draft notified",
       "flagged": "Flagged as a duplicate or split",
       "follower_added": "Follower added",
       "follower_removed": "Follower removed",
       "info_provided": "Requester answered",
       "info_requested": "More information asked of the requester",
+      "preferred_overridden": "Request sent without the preferred supplier",
       "rejected": "Request rejected",
       "renewal_reminded": "Renewal reminded",
       "resubmitted": "Request sent again",
@@ -475,7 +489,8 @@
       "pin_locked": "Transaction PIN locked for a while",
       "sod_blocked": "Separation of duties blocked an action",
       "token_misuse": "Decision link misused",
-      "rate_limited": "Too many requests limited"
+      "rate_limited": "Too many requests limited",
+      "sealed_bid_denied": "Sealed prices refused before the close"
     },
     "supplier": {
       "created": "Supplier added",
@@ -669,6 +684,51 @@
     "supplier_document_type": {
       "updated": "Supplier document type changed"
     },
+    "rfx": {
+      "created": "RFx created",
+      "updated": "RFx edited",
+      "unsealed": "Prices unsealed before the close",
+      "lines_changed": "RFx lines changed",
+      "opened": "Opened for bids",
+      "amended": "RFx amended after opening",
+      "extended": "Close extended",
+      "reminded": "Suppliers reminded before the close",
+      "closed": "Closed for bids",
+      "cancelled": "RFx cancelled",
+      "reopened": "RFx reopened",
+      "question_asked": "Supplier asked a question",
+      "question_answered": "Question answered",
+      "concluded": "RFI concluded",
+      "evaluating": "Bids under evaluation",
+      "awarded": "Awarded"
+    },
+    "rfx_invite": {
+      "created": "Supplier invited",
+      "removed": "Invite withdrawn",
+      "expired": "Invite expired",
+      "supplier_linked": "Invite linked to the approved supplier",
+      "viewed": "Supplier opened the RFx",
+      "declined": "Supplier declined to bid"
+    },
+    "scorecard": {
+      "updated": "Criteria and evaluators set",
+      "locked": "Criteria locked",
+      "revealed": "Scores revealed",
+      "recomputed": "Scores recomputed",
+      "evaluator_added": "Evaluator added",
+      "evaluator_recused": "Evaluator stepped aside"
+    },
+    "bid": {
+      "disqualified": "Bid disqualified",
+      "saved": "Bid draft saved",
+      "submitted": "Bid submitted",
+      "withdrawn": "Bid withdrawn",
+      "recorded_on_behalf": "Bid recorded for the supplier",
+      "file_attached": "File attached to a bid",
+      "file_removed": "File taken off a bid",
+      "file_rejected": "Bid file refused by the scan",
+      "net_prices_confirmed": "Supplier confirmed prices before VAT"
+    },
     "risk_tier": {
       "proposed": "New risk tier values proposed",
       "confirmed": "Risk tier values confirmed",
@@ -728,6 +788,26 @@
       "cancelled": "Override request cancelled",
       "expiring": "Risk override about to lapse",
       "expired": "Risk override lapsed"
+    },
+    "score": {
+      "saved": "Scores saved as a draft",
+      "submitted": "Scores sent"
+    },
+    "award": {
+      "created": "Award drafted",
+      "updated": "Award changed",
+      "submitted": "Award sent for approval",
+      "approved": "Award approved",
+      "returned": "Award returned",
+      "rejected": "Award rejected",
+      "cancelled": "Award cancelled",
+      "po_created": "Purchase orders made from the award"
+    },
+    "preferred_supplier": {
+      "created": "Preferred supplier set",
+      "extended": "Preferred supplier extended",
+      "ended": "Preferred supplier ended early",
+      "expiring": "Preferred supplier ending soon"
     }
   }
 }

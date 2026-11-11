@@ -282,6 +282,20 @@ export const SOURCING_DEFAULT_WEIGHTS_BP = {
   RFQ: { PRICE: 7_000, DELIVERY: 2_000, QUALITY: 1_000 },
   RFP: { PRICE: 4_000, TECHNICAL: 4_000, SUPPORT: 2_000 },
 } as const // TODO(OQ-206)
+/** S10: the longest description of an RFx (characters), and of an amendment's summary or a criterion's guidance */
+export const RFX_LONG_TEXT_MAX = 4_000
+/** S10-12: the most suppliers and members the setup form of an RFx lists to pick from, and the most catalogue items */
+export const SOURCING_CHOICES_MAX = 2_000
+export const SOURCING_CATALOG_MAX = 1_000
+/** Asia/Bangkok is UTC+7 all year (no daylight saving): the wall time of a datetime-local field */
+export const BANGKOK_OFFSET_MS = 7 * MS_PER_HOUR
+export const RFX_SUMMARY_MAX = 1_000
+/** S10: the longest question of a supplier about an RFx (BR-RFX-04), in characters */
+export const RFX_QUESTION_MAX = 2_000
+/** S10-07 (BR-RFX-07 · BR-PORTAL-07): the files a supplier attaches to one bid (its quotation, catalogue, an RFI's answer) */
+export const BID_FILES_MAX = 10
+/** S10-08: the scores one save or send of an evaluator carries at most (bids × quality criteria) */
+export const RFX_SCORE_ENTRIES_MAX = 1_000
 // S11-04 (BR-RSK-01 · BR-RSK-02): the size of what an administrator types into the risk questionnaire and the tiers —
 // limits of input, not thresholds (the thresholds are the organization's RiskTier rows)
 /** Characters of a question or of the reason of a change */

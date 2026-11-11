@@ -156,13 +156,20 @@
     "supplier_application": "ใบสมัครผู้ขาย",
     "supplier_document": "เอกสารผู้ขาย",
     "supplier_document_type": "ประเภทเอกสารผู้ขาย",
+    "rfx": "การจัดหา (RFx)",
+    "rfx_invite": "คำเชิญเสนอราคา",
+    "scorecard": "การให้คะแนน",
+    "bid": "ข้อเสนอของผู้ขาย",
     "risk_tier": "เกณฑ์ระดับความเสี่ยง",
     "risk_policy": "นโยบายด่านความเสี่ยง",
     "risk_questionnaire": "แบบประเมินความเสี่ยง",
     "risk_assessment": "แบบประเมินความเสี่ยงคู่ค้า",
     "review_task": "งานผู้ตรวจความเสี่ยง",
     "risk_review": "การประเมินซ้ำ",
-    "risk_override": "การอนุมัติข้ามความเสี่ยง"
+    "risk_override": "การอนุมัติข้ามความเสี่ยง",
+    "score": "การให้คะแนน",
+    "award": "ผลการจัดหา",
+    "preferred_supplier": "ผู้ขายที่แนะนำ"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -225,13 +232,19 @@
     "SupplierApplication": "ใบสมัครผู้ขาย",
     "SupplierDocument": "เอกสารผู้ขาย",
     "SupplierDocumentType": "ประเภทเอกสารผู้ขาย",
+    "RfxEvent": "RFx",
+    "RfxInvite": "คำเชิญเสนอราคา",
+    "Scorecard": "เกณฑ์ให้คะแนน",
+    "AwardDecision": "ผลการจัดหา",
+    "Bid": "ข้อเสนอ",
     "RiskTier": "เกณฑ์ระดับความเสี่ยง",
     "RiskPolicy": "นโยบายด่านความเสี่ยง",
     "RiskQuestionnaire": "ฉบับแบบประเมินความเสี่ยง",
     "RiskAssessment": "ใบประเมินความเสี่ยง",
     "ReviewTask": "งานผู้ตรวจความเสี่ยง",
     "RiskReview": "การประเมินซ้ำ",
-    "RiskOverride": "การอนุมัติข้ามความเสี่ยง"
+    "RiskOverride": "การอนุมัติข้ามความเสี่ยง",
+    "PreferredSupplier": "ผู้ขายที่แนะนำ"
   },
   "events": {
     "approval_step": {
@@ -454,13 +467,14 @@
       "cancelled": "ยกเลิกคำขอ",
       "completed": "คำขอเสร็จสิ้น",
       "doa_gap_reported": "แจ้งว่า DOA ไม่มีข้อสำหรับคำขอนี้",
-      "draft_expiry_notified": "เตือนร่างคำขอที่ใกล้หมดอายุ",
       "drafted": "สร้างร่างคำขอ",
+      "draft_expiry_notified": "เตือนร่างคำขอที่ใกล้หมดอายุ",
       "flagged": "ตรวจพบคำขอซ้ำหรือแตกยอด",
       "follower_added": "เพิ่มผู้ติดตามคำขอ",
       "follower_removed": "เอาผู้ติดตามคำขอออก",
       "info_provided": "ผู้ขอตอบคำถาม",
       "info_requested": "ขอข้อมูลเพิ่มจากผู้ขอ",
+      "preferred_overridden": "ส่งคำขอโดยไม่ใช้ผู้ขายที่แนะนำ",
       "rejected": "ไม่อนุมัติคำขอ",
       "renewal_reminded": "เตือนต่ออายุบริการ",
       "resubmitted": "ส่งคำขออีกครั้ง",
@@ -475,7 +489,8 @@
       "pin_locked": "ล็อก PIN ยืนยันธุรกรรมชั่วคราว",
       "sod_blocked": "ระบบกันการทำหน้าที่ซ้อนกัน",
       "token_misuse": "พบการใช้ลิงก์ตัดสินผิดวิธี",
-      "rate_limited": "จำกัดคำขอที่ถี่เกินไป"
+      "rate_limited": "จำกัดคำขอที่ถี่เกินไป",
+      "sealed_bid_denied": "ปฏิเสธการเปิดดูราคาก่อนปิดรับ"
     },
     "supplier": {
       "created": "เพิ่มผู้ขาย",
@@ -669,6 +684,51 @@
     "supplier_document_type": {
       "updated": "แก้ประเภทเอกสารผู้ขาย"
     },
+    "rfx": {
+      "created": "สร้าง RFx",
+      "updated": "แก้ RFx",
+      "unsealed": "เปิดซองราคาก่อนปิดรับ",
+      "lines_changed": "เปลี่ยนรายการของ RFx",
+      "opened": "เปิดรับข้อเสนอ",
+      "amended": "แก้ไข RFx หลังเปิด",
+      "extended": "ขยายเวลาปิดรับ",
+      "reminded": "เตือนผู้ขายก่อนปิดรับ",
+      "closed": "ปิดรับข้อเสนอ",
+      "cancelled": "ยกเลิก RFx",
+      "reopened": "เปิด RFx ใหม่",
+      "question_asked": "ผู้ขายถามคำถาม",
+      "question_answered": "ตอบคำถามผู้ขาย",
+      "concluded": "สรุปผล RFI",
+      "evaluating": "เริ่มพิจารณาข้อเสนอ",
+      "awarded": "มอบงานแล้ว"
+    },
+    "rfx_invite": {
+      "created": "เชิญผู้ขายเข้า RFx",
+      "removed": "ถอนคำเชิญ",
+      "expired": "คำเชิญหมดอายุ",
+      "supplier_linked": "ผูกคำเชิญกับผู้ขายที่อนุมัติแล้ว",
+      "viewed": "ผู้ขายเปิดดู RFx",
+      "declined": "ผู้ขายแจ้งไม่เสนอราคา"
+    },
+    "scorecard": {
+      "updated": "ตั้งเกณฑ์และผู้ประเมิน",
+      "locked": "ล็อกเกณฑ์ให้คะแนน",
+      "revealed": "เปิดเผยคะแนน",
+      "recomputed": "คำนวณคะแนนใหม่",
+      "evaluator_added": "เพิ่มผู้ประเมิน",
+      "evaluator_recused": "ผู้ประเมินถอนตัว"
+    },
+    "bid": {
+      "disqualified": "ตัดสิทธิ์ข้อเสนอ",
+      "saved": "บันทึกร่างข้อเสนอ",
+      "submitted": "ยื่นข้อเสนอ",
+      "withdrawn": "ถอนข้อเสนอ",
+      "recorded_on_behalf": "บันทึกข้อเสนอแทนผู้ขาย",
+      "file_attached": "แนบไฟล์กับข้อเสนอ",
+      "file_removed": "นำไฟล์ออกจากข้อเสนอ",
+      "file_rejected": "ไฟล์แนบของข้อเสนอไม่ผ่านการตรวจ",
+      "net_prices_confirmed": "ผู้ขายยืนยันราคาก่อน VAT"
+    },
     "risk_tier": {
       "proposed": "เสนอเกณฑ์ระดับความเสี่ยงใหม่",
       "confirmed": "ยืนยันเกณฑ์ระดับความเสี่ยง",
@@ -728,6 +788,26 @@
       "cancelled": "ยกเลิกคำขออนุมัติข้าม",
       "expiring": "การอนุมัติข้ามใกล้หมดอายุ",
       "expired": "การอนุมัติข้ามหมดอายุ"
+    },
+    "score": {
+      "saved": "บันทึกร่างคะแนน",
+      "submitted": "ส่งคะแนน"
+    },
+    "award": {
+      "created": "สร้างผลมอบงาน",
+      "updated": "แก้ผลมอบงาน",
+      "submitted": "ส่งผลมอบงานขออนุมัติ",
+      "approved": "อนุมัติผลมอบงาน",
+      "returned": "ตีกลับผลมอบงาน",
+      "rejected": "ไม่อนุมัติผลมอบงาน",
+      "cancelled": "ยกเลิกผลมอบงาน",
+      "po_created": "ออกใบสั่งซื้อจากผลมอบงาน"
+    },
+    "preferred_supplier": {
+      "created": "ตั้งผู้ขายที่แนะนำ",
+      "extended": "ขยายช่วงผู้ขายที่แนะนำ",
+      "ended": "สิ้นสุดผู้ขายที่แนะนำก่อนกำหนด",
+      "expiring": "เตือนผู้ขายที่แนะนำใกล้หมดอายุ"
     }
   }
 }

@@ -318,13 +318,13 @@ describe('[FR-AI-305/AC6] [EG-1] with the AI off, no button and nothing written 
     setAiRuntimeForTests(FIXTURE)
 
     const settings = (await prisma.organization.findUniqueOrThrow({ where: { id: org.organizationId } })).settings as Record<string, Record<string, unknown>>
-    await prisma.organization.update({ where: { id: org.organizationId }, data: { settings: { ...settings, sourcing: { ...settings.sourcing, aiAssist: false } } } })
+    await prisma.organization.update({ where: { id: org.organizationId }, data: { settings: { ...settings, sourcing: { ...settings.sourcing, aiAssist: false } } as object } })
     try {
       expect(await rfxSummariesOf(proc(AFTER), { id: rfxEventId, kind: 'RFQ', status: 'CLOSED' })).toEqual({ available: false, summary: null, negotiation: null })
       expect((await rfxDraftAiOf(proc(), draft)).available).toBe(false)
       expect(await draftRfx(proc(), { rfxEventId: draft }, key())).toMatchObject({ ok: false, error: { code: 'AI_AGENT_DISABLED', details: { reason: 'AI_ASSIST_OFF' } } })
     } finally {
-      await prisma.organization.update({ where: { id: org.organizationId }, data: { settings } })
+      await prisma.organization.update({ where: { id: org.organizationId }, data: { settings: settings as object } })
     }
     expect(sent).toHaveLength(calls)
 

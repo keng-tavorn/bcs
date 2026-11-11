@@ -129,13 +129,16 @@
         "ofAgent": "of {name}",
         "older": "See earlier work",
         "purposes": {
+          "BID_SUMMARY": "Summarized the bids",
           "BRIEF": "Summarized a task for the approver",
           "DELIVERY_NOTE_READ": "Read a delivery note",
           "DOA_DRAFT": "Drafted a DOA from the rules",
           "INTAKE": "Drafted a request",
           "INVOICE_READ": "Read an invoice",
+          "NEGOTIATION_POINTS": "Points to negotiate",
           "QUESTION": "Answered a question",
           "QUOTATION_READ": "Read a quotation",
+          "RFX_DRAFT": "Drafted an RFx",
           "SAVINGS_NOTE": "Explained a saving",
           "SUPPLIER_DOC_READ": "Supplier document reading"
         },
@@ -157,7 +160,8 @@
           "GOODS_RECEIPT": "Receipt",
           "INVOICE": "Invoice",
           "PURCHASE_ORDER": "PO",
-          "REQUEST": "Request"
+          "REQUEST": "Request",
+          "RFX_EVENT": "RFx"
         },
         "system": "The system",
         "title": "History of the work",
@@ -198,6 +202,10 @@
         "INTAKE": {
           "description": "Picks the request type and drafts the request from what the requester wrote or attached; the requester confirms before sending",
           "name": "Request helper"
+        },
+        "SOURCING": {
+          "description": "Drafts an RFx's title, description and English line descriptions for procurement to check field by field, and after the close summarizes the bids and points to negotiate from figures the system calculated; never scores, awards or messages a supplier",
+          "name": "Sourcing"
         },
         "SUPPLIER_ONBOARDING": {
           "description": "Reads the company certificate and VAT registration a supplier uploads with its application and fills them in for the supplier or procurement to check field by field; never reads an account number, verifies a document or approves a supplier",

@@ -245,7 +245,7 @@ export interface ComparisonFacts {
     readonly lowest: boolean
     readonly tags: readonly ComparisonTag[]
     readonly risk: { readonly tier: string | null; readonly blocked: boolean } | null
-    readonly lines: ReadonlyArray<{ readonly lineNo: number; readonly quotedUnitPrice: string | null; readonly lineNet: string | null; readonly referenceSource: PriceRefSource | null; readonly deviationBp: number | null; readonly flag: PriceFlag | null }>
+    readonly lines: ReadonlyArray<{ readonly lineNo: number; readonly quotedUnitPrice: string | null; readonly lineNet: string | null; readonly referenceSource: PriceRefSource | null; readonly referenceUnitPrice: string | null; readonly deviationBp: number | null; readonly flag: PriceFlag | null }>
   }>
 }
 
@@ -266,7 +266,7 @@ export function comparisonFacts(table: RfxComparison): ComparisonFacts {
       lowest: b.lowest,
       tags: b.tags,
       risk: b.risk,
-      lines: b.lines.map((l) => ({ lineNo: lineNo.get(l.rfxLineId)!, quotedUnitPrice: l.quotedUnitPrice, lineNet: l.lineNet, referenceSource: l.reference?.source ?? null, deviationBp: l.deviationBp, flag: l.flag })),
+      lines: b.lines.map((l) => ({ lineNo: lineNo.get(l.rfxLineId)!, quotedUnitPrice: l.quotedUnitPrice, lineNet: l.lineNet, referenceSource: l.reference?.source ?? null, referenceUnitPrice: l.reference?.unitPrice ?? null, deviationBp: l.deviationBp, flag: l.flag })),
     })),
   }
 }

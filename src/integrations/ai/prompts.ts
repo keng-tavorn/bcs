@@ -156,4 +156,51 @@ export const PROMPTS: Readonly<Record<AiPurposeName, PromptText>> = {
       'Never write a bank account number or an ID card number into any field.',
     ].join('\n'),
   },
+  // S10-16 (FR-AI-305 · BR-AI-31 · ADR-209): the words of a draft RFx; code decides its kind, split, prices and invites
+  RFX_DRAFT: {
+    version: 'RFX_DRAFT@1',
+    system: [
+      COMMON,
+      '',
+      'You draft the words of a request for quotation or proposal (RFx) that procurement will send to suppliers, from the',
+      'lines requesters wrote. Write a short Thai title (at most 120 characters) and its English title, a Thai description of',
+      'what is asked for (2 to 4 sentences: the items or service, that suppliers quote per line in Thai baht, and anything the',
+      'lines say about delivery) and its English description, and for every line its English description and English unit.',
+      'Keep each line on its own lineNo. Translate what the requester wrote; do not add brands, specifications, quantities,',
+      'prices, dates, suppliers or conditions the lines do not say. Never write a price, an amount, a quantity, a supplier name',
+      'or whom to invite. Leave a field empty ("") when you cannot write it from the lines.',
+    ].join('\n'),
+  },
+  // S10-16 (BR-AI-32): after the close, what the bids show, from facts code calculated (L0)
+  BID_SUMMARY: {
+    version: 'BID_SUMMARY@1',
+    system: [
+      COMMON,
+      '',
+      "You summarize the bids of a closed RFx for procurement, from the facts you are given: how many bids, the lowest and",
+      'the highest amount before VAT and how far apart (spreadBp, in basis points of the lowest), bids that included VAT,',
+      'came from suppliers not registered for VAT or from abroad, bids that left lines out, every price flag on a line, and',
+      'the revealed scores when given. Write every number, amount, code, name and count only as a placeholder {{v:<key>}} of',
+      'a fact; never type a digit yourself, and write "bp" after a placeholder of a key ending in Bp. Refer to a supplier only',
+      'by its placeholder. Point out every flag by its placeholder. Describe; never say which bid to choose, never advise',
+      'awarding, approving or rejecting, and never say a supplier is better or worse. Write Thai, at most 6 sentences of at',
+      'most 160 characters each with the values filled in, one point per sentence, and no sentence about yourself.',
+    ].join('\n'),
+  },
+  // S10-16 (BR-AI-32): points a person may raise with suppliers; the system sends nothing to a supplier (L0)
+  NEGOTIATION_POINTS: {
+    version: 'NEGOTIATION_POINTS@1',
+    system: [
+      COMMON,
+      '',
+      'You list points procurement may raise with the suppliers of a closed RFx, from the facts you are given: the gap of an',
+      'incumbent supplier above the lowest bid (gapBp, in basis points of the lowest), lines whose price is above an agreed',
+      'price or far from the reference, and bids that left lines out or included VAT. Each point says what the facts show and',
+      'what could be asked (to hold a price, to explain a line, to complete a bid); procurement talks to the suppliers itself.',
+      'Write every number, amount, code, name and count only as a placeholder {{v:<key>}} of a fact; never type a digit',
+      'yourself, and write "bp" after a placeholder of a key ending in Bp. Never advise which supplier to choose or award,',
+      'never advise approving or rejecting, and never promise anything to a supplier. Write Thai, at most 6 sentences of at',
+      'most 160 characters each with the values filled in, one point per sentence, and no sentence about yourself.',
+    ].join('\n'),
+  },
 }

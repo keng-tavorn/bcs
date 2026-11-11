@@ -40,3 +40,21 @@ export {
   type MonthResultsDto,
   type SettingChangeDto,
 } from './report'
+// S10-16 (FR-AI-305): the Sourcing and Negotiation Agent
+export {
+  draftRfx,
+  DraftRfxInput,
+  rfxDraftAiOf,
+  rfxSummariesOf,
+  summarizeRfx,
+  SummarizeRfxInput,
+  SUMMARY_PURPOSES,
+  writeSummaryAhead,
+  type RfxDraftAiDto,
+  type RfxDraftDto,
+  type RfxSummariesDto,
+  type RfxSummaryDto,
+  type SummaryAhead,
+  type SummaryPurpose,
+} from './agents/sourcing'
+export { sourcingFacts, sourcingFactsText, type SourcingFacts } from './agents/sourcing-facts'

@@ -10,7 +10,7 @@ import { E2E_DB } from '../support/e2e-env'
 // Run by tests/e2e/rfx-portal.spec.ts against the e2e database only (S10-07 · FR-SRC-202 AC1 AC2 · BR-RFX-07):
 //   open <tag> <th|en>   an organization of its own with SUPPLIER and SOURCING on (AI off), a supplier registered for VAT on
 //                        the portal with its primary contact in that language, and an RFQ of two lines PROCUREMENT opened
-//                        for it, closing in three days; prints the org code, the RFx, the contact and the invite's link
+//                        for it, closing in eight days; prints the org code, the RFx, the contact and the invite's link
 //   otp <contactId>      the six-digit code of the contact's latest sign-in e-mail (read from its notice, as Mailpit would)
 //   answer <rfxEventId> <memberId>  procurement answers the RFx's open question to everyone
 //   award <rfxEventId> <memberId>   procurement closes the RFx early (every invite has bid) and an approved award gives both lines
@@ -57,7 +57,8 @@ async function open(tag: string, locale: string) {
   const version = async () => (await prisma.rfxEvent.findUniqueOrThrow({ where: { id: rfxEventId } })).version
   ok(await inviteToRfx(proc, { rfxEventId, expectedVersion: await version(), supplierId: supplier.id }, key()))
   ok(await setScorecard(proc, { rfxEventId, expectedVersion: await version(), criteria: [{ code: 'PRICE', nameTh: 'ราคา', weightBp: 10000, kind: 'PRICE' }], evaluatorMemberIds: [] }, key()))
-  const closesAt = new Date(NOW.getTime() + 3 * 24 * 3600 * 1000).toISOString()
+  // 8 calendar days: always past the 3 business days a close needs (BR-RFX ข้อ 02), whatever weekday the run starts on
+  const closesAt = new Date(NOW.getTime() + 8 * 24 * 3600 * 1000).toISOString()
   ok(await openRfx(proc, { rfxEventId, expectedVersion: await version(), closesAt, fewerInvitesReason: 'ฉากทดสอบพอร์ทัลมีผู้ขายรายเดียว' }, key()))
   const notice = await prisma.supplierNotice.findFirstOrThrow({ where: { organizationId: id, subjectId: rfxEventId, templateKey: 'rfx.invited' } })
   const url = (notice.data as { url?: string }).url

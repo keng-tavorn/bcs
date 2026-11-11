@@ -90,7 +90,7 @@ test('[FR-SRC-202/AC1] [FR-SRC-202/AC2] the contact opens the invite, asks, bids
   await signIn(page, opened, `rfx.${tag}@supplier.test`)
   await expect(page.getByRole('heading', { level: 1 })).toContainText('ปูนซีเมนต์และทราย ไซต์ 9')
   await expect(page.getByText('ขอราคา · ยังไม่ยื่น')).toBeVisible()
-  await expect(page.getByText(/เหลือเวลา [23] วัน/)).toBeVisible()
+  await expect(page.getByText(/เหลือเวลา [78] วัน/)).toBeVisible()
   await shot(page, testInfo, 'rfx-detail')
 
   // a question, answered by procurement to everyone

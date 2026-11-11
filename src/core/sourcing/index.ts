@@ -51,4 +51,5 @@ export {
   type PriceFlag,
   type PriceRefSource,
 } from './award'
+export { rfxDraftFromLines, type DraftLineInput, type RfxDraftPlan } from './draft'
 export { cycleDaysTenths, cycleMedianDays, formatTenths, savings, savingsTotal, type BaselineKind, type BaselinePart, type Saving } from './kpi'

@@ -2,10 +2,10 @@
 // purpose uses now, which model each agent asks for, what a token costs, and which (agent, purpose, prompt, model)
 // sets passed the evaluation. No I/O: the assist contract, the services and the adapter all read it (§4.10).
 
-export const AI_AGENTS = ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT', 'DOA_DRAFTER', 'SUPPLIER_ONBOARDING'] as const
+export const AI_AGENTS = ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT', 'DOA_DRAFTER', 'SUPPLIER_ONBOARDING', 'SOURCING'] as const
 export type AiAgentName = (typeof AI_AGENTS)[number]
 
-export const AI_PURPOSES = ['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT', 'SAVINGS_NOTE', 'SUPPLIER_DOC_READ'] as const
+export const AI_PURPOSES = ['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT', 'SAVINGS_NOTE', 'SUPPLIER_DOC_READ', 'RFX_DRAFT', 'BID_SUMMARY', 'NEGOTIATION_POINTS'] as const
 export type AiPurposeName = (typeof AI_PURPOSES)[number]
 
 /** A purpose of the database that this configuration serves (SUPPLIER_DOC_READ since S7-14 · ADR-189) */
@@ -24,6 +24,10 @@ export const AGENT_OF_PURPOSE: Readonly<Record<AiPurposeName, AiAgentName>> = {
   SAVINGS_NOTE: 'INSIGHT',
   // S7-14 (FR-AI-304 · ADR-189): a supplier's company certificate or VAT registration, for its application
   SUPPLIER_DOC_READ: 'SUPPLIER_ONBOARDING',
+  // S10-16 (FR-AI-305 · ADR-209 · BR-AI-31 BR-AI-32): the texts of a draft RFx (L1), and words on its bids after the close (L0)
+  RFX_DRAFT: 'SOURCING',
+  BID_SUMMARY: 'SOURCING',
+  NEGOTIATION_POINTS: 'SOURCING',
 }
 
 /**
@@ -41,6 +45,9 @@ export const PROMPT_VERSIONS: Readonly<Record<AiPurposeName, string>> = {
   DOA_DRAFT: 'DOA_DRAFT@2',
   SAVINGS_NOTE: 'SAVINGS_NOTE@3',
   SUPPLIER_DOC_READ: 'SUPPLIER_DOC_READ@3',
+  RFX_DRAFT: 'RFX_DRAFT@1',
+  BID_SUMMARY: 'BID_SUMMARY@1',
+  NEGOTIATION_POINTS: 'NEGOTIATION_POINTS@1',
 }
 
 export const AI_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] as const
@@ -57,6 +64,8 @@ const DEFAULT_MODEL: Readonly<Record<AiAgentName, AiModelId>> = {
   // S7-15 (OQ-145's way · docs/reports/ai-eval/supplier-onboarding-2026-11-08.md): Haiku missed a tax id on a photo of a
   // company certificate, Sonnet read all 12 documents right
   SUPPLIER_ONBOARDING: 'claude-sonnet-5-5',
+  // TODO(OQ-209): S10-19 measures the synthetic RFx set and keeps the cheaper model that passes
+  SOURCING: 'claude-sonnet-5-5',
 }
 
 /** The .env variable that overrides one agent's model (spec Appendix B) */
@@ -67,6 +76,7 @@ export const MODEL_ENV_OF_AGENT: Readonly<Record<AiAgentName, string>> = {
   INSIGHT: 'AI_MODEL_INSIGHT',
   DOA_DRAFTER: 'AI_MODEL_DOA_DRAFTER',
   SUPPLIER_ONBOARDING: 'AI_MODEL_SUPPLIER_ONBOARDING',
+  SOURCING: 'AI_MODEL_SOURCING',
 }
 
 /** A purpose whose evaluation passed only on another model than its agent's (S13-14: Sonnet misread a blurred invoice) */
@@ -95,6 +105,7 @@ export const EFFORT_OF_AGENT: Readonly<Record<AiAgentName, 'low' | 'medium' | 'h
   INSIGHT: 'medium',
   DOA_DRAFTER: 'high',
   SUPPLIER_ONBOARDING: 'medium',
+  SOURCING: 'medium',
 }
 
 /** Most tokens one answer may take; a structured result that hits it fails the schema (AI_OUTPUT_INVALID) */
@@ -105,6 +116,7 @@ export const MAX_OUTPUT_TOKENS: Readonly<Record<AiAgentName, number>> = {
   INSIGHT: 8_000,
   DOA_DRAFTER: 32_000,
   SUPPLIER_ONBOARDING: 8_000,
+  SOURCING: 8_000,
 }
 
 /** Micro-USD per million tokens (1 credit = 1,000 micro-USD, BR-AI-23); cacheWrite is the 5-minute TTL (ADR-141) */
@@ -176,9 +188,9 @@ export const EVAL_GATES: readonly EvalGate[] = [
 
 /**
  * Purposes whose evaluation has not run yet, so no gate passes them: live mode refuses them (AI_NOT_EVALUATED) and only
- * fixture mode answers. None now: SUPPLIER_DOC_READ passed its synthetic set in S7-15 (OQ-186).
+ * fixture mode answers. The Sourcing Agent's three wait for the synthetic RFx set of S10-19 (OQ-209).
  */
-export const AWAITING_EVALUATION: readonly AiPurposeName[] = []
+export const AWAITING_EVALUATION: readonly AiPurposeName[] = ['RFX_DRAFT', 'BID_SUMMARY', 'NEGOTIATION_POINTS']
 
 /** The tier an environment needs: production only trusts a REAL evaluation (BR-AI-11) */
 export const requiredGateTier = (appEnv: string): GateTier => (appEnv === 'production' ? 'REAL' : 'SYNTHETIC')
@@ -197,7 +209,12 @@ export const LEVEL_OF_AGENT: Readonly<Record<AiAgentName, 'L0' | 'L1'>> = {
   INSIGHT: 'L0',
   DOA_DRAFTER: 'L1',
   SUPPLIER_ONBOARDING: 'L1',
+  // L1 for RFX_DRAFT; BID_SUMMARY and NEGOTIATION_POINTS are words only (L0 · LEVEL_OF_PURPOSE)
+  SOURCING: 'L1',
 }
+
+/** A purpose whose result is words only, on an agent that otherwise drafts (BR-AI-32: the Sourcing Agent's summary) */
+export const LEVEL_OF_PURPOSE: Readonly<Partial<Record<AiPurposeName, 'L0'>>> = { BID_SUMMARY: 'L0', NEGOTIATION_POINTS: 'L0' }
 
 /** Below this confidence a field is confirmed one by one (OQ-147, BR-AI-16) */
 export const DEFAULT_MIN_CONFIDENCE_BP = 9000 // TODO(OQ-147)
@@ -214,6 +231,9 @@ export const CONTENT_RETENTION_DAYS = { chatIntake: 7, unused: 90 } as const // 
 /** Brief profile of BR-AI-27: at most 4 sentences of 120 characters (the Approval Brief, and a saving's explanation · NEW-136) */
 export const BRIEF_PROFILE = { maxSentences: 4, maxChars: 120 } as const
 
+/** Sourcing profile of BR-AI-27: the summary of an RFx's bids and its points to negotiate (S10-16 · BR-AI-32) */
+export const SOURCING_PROFILE = { maxSentences: 6, maxChars: 160 } as const
+
 /** Words that advise a decision, which a text of the AI never carries (BR-AI-27 DECISION_ADVICE · compared ignoring case) */
 export const DECISION_ADVICE_WORDS = [
   'ควรอนุมัติ',
@@ -225,6 +245,12 @@ export const DECISION_ADVICE_WORDS = [
   'should reject',
   'recommend approv',
   'recommend reject',
+  // S10-16 (BR-AI-32): advice to award, which the Sourcing Agent never gives
+  'ควรมอบงาน',
+  'แนะนำให้มอบงาน',
+  'ควรเลือก',
+  'should award',
+  'recommend award',
 ] as const
 
 /** Passing marks of the evaluation, demo tier (OQ-141 · BR-AI-26): critical fields 9800 bp with nothing slipped through */

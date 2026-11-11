@@ -1754,6 +1754,24 @@ def run_ai_text(d):
         if got is None: got = {"ok": True, "rendered": rendered}
         out.append((c["id"], all(got.get(k) == v for k, v in c["expect"].items()), got))
     return out
+def run_ai_rfx_draft(d):  # BR-AI-31 · GC-AI-99 (S10-16) · คำนวณอิสระด้วยจำนวนเต็มสตางค์: แยกต่อหมวด ชนิด ยอดประมาณ และ minInvites
+    from decimal import Decimal as _D, ROUND_HALF_UP as _HU
+    out = []
+    for c in d["cases"]:
+        i, groups, order = c["input"], {}, []
+        for l in i["lines"]:
+            if l["category"] not in groups: groups[l["category"]] = []; order.append(l["category"])
+            groups[l["category"]].append(l)
+        th, drafts = int((_D(i["minInvitesThresholdGross"]) * 100).to_integral_value()), []
+        for cat in order:
+            g = groups[cat]
+            net = sum(int((_D(l["quantity"]) * _D(l["refUnitPrice"]) * 100).quantize(_D(1), rounding=_HU)) for l in g if l.get("refUnitPrice"))
+            gross = net + int((_D(net) * i["vatRateBp"] / 10000).quantize(_D(1), rounding=_HU))
+            rfq = all(not l["isService"] and l.get("refUnitPrice") and _D(l["refUnitPrice"]) > 0 for l in g)
+            drafts.append({"category": cat, "kind": "RFQ" if rfq else "RFP", "lines": [l["ref"] for l in g], "estimatedNet": f"{net // 100}.{net % 100:02d}", "estimatedGross": f"{gross // 100}.{gross % 100:02d}", "minInvites": i["minInvitesAboveThreshold"] if gross > th else 1})
+        got = {"drafts": drafts}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 def run_payment_run(d):  # BR-PAY-02 ถึง BR-PAY-07 BR-PAY-12 · คำนวณอิสระด้วยจำนวนเต็มสตางค์ (S9-02)
     cal, pol, out = d["calendar"], d["policy"], []
     names = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
@@ -2721,6 +2739,7 @@ RUNNERS = {
     "ai-eval-score": run_ai_eval_score,
     "ai-intake-channel": run_ai_intake_channel,
     "ai-quotation-map": run_ai_quotation_map,
+    "ai-rfx-draft": run_ai_rfx_draft,
     "ai-supplier-verify": run_ai_supplier_verify,
     "ai-text": run_ai_text,
     "ai-verify": run_ai_verify,

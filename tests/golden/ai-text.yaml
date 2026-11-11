@@ -5,7 +5,8 @@ fixture:
   profiles:
     BRIEF: { maxSentences: 4, maxChars: 120 }
     INSIGHT: { maxSentences: 8, maxChars: 200 }
-  decisionAdvice: [ควรอนุมัติ, แนะนำให้อนุมัติ, ควรปฏิเสธ, แนะนำให้ปฏิเสธ, ควรตีกลับ, should approve, should reject, recommend approv, recommend reject]
+    SOURCING: { maxSentences: 6, maxChars: 160 }
+  decisionAdvice: [ควรอนุมัติ, แนะนำให้อนุมัติ, ควรปฏิเสธ, แนะนำให้ปฏิเสธ, ควรตีกลับ, should approve, should reject, recommend approv, recommend reject, ควรมอบงาน, แนะนำให้มอบงาน, ควรเลือก, should award, recommend award]
   values:
     budgetRemainingAfter: { kind: money, value: "12345.50" }
     quoteCount: { kind: integer, value: 1 }
@@ -14,6 +15,12 @@ fixture:
     t1.0.remainingBp: { kind: bp, value: 850 }
     t1.lowThresholdBp: { kind: bp, value: 1000 }
     t2.0.number: { kind: ref, value: PR-2569-00120 }
+    # S10-16 (BR-AI-32): facts of scene 9 · bp as kind integer, since kind bp renders as a percent ("1.51%")
+    bidCount: { kind: integer, value: 3 }
+    lowest.supplierName: { kind: text, value: บริษัท ชลบุรีภัณฑ์สตีล จำกัด }
+    lowest.net: { kind: money, value: "300950.00" }
+    spreadBp: { kind: integer, value: 151 }
+    vatInclusiveCount: { kind: integer, value: 1 }
 cases:
   - { id: GC-AI-80, input: { profile: BRIEF, sentences: ["งบคงเหลือหลังคำขอนี้ {{v:budgetRemainingAfter}} บาท"] }, expect: { ok: true, rendered: ["งบคงเหลือหลังคำขอนี้ 12,345.50 บาท"] } }
   - { id: GC-AI-81, title: ตัวเลขอารบิกนอก placeholder, input: { profile: BRIEF, sentences: ["งบเหลือ 12,345.50 บาท"] }, expect: { ok: false, reason: DIGIT_OUTSIDE_PLACEHOLDER } }
@@ -27,3 +34,6 @@ cases:
   - { id: GC-AI-89, title: เลขเอกสารผ่าน placeholder, input: { profile: INSIGHT, sentences: ["คำขอ {{v:t2.0.number}} รออนุมัติ"] }, expect: { ok: true, rendered: ["คำขอ PR-2569-00120 รออนุมัติ"] } }
   - { id: GC-AI-90, title: ร้อยละที่ AI เขียนเอง, input: { profile: INSIGHT, sentences: ["งบการตลาดเหลือต่ำกว่า 10%"] }, expect: { ok: false, reason: DIGIT_OUTSIDE_PLACEHOLDER } }
   - { id: GC-AI-91, title: คำแนะนำภาษาอังกฤษ, input: { profile: INSIGHT, sentences: ["You should approve {{v:t2.0.number}}"] }, expect: { ok: false, reason: DECISION_ADVICE } }
+  - { id: GC-AI-96, title: สรุปข้อเสนอด้วยค่าจาก facts, input: { profile: SOURCING, sentences: ["ยื่น {{v:bidCount}} ราย ต่ำสุด {{v:lowest.supplierName}} ที่ {{v:lowest.net}} บาท สูงสุดห่าง {{v:spreadBp}} bp", "มีใบรวม VAT {{v:vatInclusiveCount}} ใบ ระบบปรับเป็นก่อน VAT แล้ว"] }, expect: { ok: true, rendered: ["ยื่น 3 ราย ต่ำสุด บริษัท ชลบุรีภัณฑ์สตีล จำกัด ที่ 300,950.00 บาท สูงสุดห่าง 151 bp", "มีใบรวม VAT 1 ใบ ระบบปรับเป็นก่อน VAT แล้ว"] } }
+  - { id: GC-AI-97, title: ตัวเลขที่ AI เขียนเองนอก placeholder, input: { profile: SOURCING, sentences: ["รายเดิมสูงกว่าต่ำสุดราว 4,550 บาท"] }, expect: { ok: false, reason: DIGIT_OUTSIDE_PLACEHOLDER } }
+  - { id: GC-AI-98, title: แนะนำให้มอบงาน, input: { profile: SOURCING, sentences: ["ควรมอบงานให้ {{v:lowest.supplierName}}"] }, expect: { ok: false, reason: DECISION_ADVICE } }

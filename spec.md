@@ -5937,7 +5937,8 @@ fixture:
   profiles:
     BRIEF: { maxSentences: 4, maxChars: 120 }
     INSIGHT: { maxSentences: 8, maxChars: 200 }
-  decisionAdvice: [ควรอนุมัติ, แนะนำให้อนุมัติ, ควรปฏิเสธ, แนะนำให้ปฏิเสธ, ควรตีกลับ, should approve, should reject, recommend approv, recommend reject]
+    SOURCING: { maxSentences: 6, maxChars: 160 }
+  decisionAdvice: [ควรอนุมัติ, แนะนำให้อนุมัติ, ควรปฏิเสธ, แนะนำให้ปฏิเสธ, ควรตีกลับ, should approve, should reject, recommend approv, recommend reject, ควรมอบงาน, แนะนำให้มอบงาน, ควรเลือก, should award, recommend award]
   values:
     budgetRemainingAfter: { kind: money, value: "12345.50" }
     quoteCount: { kind: integer, value: 1 }
@@ -5946,6 +5947,12 @@ fixture:
     t1.0.remainingBp: { kind: bp, value: 850 }
     t1.lowThresholdBp: { kind: bp, value: 1000 }
     t2.0.number: { kind: ref, value: PR-2569-00120 }
+    # S10-16 (BR-AI-32): facts of scene 9 · bp as kind integer, since kind bp renders as a percent ("1.51%")
+    bidCount: { kind: integer, value: 3 }
+    lowest.supplierName: { kind: text, value: บริษัท ชลบุรีภัณฑ์สตีล จำกัด }
+    lowest.net: { kind: money, value: "300950.00" }
+    spreadBp: { kind: integer, value: 151 }
+    vatInclusiveCount: { kind: integer, value: 1 }
 cases:
   - { id: GC-AI-80, input: { profile: BRIEF, sentences: ["งบคงเหลือหลังคำขอนี้ {{v:budgetRemainingAfter}} บาท"] }, expect: { ok: true, rendered: ["งบคงเหลือหลังคำขอนี้ 12,345.50 บาท"] } }
   - { id: GC-AI-81, title: ตัวเลขอารบิกนอก placeholder, input: { profile: BRIEF, sentences: ["งบเหลือ 12,345.50 บาท"] }, expect: { ok: false, reason: DIGIT_OUTSIDE_PLACEHOLDER } }
@@ -5959,6 +5966,9 @@ cases:
   - { id: GC-AI-89, title: เลขเอกสารผ่าน placeholder, input: { profile: INSIGHT, sentences: ["คำขอ {{v:t2.0.number}} รออนุมัติ"] }, expect: { ok: true, rendered: ["คำขอ PR-2569-00120 รออนุมัติ"] } }
   - { id: GC-AI-90, title: ร้อยละที่ AI เขียนเอง, input: { profile: INSIGHT, sentences: ["งบการตลาดเหลือต่ำกว่า 10%"] }, expect: { ok: false, reason: DIGIT_OUTSIDE_PLACEHOLDER } }
   - { id: GC-AI-91, title: คำแนะนำภาษาอังกฤษ, input: { profile: INSIGHT, sentences: ["You should approve {{v:t2.0.number}}"] }, expect: { ok: false, reason: DECISION_ADVICE } }
+  - { id: GC-AI-96, title: สรุปข้อเสนอด้วยค่าจาก facts, input: { profile: SOURCING, sentences: ["ยื่น {{v:bidCount}} ราย ต่ำสุด {{v:lowest.supplierName}} ที่ {{v:lowest.net}} บาท สูงสุดห่าง {{v:spreadBp}} bp", "มีใบรวม VAT {{v:vatInclusiveCount}} ใบ ระบบปรับเป็นก่อน VAT แล้ว"] }, expect: { ok: true, rendered: ["ยื่น 3 ราย ต่ำสุด บริษัท ชลบุรีภัณฑ์สตีล จำกัด ที่ 300,950.00 บาท สูงสุดห่าง 151 bp", "มีใบรวม VAT 1 ใบ ระบบปรับเป็นก่อน VAT แล้ว"] } }
+  - { id: GC-AI-97, title: ตัวเลขที่ AI เขียนเองนอก placeholder, input: { profile: SOURCING, sentences: ["รายเดิมสูงกว่าต่ำสุดราว 4,550 บาท"] }, expect: { ok: false, reason: DIGIT_OUTSIDE_PLACEHOLDER } }
+  - { id: GC-AI-98, title: แนะนำให้มอบงาน, input: { profile: SOURCING, sentences: ["ควรมอบงานให้ {{v:lowest.supplierName}}"] }, expect: { ok: false, reason: DECISION_ADVICE } }
 ```
 
 ---
@@ -5983,6 +5993,21 @@ cases:
 ```
 
 วิธีคำนวณ (ai-supplier-verify): `0999998020010` และ `0999998020028` ผ่าน BR-TAXID-01 · GC-AI-92 `DOC_EXPIRED` PASS เพราะ 2026-10-20 + 179 = 2027-04-17 ≥ 2026-11-02 · ชื่อ "บจก. ราชบุรีคอนสตรัคชั่น" หลัง normalize (BR-SUP-09) ตรงทะเบียน · `registeredAddress` 8800 < 9000 จึงต้องยืนยัน · GC-AI-93 เลขที่อ่านได้ต่างจากใบสมัคร → `TAXID_MISMATCH` FAIL เพดาน 0 · GC-AI-94 2026-05-01 + 179 = 2026-10-27 < 2026-11-02 → `DOC_EXPIRED` FAIL · ที่อยู่ "99/1" ≠ "99" → WARN เพดาน 5000 · ฟิลด์ที่ไม่มีความมั่นใจนับ 0 · GC-AI-95 BANK_BOOK `aiReadable = false` → ไม่อ่าน · VAT_CERT ของ INDIVIDUAL ไม่อยู่ใน `aiReadablePayeeTypes` → ไม่อ่าน · ของ JURISTIC อ่าน
+
+### 12.8 S10 · golden ของ Sourcing Agent (ระยะ 2 · S10-16)
+
+ข้อความสรุปข้อเสนอและประเด็นเจรจาของ agent `SOURCING` ผ่านตัวตรวจ `ai-text` เดิมด้วย profile `SOURCING` `{ maxSentences: 6, maxChars: 160 }` (GC-AI-96 ถึง 98 อยู่ท้ายบล็อก `ai-text.yaml` ใน §12.6 พร้อม `fixture.profiles.SOURCING` คำมอบงานใน `fixture.decisionAdvice` และ `fixture.values` ของ facts ฉาก 9 · BR-AI-32) · ส่วนของร่าง RFx ที่โค้ดตัดสินก่อน AI เขียนข้อความ (`rfxDraftFromLines` ใน `src/core/sourcing/draft.ts` · BR-AI-31) คือ suite `ai-rfx-draft`
+
+```yaml
+# tests/golden/ai-rfx-draft.yaml
+suite: ai-rfx-draft
+note: BR-AI-31 · ส่วนของร่าง RFx ที่โค้ดตัดสิน ไม่ใช่ AI · แยกร่างต่อหมวดตามลำดับที่พบ · RFQ เมื่อทุกบรรทัดเป็นสินค้าที่มีราคาอ้างอิง ไม่เช่นนั้น RFP · ยอดประมาณ = Σ จำนวน × ราคาอ้างอิง · minInvites ตาม BR-RFX-01
+cases:
+  - { id: GC-AI-99, title: บรรทัดสองหมวดได้ร่างสองใบ ชนิดและจำนวนผู้เชิญขั้นต่ำจากโค้ด, fn: rfxDraftFromLines, input: { vatRateBp: 700, minInvitesThresholdGross: "100000.00", minInvitesAboveThreshold: 3, lines: [{ ref: H187, category: STEEL, isService: false, quantity: "8", refUnitPrice: "23800.00" }, { ref: H217, category: STEEL, isService: false, quantity: "5", refUnitPrice: "23800.00" }, { ref: H240, category: SERV, isService: true, quantity: "1", refUnitPrice: "45000.00" }] }, expect: { drafts: [{ category: STEEL, kind: RFQ, lines: [H187, H217], estimatedNet: "309400.00", estimatedGross: "331058.00", minInvites: 3 }, { category: SERV, kind: RFP, lines: [H240], estimatedNet: "45000.00", estimatedGross: "48150.00", minInvites: 1 }] } }
+```
+
+วิธีคำนวณ (ai): GC-AI-96 `bidCount 3` `lowest.net 300950.00` → "300,950.00" · `spreadBp 151` = (305,500 − 300,950) × 10000 ÷ 300,950 = 151.19 → 151 ประกาศเป็น kind `integer` จึง render "151" ไม่ใช่ "1.51%" · `vatInclusiveCount 1` · GC-AI-97 มีเลข 4,550 นอก placeholder → `DIGIT_OUTSIDE_PLACEHOLDER` · GC-AI-98 ตก `DECISION_ADVICE` เพราะคำ "ควรมอบงาน" อยู่ในรายการที่ S10-16 เพิ่ม · GC-AI-99: 13 × 23,800 = 309,400 + VAT 21,658 = 331,058 > 100,000 → 3 ราย · 45,000 + 3,150 = 48,150 ≤ 100,000 → 1 ราย · บริการ → RFP
+
 
 ## 13. Non-functional requirements
 
@@ -6195,7 +6220,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       60 ไฟล์ · 781 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       61 ไฟล์ · 785 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge
@@ -8826,6 +8851,7 @@ AI_MODEL_BRIEF=
 AI_MODEL_INSIGHT=
 AI_MODEL_DOA_DRAFTER=
 AI_MODEL_SUPPLIER_ONBOARDING=
+AI_MODEL_SOURCING=
 ```
 
 ## ภาคผนวก C — แผนผังเอกสารต้นทาง → spec

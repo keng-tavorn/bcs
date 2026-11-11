@@ -112,3 +112,21 @@
 | 10 | รายการ `/risk/overrides` ตัดที่ 200 แถวโดยไม่บอก | ไม่แก้ในข้อนี้: หน้าแฟ้ม `/risk` และตัวกรองของ S11-10 ทำการแบ่งหน้า · ข้อมูล demo มีไม่กี่รายการ |
 
 ผลหลังแก้: `tests/integration/risk-overrides.test.ts` 15 เคสผ่าน · ดูผล `pnpm verify` ในบรรทัดของ S11-08
+
+## S11-24 ผู้ถือ slot ดาวน์โหลดใบรับรองของคำตอบใน domain ตน (2026-11-12)
+
+รีวิว `/code-review xhigh a8fe95ce...HEAD` ของ commit `924205f3` (grant `SupplierDocumentGrant` ของ `supplierDocument.requestDownload` ใน `src/server/services/suppliers/documents.ts` · `reviewDocumentGrant` ของ `src/server/services/risk/evidence.ts` · ปุ่มเปิดใบรับรองบนหน้า `/risk/reviews/[id]` และลิงก์ของ LIFF · `tests/unit/supplier-document-grant.test.ts`) · 7 ข้อ แก้ 2
+
+| # | เรื่อง | ผล |
+| --- | --- | --- |
+| 1 | ผู้รักษาการของผู้ถือ slot (delegation ไม่จำกัดชนิดเอกสารและยอด) เปิดหน้างานและตัดสินได้ แต่เปิดใบรับรองและไฟล์หลักฐานไม่ได้ เพราะ `slotHoldersSeeing` นับแค่ผู้ถืองาน ผู้มอบ และผู้ตัดสิน | แก้แล้ว: ใช้ผู้อ่านชุดเดียวกับหน้างาน (`reviewDecidersIn` ณ เวลาที่กด + ผู้ตัดสิน) · เทสต์ผู้รักษาการเปิดได้ระหว่างรักษาการ และเปิดไม่ได้เมื่อจบ |
+| 2 | ปุ่มเปิดใบรับรองขึ้นทุกใบ แม้เป็นชนิด sensitive ที่ผู้ตรวจไม่มี `supplier.document.viewSensitive` หรือไฟล์ยังไม่ CLEAN | ไม่แก้: ไม่รั่วข้อมูล บริการปฏิเสธและหน้าบอกเหตุ (`OpenFileButton`) · ใบรับรองที่ VERIFIED ผ่านการสแกนแล้ว · ชนิด sensitive ไม่ได้ใช้เป็นหลักฐานของคำถามความเสี่ยงในข้อมูลระยะ 1 |
+| 3 | S7 เชื่อ grant ทุกอันที่โค้ดฝั่งเซิร์ฟเวอร์ส่งมา (check เป็น callback) | ไม่แก้: เป็นความไว้ใจภายในโปรเซสเดียวกันแบบเดียวกับ service อื่น · ผู้เรียกจากหน้าจอส่ง `grantedBy` ไม่ได้ (input strict) และ `tests/unit/supplier-document-grant.test.ts` ตรวจว่ามีแต่ `risk/evidence.ts` ที่ส่ง grant |
+| 4 | `slotHoldersSeeing` เขียนกฎ GENERAL + domain ของ slot ซ้ำกับ `domainsSeenBy` | แก้แล้ว: ใช้ `domainsSeenBy` (พร้อมข้อ 1) |
+| 5 | ดาวน์โหลดผ่าน grant โหลด principal 2 ถึง 3 ครั้ง | ไม่แก้: ไม่ใช่ทางร้อน (กดเปิดไฟล์ทีละครั้ง) |
+| 6 | `(granted ?? own)!` ใช้ non-null assertion | ไม่แก้: ไม่กระทบความถูกต้อง · สองทางแยกกันชัดในฟังก์ชันเดียว |
+| 7 | `certificate()` ในเทสต์ซ้ำกับ `verifiedIso` ของ `risk-assessments.test.ts` | ไม่แก้: helper ของเทสต์สองไฟล์ ชนิดเอกสารต่างกัน |
+
+สิ่งที่ตัดสินตอนสร้าง: เช็กของ S11 รันใน transaction ของคำสั่ง S7 (ไม่ใช่ transaction แยกก่อนเรียก S7) เพื่อให้สิทธิ์และการดาวน์โหลดเป็นจังหวะเดียวกัน · `file.downloaded` ใส่ `grantedBy: RISK_REVIEW` เฉพาะเมื่อ grant เป็นสิ่งที่ให้เข้า (ผู้มี `supplier.document.view` อยู่แล้วไม่ใส่) · input ของคำสั่งทาง grant มี `grantedBy` ที่ S7 ใส่เองจาก grant จึงไม่ใช้ผลที่เก็บไว้ร่วมกับทางปกติภายใต้ key เดียวกัน · ใบรับรองใบเดียวที่ตอบคำถามหลาย domain เปิดได้สำหรับ slot ของ domain ใดก็ได้ในนั้น
+
+ผลหลังแก้: `tests/integration/risk-reviews.test.ts` และ `risk-assessments.test.ts` 44 เคสผ่าน · ดูผล `pnpm verify` ในบรรทัดของ S11-24

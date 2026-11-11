@@ -13,6 +13,7 @@ import { countPortalScopeHit } from '@/server/db/portal'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { enqueueSupplierNotice } from '@/server/notifications/supplier-notices'
+import { assessmentPreparers, domainsSeenBy, reviewDecidersIn } from '@/server/queries/risk-review'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { requireModule } from '../modules'
 import { requestSupplierDocumentDownloadGranted, sniffSupplierFile, type SupplierDocumentGrant, type SupplierFileMime } from '../suppliers/documents'
@@ -172,26 +173,27 @@ async function evidenceViewer(tx: TenantTx, ctx: Ctx, answers?: { readonly asses
   const on = await requireModule(ctx, 'RISK', tx)
   if (!on.ok) return { ok: false, error: on.error }
   // without an answer no slot is named: only the roles open it (an ASSIGNED grant asked without a resource would let anyone in)
-  const may = await authorize(tx, ctx, 'risk.evidence.view', { assigneeMemberIds: answers?.questionCodes.length ? await slotHoldersSeeing(tx, answers.assessmentId, answers.questionCodes) : [] })
+  const may = await authorize(tx, ctx, 'risk.evidence.view', { assigneeMemberIds: answers?.questionCodes.length ? await slotHoldersSeeing(tx, answers.assessmentId, answers.questionCodes, ctx.now) : [] })
   return may.ok ? { ok: true } : { ok: false, error: may.error }
 }
 
-/** The members who hold or held a reviewer's slot of the assessment that sees the domain of any of the questions (BR-RSK-08) */
-async function slotHoldersSeeing(tx: TenantTx, assessmentId: string, questionCodes: readonly string[]): Promise<string[]> {
-  const a = await tx.riskAssessment.findUniqueOrThrow({ where: { id: assessmentId }, select: { questionnaireId: true } })
+/**
+ * The readers of a reviewer's task of the assessment whose domains (domainsSeenBy) hold any of the questions
+ * (BR-RSK-08): as the task's page reads them (riskReviewTaskReaders) — its holders, who acts for its holder at `at`
+ * (reviewDecidersIn), and who decided it — so a member who may decide a slot opens what the slot rests on (S11-24)
+ */
+async function slotHoldersSeeing(tx: TenantTx, assessmentId: string, questionCodes: readonly string[], at: Date): Promise<string[]> {
+  const a = await tx.riskAssessment.findUniqueOrThrow({ where: { id: assessmentId }, select: { questionnaireId: true, openedById: true, filledOnBehalfById: true, answers: { select: { answeredByMemberId: true } } } })
   const questions = await tx.riskQuestion.findMany({ where: { questionnaireId: a.questionnaireId, code: { in: [...questionCodes] } }, select: { domain: true } })
   if (questions.length === 0) return []
-  const domains = new Set<string>(questions.map((q) => q.domain))
   // every task of the assessment, a cancelled one too: its holder still reads the slot's page (riskReviewTaskPage)
-  const tasks = await tx.reviewTask.findMany({ where: { assessmentId }, select: { riskDomains: true, assigneeMemberId: true, delegatorMemberId: true, decidedById: true } })
-  return [
-    ...new Set(
-      tasks
-        .filter((t) => domains.has('GENERAL') || t.riskDomains.some((d) => domains.has(d)))
-        .flatMap((t) => [t.assigneeMemberId, t.delegatorMemberId, t.decidedById])
-        .filter((m): m is string => typeof m === 'string'),
-    ),
-  ]
+  const tasks = (
+    await tx.reviewTask.findMany({ where: { assessmentId }, select: { riskDomains: true, assigneeMemberId: true, delegatorMemberId: true, decidedById: true, workflowVersionId: true, ruleCodes: true, fallbackUsed: true } })
+  ).filter((t) => questions.some((q) => domainsSeenBy(t.riskDomains).includes(q.domain)))
+  const preparers = assessmentPreparers(a)
+  const readers: string[] = []
+  for (const t of tasks) readers.push(...(await reviewDecidersIn(tx, t, preparers, at)), ...(t.decidedById ? [t.decidedById] : []))
+  return [...new Set(readers)]
 }
 
 const evidenceDownloadCommand = defineCommand({

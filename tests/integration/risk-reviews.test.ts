@@ -451,6 +451,29 @@ describe('[FR-RSK-202/AC4] each reviewer reads GENERAL and its own domains only'
     expect(await open('dm_fin')).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
   })
 
+  it('[BR-RSK-08] who acts for the slot’s holder opens what the slot rests on while it may decide it (xhigh review of S11-24)', async () => {
+    const a = await sent({ processesPersonalData: 'N', accessesSystems: 'Y', accessesPremises: 'N' }, { files: ['RQ-IS-01'] })
+    const is = await taskOf(a.assessmentId, 'RR-02')
+    const iso = await certificate(a.supplierId, 'ISO 27001')
+    await prisma.riskAnswer.updateMany({ where: { assessmentId: a.assessmentId, questionCode: 'RQ-IS-01' }, data: { evidenceDocumentId: iso.id } })
+    const openDoc = () => requestRiskEvidenceDocumentDownload(as('admin'), { assessmentId: a.assessmentId, documentId: iso.id }, key())
+    const openFile = () => requestRiskEvidenceDownload(as('admin'), { assessmentId: a.assessmentId, fileId: a.files['RQ-IS-01']! }, key())
+    // ORG_ADMIN has no risk.evidence.view of its own
+    expect(await openDoc()).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await openFile()).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    const window = { startsAt: new Date('2026-11-08T00:00:00Z'), endsAt: new Date('2026-11-20T00:00:00Z'), status: 'ACTIVE' as const, reason: 'ลาพักร้อน', createdVia: 'SELF' as const }
+    const acting = await prisma.delegation.create({ data: { organizationId: org.organizationId, delegatorMemberId: org.member.dm_it!, delegateMemberId: org.member.admin!, documentTypes: [], ...window } })
+    try {
+      expect(ok(await riskReviewTask(as('admin'), is.id)).canDecide).toBe(true)
+      expect(ok(await openDoc()).url).toMatch(/^https?:\/\//)
+      expect(ok(await openFile()).url).toMatch(/^https?:\/\//)
+    } finally {
+      await prisma.delegation.update({ where: { id: acting.id }, data: { status: 'REVOKED', revokedAt: NOW } })
+    }
+    // the acting over, the slot is its holder's alone again
+    expect(await openDoc()).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+  })
+
   it('[BR-SDOC-05] a sensitive certificate asks supplier.document.viewSensitive of the reviewer too, and is logged when opened (S11-24)', async () => {
     const a = await sent({ processesPersonalData: 'N', accessesSystems: 'Y', accessesPremises: 'N' })
     const idCard = await certificate(a.supplierId, 'ID', SENSITIVE_TYPE)

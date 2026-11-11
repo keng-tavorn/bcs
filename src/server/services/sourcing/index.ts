@@ -26,4 +26,4 @@ export {
 } from './preferred'
 export { awardWorkspace, getAwardTaskView, type AwardFactsDto, type AwardRoutePreview, type AwardWorkspaceDto } from './award-view'
 // S10-16: the RFx as a subject of the AI-assist contract (registered on load) and what the Sourcing Agent reads
-export { isRfxRequiredPath, RFX_ASSIST_TYPE, rfxBidFacts, rfxDraftSource, rfxSummarizable, type RfxBidFacts, type RfxDraftSource } from './ai-assist'
+export { bidSpread, isRfxRequiredPath, RFX_ASSIST_TYPE, rfxBidFacts, rfxDraftSource, rfxSummarizable, type RfxBidFacts, type RfxDraftSource } from './ai-assist'

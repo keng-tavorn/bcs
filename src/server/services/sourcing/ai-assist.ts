@@ -110,6 +110,23 @@ export interface RfxBidFacts {
 
 const bpOver = (value: Satang, lowest: Satang): number => Number(roundHalfUpDiv((value - lowest) * BP_PER_WHOLE, lowest))
 
+/**
+ * BR-AI-32's two distances, both in bp of the lowest complete bid (as priceScoreBp): the highest complete bid's (spreadBp)
+ * and the incumbent nearest the lowest that is not the lowest itself (gapBp). Scene 9: (305,500 − 300,950) × 10000 ÷
+ * 300,950 = 151.19 → 151 for both.
+ */
+export function bidSpread(table: ComparisonFacts): Pick<RfxBidFacts, 'spreadBp' | 'incumbent'> {
+  const complete = table.bids.filter((b) => !b.partial)
+  if (complete.length === 0) return { spreadBp: null, incumbent: null }
+  const net = (b: (typeof complete)[number]) => amountToSatang(b.net)
+  const lowest = complete.reduce((m, b) => (net(b) < net(m) ? b : m))
+  const lowestNet = net(lowest)
+  if (lowestNet <= 0n) return { spreadBp: null, incumbent: null }
+  const highestNet = complete.reduce((m, b) => (net(b) > m ? net(b) : m), lowestNet)
+  const incumbent = complete.filter((b) => b.tags.includes('INCUMBENT') && b !== lowest).sort((a, b) => (net(a) < net(b) ? -1 : net(a) > net(b) ? 1 : 0))[0]
+  return { spreadBp: bpOver(highestNet, lowestNet), incumbent: incumbent ? { supplierCode: incumbent.supplierCode, gapBp: bpOver(net(incumbent), lowestNet) } : null }
+}
+
 /** The facts of an RFx's bids from code (BR-AI-32), for a reader of its prices (rfxReading) after the close */
 export async function rfxBidFacts(tx: TenantTx, ctx: Ctx, rfxEventId: string, options: { readonly system?: boolean } = {}): Promise<Result<RfxBidFacts>> {
   const on = await requireModule(ctx, 'SOURCING', tx)
@@ -126,13 +143,7 @@ export async function rfxBidFacts(tx: TenantTx, ctx: Ctx, rfxEventId: string, op
   const table = await comparisonOf(tx, ctx.organizationId, rfxEventId, ctx.now)
   if (!table || table.sealed) return { ok: false, error: { code: 'FORBIDDEN', message: 'sealed until the close', details: { reason: 'SEALED' } } }
   const facts = comparisonFacts(table)
-  const complete = facts.bids.filter((b) => !b.partial)
-  const lowest = complete.length ? complete.reduce((m, b) => (amountToSatang(b.net) < amountToSatang(m.net) ? b : m)) : null
-  const lowestNet = lowest ? amountToSatang(lowest.net) : 0n
-  const highestNet = complete.reduce((m, b) => (amountToSatang(b.net) > m ? amountToSatang(b.net) : m), 0n)
-  const spreadBp = lowest && lowestNet > 0n ? bpOver(highestNet, lowestNet) : null
-  const incumbents = complete.filter((b) => b.tags.includes('INCUMBENT') && b !== lowest).sort((a, b) => (amountToSatang(a.net) < amountToSatang(b.net) ? -1 : 1))
-  const incumbent = incumbents[0] && lowestNet > 0n ? { supplierCode: incumbents[0].supplierCode, gapBp: bpOver(amountToSatang(incumbents[0].net), lowestNet) } : null
+  const { spreadBp, incumbent } = bidSpread(facts)
   let scores: RfxBidFacts['scores'] = []
   if (rfx.scorecardId) {
     const card = await tx.scorecard.findUnique({ where: { id: rfx.scorecardId }, select: { status: true } })

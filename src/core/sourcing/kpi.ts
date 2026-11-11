@@ -1,4 +1,4 @@
-import { BP_PER_WHOLE, roundHalfUpDiv, vatFromGross, type Satang } from '../money/math'
+import { BP_PER_WHOLE, allocateLargestRemainder, parseQuantity, roundHalfUpDiv, vatFromGross, type Satang } from '../money/math'
 import { businessMinutesBetween, type BusinessCalendar } from '../sla'
 import { lowerMedian } from '../workflow-reports'
 import { businessDayMinutes } from './timing'
@@ -58,4 +58,18 @@ export function cycleMedianDays(awards: ReadonlyArray<{ readonly openedAt: Date;
 export function formatTenths(tenths: number): string {
   if (!Number.isInteger(tenths) || tenths < 0) throw new RangeError(`invalid tenths: ${tenths}`)
   return `${Math.floor(tenths / 10)}.${tenths % 10}`
+}
+
+/**
+ * BR-RFX-15: the part of a request's selected quotation (before VAT, BR-FORM-06) that one of its lines brought into an
+ * RFx — the quotation shared over the request's lines by their amounts (largest remainder, BR-MONEY-02 (4); lines of
+ * no amount share it evenly), then that line's share by the quantity brought in over the line's quantity, rounded half up
+ */
+export function quotationShare(quotationNetSatang: Satang, requestLineNets: readonly Satang[], index: number, broughtQuantity: string, lineQuantity: string): Satang {
+  if (index < 0 || index >= requestLineNets.length) throw new RangeError(`no request line at ${index}`)
+  const weights = requestLineNets.some((n) => n > 0n) ? requestLineNets.map((n) => (n > 0n ? n : 0n)) : requestLineNets.map(() => 1n)
+  const share = allocateLargestRemainder(quotationNetSatang, weights)[index]!
+  const whole = parseQuantity(lineQuantity)
+  const brought = parseQuantity(broughtQuantity)
+  return whole === 0n || brought >= whole ? share : roundHalfUpDiv(share * brought, whole)
 }

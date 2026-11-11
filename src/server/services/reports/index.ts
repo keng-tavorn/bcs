@@ -6,6 +6,7 @@ import { err, ok, type Result } from '@/core/result'
 import { latestSlot, parseCron } from '@/core/schedule'
 import { taxDateOf } from '@/core/vat'
 import { roundHalfUpDiv } from '@/core/money/math'
+import { satangToAmount } from '@/core/money/dto'
 import { MS_PER_DAY, PERCENT_TENTHS_SCALE } from '@/lib/constants'
 import { csv, utf8WithBom } from '@/lib/encoding'
 import { newId } from '@/lib/ids'
@@ -16,6 +17,7 @@ import { authorize, loadPrincipal } from '@/server/authz'
 import { makeCtx, systemCtx, type Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { loadBusinessCalendar } from '@/server/doa/policy'
+import { computeSourcingKpi, type SourcingKpi } from '@/server/queries/sourcing-kpi'
 import { computeSupplierKpi, type SupplierKpi } from '@/server/queries/supplier-kpi'
 import { reportTx } from './tx'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
@@ -254,7 +256,51 @@ const SUP_G7: ReportDefinition<KpiParams> = {
   },
 }
 
-export const REPORTS: Readonly<Record<string, ReportDefinition<KpiParams>>> = { KPI, WF_CYCLE, WF_BOTTLENECKS, WF_WRONG_DOA, WF_HEATMAP, SUP_G7 }
+// ---------- sourcing (S10-15 · BR-RFX-15 · §11.4 G-8): the awards approved in the period ----------
+
+const sourcingKpiOf = async (tx: TenantTx, ctx: Ctx, params: KpiParams, departmentIds: readonly string[] | null): Promise<SourcingKpi> =>
+  computeSourcingKpi(tx, await loadBusinessCalendar(tx, ctx.organizationId), periodOf(params), departmentIds)
+const amountOrEmpty = (satang: bigint | null) => (satang === null ? '' : satangToAmount(satang))
+
+const SRC_G8: ReportDefinition<KpiParams> = {
+  code: 'SRC_G8',
+  module: 'SOURCING',
+  ...periodParams,
+  columns: [
+    { key: 'rfx', header: { th: 'เลขที่ RFx', en: 'RFx' } },
+    { key: 'title', header: { th: 'เรื่อง', en: 'Title' } },
+    { key: 'award', header: { th: 'เลขที่ผลมอบงาน', en: 'Award' } },
+    { key: 'winners', header: { th: 'ผู้ชนะ', en: 'Winners' } },
+    { key: 'decidedAt', header: { th: 'อนุมัติผลเมื่อ', en: 'Award approved' } },
+    { key: 'quarter', header: { th: 'ไตรมาส', en: 'Quarter' } },
+    { key: 'baselineKind', header: { th: 'ฐานเทียบ', en: 'Baseline kind' } },
+    { key: 'baselineNet', header: { th: 'ฐานก่อน VAT (บาท)', en: 'Baseline before VAT (THB)' } },
+    { key: 'awardedNet', header: { th: 'ยอดที่มอบก่อน VAT (บาท)', en: 'Awarded before VAT (THB)' } },
+    { key: 'savings', header: { th: 'ยอดประหยัด (บาท)', en: 'Savings (THB)' } },
+    { key: 'savingsBp', header: { th: 'ยอดประหยัด (bp)', en: 'Savings (bp)' } },
+    { key: 'businessDays', header: { th: 'วันทำการจากเปิดถึงอนุมัติผล', en: 'Business days from opening to award approval' } },
+  ],
+  async rows(tx, ctx, params, departmentIds) {
+    if (!(await requireModule(ctx, 'SOURCING', tx)).ok) return []
+    const r = await sourcingKpiOf(tx, ctx, params, departmentIds)
+    return r.awards.map((a) => ({
+      rfx: a.rfxNumber ?? '',
+      title: a.rfxTitle,
+      award: a.awardNumber ?? '',
+      winners: a.winners.join(', '),
+      decidedAt: a.decidedAt,
+      quarter: a.quarter,
+      baselineKind: a.baselineKind ?? '',
+      baselineNet: amountOrEmpty(a.baselineNet),
+      awardedNet: satangToAmount(a.awardedNet),
+      savings: amountOrEmpty(a.savings),
+      savingsBp: a.savingsBp === null ? '' : String(a.savingsBp),
+      businessDays: a.businessDays,
+    }))
+  },
+}
+
+export const REPORTS: Readonly<Record<string, ReportDefinition<KpiParams>>> = { KPI, WF_CYCLE, WF_BOTTLENECKS, WF_WRONG_DOA, WF_HEATMAP, SUP_G7, SRC_G8 }
 
 /** The reports this organization offers: those of a module that is off are not (S7-16) */
 export async function offeredReports(tx: TenantTx, ctx: Ctx): Promise<Array<ReportDefinition<KpiParams>>> {
@@ -280,6 +326,26 @@ export async function supplierReport(ctx: Ctx, rawParams: unknown): Promise<Resu
     const scope = reportScope(allowed.data)
     if (scope === 'NONE') return err('FORBIDDEN', 'missing capability report.view', { capability: 'report.view' })
     return ok({ ...(await supplierKpiOf(tx, ctx, params.data, scope)), scope: scope === null ? ('ORG' as const) : ('DEPT' as const) })
+  })
+}
+
+/**
+ * /reports/sourcing (S10-15 · BR-RFX-15 · §11.4 G-8): the savings of the awards approved in the period against the
+ * requests they came from, in total and by quarter, by kind of baseline; the lower median of the business days from
+ * opening to the award's approval; the awards it counts and the RFx open now — within the reader's report.view scope (a
+ * head: the RFx of the departments they head). The numbers come from src/server/queries/sourcing-kpi.ts, not AI.
+ */
+export async function sourcingReport(ctx: Ctx, rawParams: unknown): Promise<Result<SourcingKpi & { scope: 'ORG' | 'DEPT' }>> {
+  const params = KpiParams.safeParse(rawParams)
+  if (!params.success) return err('VALIDATION_FAILED', 'invalid report parameters', { field: params.error.issues[0]?.path.join('.') ?? 'params' })
+  return reportTx(ctx, async (tx) => {
+    const on = await requireModule(ctx, 'SOURCING', tx)
+    if (!on.ok) return on
+    const allowed = await authorize(tx, ctx, 'report.view')
+    if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
+    const scope = reportScope(allowed.data)
+    if (scope === 'NONE') return err('FORBIDDEN', 'missing capability report.view', { capability: 'report.view' })
+    return ok({ ...(await sourcingKpiOf(tx, ctx, params.data, scope)), scope: scope === null ? ('ORG' as const) : ('DEPT' as const) })
   })
 }
 

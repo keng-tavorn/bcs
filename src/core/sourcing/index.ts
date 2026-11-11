@@ -51,4 +51,4 @@ export {
   type PriceFlag,
   type PriceRefSource,
 } from './award'
-export { cycleDaysTenths, cycleMedianDays, formatTenths, savings, savingsTotal, type BaselineKind, type BaselinePart, type Saving } from './kpi'
+export { cycleDaysTenths, cycleMedianDays, formatTenths, quotationShare, savings, savingsTotal, type BaselineKind, type BaselinePart, type Saving } from './kpi'

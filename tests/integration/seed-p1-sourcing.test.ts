@@ -21,6 +21,8 @@ import { seedTaxRates } from '@/server/seed/tax-rates'
 import { INPUT_WORKBOOKS, loadInputWorkbook } from '@/server/seed/workbook'
 import { budgetKeyLines, seedDemoHistory } from '@/server/services/demo-history'
 import { seedSourcingHistory } from '@/server/services/demo-seed/sourcing'
+import { sourcingReport } from '@/server/services/reports'
+import { makeCtx } from '@/server/context'
 import { seedSupplierPortalHistory } from '@/server/services/demo-seed/supplier-portal'
 import { TEST_PIN } from '../support/pin'
 
@@ -166,6 +168,18 @@ describe('[FR-SRC-201/AC1] S10-14 the phase-1 seed of sourcing', () => {
       ['IT', 'SP0142'],
       ['RMC', 'SP0033'],
     ])
+  })
+
+  it('[FR-SRC-204/AC8] [BR-RFX-15] /reports/sourcing after the seed (S10-15 · scene 15): two awards, 18,500.00 = 623 bp of 297,000.00, median 6.7; the steel RFQ open', async () => {
+    const dmProc = await forTenant(organizationId).member.findFirstOrThrow({ where: { employeeCode: 'dm_proc' }, select: { id: true } })
+    const r = await sourcingReport(makeCtx({ organizationId, actor: { type: 'USER', memberId: dmProc.id }, channel: 'WEB', now: NOW }), { from: '2026-01-01', to: '2026-12-31' })
+    if (!r.ok) throw new Error(JSON.stringify(r.error))
+    expect(r.data.scope).toBe('ORG')
+    expect(r.data.awards.map((a) => [a.savings, a.businessDays]).sort()).toEqual([[-150_000n, '6.7'], [2_000_000n, '13.7']].sort())
+    expect(r.data.total).toMatchObject({ awards: 2, baselineNet: 29_700_000n, savings: 1_850_000n, savingsBp: 623 })
+    expect(r.data.total.byKind.ESTIMATE.awards).toBe(2)
+    expect(r.data.medianDays).toBe('6.7')
+    expect(r.data.open.map((o) => o.title)).toEqual([titleOf('RFX-STEEL-DB12')])
   })
 
   it('the RFI concluded with its summary, no award; no e-mail of the past waits for the job', async () => {

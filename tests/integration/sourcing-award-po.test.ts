@@ -10,6 +10,8 @@ import { getPurchaseOrderView } from '@/server/queries/purchase-orders'
 import { decideTask } from '@/server/services/approvals/decide'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { editDraftPo, submitPo } from '@/server/services/purchase-orders'
+import { runReport, sourcingReport } from '@/server/services/reports'
+import { reportCatalog } from '@/server/services/reports/screens'
 import { awardWorkspace, closeRfxAt, confirmNetPrices, createAward, createRfx, inviteToRfx, openRfx, releaseAwardPo, setScorecard, submitAward, submitBid, submitScores } from '@/server/services/sourcing'
 import type { DoaOrg } from '../support/doa-org'
 import { createP2Org } from '../support/p2-org'
@@ -510,6 +512,69 @@ describe('[BR-RFX-14] [INV-RFX-03] what nobody won, and a pair preferred again',
     ok(await decideTask(as(codeOf(task.assigneeMemberId), later), { taskId: task.id, decision: 'APPROVE' }, key()))
     expect(await prisma.preferredSupplier.findMany({ where: { supplierId: parties[0]!.supplier.id, categoryCode: 'STEEL' }, select: { id: true, validTo: true } })).toEqual([{ id: first.id, validTo: new Date('2027-11-09T00:00:00Z') }])
     expect((await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, type: 'preferred_supplier.extended', aggregateId: first.id } })).data).toMatchObject({ from: '2027-11-06', to: '2027-11-09', awardDecisionId: made.awardDecisionId })
+  })
+})
+
+describe('[FR-SRC-204/AC8] [BR-RFX-15] G-8 on /reports/sourcing (S10-15)', () => {
+  const PERIOD = { from: '2026-10-01', to: '2026-12-31' }
+  const DECIDED = new Date('2026-11-09T04:00:00Z') // GC-SRC-27: Monday 11:00 Bangkok, 5.2 business days after the opening
+
+  it('[GC-SRC-24] scene 9 against the request estimates: 309,400.00 → 8,450.00 (273 bp) in 5.2 business days; [GC-SRC-26] a selected quotation of one request makes it MIXED', async () => {
+    const { rfxEventId, bids, lines, requestLineIds } = await scene()
+    const awardId = await sendAward(rfxEventId, allTo(lines, bids[0]!))
+    const task = (await openTaskOf(awardId))!
+    await stepUpForTask(task.id, task.assigneeMemberId)
+    ok(await decideTask(as(codeOf(task.assigneeMemberId), DECIDED), { taskId: task.id, decision: 'APPROVE' }, key()))
+
+    const read = async () => {
+      const r = ok(await sourcingReport(proc(), PERIOD))
+      expect(r.scope).toBe('ORG')
+      return { report: r, row: r.awards.find((a) => a.awardId === awardId)! }
+    }
+    const first = await read()
+    expect(first.row).toMatchObject({ rfxEventId, quarter: '2026-Q4', awardedNet: 30_095_000n, baselineNet: 30_940_000n, baselineKind: 'ESTIMATE', savings: 845_000n, savingsBp: 273, businessDays: '5.2' })
+    // the totals are the sums of the counted rows, with bp of the summed baseline (GC-SRC-34's rule)
+    const counted = first.report.awards.filter((a) => a.baselineNet !== null)
+    expect(first.report.total.awards).toBe(counted.length)
+    expect(first.report.total.savings).toBe(counted.reduce((a, r) => a + r.savings!, 0n))
+    expect(first.report.total.byKind.ESTIMATE.awards + first.report.total.byKind.QUOTATION.awards + first.report.total.byKind.MIXED.awards).toBe(counted.length)
+    expect(first.report.quarters.map((q) => q.quarter)).toContain('2026-Q4')
+    expect(first.report.open.some((o) => o.rfxEventId === rfxEventId)).toBe(false)
+
+    // the 5-tonne request selects a quotation of 128,400.00 with VAT: 120,000.00 before VAT (BR-FORM-06) replaces its 119,000.00
+    const second = await prisma.requestLine.findUniqueOrThrow({ where: { id: requestLineIds[1]! }, select: { requestId: true } })
+    await prisma.requestQuotation.create({ data: { organizationId: org.organizationId, requestId: second.requestId, supplierName: 'ผู้เสนอราคาเดิม', amountSatang: 12_840_000n, includesVat: true, vatRateBp: 700, netSatang: 12_000_000n, isSelected: true } })
+    const mixed = await read()
+    expect(mixed.row).toMatchObject({ baselineNet: 31_040_000n, baselineKind: 'MIXED', savings: 945_000n, savingsBp: 304 })
+
+    // the Excel report has the same row, in plain amounts
+    const file = ok(await runReport(proc(), 'SRC_G8', PERIOD))
+    expect(file.rows.find((x) => x.savings === '9450.00')).toMatchObject({ baselineKind: 'MIXED', baselineNet: '310400.00', awardedNet: '300950.00', savingsBp: '304', businessDays: '5.2', quarter: '2026-Q4' })
+  })
+
+  it('an RFx still open is listed with its bids and invites, never its prices', async () => {
+    const { rfxEventId } = ok(await createRfx(proc(MON), { kind: 'RFQ', title: 'ยังเปิดรับ', description: 'ขอราคา', source: { kind: 'REQUEST_LINES', requestLineIds: await poolLines([{ quantity: '1', unitPrice: '100.00' }]) } }, key()))
+    ok(await inviteToRfx(proc(MON), { rfxEventId, expectedVersion: await version(rfxEventId), supplierId: (await party('ผู้ขายรอยื่น')).supplier.id }, key()))
+    ok(await setScorecard(proc(MON), { rfxEventId, expectedVersion: await version(rfxEventId), criteria: PRICE_ONLY, evaluatorMemberIds: [] }, key()))
+    ok(await openRfx(proc(MON), { rfxEventId, expectedVersion: await version(rfxEventId), closesAt: '2026-12-01T10:00:00Z', fewerInvitesReason: 'ผู้ขายในตลาดมีน้อยราย' }, key()))
+    const r = ok(await sourcingReport(proc(), PERIOD))
+    const open = r.open.find((o) => o.rfxEventId === rfxEventId)
+    expect(open).toEqual({ rfxEventId, number: expect.any(String), title: 'ยังเปิดรับ', kind: 'RFQ', status: 'OPEN', closesAt: '2026-12-01T10:00:00.000Z', invited: 1, bids: 0 })
+  })
+
+  it('[FR-VIS-002/AC3] a head reads the RFx of their departments; a member without report.view is refused; no SOURCING, no report', async () => {
+    const head = ok(await sourcingReport(as('dm_con'), PERIOD))
+    expect(head.scope).toBe('DEPT')
+    expect(await sourcingReport(as('req_con'), PERIOD)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await sourcingReport(proc(), { from: '2026-10-31', to: 'x' })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } })
+    const catalog = await reportCatalog(proc())
+    expect(catalog.ok && catalog.data.reports.map((r) => r.code)).toContain('SRC_G8')
+
+    const off = await createP2Org({ modules: ['PAY'] })
+    expect(await sourcingReport(off.ctxOf('proc_officer', SEND), PERIOD)).toMatchObject({ ok: false, error: { code: 'MODULE_DISABLED' } })
+    const offCatalog = await reportCatalog(off.ctxOf('proc_officer', SEND))
+    expect(offCatalog.ok && offCatalog.data.reports.map((r) => r.code)).not.toContain('SRC_G8')
+    expect(await runReport(off.ctxOf('proc_officer', SEND), 'SRC_G8', PERIOD)).toMatchObject({ ok: true, data: { rows: [] } })
   })
 })
 

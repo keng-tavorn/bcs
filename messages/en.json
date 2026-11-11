@@ -10762,6 +10762,10 @@
         "description": "The system's goal measures, computed from the event log and the documents: POs through BCS, approvals by the DOA, speed, budget control and approvals on LINE.",
         "name": "KPI G-1 to G-5"
       },
+      "SRC_G8": {
+        "description": "Savings of the awards against the requests they came from, by kind of baseline and by quarter, with the business days from opening an RFx to approving its award",
+        "name": "Sourcing savings (G-8)"
+      },
       "SUP_G7": {
         "description": "Business days new suppliers take from invitation to approval, filled in by the supplier or by procurement, with the applications waiting and the expired documents",
         "name": "New supplier onboarding time (G-7)"
@@ -13390,6 +13394,88 @@
         "warnRisk": "Risk not cleared; its purchase orders will stop at the risk gate"
       }
     }
+  },
+  "sourcingReport": {
+    "amount": "THB {amount}",
+    "amountBp": "THB {amount} ({percent})",
+    "awards": {
+      "caption": "Awards approved in this period, with their baseline, awarded amount, savings and business days",
+      "columns": {
+        "award": "Award",
+        "awarded": "Awarded before VAT",
+        "baseline": "Baseline before VAT",
+        "days": "Business days",
+        "decidedAt": "Approved",
+        "kind": "Baseline",
+        "rfx": "RFx",
+        "savings": "Savings",
+        "winners": "Winners"
+      },
+      "emptyHint": "Try a longer period, or see the RFx still open below.",
+      "emptyTitle": "No award approved in this period",
+      "only": "Showing only the awards with this baseline: {kind}.",
+      "showAll": "Show every award",
+      "title": "Awards approved in this period ({count})"
+    },
+    "back": "Back to reports",
+    "days": "{value} business days",
+    "export": {
+      "hint": "The file has the rows of the awards table, with the file's checksum.",
+      "title": "Export to Excel"
+    },
+    "intro": "Savings from sourcing (KPI G-8) against the requests they came from, by kind of baseline and by quarter, the time from opening an RFx to approving its award, and the RFx still open. The figures come from the system, not from AI.",
+    "kind": {
+      "ESTIMATE": "Estimate baseline",
+      "MIXED": "Mixed baseline",
+      "QUOTATION": "Quotation baseline"
+    },
+    "moduleOff": "This organization has not switched on the sourcing module, so this report is not available yet.",
+    "noAward": "No award of this kind",
+    "noNumber": "No number yet",
+    "noneYet": "No award approved in this period yet",
+    "notComputable": "Cannot be computed",
+    "open": {
+      "bids": "{bids} / {invited}",
+      "caption": "RFx still open by their close",
+      "columns": {
+        "bids": "Bids / invited",
+        "closesAt": "Closes",
+        "kind": "Kind",
+        "rfx": "RFx",
+        "status": "Status"
+      },
+      "emptyHint": "A new RFx shows here until its award is approved or it is cancelled.",
+      "emptyTitle": "No RFx open",
+      "intro": "RFx open for bids, closed or being evaluated, the nearest close first, whatever the period.",
+      "noClose": "Not set",
+      "title": "RFx still open ({count})"
+    },
+    "periodInvalid": "The dates chosen cannot be used (the start must not be after the end), so this quarter up to today is shown instead",
+    "periodLabel": "Award approval dates",
+    "quarter": "Q{q} {year}",
+    "quarters": {
+      "caption": "Savings of each quarter by the award's approval date, by kind of baseline",
+      "columns": {
+        "ESTIMATE": "Estimate baseline",
+        "MIXED": "Mixed baseline",
+        "QUOTATION": "Quotation baseline",
+        "awards": "Awards",
+        "baseline": "Baseline before VAT",
+        "quarter": "Quarter",
+        "savings": "Savings"
+      },
+      "title": "By quarter"
+    },
+    "run": "Show this period",
+    "summary": {
+      "baseline": "Total baseline before VAT",
+      "hint": "Savings = baseline − awarded amount, both before VAT; negative when the award costs more than the baseline · The baseline is the quotation selected in the request, else the requester's estimate, and a reference price for an RFx raised from a need · Business days on the organization’s calendar, one decimal; with an even count, the lower middle value.",
+      "median": "Median business days from opening the RFx to approving the award",
+      "title": "Savings in this period (G-8)",
+      "total": "Total savings",
+      "withoutBaseline": "{count} award(s) have no baseline (an RFx from a need without a reference price): left out of the savings, counted in the business days"
+    },
+    "title": "Sourcing report"
   },
   "supplierApplicationTask": {
     "branch": "Branch",

@@ -1,0 +1,82 @@
+{
+  "title": "Sourcing report",
+  "intro": "Savings from sourcing (KPI G-8) against the requests they came from, by kind of baseline and by quarter, the time from opening an RFx to approving its award, and the RFx still open. The figures come from the system, not from AI.",
+  "back": "Back to reports",
+  "moduleOff": "This organization has not switched on the sourcing module, so this report is not available yet.",
+  "periodLabel": "Award approval dates",
+  "run": "Show this period",
+  "periodInvalid": "The dates chosen cannot be used (the start must not be after the end), so this quarter up to today is shown instead",
+  "noneYet": "No award approved in this period yet",
+  "noNumber": "No number yet",
+  "days": "{value} business days",
+  "amount": "THB {amount}",
+  "amountBp": "THB {amount} ({percent})",
+  "notComputable": "Cannot be computed",
+  "noAward": "No award of this kind",
+  "summary": {
+    "title": "Savings in this period (G-8)",
+    "total": "Total savings",
+    "baseline": "Total baseline before VAT",
+    "median": "Median business days from opening the RFx to approving the award",
+    "hint": "Savings = baseline − awarded amount, both before VAT; negative when the award costs more than the baseline · The baseline is the quotation selected in the request, else the requester's estimate, and a reference price for an RFx raised from a need · Business days on the organization’s calendar, one decimal; with an even count, the lower middle value.",
+    "withoutBaseline": "{count} award(s) have no baseline (an RFx from a need without a reference price): left out of the savings, counted in the business days"
+  },
+  "kind": {
+    "QUOTATION": "Quotation baseline",
+    "ESTIMATE": "Estimate baseline",
+    "MIXED": "Mixed baseline"
+  },
+  "quarter": "Q{q} {year}",
+  "quarters": {
+    "title": "By quarter",
+    "caption": "Savings of each quarter by the award's approval date, by kind of baseline",
+    "columns": {
+      "quarter": "Quarter",
+      "awards": "Awards",
+      "baseline": "Baseline before VAT",
+      "savings": "Savings",
+      "QUOTATION": "Quotation baseline",
+      "ESTIMATE": "Estimate baseline",
+      "MIXED": "Mixed baseline"
+    }
+  },
+  "awards": {
+    "title": "Awards approved in this period ({count})",
+    "caption": "Awards approved in this period, with their baseline, awarded amount, savings and business days",
+    "emptyTitle": "No award approved in this period",
+    "emptyHint": "Try a longer period, or see the RFx still open below.",
+    "columns": {
+      "rfx": "RFx",
+      "award": "Award",
+      "winners": "Winners",
+      "decidedAt": "Approved",
+      "kind": "Baseline",
+      "baseline": "Baseline before VAT",
+      "awarded": "Awarded before VAT",
+      "savings": "Savings",
+      "days": "Business days"
+    },
+    "only": "Showing only the awards with this baseline: {kind}.",
+    "showAll": "Show every award"
+  },
+  "open": {
+    "title": "RFx still open ({count})",
+    "intro": "RFx open for bids, closed or being evaluated, the nearest close first, whatever the period.",
+    "caption": "RFx still open by their close",
+    "emptyTitle": "No RFx open",
+    "emptyHint": "A new RFx shows here until its award is approved or it is cancelled.",
+    "noClose": "Not set",
+    "bids": "{bids} / {invited}",
+    "columns": {
+      "rfx": "RFx",
+      "kind": "Kind",
+      "status": "Status",
+      "closesAt": "Closes",
+      "bids": "Bids / invited"
+    }
+  },
+  "export": {
+    "title": "Export to Excel",
+    "hint": "The file has the rows of the awards table, with the file's checksum."
+  }
+}

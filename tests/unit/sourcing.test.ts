@@ -21,6 +21,7 @@ import {
   rankBids,
   riskCleared,
   savings,
+  quotationShare,
   savingsTotal,
   scorecardReveal,
   validateScorecard,
@@ -272,3 +273,25 @@ describe('[BR-SOD-13] who may not approve an award, at decide time (checkSod DEC
   })
 })
 
+
+describe('[FR-SRC-204/AC8] G-8 baseline from a selected quotation (BR-RFX-15 · BR-FORM-06)', () => {
+  it('a one-line request brings its whole quotation; part of the quantity brings its part, half up', () => {
+    expect(quotationShare(12_000_000n, [11_900_000n], 0, '5', '5')).toBe(12_000_000n)
+    expect(quotationShare(12_000_000n, [11_900_000n], 0, '2', '3')).toBe(8_000_000n)
+    expect(quotationShare(10_000_001n, [1n], 0, '1', '2')).toBe(5_000_001n)
+  })
+  it('a quotation of several lines is shared by their amounts, largest remainder, and adds up exactly', () => {
+    const lines = [100n, 100n, 100n]
+    const parts = lines.map((_, i) => quotationShare(1_000n, lines, i, '1', '1'))
+    expect(parts).toEqual([334n, 333n, 333n])
+    expect(parts.reduce((a, b) => a + b, 0n)).toBe(1_000n)
+    expect(quotationShare(9_000n, [20_000n, 10_000n], 1, '1', '1')).toBe(3_000n)
+  })
+  it('lines of no amount share it evenly; a line the request does not have is refused', () => {
+    expect(quotationShare(1_000n, [0n, 0n], 0, '1', '1')).toBe(500n)
+    // a line of no amount beside one with an amount takes none; a line of no quantity keeps its whole share
+    expect(quotationShare(1_000n, [100n, 0n], 1, '1', '1')).toBe(0n)
+    expect(quotationShare(1_000n, [100n, 0n], 0, '1', '0')).toBe(1_000n)
+    expect(() => quotationShare(1_000n, [100n], 1, '1', '1')).toThrow(RangeError)
+  })
+})

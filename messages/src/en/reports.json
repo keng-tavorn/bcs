@@ -36,6 +36,10 @@
     "SUP_G7": {
       "name": "New supplier onboarding time (G-7)",
       "description": "Business days new suppliers take from invitation to approval, filled in by the supplier or by procurement, with the applications waiting and the expired documents"
+    },
+    "SRC_G8": {
+      "name": "Sourcing savings (G-8)",
+      "description": "Savings of the awards against the requests they came from, by kind of baseline and by quarter, with the business days from opening an RFx to approving its award"
     }
   },
   "proposalReports": "The seven reports of the original proposal (R-01 to R-07) will be added once the customer confirms their list and definitions. The system does not build reports that have no definition yet.",

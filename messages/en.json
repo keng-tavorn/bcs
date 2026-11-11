@@ -12824,6 +12824,7 @@
       "noQuestions": "This assessment has no questions in your part. Decide from what the work is.",
       "notAnswered": "Not answered",
       "note": "Note: {note}",
+      "openDocument": "Open the certificate {type}",
       "openFile": "Open file {name}",
       "questions": "Questions, answers and evidence of your part",
       "questionsHint": "This page shows the general part and the parts you review only. The answers of other parts belong to their reviewers.",

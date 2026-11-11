@@ -52,6 +52,7 @@
     "note": "Note: {note}",
     "file": "File {name} · {scan}",
     "openFile": "Open file {name}",
+    "openDocument": "Open the certificate {type}",
     "notAnswered": "Not answered",
     "assessment": "This assessment",
     "supplier": "Supplier",

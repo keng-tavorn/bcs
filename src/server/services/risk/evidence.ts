@@ -15,7 +15,7 @@ import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { enqueueSupplierNotice } from '@/server/notifications/supplier-notices'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { requireModule } from '../modules'
-import { requestSupplierDocumentDownload, sniffSupplierFile, type SupplierFileMime } from '../suppliers/documents'
+import { requestSupplierDocumentDownloadGranted, sniffSupplierFile, type SupplierDocumentGrant, type SupplierFileMime } from '../suppliers/documents'
 import { contactMay } from './assessments'
 import { RISK_SUPPLIER_TEMPLATES } from './templates'
 
@@ -165,28 +165,29 @@ const DOWNLOAD_TTL_SECONDS = 300
 
 /**
  * risk.evidence.view with RISK on, inside the caller's transaction: PROCUREMENT FINANCE AUDITOR (ORG), or the holder of a
- * reviewer's slot of the assessment whose domains (GENERAL and its own · BR-RSK-08) hold the question of the answer
- * (ASSIGNED · S11-06)
+ * reviewer's slot of the assessment whose domains (GENERAL and its own · BR-RSK-08) hold the question of one of the
+ * answers the evidence is behind (ASSIGNED · S11-06 · a certificate may answer questions of several domains · S11-24)
  */
-async function evidenceViewer(tx: TenantTx, ctx: Ctx, answer?: { readonly assessmentId: string; readonly questionCode: string }): Promise<{ ok: true } | Fail> {
+async function evidenceViewer(tx: TenantTx, ctx: Ctx, answers?: { readonly assessmentId: string; readonly questionCodes: readonly string[] }): Promise<{ ok: true } | Fail> {
   const on = await requireModule(ctx, 'RISK', tx)
   if (!on.ok) return { ok: false, error: on.error }
   // without an answer no slot is named: only the roles open it (an ASSIGNED grant asked without a resource would let anyone in)
-  const may = await authorize(tx, ctx, 'risk.evidence.view', { assigneeMemberIds: answer ? await slotHoldersSeeing(tx, answer.assessmentId, answer.questionCode) : [] })
+  const may = await authorize(tx, ctx, 'risk.evidence.view', { assigneeMemberIds: answers?.questionCodes.length ? await slotHoldersSeeing(tx, answers.assessmentId, answers.questionCodes) : [] })
   return may.ok ? { ok: true } : { ok: false, error: may.error }
 }
 
-/** The members who hold or held a reviewer's slot of the assessment that sees the question's domain (BR-RSK-08) */
-async function slotHoldersSeeing(tx: TenantTx, assessmentId: string, questionCode: string): Promise<string[]> {
+/** The members who hold or held a reviewer's slot of the assessment that sees the domain of any of the questions (BR-RSK-08) */
+async function slotHoldersSeeing(tx: TenantTx, assessmentId: string, questionCodes: readonly string[]): Promise<string[]> {
   const a = await tx.riskAssessment.findUniqueOrThrow({ where: { id: assessmentId }, select: { questionnaireId: true } })
-  const question = await tx.riskQuestion.findFirst({ where: { questionnaireId: a.questionnaireId, code: questionCode }, select: { domain: true } })
-  if (!question) return []
+  const questions = await tx.riskQuestion.findMany({ where: { questionnaireId: a.questionnaireId, code: { in: [...questionCodes] } }, select: { domain: true } })
+  if (questions.length === 0) return []
+  const domains = new Set<string>(questions.map((q) => q.domain))
   // every task of the assessment, a cancelled one too: its holder still reads the slot's page (riskReviewTaskPage)
   const tasks = await tx.reviewTask.findMany({ where: { assessmentId }, select: { riskDomains: true, assigneeMemberId: true, delegatorMemberId: true, decidedById: true } })
   return [
     ...new Set(
       tasks
-        .filter((t) => question.domain === 'GENERAL' || t.riskDomains.includes(question.domain))
+        .filter((t) => domains.has('GENERAL') || t.riskDomains.some((d) => domains.has(d)))
         .flatMap((t) => [t.assigneeMemberId, t.delegatorMemberId, t.decidedById])
         .filter((m): m is string => typeof m === 'string'),
     ),
@@ -205,7 +206,7 @@ const evidenceDownloadCommand = defineCommand({
     })
     // the right first, the file's existence after: who may not open it learns nothing of it
     const questionCode = link ? answers.find((x) => x.id === link.subjectId)?.questionCode : undefined
-    const may = await evidenceViewer(tx, ctx, questionCode ? { assessmentId: input.assessmentId, questionCode } : undefined)
+    const may = await evidenceViewer(tx, ctx, questionCode ? { assessmentId: input.assessmentId, questionCodes: [questionCode] } : undefined)
     if (!may.ok) return may
     if (!link) return fail('NOT_FOUND', 'no such file behind an answer of this assessment')
     // a file opens once the central scan called it clean (S7's file-scan)
@@ -226,18 +227,31 @@ export async function requestRiskEvidenceDownload(ctx: Ctx, input: { assessmentI
 }
 
 /**
- * The supplier's certificate an evidence answer of the assessment rests on: risk.evidence.view here, then S7's
- * supplierDocument.requestDownload with the same context (its own right, scan check and log of a sensitive type)
+ * The grant of S11 to open the supplier's certificate an evidence answer of `assessmentId` rests on (BR-RSK-08 ·
+ * BR-SDOC ข้อ 05 · S11-24): risk.evidence.view with RISK on — PROCUREMENT FINANCE AUDITOR (ORG), or the holder of a
+ * reviewer's slot whose domains hold the question of an answer that rests on it — checked in S7's transaction, the right
+ * before the answer's existence. S7 lets the member in by it where the member lacks supplier.document.view and names it
+ * in file.downloaded.
+ */
+function reviewDocumentGrant(assessmentId: string): SupplierDocumentGrant {
+  return {
+    grantedBy: 'RISK_REVIEW',
+    async check(tx, ctx, documentId) {
+      const answers = await tx.riskAnswer.findMany({ where: { assessmentId, evidenceDocumentId: documentId }, select: { questionCode: true } })
+      const may = await evidenceViewer(tx, ctx, answers.length ? { assessmentId, questionCodes: answers.map((x) => x.questionCode) } : undefined)
+      if (!may.ok) return may
+      return answers.length ? { ok: true } : fail('NOT_FOUND', 'no answer of this assessment rests on the document')
+    },
+  }
+}
+
+/**
+ * The supplier's certificate an evidence answer of the assessment rests on: S7's supplierDocument.requestDownload with
+ * S11's grant (risk.evidence.view by role or by the slot, checked in the same transaction), then S7's own scan check,
+ * the right to a sensitive type and its log (S11-05 · S11-24)
  */
 export async function requestRiskEvidenceDocumentDownload(ctx: Ctx, input: { assessmentId: string; documentId: string }, options: RunOptions): Promise<Result<{ url: string; expiresInSeconds: number }>> {
-  const behind = await forTenant(ctx.organizationId).$transaction(async (tx): Promise<{ ok: true } | Fail> => {
-    const answer = await tx.riskAnswer.findFirst({ where: { assessmentId: input.assessmentId, evidenceDocumentId: input.documentId }, select: { questionCode: true } })
-    const may = await evidenceViewer(tx, ctx, answer ? { assessmentId: input.assessmentId, questionCode: answer.questionCode } : undefined)
-    if (!may.ok) return may
-    return answer ? { ok: true } : fail('NOT_FOUND', 'no answer of this assessment rests on the document')
-  })
-  if (!behind.ok) return behind
-  return requestSupplierDocumentDownload(ctx, { documentId: input.documentId, purpose: 'ตรวจแบบประเมินความเสี่ยงคู่ค้า' }, options)
+  return requestSupplierDocumentDownloadGranted(ctx, { documentId: input.documentId, purpose: 'ตรวจแบบประเมินความเสี่ยงคู่ค้า' }, reviewDocumentGrant(input.assessmentId), options)
 }
 
 /** The listener of file.scanned for RISK_EVIDENCE: INFECTED → the link removed and the supplier told; CLEAN → nothing */

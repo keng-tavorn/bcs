@@ -52,6 +52,7 @@
     "note": "หมายเหตุ: {note}",
     "file": "ไฟล์ {name} · {scan}",
     "openFile": "เปิดไฟล์ {name}",
+    "openDocument": "เปิดใบรับรอง {type}",
     "notAnswered": "ยังไม่ตอบ",
     "assessment": "แบบประเมินนี้",
     "supplier": "ผู้ขาย",

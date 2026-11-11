@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import type { AppError } from '@/core/result'
 import { RISK_TEXT_MAX } from '@/lib/constants'
-import { decideRiskReview, requestRiskEvidenceDownload } from '@/server/services/risk'
+import { decideRiskReview, requestRiskEvidenceDocumentDownload, requestRiskEvidenceDownload } from '@/server/services/risk'
 import type { ReviewOutcome } from '@/ui/risk-review/model'
 import { currentCtx, openRiskFile } from '../../_outcome'
 
@@ -55,4 +55,13 @@ export async function decideReviewAction(taskId: string, input: unknown, key: st
 export async function openReviewEvidenceFileAction(assessmentId: string, fileId: string, key: string) {
   if (!Id.safeParse(assessmentId).success || !Id.safeParse(fileId).success) return { ok: false as const, code: 'VALIDATION_FAILED' }
   return openRiskFile(key, (ctx) => requestRiskEvidenceDownload(ctx, { assessmentId, fileId }, { idempotencyKey: key }))
+}
+
+/**
+ * The supplier's certificate an answer of the slot's own part rests on (S11-24 · BR-RSK-08): S7's download with S11's
+ * grant — the service checks the reviewer's slot in S7's transaction, then the scan and a sensitive type's right
+ */
+export async function openReviewEvidenceDocumentAction(assessmentId: string, documentId: string, key: string) {
+  if (!Id.safeParse(assessmentId).success || !Id.safeParse(documentId).success) return { ok: false as const, code: 'VALIDATION_FAILED' }
+  return openRiskFile(key, (ctx) => requestRiskEvidenceDocumentDownload(ctx, { assessmentId, documentId }, { idempotencyKey: key }))
 }

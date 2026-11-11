@@ -15,7 +15,7 @@ import { ReviewDecision } from '@/ui/risk-review/decision'
 import { REVIEW_TASK_BADGES, SLOT_BADGES, reviewDueState, slotDomains } from '@/ui/risk-review/model'
 import { getSession } from '../../../../_lib/session'
 import { day, localeOf, when } from '../../../_tracking/present'
-import { decideReviewAction, openReviewEvidenceFileAction } from './actions'
+import { decideReviewAction, openReviewEvidenceDocumentAction, openReviewEvidenceFileAction } from './actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('riskReview.detail')
@@ -27,7 +27,8 @@ export async function generateMetadata() {
 // the general part and of their slot's own parts only — the service never reads the others' answers for this page —
 // the state of the other slots of the round without their answers or reasons, and decides: pass or return, nothing
 // else, no PIN (BR-RSK-08 · BR-WF-09). A file behind an answer opens through a POST that checks the reviewer each time;
-// a supplier's certificate is shown by its type, scope and expiry here. Whoever is not a holder of the task reads it
+// so does a supplier's certificate an answer rests on, shown by its type, scope and expiry (S7's download with S11's
+// grant · S11-24). Whoever is not a holder of the task reads it
 // as missing (risk.review.view). On phones the decision comes first and its buttons stick to the bottom of the screen.
 
 const ASSESSMENT_STATUSES = ['DRAFT', 'IN_REVIEW', 'RETURNED', 'COMPLETED', 'SUPERSEDED', 'CANCELLED'] as const
@@ -126,8 +127,11 @@ export default async function RiskReviewTaskPage({ params }: { params: Promise<{
                                 <span>{t('detail.answer', { option: en ? q.answer.optionLabelEn : q.answer.optionLabelTh })}</span>
                                 <span className="text-ink-muted">{t(`detail.source.${q.answer.source}`)}</span>
                                 {q.answer.evidenceDocument ? (
-                                  <span className="text-ink-muted">
-                                    {t('detail.evidenceDocument', { type: q.answer.evidenceDocument.documentTypeCode, scope: q.answer.evidenceDocument.scope ?? '-', date: day(locale, q.answer.evidenceDocument.expiresOn) })}
+                                  <span className="flex flex-col text-ink-muted">
+                                    <span className="break-words">
+                                      {t('detail.evidenceDocument', { type: q.answer.evidenceDocument.documentTypeCode, scope: q.answer.evidenceDocument.scope ?? '-', date: day(locale, q.answer.evidenceDocument.expiresOn) })}
+                                    </span>
+                                    <OpenFileButton label={t('detail.openDocument', { type: q.answer.evidenceDocument.documentTypeCode })} open={openReviewEvidenceDocumentAction.bind(null, a.id, q.answer.evidenceDocument.id)} />
                                   </span>
                                 ) : null}
                                 {q.answer.note ? <span className="break-words text-ink-muted">{t('detail.note', { note: q.answer.note })}</span> : null}

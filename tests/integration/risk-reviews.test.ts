@@ -12,6 +12,7 @@ import {
   answerRiskAssessment,
   decideRiskReview,
   openRiskAssessment,
+  requestRiskEvidenceDocumentDownload,
   requestRiskEvidenceDownload,
   reresolveReviewTasks,
   riskAssessmentView,
@@ -21,6 +22,7 @@ import {
   submitRiskAssessment,
   uploadRiskEvidence,
 } from '@/server/services/risk'
+import { requestSupplierDocumentDownload, requestSupplierDocumentDownloadGranted, type SupplierDocumentGrant } from '@/server/services/suppliers/documents'
 import { draftWorkflowVersion, dryRunWorkflowVersion, updateWorkflowVersion } from '@/server/services/workflow'
 import { getWorkflowEditor } from '@/server/services/workflow/view'
 import { loadWorkflowVersions } from '@/server/workflow/policy'
@@ -102,6 +104,16 @@ async function supplierWithContact(o: DoaOrg, payeeType: 'JURISTIC' | 'INDIVIDUA
   return { supplierId: supplier.id, portal: (now = NOW) => portalCtx(o.organizationId, contact, now) }
 }
 
+// S11-24: a verified certificate of the supplier, its file scanned clean; SENSITIVE_TYPE is a type like an ID card
+const CERT_TYPE = 'RV-CERT'
+const SENSITIVE_TYPE = 'RV-ID'
+async function certificate(supplierId: string, scope: string, documentTypeCode = CERT_TYPE) {
+  const file = await prisma.fileObject.create({ data: { organizationId: org.organizationId, storageKey: `test/${randomUUID()}.pdf`, fileName: `${scope}.pdf`, mimeType: 'application/pdf', sizeBytes: 1, status: 'AVAILABLE', uploadedById: org.member.proc_officer!, scanStatus: 'CLEAN' } })
+  return prisma.supplierDocument.create({
+    data: { organizationId: org.organizationId, supplierId, documentTypeCode, fileId: file.id, scope, scopeKey: scope.toLowerCase(), issuedOn: new Date('2026-01-01'), expiresOn: new Date('2027-06-30'), status: 'VERIFIED', verifiedById: org.member.proc_officer!, verifiedAt: NOW },
+  })
+}
+
 const version = async (id: string) => (await prisma.riskAssessment.findUniqueOrThrow({ where: { id } })).version
 type Screen = { processesPersonalData: 'Y' | 'N'; accessesSystems: 'Y' | 'N'; accessesPremises: 'Y' | 'N' }
 
@@ -130,6 +142,12 @@ beforeAll(async () => {
   setDefaultOutboxSender(null)
   org = await createP2Org()
   await riskOrg(org)
+  await prisma.supplierDocumentType.createMany({
+    data: [
+      { organizationId: org.organizationId, code: CERT_TYPE, nameTh: 'ใบรับรอง', nameEn: 'Certificate', appliesTo: ['JURISTIC'], singleInstance: false },
+      { organizationId: org.organizationId, code: SENSITIVE_TYPE, nameTh: 'บัตรประชาชน', nameEn: 'ID card', appliesTo: ['JURISTIC'], sensitive: true },
+    ],
+  })
 })
 
 describe('[FR-RSK-202/AC1] the reviewers come from the screening of the work', () => {
@@ -388,6 +406,61 @@ describe('[FR-RSK-202/AC4] each reviewer reads GENERAL and its own domains only'
     expect(await open('dm_it', 'RQ-PRV-01')).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     expect(ok(await open('dm_proc', 'RQ-PRV-01')).url).toMatch(/^https?:\/\//)
     expect(await open('dm_con', 'RQ-IS-01')).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+  })
+
+  it('[BR-RSK-08] a reviewer opens the certificate an answer of its own domains rests on — S7’s download with S11’s grant (S11-24)', async () => {
+    const a = await sent({ processesPersonalData: 'Y', accessesSystems: 'Y', accessesPremises: 'N' })
+    // the certificates the INFOSEC, PRIVACY and GENERAL answers rest on, set while the assessment is IN_REVIEW (test data)
+    const [iso, privacy, general, idCard] = [await certificate(a.supplierId, 'ISO 27001'), await certificate(a.supplierId, 'ISO 27701'), await certificate(a.supplierId, 'ISO 9001'), await certificate(a.supplierId, 'ID', SENSITIVE_TYPE)]
+    for (const [questionCode, doc] of [['RQ-IS-01', iso], ['RQ-PRV-01', privacy], ['RQ-GEN-01', general]] as const) await prisma.riskAnswer.updateMany({ where: { assessmentId: a.assessmentId, questionCode }, data: { evidenceDocumentId: doc.id } })
+    const open = (who: string, documentId: string) => requestRiskEvidenceDocumentDownload(as(who), { assessmentId: a.assessmentId, documentId }, key())
+    const downloads = async (fileId: string) => (await prisma.event.findMany({ where: { aggregateId: fileId, type: 'file.downloaded' }, orderBy: { seq: 'asc' } })).map((e) => (e.data as { grantedBy?: string }).grantedBy ?? null)
+    // dm_it holds the INFOSEC slot and no supplier.document.view: let in by S11's grant, which file.downloaded names
+    expect(ok(await open('dm_it', iso.id)).url).toMatch(/^https?:\/\//)
+    expect(ok(await open('dm_it', general.id)).url).toMatch(/^https?:\/\//)
+    expect(await downloads(iso.fileId)).toEqual(['RISK_REVIEW'])
+    // a certificate of another slot's domain, of no answer here, or a reviewer of no slot: FORBIDDEN, nothing downloaded
+    expect(await open('dm_it', privacy.id)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await open('dm_it', idCard.id)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await open('dm_con', iso.id)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await downloads(privacy.fileId)).toEqual([])
+    // the PRIVACY slot's holder is also PROCUREMENT: its own supplier.document.view lets it in, so no grant is named
+    expect(ok(await open('dm_proc', privacy.id)).url).toMatch(/^https?:\/\//)
+    expect(await downloads(privacy.fileId)).toEqual([null])
+    // S7 refuses a grant the caller names itself: the input takes no grantedBy, and without one dm_it has no right
+    const forged = await requestSupplierDocumentDownload(as('dm_it'), { documentId: iso.id, grantedBy: 'RISK_REVIEW' } as never, key())
+    expect(forged).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } })
+    expect(await requestSupplierDocumentDownload(as('dm_it'), { documentId: iso.id }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    // a grant whose own check refuses refuses the download, and a grant is never a supplier contact's
+    const refusing: SupplierDocumentGrant = { grantedBy: 'RISK_REVIEW', check: async () => ({ ok: false, error: { code: 'FORBIDDEN', message: 'not a holder of the slot' } }) }
+    expect(await requestSupplierDocumentDownloadGranted(as('dm_it'), { documentId: iso.id }, refusing, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    const anyone: SupplierDocumentGrant = { grantedBy: 'RISK_REVIEW', check: async () => ({ ok: true }) }
+    expect(await requestSupplierDocumentDownloadGranted(a.portal(), { documentId: iso.id }, anyone, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await downloads(iso.fileId)).toEqual(['RISK_REVIEW'])
+  })
+
+  it('[BR-RSK-08] one certificate behind answers of two domains opens for the slot of either, never for a third (S11-24)', async () => {
+    const a = await sent({ processesPersonalData: 'Y', accessesSystems: 'Y', accessesPremises: 'N' })
+    const shared = await certificate(a.supplierId, 'ISO 27001 + 27701')
+    await prisma.riskAnswer.updateMany({ where: { assessmentId: a.assessmentId, questionCode: { in: ['RQ-PRV-01', 'RQ-IS-01'] } }, data: { evidenceDocumentId: shared.id } })
+    const open = (who: string) => requestRiskEvidenceDocumentDownload(as(who), { assessmentId: a.assessmentId, documentId: shared.id }, key())
+    expect(ok(await open('dm_it')).url).toMatch(/^https?:\/\//)
+    expect(ok(await open('dm_proc')).url).toMatch(/^https?:\/\//)
+    // dm_fin holds the FINANCE slot of this HIGH assessment: neither domain is its own
+    expect((await tasksOf(a.assessmentId)).some((t) => t.assigneeMemberId === org.member.dm_fin)).toBe(true)
+    expect(await open('dm_fin')).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+  })
+
+  it('[BR-SDOC-05] a sensitive certificate asks supplier.document.viewSensitive of the reviewer too, and is logged when opened (S11-24)', async () => {
+    const a = await sent({ processesPersonalData: 'N', accessesSystems: 'Y', accessesPremises: 'N' })
+    const idCard = await certificate(a.supplierId, 'ID', SENSITIVE_TYPE)
+    await prisma.riskAnswer.updateMany({ where: { assessmentId: a.assessmentId, questionCode: 'RQ-IS-01' }, data: { evidenceDocumentId: idCard.id } })
+    const logged = () => prisma.sensitiveAccessLog.count({ where: { subjectType: 'SupplierDocument', subjectId: idCard.id } })
+    expect(await requestRiskEvidenceDocumentDownload(as('dm_it'), { assessmentId: a.assessmentId, documentId: idCard.id }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN', details: { capability: 'supplier.document.viewSensitive' } } })
+    expect(await logged()).toBe(0)
+    // PROCUREMENT (risk.evidence.view by its role, supplier.document.viewSensitive) opens it, and the access is logged
+    expect(ok(await requestRiskEvidenceDocumentDownload(as('dm_proc'), { assessmentId: a.assessmentId, documentId: idCard.id }, key())).url).toMatch(/^https?:\/\//)
+    expect(await logged()).toBe(1)
   })
 })
 

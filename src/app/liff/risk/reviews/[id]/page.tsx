@@ -90,7 +90,8 @@ function SlotState({ view, t, locale }: { readonly view: RiskReviewTaskPage; rea
 
 /** The questions of the member's parts with their answers, part by part: the answer, how it was given, its note and evidence */
 function Questions({ view, t, locale }: { readonly view: RiskReviewTaskPage; readonly t: ReviewT; readonly locale: Locale }) {
-  const files = view.questions.reduce((n, q) => n + (q.answer?.files.length ?? 0), 0)
+  // the files and the certificates behind the answers both open on the web page of the task (S11-24)
+  const files = view.questions.reduce((n, q) => n + (q.answer?.files.length ?? 0) + (q.answer?.evidenceDocument ? 1 : 0), 0)
   const dateOf = (d: Date) => (locale === 'en' ? formatEnglishBeDate(d) : formatThaiDate(d))
   return (
     <LiffSection id="risk-review-questions" title={t('questions.title')}>

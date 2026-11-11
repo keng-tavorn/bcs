@@ -1,7 +1,7 @@
 import { TZDate } from '@date-fns/tz'
 import { stepUpNeeded } from '@/core/pin'
 import { WEEKDAYS, type BusinessCalendar } from '@/core/sla'
-import { setEmailProvider } from '@/integrations/email-provider'
+import { emailProviderInUse, setEmailProvider } from '@/integrations/email-provider'
 import { systemClock } from '@/lib/clock'
 import { MS_PER_MINUTE } from '@/lib/constants'
 import { grantStepUp } from '@/server/auth/step-up'
@@ -12,7 +12,7 @@ import { sendSupplierNotice } from '@/server/notifications/supplier-notices'
 import { giveOneTimePins, randomDemoPin, takeBackOneTimePins, type OneTimePins } from '@/server/seed/pins'
 import type { SourcingScenarioRow, SourcingSheets, SourcingSupplierRow } from '@/server/seed/sourcing'
 import { addDays, dayIn } from '@/server/seed/supplier-portal'
-import type { RunOptions } from '../_pipeline'
+import { scopedIdempotencyKey, type RunOptions } from '../_pipeline'
 import { decideTask } from '../approvals/decide'
 import { answerQuestion, askQuestion, closeRfxAt, concludeRfx, createAward, createRfx, inviteToRfx, openRfx, rankingOf, setScorecard, submitAward, submitBid, submitScores } from '../sourcing'
 import { playApplication, type ApplicationPlayRow } from './supplier-portal'
@@ -50,7 +50,6 @@ export interface SourcingHistoryOptions {
 export async function seedSourcingHistory(organizationId: string, sheets: SourcingSheets, now: Date, options: SourcingHistoryOptions): Promise<SourcingHistoryReport> {
   const db = forTenant(organizationId)
   if (!(await db.orgModule.findFirst({ where: { module: 'SOURCING', enabled: true }, select: { id: true } }))) throw new Error('ชีต RFx_Scenarios: องค์กรยังไม่ได้เปิดโมดูล SOURCING (P1_SEED_MODULES · ต้องมีข้อ RA ในชีต DOA)')
-  if ((await db.rfxEvent.count()) > 0) return { seeded: false, foreignSuppliers: 0, rfx: {} }
   const calendar = await db.$transaction((tx) => loadBusinessCalendar(tx, organizationId))
   const members = new Map((await db.member.findMany({ select: { id: true, employeeCode: true } })).filter((m) => m.employeeCode).map((m) => [m.employeeCode!, m.id]))
   const memberOf = (code: string | null, where: string) => {
@@ -68,15 +67,24 @@ export async function seedSourcingHistory(organizationId: string, sheets: Sourci
     foreign.set(row.ref, contact.supplierId)
   }
 
-  // 2. the RFx in the order they open, with the approvers holding the PIN they step up with
+  // 2. the RFx in the order they open, with the approvers holding the PIN they step up with. A scenario a run before
+  // played to its end is kept, so a run that stopped between two RFx (the staging reset's step retried) goes on with the
+  // next one; one that stopped inside an RFx stops the seed, as its commands cannot be replayed from the middle
   const pin = options.pin ?? randomDemoPin()
-  let oneTime: OneTimePins = new Map()
+  const play = new RfxPlayer(organizationId, sheets, calendar, now, memberOf, foreign, pin, options.historyTitles)
+  const ordered = [...sheets.scenarios].sort((a, b) => b.openBusinessDaysAgo - a.openBusinessDaysAgo || a.ref.localeCompare(b.ref))
   const rfx: Record<string, string> = {}
+  const todo: SourcingScenarioRow[] = []
+  for (const row of ordered) {
+    const prior = await play.played(row)
+    if (prior) rfx[row.ref] = prior
+    else todo.push(row)
+  }
+  if (!todo.length) return { seeded: false, foreignSuppliers: foreign.size, rfx }
+  let oneTime: OneTimePins = new Map()
   try {
     if (options.pin === null) oneTime = await giveOneTimePins(organizationId, pin, now)
-    const play = new RfxPlayer(organizationId, sheets, calendar, now, memberOf, foreign, pin, options.historyTitles)
-    const ordered = [...sheets.scenarios].sort((a, b) => b.openBusinessDaysAgo - a.openBusinessDaysAgo || a.ref.localeCompare(b.ref))
-    for (const row of ordered) rfx[row.ref] = await play.scenario(row)
+    for (const row of todo) rfx[row.ref] = await play.scenario(row)
     // BR-NUM-01: the numbers of the year come out in the order of opening, as the sheet expects (a seed whose RFx open in
     // two Buddhist years starts the second year's numbers again, so only one year's are compared)
     const numbers = ordered.map((r) => ({ want: r.expectedNumber, got: rfx[r.ref]!.split(' ')[0]! }))
@@ -200,12 +208,31 @@ class RfxPlayer {
   private async sendPast(subjectIds: readonly string[], at: Date): Promise<void> {
     const pending = await this.db.supplierNotice.findMany({ where: { status: 'PENDING', subjectId: { in: [...subjectIds] } }, orderBy: { createdAt: 'asc' }, select: { id: true } })
     if (!pending.length) return
+    // the provider in use before (a test's, or none for the default) comes back after, not the default
+    const before = emailProviderInUse()
     setEmailProvider({ send: async () => ({ messageId: KEY }) })
     try {
       for (const n of pending) await sendSupplierNotice(this.organizationId, n.id, at)
     } finally {
-      setEmailProvider(null)
+      setEmailProvider(before)
     }
+  }
+
+  /**
+   * The number and status of the scenario's RFx when a run before played it to its end (found by its create command's
+   * key, as receiving/offline-copies.ts finds a posting), null when no run made it; an RFx left in the middle stops the
+   * seed with what to do. The live one is played to OPEN and moves on in the demo, so any status after DRAFT is its end.
+   */
+  async played(row: SourcingScenarioRow): Promise<string | null> {
+    const where = `ชีต RFx_Scenarios ${row.ref}`
+    const key = scopedIdempotencyKey(this.member(row.creator, this.now, where).actor, opts(row.ref, 'create').idempotencyKey)
+    const log = await this.db.commandLog.findFirst({ where: { idempotencyKey: key, commandName: 'rfx.create' }, select: { result: true } })
+    const rfxEventId = (log?.result as { data?: { rfxEventId?: string } } | null)?.data?.rfxEventId
+    if (!rfxEventId) return null
+    const made = await this.db.rfxEvent.findUniqueOrThrow({ where: { id: rfxEventId }, select: { number: true, status: true } })
+    const ended = row.demoLive ? made.status !== 'DRAFT' : made.status === row.expectedStatus
+    if (!ended) throw new Error(`${where}: seed ครั้งก่อนหยุดกลาง RFx นี้ (สถานะ ${made.status}) จึงเล่นต่อไม่ได้ · ล้างข้อมูลแล้ว seed ใหม่ (pnpm db:reset:p1 หรือ reset ของ staging)`)
+    return `${made.number ?? '-'} ${made.status}`
   }
 
   /** Plays one RFx; returns its number and status */
@@ -233,8 +260,7 @@ class RfxPlayer {
       const evaluatorMemberIds = row.evaluators.map((c) => this.memberOf(c, where))
       this.must(where, 'scorecard', await setScorecard(creator(before(30)), { rfxEventId, expectedVersion: await this.version(rfxEventId), criteria, evaluatorMemberIds }, opts(ref, 'scorecard')))
     }
-    const opened = this.must(where, 'open', await openRfx(creator(openedAt), { rfxEventId, expectedVersion: await this.version(rfxEventId), closesAt: closesAt.toISOString() }, opts(ref, 'open')))
-    void opened
+    this.must(where, 'open', await openRfx(creator(openedAt), { rfxEventId, expectedVersion: await this.version(rfxEventId), closesAt: closesAt.toISOString() }, opts(ref, 'open')))
     const number = (await this.db.rfxEvent.findUniqueOrThrow({ where: { id: rfxEventId }, select: { number: true } })).number ?? '-'
     // played live in the demo: its invitations go out with the job, to the suppliers' contacts (scene 9)
     if (row.demoLive) return this.finish(row, rfxEventId, number)
@@ -255,7 +281,12 @@ class RfxPlayer {
     const lines = await this.db.rfxLine.findMany({ where: { rfxEventId }, orderBy: { lineNo: 'asc' }, select: { id: true, lineNo: true } })
     const bySupplier = new Map<string, { at: Date; includesVat: boolean; deliveryDays: number | null; prices: Map<number, string> }>()
     for (const b of this.sheets.bids.filter((x) => x.rfxRef === ref)) {
-      const e = bySupplier.get(b.supplier) ?? { at: this.at(this.shift(openDay, b.submitAfterBusinessDays), b.submitTime), includesVat: b.includesVat, deliveryDays: b.deliveryDays, prices: new Map() }
+      // a bid offers every line (a line left out is not played) and is one submission: its rows share the time, VAT and delivery
+      if (!b.offered) throw new Error(`${where}: ข้อเสนอของ ${b.supplier} บรรทัดที่ ${b.lineNo} offered N · seed เล่นได้เฉพาะข้อเสนอที่เสนอทุกบรรทัด`)
+      const at = this.at(this.shift(openDay, b.submitAfterBusinessDays), b.submitTime)
+      const e = bySupplier.get(b.supplier) ?? { at, includesVat: b.includesVat, deliveryDays: b.deliveryDays, prices: new Map() }
+      if (e.at.getTime() !== at.getTime() || e.includesVat !== b.includesVat || e.deliveryDays !== b.deliveryDays)
+        throw new Error(`${where}: ข้อเสนอของ ${b.supplier} บรรทัดที่ ${b.lineNo} มีเวลายื่น ราคารวม VAT หรือวันส่งของไม่ตรงกับบรรทัดอื่นของข้อเสนอเดียวกัน`)
       e.prices.set(b.lineNo, b.unitPrice)
       bySupplier.set(b.supplier, e)
     }

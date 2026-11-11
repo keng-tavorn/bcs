@@ -184,4 +184,35 @@ describe('[FR-SRC-201/AC1] S10-14 the phase-1 seed of sourcing', () => {
     expect(await seedSourcingHistory(organizationId, sheets, NOW, { pin: TEST_PIN, historyTitles: new Map() })).toMatchObject({ seeded: false })
     expect([await db.rfxEvent.count(), await db.bid.count(), await db.awardDecision.count(), await db.supplierApplication.count()]).toEqual(before)
   })
+
+  // review of S10-14 item 1: the staging reset retries its last step, so a run that stopped must not pass for a finished one
+  const rfiCopy = (ref: string, n: number, invitedSuppliers?: string[]) => {
+    const rfi = sheets.scenarios.find((s) => s.ref === 'RFX-SUB-RFI')!
+    return { ...rfi, ref, title: `${rfi.title} (${ref})`, expectedNumber: `${rfi.expectedNumber.slice(0, -5)}${String(n).padStart(5, '0')}`, invitedSuppliers: invitedSuppliers ?? rfi.invitedSuppliers }
+  }
+
+  it('a run that stopped between two RFx goes on with the next one and keeps those it played', async () => {
+    const more = { ...sheets, scenarios: [...sheets.scenarios, rfiCopy('RFX-SUB-RFI-2', 5)] }
+    const report = await seedSourcingHistory(organizationId, more, NOW, { pin: TEST_PIN, historyTitles: new Map() })
+    expect(report.seeded).toBe(true)
+    expect(report.rfx['RFX-SUB-RFI-2']).toMatch(/-00005 CONCLUDED$/)
+    expect(report.rfx['RFX-IT-FIREWALL']).toMatch(/-00001 AWARDED$/)
+    expect(await forTenant(organizationId).rfxEvent.count()).toBe(5)
+  })
+
+  it('a run that stopped inside an RFx stops the next run with what to do, instead of passing for seeded', async () => {
+    const broken = { ...sheets, scenarios: [...sheets.scenarios, rfiCopy('RFX-SUB-RFI-3', 6, ['SP0083', 'SP9999'])] }
+    await expect(seedSourcingHistory(organizationId, broken, NOW, { pin: TEST_PIN, historyTitles: new Map() })).rejects.toThrow(/ไม่มีผู้ขาย SP9999/)
+    await expect(seedSourcingHistory(organizationId, broken, NOW, { pin: TEST_PIN, historyTitles: new Map() })).rejects.toThrow(/RFX-SUB-RFI-3: seed ครั้งก่อนหยุดกลาง RFx นี้ \(สถานะ DRAFT\)/)
+  })
+
+  it('a bid whose rows disagree, or that leaves a line out, stops the seed naming the row', async () => {
+    const ref = 'RFX-IT-FIREWALL'
+    const own = sheets.bids.filter((b) => b.rfxRef === ref)
+    const first = own[0]!
+    const flip = own.find((b) => b.supplier === first.supplier && b.lineNo !== first.lineNo)!
+    const bids = own.map((b) => ({ ...(b === flip ? { ...b, includesVat: !b.includesVat } : b), rfxRef: `${ref}-X` }))
+    const fresh = { ...sheets, scenarios: [{ ...sheets.scenarios.find((s) => s.ref === ref)!, ref: `${ref}-X` }], bids }
+    await expect(seedSourcingHistory(organizationId, fresh, NOW, { pin: TEST_PIN, historyTitles: new Map() })).rejects.toThrow(/ไม่ตรงกับบรรทัดอื่นของข้อเสนอเดียวกัน/)
+  })
 }, TIMEOUT)

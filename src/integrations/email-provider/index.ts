@@ -98,6 +98,11 @@ export function getEmailProvider(): EmailProvider {
   return provider
 }
 
+/** The provider set with setEmailProvider (or the default once made), null before any: for a swap that puts it back */
+export function emailProviderInUse(): EmailProvider | null {
+  return provider
+}
+
 /** Tests replace the provider (e.g. to simulate a bounce); null restores the default. */
 export function setEmailProvider(next: EmailProvider | null): void {
   provider = next

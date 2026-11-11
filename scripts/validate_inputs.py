@@ -1690,7 +1690,7 @@ if PROFILE == 'p1':
         if closes < add_bmin(opened, MIN_OPEN[kind] * DAY_MIN): e(f'ปิดรับ {closes} เร็วกว่าที่ระบบยอม ({add_bmin(opened, MIN_OPEN[kind] * DAY_MIN)} · {MIN_OPEN[kind]} วันทำการ)')
         cutoff_day = _bday(closes.date(), -CUTOFF)
         for q in (_js(d['questionsJson']) or []):
-            asked = _at(_bday(opened.date(), whole(q.get('afterBusinessDays'), 0)), CAL_START + 60)
+            asked = _at(_bday(opened.date(), whole(q.get('afterBusinessDays'), 0)), 10 * 60)  # the seed asks at 10:00 (src/server/services/demo-seed/sourcing.ts)
             if q.get('supplier') not in invited: e(f'คำถามจากผู้ขาย {q.get("supplier")} ที่ไม่ได้เชิญ')
             if asked >= _at(cutoff_day, ct): e('คำถามถามหลังปิดรับคำถาม (BR-RFX-04)')
         live = s_(d['demoLive']) == 'Y'
@@ -1709,6 +1709,8 @@ if PROFILE == 'p1':
             if kind != 'RFI':
                 award_at = _at(_bday(opened.date(), whole(d['awardAfterBusinessDays'], 0)), _hm(d['awardTime']) or CAL_START)
                 if not closes < award_at < decide: e('ส่งผลมอบงานต้องอยู่ระหว่างปิดรับกับการอนุมัติ')
+                # the seed has the evaluators score an hour apart before the award (the first n hours before it), after the close
+                if evaluators and award_at - timedelta(hours=len(evaluators)) <= closes + timedelta(minutes=1): e(f'ผู้ประเมิน {len(evaluators)} คนให้คะแนนห่างกันชั่วโมงก่อนส่งผล จึงต้องส่งผลหลังปิดรับเกิน {len(evaluators)} ชั่วโมง')
             if decide.date() >= TODAY: e(f'อนุมัติ {decide.date()} ไม่อยู่ในอดีต')
         elif not live: e('ต้องมี decideAfterBusinessDays และ decideTime')
         # bids: invited suppliers, before the close, every line, VAT included only where the RFx and the supplier allow
@@ -1719,8 +1721,12 @@ if PROFILE == 'p1':
             sub = _at(_bday(opened.date(), whole(b['submitAfterBusinessDays'], 0)), _hm(b['submitTime']) or CAL_START)
             if not opened < sub < closes: e(f'ข้อเสนอของ {s} ยื่นนอกช่วงเปิดรับ ({sub})')
             incl = s_(b['includesVat']) == 'Y'
+            if s_(b['offered']) != 'Y': e(f'{s} บรรทัด {s_(b["lineNo"])} offered ต้องเป็น Y (seed เล่นได้เฉพาะข้อเสนอที่เสนอทุกบรรทัด)')
+            first = bids.get(s)
+            if first and (first['incl'] != incl or first['at'] != sub or first['days'] != s_(b['deliveryDays'])):
+                e(f'ข้อเสนอของ {s} บรรทัด {s_(b["lineNo"])} มีเวลายื่น ราคารวม VAT หรือวันส่งของไม่ตรงกับบรรทัดอื่นของข้อเสนอเดียวกัน')
             if incl and not (s_(d['allowVatInclusiveBids']) == 'Y' and VAT_INCL and VATREG.get(s, False)): e(f'{s} ยื่นราคารวม VAT ได้เฉพาะ RFx ที่เปิดให้ ผู้ขายจด VAT และ Settings ยอม (OQ-212)')
-            bids.setdefault(s, {'incl': incl, 'lines': {}, 'at': sub})['lines'][whole(b['lineNo'], 0)] = money(b['unitPrice'])
+            bids.setdefault(s, {'incl': incl, 'lines': {}, 'at': sub, 'days': s_(b['deliveryDays'])})['lines'][whole(b['lineNo'], 0)] = money(b['unitPrice'])
         if kind == 'RFI' and bids: e('RFI ไม่มีราคา (BR-RFX-02)')
         rows = {}
         for s, b in bids.items():

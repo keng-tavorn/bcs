@@ -69,6 +69,8 @@
 
 สิ่งที่ตัดสินตอนสร้างและบันทึกใน ADR-222: ย้ายงานผู้ตรวจในแถวเดิมเมื่อผังเปลี่ยน (unique key ต่อ slot ต่อรอบของ migration S11-01) · ปุ่ม "ผ่าน" ไม่ใช้ ActionToken (FK ผูกกับ ApprovalTask) · แม่แบบแจ้งเตือน `risk.*` แทน `task.*` · role `REVIEWER_*` (S11-23) และการดาวน์โหลดใบรับรองของ S7 โดยผู้ตรวจ (S11-24) แยกเป็นข้อใหม่ · GC-SOD-22 รอ GC-SOD-18 ถึง 21 เข้า main
 
+ติ๊ก 2026-11-12: GC-SOD-18 ถึง 20 อยู่ใน main (910d6336) และ GC-SOD-21 อยู่ในสายแล้ว (S11-08 · 11905360) จึงเพิ่ม GC-SOD-22 (ผู้กรอกแบบประเมินแทนตัดสินงานผู้ตรวจของใบเดียวกัน · BR-SOD-16) ลง `tests/golden/sod.yaml` และ §7.5 ตาม sub-spec และแถว BR-SOD-16 อ้าง GC-SOD-22 แทน "GC-SOD ข้อ 22" · ตัวรันทั้ง TS (`assessmentOpenedBy` `filledOnBehalfBy`) และ `run_sod` รู้จัก action `DECIDE_RISK_REVIEW` ตั้งแต่ commit โค้ดของข้อ (ca25049a · รีวิวแล้วข้างบน) และ unit test `risk-reviewers.test.ts` ตรวจผู้เปิดใบและผู้กรอกแทนโดยตรง จึงไม่รีวิวซ้ำ · `pnpm spec:check` golden:sod 22/22 · golden 61 ไฟล์ · 833 เคส
+
 ## S11-07 ด่านก่อนออก PO (2026-11-10)
 
 รีวิว `/code-review xhigh d9396067...HEAD` ของ commit `b2f1c694` ถึง `d802bb3f` (engine `poGate` และ golden `risk-gate` · `assertSupplierClearForPo` ใน `po.submit` `po.send` `po_change` · แถบความเสี่ยงบนหน้า PO ช่องเหตุผล ตัวกรองกระดาน facts ของงานอนุมัติ และ dry-run บนหน้าโมดูล) ได้ 14 ข้อ · แก้ใน `dee65114`

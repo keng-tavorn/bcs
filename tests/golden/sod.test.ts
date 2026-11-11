@@ -4,7 +4,8 @@ import { loadYaml, pick } from './doa-fixtures'
 
 // tests/golden/sod.yaml (spec §7.5): GC-SOD-01 to GC-SOD-16 (GC-SOD-10 on: the payment run and the bank account change of S9),
 // GC-SOD-17 and GC-SOD-18 (S7), GC-SOD-19 (the people of an award · BR-SOD-13) and GC-SOD-20 (SCORE_RFX · BR-SOD-14) of S10-10,
-// GC-SOD-21 (the requester of a risk override approves it · BR-SOD-15) of S11-08.
+// GC-SOD-21 (the requester of a risk override approves it · BR-SOD-15) of S11-08 and GC-SOD-22 (who filled an assessment in
+// for the supplier decides its review task · DECIDE_RISK_REVIEW · BR-SOD-16) of S11-06.
 // The S10 and S11 rules are also checked directly below with every kind of person they stop.
 
 interface SodCase {

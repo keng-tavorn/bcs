@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import ExcelJS from 'exceljs'
 import { z } from 'zod'
+import type { Module } from '@/core/modules'
 import { err, ok, type Result } from '@/core/result'
 import { latestSlot, parseCron } from '@/core/schedule'
 import { taxDateOf } from '@/core/vat'
@@ -14,8 +15,11 @@ import { putObject, readObject } from '@/integrations/storage'
 import { authorize, loadPrincipal } from '@/server/authz'
 import { makeCtx, systemCtx, type Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
+import { loadBusinessCalendar } from '@/server/doa/policy'
+import { computeSupplierKpi, type SupplierKpi } from '@/server/queries/supplier-kpi'
 import { reportTx } from './tx'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { requireModule } from '../modules'
 import '../exports/file-policy'
 import { reportScope, scopeCovers } from './access'
 import { computeKpis, type Ratio } from './kpi'
@@ -50,6 +54,8 @@ export interface ReportParamField {
 
 interface ReportDefinition<P> {
   readonly code: string
+  /** The module the report reads (S7-16: SUPPLIER): it is not offered, and reads nothing, where the module is off */
+  readonly module?: Module
   readonly params: z.ZodType<P>
   /** The filters of the report screen, in order (FR-VIS-002 AC1 "ตัวกรอง") */
   readonly paramFields: readonly ReportParamField[]
@@ -215,7 +221,67 @@ const WF_HEATMAP: ReportDefinition<KpiParams> = {
   },
 }
 
-export const REPORTS: Readonly<Record<string, ReportDefinition<KpiParams>>> = { KPI, WF_CYCLE, WF_BOTTLENECKS, WF_WRONG_DOA, WF_HEATMAP }
+// ---------- suppliers (S7-16 · BR-SUP ข้อ 13 · §11.4 G-7): the applications approved in the period ----------
+
+const supplierKpiOf = async (tx: TenantTx, ctx: Ctx, params: KpiParams, departmentIds: readonly string[] | null): Promise<SupplierKpi> =>
+  computeSupplierKpi(tx, await loadBusinessCalendar(tx, ctx.organizationId), { ...periodOf(params), now: ctx.now }, departmentIds)
+
+const SUP_G7: ReportDefinition<KpiParams> = {
+  code: 'SUP_G7',
+  module: 'SUPPLIER',
+  ...periodParams,
+  columns: [
+    { key: 'number', header: { th: 'เลขที่ใบสมัคร', en: 'Application' } },
+    { key: 'name', header: { th: 'ผู้ขาย', en: 'Supplier' } },
+    { key: 'invitedAt', header: { th: 'เชิญเมื่อ', en: 'Invited' } },
+    { key: 'decidedAt', header: { th: 'อนุมัติเมื่อ', en: 'Approved' } },
+    { key: 'businessDays', header: { th: 'วันทำการจากคำเชิญถึงอนุมัติ', en: 'Business days from invitation to approval' } },
+    { key: 'filledBy', header: { th: 'ผู้กรอกใบสมัคร', en: 'Filled in by' } },
+    { key: 'filledByCode', header: { th: 'รหัสผู้กรอก', en: 'Filled in by (code)' }, fileOnly: true },
+  ],
+  async rows(tx, ctx, params, departmentIds) {
+    if (!(await requireModule(ctx, 'SUPPLIER', tx)).ok) return []
+    const r = await supplierKpiOf(tx, ctx, params, departmentIds)
+    return r.approved.map((a) => ({
+      number: a.number ?? '',
+      name: a.nameTh,
+      invitedAt: a.invitedAt,
+      decidedAt: a.decidedAt,
+      businessDays: a.businessDays,
+      filledBy: a.filledOnBehalf ? 'จัดซื้อกรอกแทน' : 'ผู้ขายสมัครเอง',
+      filledByCode: a.filledOnBehalf ? 'ON_BEHALF' : 'SELF',
+    }))
+  },
+}
+
+export const REPORTS: Readonly<Record<string, ReportDefinition<KpiParams>>> = { KPI, WF_CYCLE, WF_BOTTLENECKS, WF_WRONG_DOA, WF_HEATMAP, SUP_G7 }
+
+/** The reports this organization offers: those of a module that is off are not (S7-16) */
+export async function offeredReports(tx: TenantTx, ctx: Ctx): Promise<Array<ReportDefinition<KpiParams>>> {
+  const out: Array<ReportDefinition<KpiParams>> = []
+  for (const r of Object.values(REPORTS)) if (!r.module || (await requireModule(ctx, r.module, tx)).ok) out.push(r)
+  return out
+}
+
+/**
+ * /reports/suppliers (S7-16 · BR-SUP ข้อ 13 · §11.4 G-7): the lower median of the business days from invitation to
+ * approval (all, filled in by the supplier, by procurement), the applications it counts, the ones waiting past their
+ * escalation and the expired documents by category, within the reader's report.view scope (a head: the applications
+ * invited by members of the departments they head). The numbers come from src/server/queries/supplier-kpi.ts, not AI.
+ */
+export async function supplierReport(ctx: Ctx, rawParams: unknown): Promise<Result<SupplierKpi & { scope: 'ORG' | 'DEPT' }>> {
+  const params = KpiParams.safeParse(rawParams)
+  if (!params.success) return err('VALIDATION_FAILED', 'invalid report parameters', { field: params.error.issues[0]?.path.join('.') ?? 'params' })
+  return reportTx(ctx, async (tx) => {
+    const on = await requireModule(ctx, 'SUPPLIER', tx)
+    if (!on.ok) return on
+    const allowed = await authorize(tx, ctx, 'report.view')
+    if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
+    const scope = reportScope(allowed.data)
+    if (scope === 'NONE') return err('FORBIDDEN', 'missing capability report.view', { capability: 'report.view' })
+    return ok({ ...(await supplierKpiOf(tx, ctx, params.data, scope)), scope: scope === null ? ('ORG' as const) : ('DEPT' as const) })
+  })
+}
 
 /** /reports/workflow (S6-20 · FR-VIS-101 AC2): the four tabs within the reader's report.view scope */
 export async function workflowReport(ctx: Ctx, rawParams: unknown): Promise<Result<WorkflowReport & { scope: 'ORG' | 'DEPT' }>> {

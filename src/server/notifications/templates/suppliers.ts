@@ -16,13 +16,47 @@ export const SUPPLIER_TEMPLATES: Readonly<Record<string, Template>> = {
     },
     href: `/suppliers/applications/${str(d.applicationId)}`,
   }),
+  // S7-07 (BR-SUP ข้อ 12): an application still waiting for its supplier at escalateAt, to its inviter and PROCUREMENT
+  'supplier.application_escalated': (d) => ({
+    title: {
+      th: d.nameTh ? `ใบสมัครผู้ขาย ${str(d.nameTh)} ค้างเกินกำหนด ผู้ขายยังไม่ส่ง` : `ใบสมัครผู้ขาย${d.number ? ` ${str(d.number)}` : ''} ค้างเกินกำหนด ผู้ขายยังไม่ส่ง`,
+      en: d.nameTh ? `The supplier application of ${str(d.nameTh)} is overdue: not sent yet` : `A supplier application${d.number ? ` ${str(d.number)}` : ''} is overdue: not sent yet`,
+    },
+    href: `/suppliers/applications/${str(d.applicationId)}`,
+  }),
+  // S7-11 (FR-SUP-105): the supplier acknowledged a PO (digest) or moved its delivery date (at once) — dates, no price
+  'po.acknowledged': (d) => ({
+    title: {
+      th: d.promisedDeliveryOn ? `ผู้ขายรับทราบใบสั่งซื้อ ${str(d.number)} แล้ว ส่งวันที่ ${str(d.promisedDeliveryOn)}` : `ผู้ขายรับทราบใบสั่งซื้อ ${str(d.number)} แล้ว`,
+      en: d.promisedDeliveryOn ? `The supplier acknowledged PO ${str(d.number)}, delivering on ${str(d.promisedDeliveryOn)}` : `The supplier acknowledged PO ${str(d.number)}`,
+    },
+    href: `/procurement/pos/${str(d.poId)}`,
+  }),
+  'po.delivery_changed': (d) => ({
+    title: {
+      th: d.from ? `ผู้ขายเลื่อนวันส่งใบสั่งซื้อ ${str(d.number)} จาก ${str(d.from)} เป็น ${str(d.to)}` : `ผู้ขายแจ้งวันส่งใบสั่งซื้อ ${str(d.number)} เป็น ${str(d.to)}`,
+      en: d.from ? `The supplier moved delivery of PO ${str(d.number)} from ${str(d.from)} to ${str(d.to)}` : `The supplier will deliver PO ${str(d.number)} on ${str(d.to)}`,
+    },
+    href: `/procurement/pos/${str(d.poId)}`,
+  }),
   // S7-06 (BR-SDOC ข้อ 04): one line of PROCUREMENT's digest per document reminded of
   'supplier.documents_expiring_digest': (d) => ({
     title: { th: `เอกสาร ${str(d.typeName)} ของผู้ขายจะหมดอายุวันที่ ${str(d.expiresOn)}`, en: `A supplier's ${str(d.typeName)} expires on ${str(d.expiresOn)}` },
     href: d.supplierId ? `/suppliers/${str(d.supplierId)}?tab=documents` : '/suppliers',
+  }),
+  // S7-12 (FR-AP-101 AC7 · BR-SUP ข้อ 15): a draft invoice a supplier sent on the portal, waiting for FINANCE (digest)
+  'invoice.portal_drafted': (d) => ({
+    title: {
+      th: d.poNumber ? `ผู้ขาย ${str(d.code)} ส่งใบแจ้งหนี้ผ่านพอร์ทัลต่อใบสั่งซื้อ ${str(d.poNumber)} รอการเงินตรวจ` : `ผู้ขาย ${str(d.code)} ส่งใบแจ้งหนี้ผ่านพอร์ทัล รอการเงินตรวจ`,
+      en: d.poNumber ? `Supplier ${str(d.code)} sent an invoice on the portal for PO ${str(d.poNumber)}, waiting for finance` : `Supplier ${str(d.code)} sent an invoice on the portal, waiting for finance`,
+    },
+    href: `/finance/invoices/${str(d.invoiceId)}`,
   }),
   'supplier.bank_change_from_portal': (d) => ({
     title: { th: `มีคำขอบัญชีธนาคารจากผู้ขาย ${str(d.code)} รอการเงินรับเรื่อง`, en: `A bank account request from supplier ${str(d.code)} waits for finance to claim it` },
     href: `/finance/bank-accounts/changes/${str(d.changeId)}`,
   }),
 }
+
+/** §10.1 rows of S7 whose channel is "LINE → อีเมล": deliver.ts sends these by LINE (LINE_TEMPLATES) */
+export const SUPPLIER_LINE_TEMPLATES: readonly string[] = ['supplier.application_escalated', 'po.delivery_changed']

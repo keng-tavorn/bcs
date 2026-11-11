@@ -32,6 +32,9 @@
     },
     "sent_receiver": {
       "title": "A purchase order to receive"
+    },
+    "delivery_changed": {
+      "title": "The supplier changed the delivery date"
     }
   },
   "request": {
@@ -98,6 +101,11 @@
     },
     "review_escalated": {
       "title": "For your information: a risk assessment review is overdue"
+    }
+  },
+  "supplier": {
+    "application_escalated": {
+      "title": "A supplier application is overdue"
     }
   }
 }

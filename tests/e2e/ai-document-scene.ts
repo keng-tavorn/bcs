@@ -96,7 +96,8 @@ if (mode === 'on') {
     else await prisma.aiAgentSetting.create({ data: { organizationId: org.id, agent, enabled: true, level: agent === 'APPROVAL_BRIEF' || agent === 'INSIGHT' ? 'L0' : 'L1', minConfidenceBp: 9000 } })
   }
   const grant = await runMonthlyGrant(org.id, now)
-  if (!grant.ok) throw new Error(JSON.stringify(grant.error))
+  // the grant's key is the UTC day: a run that crosses midnight UTC finds the month granted already, which is what the scene needs
+  if (!grant.ok && grant.error.message !== 'the month is granted already') throw new Error(JSON.stringify(grant.error))
   console.log(JSON.stringify({ on: true }))
 } else if (mode === 'off') {
   await setModule(false)

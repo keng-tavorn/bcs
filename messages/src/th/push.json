@@ -32,6 +32,9 @@
     },
     "sent_receiver": {
       "title": "มีใบสั่งซื้อรอตรวจรับ"
+    },
+    "delivery_changed": {
+      "title": "ผู้ขายเปลี่ยนวันส่ง"
     }
   },
   "request": {
@@ -98,6 +101,11 @@
     },
     "review_escalated": {
       "title": "แจ้งเพื่อทราบ: งานตรวจแบบประเมินความเสี่ยงเลยกำหนด"
+    }
+  },
+  "supplier": {
+    "application_escalated": {
+      "title": "ใบสมัครผู้ขายค้างเกินกำหนด"
     }
   }
 }

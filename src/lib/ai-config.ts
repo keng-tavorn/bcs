@@ -2,14 +2,13 @@
 // purpose uses now, which model each agent asks for, what a token costs, and which (agent, purpose, prompt, model)
 // sets passed the evaluation. No I/O: the assist contract, the services and the adapter all read it (§4.10).
 
-export const AI_AGENTS = ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT', 'DOA_DRAFTER'] as const
+export const AI_AGENTS = ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT', 'DOA_DRAFTER', 'SUPPLIER_ONBOARDING'] as const
 export type AiAgentName = (typeof AI_AGENTS)[number]
 
-export const AI_PURPOSES = ['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT', 'SAVINGS_NOTE'] as const
+export const AI_PURPOSES = ['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT', 'SAVINGS_NOTE', 'SUPPLIER_DOC_READ'] as const
 export type AiPurposeName = (typeof AI_PURPOSES)[number]
 
-/** A purpose of the database that this configuration serves: SUPPLIER_DOC_READ is in the schema since S7-01 and gets its
- * prompt, model and evaluation gate in S7-14 (ADR-189), so a row of it is not served before then */
+/** A purpose of the database that this configuration serves (SUPPLIER_DOC_READ since S7-14 · ADR-189) */
 export const isAiPurposeName = (purpose: string): purpose is AiPurposeName => (AI_PURPOSES as readonly string[]).includes(purpose)
 
 /** The agent that serves each purpose (one agent may serve several, e.g. the Document Agent reads three kinds) */
@@ -23,6 +22,8 @@ export const AGENT_OF_PURPOSE: Readonly<Record<AiPurposeName, AiAgentName>> = {
   DOA_DRAFT: 'DOA_DRAFTER',
   // NEW-136 (ADR-084): words on a saving the code found, asked for by a member like a question
   SAVINGS_NOTE: 'INSIGHT',
+  // S7-14 (FR-AI-304 · ADR-189): a supplier's company certificate or VAT registration, for its application
+  SUPPLIER_DOC_READ: 'SUPPLIER_ONBOARDING',
 }
 
 /**
@@ -39,6 +40,7 @@ export const PROMPT_VERSIONS: Readonly<Record<AiPurposeName, string>> = {
   QUESTION: 'QUESTION@3',
   DOA_DRAFT: 'DOA_DRAFT@2',
   SAVINGS_NOTE: 'SAVINGS_NOTE@3',
+  SUPPLIER_DOC_READ: 'SUPPLIER_DOC_READ@3',
 }
 
 export const AI_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] as const
@@ -52,6 +54,9 @@ const DEFAULT_MODEL: Readonly<Record<AiAgentName, AiModelId>> = {
   APPROVAL_BRIEF: 'claude-haiku-5-5',
   INSIGHT: 'claude-sonnet-5-5',
   DOA_DRAFTER: 'claude-opus-5-5',
+  // S7-15 (OQ-145's way · docs/reports/ai-eval/supplier-onboarding-2026-11-08.md): Haiku missed a tax id on a photo of a
+  // company certificate, Sonnet read all 12 documents right
+  SUPPLIER_ONBOARDING: 'claude-sonnet-5-5',
 }
 
 /** The .env variable that overrides one agent's model (spec Appendix B) */
@@ -61,6 +66,7 @@ export const MODEL_ENV_OF_AGENT: Readonly<Record<AiAgentName, string>> = {
   APPROVAL_BRIEF: 'AI_MODEL_BRIEF',
   INSIGHT: 'AI_MODEL_INSIGHT',
   DOA_DRAFTER: 'AI_MODEL_DOA_DRAFTER',
+  SUPPLIER_ONBOARDING: 'AI_MODEL_SUPPLIER_ONBOARDING',
 }
 
 /** A purpose whose evaluation passed only on another model than its agent's (S13-14: Sonnet misread a blurred invoice) */
@@ -88,6 +94,7 @@ export const EFFORT_OF_AGENT: Readonly<Record<AiAgentName, 'low' | 'medium' | 'h
   APPROVAL_BRIEF: 'low',
   INSIGHT: 'medium',
   DOA_DRAFTER: 'high',
+  SUPPLIER_ONBOARDING: 'medium',
 }
 
 /** Most tokens one answer may take; a structured result that hits it fails the schema (AI_OUTPUT_INVALID) */
@@ -97,6 +104,7 @@ export const MAX_OUTPUT_TOKENS: Readonly<Record<AiAgentName, number>> = {
   APPROVAL_BRIEF: 4_000,
   INSIGHT: 8_000,
   DOA_DRAFTER: 32_000,
+  SUPPLIER_ONBOARDING: 8_000,
 }
 
 /** Micro-USD per million tokens (1 credit = 1,000 micro-USD, BR-AI-23); cacheWrite is the 5-minute TTL (ADR-141) */
@@ -162,7 +170,15 @@ export const EVAL_GATES: readonly EvalGate[] = [
   { agent: 'DOA_DRAFTER', purpose: 'DOA_DRAFT', promptVersion: 'DOA_DRAFT@2', model: 'claude-opus-5-5', tier: 'SYNTHETIC', report: '2026-10-14-doa_drafter-config-live.md' },
   // NEW-136: a saving's explanation, 24 savings of the four kinds of §7.21 (SAVINGS_NOTE@1 and @2 had sentences too long)
   { agent: 'INSIGHT', purpose: 'SAVINGS_NOTE', promptVersion: 'SAVINGS_NOTE@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-11-03-savings_note-config-live.md' },
+  // S7-15 (FR-AI-304 AC5 · OQ-186): the 12 synthetic supplier documents, every field at its floor (the real tier waits for S7-23)
+  { agent: 'SUPPLIER_ONBOARDING', purpose: 'SUPPLIER_DOC_READ', promptVersion: 'SUPPLIER_DOC_READ@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: 'supplier-onboarding-2026-11-08.md' },
 ]
+
+/**
+ * Purposes whose evaluation has not run yet, so no gate passes them: live mode refuses them (AI_NOT_EVALUATED) and only
+ * fixture mode answers. None now: SUPPLIER_DOC_READ passed its synthetic set in S7-15 (OQ-186).
+ */
+export const AWAITING_EVALUATION: readonly AiPurposeName[] = []
 
 /** The tier an environment needs: production only trusts a REAL evaluation (BR-AI-11) */
 export const requiredGateTier = (appEnv: string): GateTier => (appEnv === 'production' ? 'REAL' : 'SYNTHETIC')
@@ -180,6 +196,7 @@ export const LEVEL_OF_AGENT: Readonly<Record<AiAgentName, 'L0' | 'L1'>> = {
   APPROVAL_BRIEF: 'L0',
   INSIGHT: 'L0',
   DOA_DRAFTER: 'L1',
+  SUPPLIER_ONBOARDING: 'L1',
 }
 
 /** Below this confidence a field is confirmed one by one (OQ-147, BR-AI-16) */
@@ -211,7 +228,7 @@ export const DECISION_ADVICE_WORDS = [
 ] as const
 
 /** Passing marks of the evaluation, demo tier (OQ-141 · BR-AI-26): critical fields 9800 bp with nothing slipped through */
-export const EVAL_THRESHOLDS_BP = { critical: 9800, other: 9000, intakeType: 9500, intakeLines: 9000, briefFlags: 9500, briefText: 9500, insightTools: 9000 } as const // TODO(OQ-141)
+export const EVAL_THRESHOLDS_BP = { critical: 9800, other: 9000, intakeType: 9500, intakeLines: 9000, briefFlags: 9500, briefText: 9500, insightTools: 9000, supplierKey: 9500, supplierAddress: 9000 } as const // TODO(OQ-141) · supplier* OQ-186 (S7-15)
 
 /** Limits of BR-AI-11 BR-AI-12 BR-AI-21 and the state machine of AgentAction */
 export const AI_LIMITS = {

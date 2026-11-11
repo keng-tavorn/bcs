@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AI_AGENTS, AI_PURPOSES } from '@/lib/ai-config'
 import { BP_WHOLE } from '@/lib/constants'
 import { defineEvents } from '../registry'
 
@@ -6,8 +7,9 @@ import { defineEvents } from '../registry'
 // carry what the member typed or what the model answered (NFR-SEC-09): the content stays on the row, where BR-AI-18
 // clears it. Events whose actor is AI_AGENT belong to AgentAction only (INV-AI-01).
 
-const agent = z.enum(['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT', 'DOA_DRAFTER'])
-const purpose = z.enum(['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT', 'SAVINGS_NOTE'])
+// the agents and purposes of src/lib/ai-config.ts (the Supplier Onboarding Agent and SUPPLIER_DOC_READ since S7-14)
+const agent = z.enum(AI_AGENTS)
+const purpose = z.enum(AI_PURPOSES)
 const level = z.enum(['L0', 'L1'])
 const subject = { subjectType: z.string().min(1), subjectId: z.uuid() }
 const tokens = {

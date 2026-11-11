@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import type { AppError, Result } from '@/core/result'
-import { canVerify, dateIn, documentExpiry, documentStatus, normalizeScope, supersedeTargets, type IsoDate } from '@/core/supplier-docs'
+import { canVerify, dateIn, documentExpiry, documentStatus, normalizeScope, requiredDocumentFor, supersedeTargets, type IsoDate } from '@/core/supplier-docs'
 import { getScanner } from '@/integrations/scanner'
 import { deleteObject, presignDownload, putObject, readObject } from '@/integrations/storage'
 import { MS_PER_HOUR, SUPPLIER_DOC_MAX_BYTES, SUPPLIER_DOC_MAX_VALIDITY_DAYS } from '@/lib/constants'
@@ -509,12 +509,12 @@ export interface SupplierDocumentStatusRow {
  */
 export async function supplierDocumentStatusInTx(tx: TenantTx, organizationId: string, supplierId: string, now: Date): Promise<{ readonly rows: SupplierDocumentStatusRow[]; readonly requiredDocumentsOk: boolean }> {
   void organizationId
-  const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { payeeType: true } })
+  const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { payeeType: true, isVatRegistered: true } })
   const types = await tx.supplierDocumentType.findMany({ where: { active: true }, orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] })
   const docs = await tx.supplierDocument.findMany({ where: { supplierId, status: { in: ['PENDING', 'VERIFIED', 'EXPIRED'] } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] })
   const rows: SupplierDocumentStatusRow[] = []
   for (const type of types) {
-    const required = type.required && type.appliesTo.includes(supplier.payeeType)
+    const required = requiredDocumentFor(type, supplier)
     const mine = docs.filter((d) => d.documentTypeCode === type.code)
     if (!required && mine.length === 0) continue
     const scopes = type.singleInstance ? [''] : [...new Set(mine.map((d) => d.scopeKey))]

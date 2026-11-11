@@ -1,0 +1,75 @@
+{
+  "promptVersion": "SUPPLIER_DOC_READ@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "docType": "VAT_CERT",
+    "nameTh": "ห้างหุ้นส่วนจำกัด ระยองท่อและวาล์ว",
+    "nameEn": null,
+    "taxId": "0999998021181",
+    "branchCode": "00000",
+    "registeredAddress": "9/14 ถนนสุขุมวิท ต.เนินพระ อ.เมืองระยอง จ.ระยอง 21000",
+    "registrationDate": "2012-03-05",
+    "issuedOn": "2012-03-19",
+    "isVatRegistered": true,
+    "bankName": null,
+    "accountName": null,
+    "documentNumber": null,
+    "confidence": [
+      {
+        "field": "docType",
+        "value": 97
+      },
+      {
+        "field": "nameTh",
+        "value": 95
+      },
+      {
+        "field": "nameEn",
+        "value": 95
+      },
+      {
+        "field": "taxId",
+        "value": 93
+      },
+      {
+        "field": "branchCode",
+        "value": 93
+      },
+      {
+        "field": "registeredAddress",
+        "value": 92
+      },
+      {
+        "field": "registrationDate",
+        "value": 94
+      },
+      {
+        "field": "issuedOn",
+        "value": 94
+      },
+      {
+        "field": "isVatRegistered",
+        "value": 97
+      },
+      {
+        "field": "bankName",
+        "value": 95
+      },
+      {
+        "field": "accountName",
+        "value": 95
+      },
+      {
+        "field": "documentNumber",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 1501,
+    "output": 889,
+    "cacheRead": 1747,
+    "cacheWrite": 0
+  }
+}

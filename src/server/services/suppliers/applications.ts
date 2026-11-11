@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { normalizeAccount } from '@/core/bankfile/account'
 import type { AppError, Result } from '@/core/result'
 import { applicationSla, findSupplierDuplicates, type DuplicateWarningCode, type ExistingSupplier } from '@/core/supplier-onboarding'
+import { requiredDocumentFor } from '@/core/supplier-docs'
 import { normalizeTaxId } from '@/core/thai/taxid'
 import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import { supplierSettingsOf } from '@/lib/org-settings'
@@ -17,7 +18,9 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { enqueueSupplierNotice } from '@/server/notifications/supplier-notices'
 import { PORTAL_SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-templates-portal'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
-import { assertNoPendingAiReview } from '../ai/assist-contract'
+import { AiAssistInput, applyAiAssist, assertNoPendingAiReview } from '../ai/assist-contract'
+// S7-14: what the Supplier Onboarding Agent read off a document, by path of the application, for aiAssist (BR-AI-30)
+import './ai-assist'
 import { startRoute } from '../approvals/route'
 import { requireModule } from '../modules'
 import { issueDocumentNumber } from '../numbering'
@@ -129,7 +132,7 @@ function absorb(into: Effects, notice: { events: readonly EventDraft[]; notifica
   into.outbox.push(...notice.outbox)
 }
 
-async function orgCodeOf(tx: TenantTx, organizationId: string): Promise<string> {
+export async function orgCodeOf(tx: TenantTx, organizationId: string): Promise<string> {
   return (await tx.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { code: true } })).code.toLowerCase()
 }
 
@@ -293,7 +296,7 @@ export const reinviteSupplierCommand = defineCommand({
 })
 
 /** Closes what an application gave its contacts: their sessions end, the links unused stop working (BR-PORTAL ข้อ 03) */
-async function closeAccess(tx: TenantTx, ctx: Ctx, applicationId: string): Promise<EventDraft[]> {
+export async function closeAccess(tx: TenantTx, ctx: Ctx, applicationId: string): Promise<EventDraft[]> {
   await tx.portalInviteLink.updateMany({ where: { applicationId, usedAt: null, revokedAt: null }, data: { revokedAt: ctx.now } })
   const contacts = await tx.supplierContact.findMany({ where: { applicationId, supplierId: null }, select: { id: true }, orderBy: { id: 'asc' } })
   const events: EventDraft[] = []
@@ -343,7 +346,7 @@ async function editor(tx: TenantTx, ctx: Ctx, app: { readonly id: string; readon
   return { side: 'ON_BEHALF' }
 }
 
-const UpdateInput = ApplicationRef.extend({ fields: ApplicationFields, duplicateReasons: DuplicateReasons.optional() })
+const UpdateInput = ApplicationRef.extend({ fields: ApplicationFields, duplicateReasons: DuplicateReasons.optional(), aiAssist: AiAssistInput.optional() })
 
 export const updateApplicationCommand = defineCommand({
   name: 'supplierApplication.update',
@@ -362,6 +365,17 @@ export const updateApplicationCommand = defineCommand({
     if (f.taxId !== undefined) data.taxId = f.taxId === null ? null : normalizeTaxId(f.taxId)
     const payeeType = (f.payeeType ?? app.payeeType) as 'JURISTIC' | 'INDIVIDUAL' | 'FOREIGN'
     if (payeeType === 'FOREIGN') data.taxId = null
+    // a new bank alone: the account kept must fit it too (the approval drafts the change from it · S7-10)
+    if (f.accountNo === undefined && f.bankCode && f.bankCode !== app.bankCode && app.accountNoEnc) {
+      // a stored number that no longer opens (a key changed) is typed again, as one that does not fit (review S7-19 ข้อ 3)
+      let kept: string | null = null
+      try {
+        kept = openAccountNo(ctx.organizationId, app)
+      } catch {
+        kept = null
+      }
+      if (!kept || !normalizeAccount({ bankCode: f.bankCode, accountNo: kept }).ok) return fail('VALIDATION_FAILED', 'the account kept does not fit the new bank: type it again', { field: 'fields.accountNo', reason: 'ACCOUNT_BANK' })
+    }
     if (f.accountNo !== undefined) {
       if (f.accountNo === null) Object.assign(data, { accountNoEnc: null, accountNoLast4: null })
       else {
@@ -371,13 +385,15 @@ export const updateApplicationCommand = defineCommand({
       }
     }
     const changed = Object.keys(f).filter((k) => f[k as keyof typeof f] !== undefined)
-    if (changed.length === 0) return fail('VALIDATION_FAILED', 'nothing changed', { field: 'fields', reason: 'NO_CHANGE' })
+    if (changed.length === 0 && !input.aiAssist) return fail('VALIDATION_FAILED', 'nothing changed', { field: 'fields', reason: 'NO_CHANGE' })
     // the duplicate rules on what the application would become; reasons are asked for at submit (a draft may wait)
     const next = { taxId: (data.taxId as string | null | undefined) ?? (data.taxId === null ? null : app.taxId), branchCode: (data.branchCode as string | undefined) ?? app.branchCode, nameTh: (data.nameTh as string | undefined) ?? app.nameTh, email: (data.email as string | null | undefined) ?? app.email }
     const reasons = { ...Object.fromEntries((app.duplicateWarnings as unknown as StoredWarning[]).filter((w) => w.reason).map((w) => [w.code, w.reason!])), ...(input.duplicateReasons ?? {}) }
     const checked = await duplicateCheck(tx, next, app.id, reasons, false)
     if (!checked.ok) return checked
-    const sources = { ...(app.fieldSources as Record<string, string>), ...Object.fromEntries(changed.map((k) => [k, who.side === 'ON_BEHALF' ? 'ON_BEHALF' : 'MANUAL'])) }
+    // a value the person took from the AI's reading is labelled AI (BR-AI-30 · the label only, a person confirmed it)
+    const fromAi = new Set(input.aiAssist?.confirmedPaths ?? [])
+    const sources = { ...(app.fieldSources as Record<string, string>), ...Object.fromEntries(changed.map((k) => [k, fromAi.has(k) ? 'AI' : who.side === 'ON_BEHALF' ? 'ON_BEHALF' : 'MANUAL'])) }
     const moved = app.status === 'INVITED' ? { status: 'DRAFT' as const } : {}
     const row = await tx.supplierApplication.update({
       where: { id: app.id },
@@ -392,13 +408,29 @@ export const updateApplicationCommand = defineCommand({
       },
       select: { version: true },
     })
+    // after the application is written: what the person kept is compared with what the AI read (a refusal rolls it all back)
+    const assist = await applyAiAssist(tx, ctx, { type: 'SUPPLIER_APPLICATION', id: app.id }, input.aiAssist)
+    if (!assist.ok) return { ok: false, error: assist.error }
     return {
       ok: true,
       result: { applicationId: app.id, version: row.version },
-      events: [{ type: 'supplier_application.updated', aggregateType: 'SupplierApplication', aggregateId: app.id, data: { fields: changed, by: who.side, warnings: checked.warnings.map((w) => w.code) } }],
+      events: [
+        ...(changed.length ? [{ type: 'supplier_application.updated', aggregateType: 'SupplierApplication', aggregateId: app.id, data: { fields: changed, by: who.side, warnings: checked.warnings.map((w) => w.code) } }] : []),
+        ...assist.data,
+      ],
     }
   },
 })
+
+/**
+ * What the application still lacks before a submit (BR-SUP ข้อ 11 · BR-SDOC ข้อ 01): the fields by name, then each required
+ * document type with no copy pending or verified as `document:<code>`. The reminder of BR-SUP ข้อ 12 names the same list.
+ */
+export async function missingItems(tx: TenantTx, app: { id: string; nameTh: string; taxId: string | null; branchCode: string; payeeType: string; isVatRegistered: boolean; address: string | null }): Promise<string[]> {
+  const types = await requiredTypes(tx, app.payeeType, app.isVatRegistered)
+  const have = new Set((await tx.supplierDocument.findMany({ where: { applicationId: app.id, status: { in: ['PENDING', 'VERIFIED'] } }, select: { documentTypeCode: true } })).map((d) => d.documentTypeCode))
+  return [...missingFields(app), ...types.filter((t) => !have.has(t)).map((t) => `document:${t}`)]
+}
 
 /** The fields BR-SUP ข้อ 11 needs before a submit, by the application's payee type */
 function missingFields(app: { nameTh: string; taxId: string | null; branchCode: string; payeeType: string; address: string | null }): string[] {
@@ -410,10 +442,10 @@ function missingFields(app: { nameTh: string; taxId: string | null; branchCode: 
   return missing
 }
 
-/** The document types the application must have (BR-SDOC ข้อ 01): active, required, for its payee type */
-async function requiredTypes(tx: TenantTx, payeeType: string): Promise<string[]> {
-  const types = await tx.supplierDocumentType.findMany({ where: { active: true, required: true }, select: { code: true, appliesTo: true }, orderBy: { code: 'asc' } })
-  return types.filter((t) => (t.appliesTo as string[]).includes(payeeType)).map((t) => t.code)
+/** The document types the application must have (BR-SDOC ข้อ 01): active, required, for its payee type — ภ.พ.20 only when registered for VAT (S7-28) */
+export async function requiredTypes(tx: TenantTx, payeeType: string, isVatRegistered: boolean): Promise<string[]> {
+  const types = await tx.supplierDocumentType.findMany({ where: { active: true, required: true }, select: { code: true, required: true, appliesTo: true }, orderBy: { code: 'asc' } })
+  return types.filter((t) => requiredDocumentFor(t, { payeeType, isVatRegistered })).map((t) => t.code)
 }
 
 export const submitApplicationCommand = defineCommand({
@@ -434,9 +466,7 @@ export const submitApplicationCommand = defineCommand({
     // BR-AI-17: values an AI put in wait for the person first
     const ai = await assertNoPendingAiReview(tx, ctx, { type: 'SUPPLIER_APPLICATION', id: app.id })
     if (!ai.ok) return { ok: false, error: ai.error }
-    const types = await requiredTypes(tx, app.payeeType)
-    const have = new Set((await tx.supplierDocument.findMany({ where: { applicationId: app.id, status: { in: ['PENDING', 'VERIFIED'] } }, select: { documentTypeCode: true } })).map((d) => d.documentTypeCode))
-    const missing = [...missingFields(app), ...types.filter((t) => !have.has(t)).map((t) => `document:${t}`)]
+    const missing = await missingItems(tx, app)
     if (!(await tx.supplierContact.count({ where: { applicationId: app.id, status: 'ACTIVE' } }))) missing.push('contact')
     if (missing.length) return fail('APPLICATION_INCOMPLETE', 'the application is not complete', { missing })
     const reasons = { ...Object.fromEntries((app.duplicateWarnings as unknown as StoredWarning[]).filter((w) => w.reason).map((w) => [w.code, w.reason!])), ...(input.duplicateReasons ?? {}) }
@@ -549,7 +579,7 @@ export const verifyAndRouteCommand = defineCommand({
     if (!app) return fail('NOT_FOUND', 'application not found')
     if (app.version !== input.expectedVersion) return fail('CONFLICT_VERSION', 'the application changed since it was opened', { currentVersion: app.version })
     if (app.status !== 'SUBMITTED') return fail('INVALID_STATE_TRANSITION', 'only a submitted application is sent on its route', { status: app.status })
-    const types = await requiredTypes(tx, app.payeeType)
+    const types = await requiredTypes(tx, app.payeeType, app.isVatRegistered)
     const verified = new Set((await tx.supplierDocument.findMany({ where: { applicationId: app.id, status: 'VERIFIED' }, select: { documentTypeCode: true } })).map((d) => d.documentTypeCode))
     const unverified = types.filter((t) => !verified.has(t))
     if (unverified.length) return fail('SUPPLIER_DOCUMENT_UNVERIFIED', 'required documents are not verified', { types: unverified })

@@ -11,6 +11,13 @@ export type IsoDate = string
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
+/** A real calendar date YYYY-MM-DD: 2026-02-30 and 2026-25-10 have the shape but are not dates (addDays would roll or throw) */
+export function isIsoDate(value: string): boolean {
+  if (!ISO_DATE.test(value)) return false
+  const at = Date.parse(`${value}T00:00:00Z`)
+  return Number.isFinite(at) && new Date(at).toISOString().slice(0, 10) === value
+}
+
 /** "2026-11-03" + 179 → "2027-05-01" (UTC midnight arithmetic: a date has no time zone of its own) */
 export function addDays(date: IsoDate, days: number): IsoDate {
   return new Date(Date.parse(`${date}T00:00:00Z`) + days * MS_PER_DAY).toISOString().slice(0, 10)
@@ -41,7 +48,7 @@ export type DocumentDates =
  */
 export function documentExpiry(terms: DocumentTypeTerms, document: { readonly issuedOn: IsoDate; readonly expiresOn?: IsoDate | null }, today?: IsoDate): DocumentDates {
   const stated = document.expiresOn ?? null
-  if (!ISO_DATE.test(document.issuedOn) || (stated !== null && !ISO_DATE.test(stated))) return { ok: false, code: 'VALIDATION_FAILED', reason: 'DATE' }
+  if (!isIsoDate(document.issuedOn) || (stated !== null && !isIsoDate(stated))) return { ok: false, code: 'VALIDATION_FAILED', reason: 'DATE' }
   if (terms.validityDays !== null && (!Number.isInteger(terms.validityDays) || terms.validityDays <= 0)) return { ok: false, code: 'VALIDATION_FAILED', reason: 'VALIDITY_DAYS' }
   if (today !== undefined && document.issuedOn > today) return { ok: false, code: 'VALIDATION_FAILED', reason: 'ISSUED_IN_FUTURE' }
   let expiresOn: IsoDate
@@ -89,6 +96,17 @@ const SPACES = /\s+/gu
  */
 export function normalizeScope(scope: string | null): string {
   return scope === null ? '' : scope.normalize('NFC').replace(SPACES, ' ').trim().toLowerCase()
+}
+
+/** The VAT registration (ภ.พ.20): required only of a payee registered for VAT (BR-SDOC-01 · S7-28) */
+export const VAT_CERT_TYPE = 'VAT_CERT'
+
+/**
+ * BR-SDOC-01: whether a type is required of an application or a supplier — the type is required, it applies to the
+ * payee's type, and the VAT registration only when the payee is registered for VAT (S7-28)
+ */
+export function requiredDocumentFor(type: { readonly code: string; readonly required: boolean; readonly appliesTo: readonly string[] }, owner: { readonly payeeType: string; readonly isVatRegistered: boolean }): boolean {
+  return type.required && type.appliesTo.includes(owner.payeeType) && (type.code !== VAT_CERT_TYPE || owner.isVatRegistered)
 }
 
 /**

@@ -1,0 +1,75 @@
+{
+  "promptVersion": "SUPPLIER_DOC_READ@3",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "docType": "COMPANY_CERT",
+    "nameTh": "บริษัท ชลบุรีวิศวกรรมโยธา จำกัด",
+    "nameEn": "CHONBURI CIVIL ENGINEERING COMPANY LIMITED",
+    "taxId": "0999998020478",
+    "branchCode": "00000",
+    "registeredAddress": "188 หมู่ 3 ถนนสุขุมวิท ต.บ้านสวน อ.เมือง จ.ชลบุรี 20000",
+    "registrationDate": "2018-01-09",
+    "issuedOn": "2026-10-05",
+    "isVatRegistered": null,
+    "bankName": null,
+    "accountName": null,
+    "documentNumber": null,
+    "confidence": [
+      {
+        "field": "docType",
+        "value": 97
+      },
+      {
+        "field": "nameTh",
+        "value": 96
+      },
+      {
+        "field": "nameEn",
+        "value": 95
+      },
+      {
+        "field": "taxId",
+        "value": 93
+      },
+      {
+        "field": "branchCode",
+        "value": 90
+      },
+      {
+        "field": "registeredAddress",
+        "value": 93
+      },
+      {
+        "field": "registrationDate",
+        "value": 94
+      },
+      {
+        "field": "issuedOn",
+        "value": 94
+      },
+      {
+        "field": "isVatRegistered",
+        "value": 90
+      },
+      {
+        "field": "bankName",
+        "value": 99
+      },
+      {
+        "field": "accountName",
+        "value": 99
+      },
+      {
+        "field": "documentNumber",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1501,
+    "output": 908,
+    "cacheRead": 1747,
+    "cacheWrite": 0
+  }
+}

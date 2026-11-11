@@ -50,6 +50,8 @@ import { getPoChangeTaskView } from '@/server/queries/po-changes'
 import { PoChangeBody } from '@/ui/tasks/subjects/po-change'
 import { riskOverrideView } from '@/server/services/risk'
 import { RiskOverrideFacts } from '@/ui/risk-override/facts'
+import { getSupplierApplicationTaskView } from '@/server/services/suppliers/application-view'
+import { SupplierApplicationBody } from '@/ui/tasks/subjects/supplier-application'
 import { askForInformationAction, decidePolicyTaskAction, decideTaskAction, passkeyOptionsAction } from '../actions'
 
 export async function generateMetadata() {
@@ -178,6 +180,11 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const riskOverrideRead = task.subjectType === 'RISK_OVERRIDE' ? await riskOverrideView(ctx, task.subjectId) : null
   const riskOverride = riskOverrideRead?.ok ? riskOverrideRead.data : null
   const tro = riskOverride ? await getTranslations('risk.override') : null
+  // S7-09: a supplier application (subject SUPPLIER_APPLICATION · FR-SUP-104 AC5): its approvers read it
+  // (supplier.application.view ASSIGNED); questions go back as a return, so no "ask the requester" (allowsRequestInfo false)
+  const isSupplierApp = task.subjectType === 'SUPPLIER_APPLICATION'
+  const supplierAppRead = isSupplierApp ? await getSupplierApplicationTaskView(ctx, task.subjectId) : null
+  const supplierApp = supplierAppRead?.ok ? supplierAppRead.data : null
   const [tp, poAccess] = await Promise.all([getTranslations('purchaseOrder'), po ? getPoAccess(ctx, po.id) : variance ? getPoAccess(ctx, variance.po.id) : Promise.resolve(null)])
   // The PO opens for whoever may see it (po.view); otherwise its number is plain text, never a link that ends in a refusal
   const poHref = poAccess && canViewPo(principal, poAccess) ? `/procurement/pos/${poAccess.poId}` : null
@@ -250,6 +257,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 ? t('poChangeTask.label', { number: poChange.po.number ?? '-', changeNo: poChange.changeNo })
                 : riskOverride && tro
                   ? (riskOverride.number ?? tro('list.draft'))
+                  : supplierApp
+                    ? supplierApp.label
                   : task.policy
                   ? policyHeadline(t, locale, task.policy)
                   : task.workflow
@@ -379,6 +388,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                     {tro('detail.title')}
                   </Link>
                 </>
+              ) : isSupplierApp ? (
+                supplierApp ? <SupplierApplicationBody application={supplierApp} /> : null
               ) : (
                 <PolicySubject task={task} locale={locale} doaLinks={doaLinks} doaSimulate={doaSimulate} orgAuthorityLink={canOpenOrgAuthorityChanges(principal)} />
               )}
@@ -410,17 +421,21 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   locale={locale}
                   label={label}
                   amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : transfer ? moneyText(transfer.amount) : overrun ? moneyText(overrun.shortfall) : invoice?.variance ? money(invoice.variance.netSatang + invoice.variance.vatSatang) : poChange ? money(poChange.new.grossSatang) : riskOverride ? money(riskOverride.capGrossSatang) : '-'}
-                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : isOverrun ? 'BUDGET_OVERRUN' : riskOverride ? 'RISK_OVERRIDE' : task.review ? 'REVIEW' : 'REQUEST'}
+                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : isOverrun ? 'BUDGET_OVERRUN' : riskOverride ? 'RISK_OVERRIDE' : isSupplierApp ? 'SUPPLIER_APPLICATION' : task.review ? 'REVIEW' : 'REQUEST'}
                   stepUp={task.stepUp}
                   hasPasskey={hasPasskey}
                   {...(variance ? { disposition: variance.disposition } : {})}
-                  actions={po || variance || isTransfer || isOverrun || riskOverride ? { decide: decideTaskAction, passkeyOptions: passkeyOptionsAction } : { decide: decideTaskAction, ask: askForInformationAction, passkeyOptions: passkeyOptionsAction }}
+                  actions={po || variance || isTransfer || isOverrun || riskOverride || isSupplierApp ? { decide: decideTaskAction, passkeyOptions: passkeyOptionsAction } : { decide: decideTaskAction, ask: askForInformationAction, passkeyOptions: passkeyOptionsAction }}
                 />
               )}
             </Panel>
-            <Panel title={tv('timeline.title')} id="timeline">
-              <Timeline items={items} label={timelineLabel} />
-            </Panel>
+            {/* a subject with no track of its own here (a supplier application: its timeline is on its page) draws no empty
+                heading (S7-18) */}
+            {items.length > 0 ? (
+              <Panel title={tv('timeline.title')} id="timeline">
+                <Timeline items={items} label={timelineLabel} />
+              </Panel>
+            ) : null}
           </aside>
         </div>
       </PageBody>

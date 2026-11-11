@@ -17,5 +17,8 @@ defineEvents('SupplierApplication', {
   'supplier_application.approved': { schema: z.object({ number: z.string().nullable(), supplierId: z.uuid(), kind: z.enum(['NEW', 'EXISTING']), bankAccountChangeId: z.uuid().nullable() }) },
   'supplier_application.rejected': { schema: z.object({ number: z.string().nullable(), reasonCommentId: z.uuid().nullable() }) },
   'supplier_application.expired': { schema: z.object({ number: z.string().nullable() }) },
+  // S7-07 (BR-SUP ข้อ 12): the reminder names what is still missing (field names and document type codes, never values)
+  'supplier_application.reminded': { schema: z.object({ missing: z.array(z.string().max(60)), linkId: z.uuid().nullable() }) },
+  'supplier_application.escalated': { schema: z.object({ notified: z.array(z.uuid()) }) },
   'supplier_application.cancelled': { schema: z.object({ number: z.string().nullable(), reasonCommentId: z.uuid().nullable() }) },
 })

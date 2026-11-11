@@ -6,7 +6,7 @@ import type { Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { reportTx } from './tx'
 import type { RunOptions } from '../_pipeline'
-import { REPORTS, createReportSchedule, periodOf, reportScope, type Column, type KpiParams, type ReportParamField } from './index'
+import { createReportSchedule, offeredReports, periodOf, reportScope, type Column, type KpiParams, type ReportParamField } from './index'
 import { collectKpis, isMobileChannel, isPastDue, kpiDocumentKind, type KpiAssignedTaskItem, type KpiDecisionItem, type KpiPastDueMark, type KpiResult, type KpiTaskItem } from './kpi'
 
 // What the report and KPI screens read (spec §11.3, §11.4, FR-VIS-002 AC1 AC3, FR-VIS-003 AC2): the reports the
@@ -84,7 +84,8 @@ export async function reportCatalog(ctx: Ctx): Promise<Result<ReportCatalogDto>>
       : []
     return ok({
       scope: scope === null ? ('ORG' as const) : ('DEPT' as const),
-      reports: Object.values(REPORTS).map((r) => ({ code: r.code, params: r.paramFields, columns: r.columns })),
+      // a report of a module that is off is not offered (SUP_G7 without SUPPLIER · S7-16)
+      reports: (await offeredReports(tx, ctx)).map((r) => ({ code: r.code, params: r.paramFields, columns: r.columns })),
       canSchedule,
       timezone: org.timezone,
       schedules: schedules.map((s) => ({

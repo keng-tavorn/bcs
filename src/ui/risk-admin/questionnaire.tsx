@@ -7,7 +7,6 @@ import { useFailureText, useRun } from './run'
 import { useSay, type Say } from './say'
 import { useId, useState, type FormEvent } from 'react'
 import { StatusBadge } from '../document/badges'
-import type { BadgeLook } from '../document/badge-looks'
 import { Notice } from '../form/notice'
 import { ListEmpty } from '../page/page'
 import {
@@ -38,14 +37,9 @@ import { RISK_DOMAINS_UI, RISK_TIERS, SCREENING_KEYS, type RiskAdminOutcome, typ
 // AI may read its evidence) — never raw JSON; the lint as it stands; the question set a screening context would get;
 // and sending, publishing (someone else) or sending back. A condition the simple editor cannot show stays as it is.
 
-export type QuestionnaireStatusUi = 'DRAFT' | 'PENDING_PUBLISH' | 'PUBLISHED' | 'SUPERSEDED'
+import { STATUS_LOOK, type QuestionnaireStatusUi } from './questionnaire-look'
 
-export const STATUS_LOOK: Record<QuestionnaireStatusUi, BadgeLook> = {
-  DRAFT: { tone: 'neutral', icon: 'FilePen' },
-  PENDING_PUBLISH: { tone: 'warn', icon: 'Hourglass' },
-  PUBLISHED: { tone: 'ok', icon: 'CircleCheck' },
-  SUPERSEDED: { tone: 'neutral', icon: 'Ban' },
-}
+export { STATUS_LOOK, type QuestionnaireStatusUi }
 
 export interface OptionUi {
   readonly code: string

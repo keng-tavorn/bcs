@@ -1,0 +1,76 @@
+{
+  "files": [
+    {
+      "id": "SC-01",
+      "file": "SC-01.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "d78db04acf762020d303f4589db927d07e825d51a229d2690a7e2436d1b7358b"
+    },
+    {
+      "id": "SC-02",
+      "file": "SC-02.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "7a36f26f655a44b7148e460181b4be9cea17f5fffb0053da1e884825b0f53606"
+    },
+    {
+      "id": "SC-03",
+      "file": "SC-03.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "7008b7d845e58766af17058f5fef42835fea3df219d8cb7c1de69989450343fa"
+    },
+    {
+      "id": "SC-04",
+      "file": "SC-04.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "4268f682fbfce78a324930621c21d13ee4f5c50238cc18b46bb09bf040fdae39"
+    },
+    {
+      "id": "SC-05",
+      "file": "SC-05.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "403b1b2b10ab78359dccfa13e986efaf060ebf76ed893a2befa84a75d59a8e04"
+    },
+    {
+      "id": "SC-06",
+      "file": "SC-06.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "f1a39ba1c2f3ebeb283b2f94041439e05e76b54d8ffca185a52799cf8c0ee8b9"
+    },
+    {
+      "id": "SC-07",
+      "file": "SC-07.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "79354a6248d0d4aab51d9e38b9dc94ecfacaabd9e5546aef2a4bc3a6530cb29c"
+    },
+    {
+      "id": "SV-01",
+      "file": "SV-01.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "b6407bc25c912c57b899c75f7f0ccaa4ffbeaee9d1af0879ab0853d578e21973"
+    },
+    {
+      "id": "SV-02",
+      "file": "SV-02.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "0ccfbe18e5b3e7bba7152d75a95f4784adfdd5efd40a7dc2dbd19d46dd2621d6"
+    },
+    {
+      "id": "SV-03",
+      "file": "SV-03.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "f20ba3f7f47078529e58c18de861f7c5849f9e95b41cbb3f713c198884c758e9"
+    },
+    {
+      "id": "SV-04",
+      "file": "SV-04.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "9a054e58222bc9557a56d35341f4f83fb8d9295bccdc3cfab2a2292ed55a236e"
+    },
+    {
+      "id": "SV-05",
+      "file": "SV-05.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "75f7b0e590788c9e95b0beba5d1e3ced231f5a6463626361297a600ddb273e1f"
+    }
+  ]
+}

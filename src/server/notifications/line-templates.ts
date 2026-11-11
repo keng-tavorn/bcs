@@ -3,6 +3,7 @@
 // deliverNotification (./deliver.ts). S9's templates live in lane 2's own file (ADR-135).
 
 import { PAYMENT_LINE_TEMPLATES } from './templates/payments'
+import { SUPPLIER_LINE_TEMPLATES } from './templates/suppliers'
 
 /**
  * §10.1 rows whose channel is "LINE → อีเมล" (or LINE beside in-app): only these go to LINE. The rest — security notices,
@@ -43,4 +44,6 @@ export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   'risk.review_overdue',
   // and the fallback's acknowledgement at escalateAt ("LINE → อีเมล" of the same row)
   'risk.review_escalated',
+  // S7-07: an application overdue, to its inviter and PROCUREMENT at once
+  ...SUPPLIER_LINE_TEMPLATES,
 ])

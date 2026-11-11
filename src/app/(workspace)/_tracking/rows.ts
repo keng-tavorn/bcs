@@ -43,6 +43,9 @@ export function taskTitle(t: TasksT, task: InboxTaskDto): string {
       return s.supplierCode
         ? t('item.bankChangeSupplier', { number: s.number ?? '-', kind: t(`item.bankChangeKind.${s.changeKind}`), code: s.supplierCode })
         : t('item.bankChangeCompany', { number: s.number ?? '-', kind: t(`item.bankChangeKind.${s.changeKind}`) })
+    case 'SUPPLIER_APPLICATION':
+      // S7-09 · BR-NOTI ข้อ 10: a sole proprietor is never named in a list, only "ผู้ขายบุคคลธรรมดา" and the number
+      return s.supplierName ? t('item.supplierApplication', { number: s.number ?? '-', name: s.supplierName }) : t('item.supplierApplicationIndividual', { number: s.number ?? '-' })
     default:
       return t('item.untitled')
   }
@@ -91,7 +94,9 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
                     : t('item.varianceMeta', { number: s.poNumber ?? '-' })
                   : s.kind === 'PO_CHANGE'
                     ? s.supplierName
-                    : undefined
+                    : s.kind === 'SUPPLIER_APPLICATION' && s.category
+                      ? t('item.supplierApplicationMeta', { category: s.category })
+                      : undefined
     return {
       id: task.id,
       href: `/tasks/${task.id}`,

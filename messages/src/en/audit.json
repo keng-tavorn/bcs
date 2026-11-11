@@ -272,7 +272,8 @@
       "rejected": "Bank account change rejected",
       "returned": "Bank account change returned",
       "submitted": "Bank account change submitted",
-      "updated": "Bank account change edited"
+      "updated": "Bank account change edited",
+      "claimed": "Finance claimed a bank account request from the portal"
     },
     "backtest": {
       "completed": "90-day backtest done",
@@ -436,7 +437,10 @@
       "retention_set": "Purchase order retention set",
       "revised": "Purchase order revised",
       "revision_sent": "Revised purchase order sent to the supplier",
-      "risk_gate_passed": "Passed the supplier risk gate"
+      "risk_gate_passed": "Passed the supplier risk gate",
+      "acknowledged": "Supplier acknowledged the PO",
+      "delivery_date_changed": "Supplier changed the delivery date",
+      "ack_reset": "Revised PO waits for the supplier again"
     },
     "position": {
       "assigned": "Position holder appointed",
@@ -649,6 +653,8 @@
       "approved": "Supplier application approved",
       "rejected": "Supplier application not approved",
       "expired": "Supplier application expired",
+      "reminded": "Supplier reminded to finish its application",
+      "escalated": "Supplier application overdue, procurement told",
       "cancelled": "Supplier application cancelled"
     },
     "supplier_document": {

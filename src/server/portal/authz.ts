@@ -34,6 +34,8 @@ export const PORTAL_ACTIONS = new Map<string, PortalRule>([
   ['portal.po.acknowledge', activeSupplier],
   ['portal.invoice.submit', (a, f) => activeSupplier(a, f) && f.payModule === true && f.portalInvoice === true],
   ['portal.invoice.view', (a, f) => activeSupplier(a, f) && f.payModule === true && f.portalInvoice === true],
+  // S7-08: the language of one's own account, or closing it (/portal/<org>/profile)
+  ['portal.contact.self', (a) => Boolean(a.supplierContactId)],
   // S11-05 (BR-RSK-17): the supplier's own assessments; answered, sent and given files while DRAFT or RETURNED only
   ['portal.risk.view', activeSupplier],
   ['portal.risk.answer', (a, f) => activeSupplier(a, f) && EDITABLE_RISK_ASSESSMENT.has(f.riskAssessmentStatus ?? '')],

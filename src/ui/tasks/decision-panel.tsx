@@ -59,9 +59,11 @@ export interface TaskDecisionInput {
 /**
  * What the task decides; each has its own choices and words. REVIEW: a reviewer's task of a request (S6 · BR-WF-09);
  * BUDGET_TRANSFER: a budget transfer or adjustment (S6-15 · FR-BUD-103), approved, returned or rejected, never asked about;
- * BUDGET_OVERRUN: an over-budget approval (S6-16 · FR-BUD-101), the same three choices, its amount the shortfall (no VAT)
+ * BUDGET_OVERRUN: an over-budget approval (S6-16 · FR-BUD-101), the same three choices, its amount the shortfall (no VAT);
+ * SUPPLIER_APPLICATION: a new supplier's application (S7-05 · FR-SUP-104), approved, returned or rejected, never asked
+ * about, in the words of an application (S7-18: it read as a request with a budget)
  */
-export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN' | 'RISK_OVERRIDE'
+export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN' | 'RISK_OVERRIDE' | 'SUPPLIER_APPLICATION'
 type Disposition = 'CLOSE_SHORT' | 'ACCEPT_EXCESS' | 'ACCEPT_DAMAGED'
 const HINTED: readonly string[] = ['CLOSE_SHORT', 'ACCEPT_EXCESS', 'ACCEPT_DAMAGED']
 
@@ -185,8 +187,9 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
   const overrun = kind === 'BUDGET_OVERRUN'
   // S11-08: an override of the risk gate — no budget is held, a return goes back to the one who asked (BR-RSK-10)
   const override = kind === 'RISK_OVERRIDE'
-  // The words of the two budget kinds and the override, under tasks.decide.transfer, .overrun or .override
-  const budget = transfer ? 'transfer' : overrun ? 'overrun' : override ? 'override' : null
+  // The words of the two budget kinds, the override and a supplier application, under tasks.decide.transfer, .overrun,
+  // .override or .supplierApplication (the same keys)
+  const budget = transfer ? 'transfer' : overrun ? 'overrun' : override ? 'override' : kind === 'SUPPLIER_APPLICATION' ? 'supplierApplication' : null
   const hinted = (disposition && HINTED.includes(disposition) ? disposition : 'other') as Disposition | 'other'
   const ask = kind === 'REQUEST' || review ? actions.ask : undefined
   // The words of each kind; a request keeps the words it always had

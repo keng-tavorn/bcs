@@ -658,3 +658,34 @@ SCENES = [
         stepsTh="fin_ap1 เมนู ใบแจ้งหนี้ → บันทึกใบแจ้งหนี้ใหม่ → เลือก PO ปูนซีเมนต์ของ H188 (SP0018) → เลือกรูปใบแจ้งหนี้ → อ่านไฟล์ด้วย AI → รอ AI อ่าน → ร่างเปิดพร้อมกล่อง ค่าที่ AI อ่านจากใบแจ้งหนี้ ป้าย เติมโดย AI โปรดตรวจ → ยืนยันรหัสบัญชีทุกบรรทัด → ลองส่งจับคู่ ระบบไม่ให้ส่งจนยืนยันครบ → ติ๊กยืนยันทีละช่องเทียบกับไฟล์ → บันทึกการยืนยัน → ส่งจับคู่ → พร้อมจ่าย",
     ),
 ]
+
+# ---------- Demo_Script_P2: the shared sheet of phase 2 (S7-13 · docs/sub-specs/S7.md "Demo ของขั้น") ----------
+# Each step adds its scenes from its own script, in order (S7 1–8 from p1_suppliers_portal.py · S10 9–15 · S11 16 on);
+# a step changes only its own function. tests/e2e/p2demo/<nn>-*.spec.ts (@p2demo) reads the row of its scene.
+
+P2_COLUMNS = [
+    ('scene', 'ฉาก (= เลขไฟล์ e2e)'), ('core', 'Y = ต้องผ่านก่อนเส้นชัย H'), ('stage', 'ขั้นเจ้าของฉาก'), ('titleTh', 'หัวข้อที่พูดตอน demo'),
+    ('actor', 'ผู้ทำ (ชีต Users)'), ('others', 'ผู้ใช้อื่นที่ลงมือในฉาก คั่นด้วย ·'),
+    ('portalActor', 'ผู้ติดต่อพอร์ทัล (อีเมลในชีต Supplier_Contacts หรือ Supplier_Applications)'),
+    ('supplier', 'ผู้ขาย (ชีต Suppliers) หรือใบสมัคร (ชีต Supplier_Applications)'), ('module', 'โมดูลที่ฉากใช้'),
+    ('expectJson', 'ค่าที่คาดเฉพาะเรื่อง (JSON)'), ('minutes', 'นาทีที่ใช้ตอน demo'), ('stepsTh', 'ลำดับคลิกโดยย่อ'), ('notes', 'หมายเหตุ'),
+]
+
+
+def _p2_row(v):
+    v = dict(v)
+    if isinstance(v.get('expectJson'), dict):
+        v['expectJson'] = json.dumps(v['expectJson'], ensure_ascii=False, separators=(',', ':'))
+    unknown = set(v) - {k for k, _ in P2_COLUMNS}
+    if unknown:
+        raise ValueError(f'Demo_Script_P2: unknown columns {sorted(unknown)}')
+    return {k: v.get(k) for k, _ in P2_COLUMNS}
+
+
+def scenes_p2():
+    from p1_suppliers_portal import demo_p2_rows as s7_rows
+    rows = [_p2_row(r) for r in s7_rows()]
+    return sorted(rows, key=lambda r: r['scene'])
+
+
+SCENES_P2 = scenes_p2()

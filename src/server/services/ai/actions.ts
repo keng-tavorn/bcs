@@ -19,7 +19,7 @@ import { listOrganizationsForPlatform } from '@/server/db/lookups'
 // AI_AGENT): DRAFT with the result or FAILED with the reason, and one USE row of credits when tokens were used. The
 // result never writes a document: a person's own command takes it in with aiAssist (assist-contract.ts, S13-03).
 
-export const SUBJECT_TYPES = ['REQUEST', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'INVOICE', 'APPROVAL_TASK', 'DOA_VERSION', 'CHAT_INTAKE'] as const
+export const SUBJECT_TYPES = ['REQUEST', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'INVOICE', 'APPROVAL_TASK', 'DOA_VERSION', 'CHAT_INTAKE', 'SUPPLIER_APPLICATION'] as const
 
 /** The capability a member needs to start a call of each purpose (§2.4); the Brief is started by the system only */
 const CAPABILITY_OF_PURPOSE: Readonly<Record<AiPurposeName, Capability | null>> = {
@@ -32,17 +32,22 @@ const CAPABILITY_OF_PURPOSE: Readonly<Record<AiPurposeName, Capability | null>> 
   DOA_DRAFT: 'ai.doaDraft',
   // NEW-136: the member asks for it like a question; the service checks who reads the savings first
   SAVINGS_NOTE: 'ai.ask',
+  // S7-14 (BR-AI-29): started by the system once a document of an application is scanned clean (job supplier-document-ai)
+  SUPPLIER_DOC_READ: null,
 }
+
+/** The purposes the system starts by itself (BR-AI-11 still gates them): the Brief, and a supplier's document (S7-14) */
+const SYSTEM_PURPOSES: readonly AiPurposeName[] = ['BRIEF', 'SUPPLIER_DOC_READ']
 
 const fail = (code: 'FORBIDDEN' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITION' | 'VALIDATION_FAILED', message: string, details?: Record<string, unknown>) =>
   ({ ok: false, error: { code, message, ...(details ? { details } : {}) } }) as const
 
 /** Who may start a call of this purpose, before the gates (PLATFORM_ADMIN never: NG-12, §2.4) */
 async function mayRequest(tx: TenantTx, ctx: Ctx, purpose: AiPurposeName): Promise<CommandOutcome<never> | null> {
-  if (ctx.actor.type === 'SYSTEM') return purpose === 'BRIEF' ? null : fail('FORBIDDEN', 'the system starts only the Approval Brief')
+  if (ctx.actor.type === 'SYSTEM') return SYSTEM_PURPOSES.includes(purpose) ? null : fail('FORBIDDEN', 'the system starts only the Approval Brief and the reading of a supplier document')
   if (ctx.actor.type !== 'USER') return fail('FORBIDDEN', 'only a member of the organization uses AI')
   const capability = CAPABILITY_OF_PURPOSE[purpose]
-  if (!capability) return fail('FORBIDDEN', 'the Approval Brief is started by the system')
+  if (!capability) return fail('FORBIDDEN', `${purpose} is started by the system`)
   const allowed = await authorize(tx, ctx, capability, { ownerMemberIds: [ctx.actor.memberId] })
   return allowed.ok ? null : { ok: false, error: allowed.error }
 }
@@ -59,6 +64,8 @@ const RequestInput = z.strictObject({
   inputText: z.string().max(AI_LIMITS.maxInputTextChars * 10).optional(),
   idempotencyKey: z.string().min(1).max(200).optional(),
   conversationId: z.uuid().optional(),
+  /** S7-14 (BR-AI-30): the supplier contact a reading of a supplier document is for (the system starts it on its behalf) */
+  requestedByContactId: z.uuid().optional(),
 })
 
 export interface RequestedAction extends CallPlan {
@@ -73,6 +80,7 @@ export const requestAgentActionCommand = defineCommand({
     if ((input.subjectType === undefined) !== (input.subjectId === undefined)) return fail('VALIDATION_FAILED', 'subjectType and subjectId go together', { field: 'subjectId' })
     const refused = await mayRequest(tx, ctx, input.purpose)
     if (refused) return refused
+    if (input.requestedByContactId && (ctx.actor.type !== 'SYSTEM' || input.purpose !== 'SUPPLIER_DOC_READ')) return fail('VALIDATION_FAILED', 'only the reading of a supplier document is asked for a contact', { field: 'requestedByContactId' })
     const memberId = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
     const gate = await checkCallGates(tx, ctx, input.purpose, memberId)
     if (!gate.ok) return { ok: false, error: gate.error }
@@ -87,6 +95,7 @@ export const requestAgentActionCommand = defineCommand({
         subjectType: input.subjectType ?? null,
         subjectId: input.subjectId ?? null,
         requestedById: memberId,
+        requestedByContactId: input.requestedByContactId ?? null,
         channel: ctx.channel,
         conversationId: input.conversationId ?? null,
         promptVersion: plan.promptVersion,

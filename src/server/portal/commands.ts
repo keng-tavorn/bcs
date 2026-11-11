@@ -318,6 +318,8 @@ const verifyOtpCommand = defineCommand({
 export interface PortalSessionSecrets {
   readonly sessionId: string
   readonly csrfToken: string
+  /** The contact's language, for the browser's locale cookie (S7-08: the portal speaks the contact's language) */
+  readonly locale: 'th' | 'en'
 }
 
 /**
@@ -355,7 +357,7 @@ export async function verifyPortalOtp(
   )
   if (!done.ok) return done
   const r = done.data
-  if (r.verified) return ok(secrets)
+  if (r.verified) return ok({ ...secrets, locale: challenge.contact.locale === 'en' ? 'en' : 'th' })
   return r.code === 'OTP_INVALID' ? err('OTP_INVALID', 'the code is not right', { remaining: r.remaining }) : err('OTP_LOCKED', 'too many wrong codes', { lockedUntil: r.lockedUntil })
 }
 

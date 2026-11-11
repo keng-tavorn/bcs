@@ -18,6 +18,8 @@ import { approversWithoutPin, seedDevPins } from '@/server/seed/pins'
 import { linkHistoryToCatalog, seedCatalog } from '@/server/seed/catalog'
 import { parseBudget, parseCatalogItems, parseCostCenters, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
+import { parseSupplierPortal, seedSupplierPortalBase } from '@/server/seed/supplier-portal'
+import { seedSupplierPortalHistory, type SupplierPortalHistoryReport } from './supplier-portal'
 import { seedAccountCodes } from '@/server/seed/account-codes'
 import { parseApProfile, seedApProfile } from '@/server/seed/ap-profile'
 import { parseBankAccounts, seedBankAccounts } from '@/server/seed/bank-accounts'
@@ -56,6 +58,9 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const ai = profile === 'p1' ? await seedP1Ai(report.organizationId, clock.now()) : null
   const budget = await seedBudget(report.organizationId, parseBudget(workbook), clock.now(), parseCostCenters(workbook))
   const suppliers = await seedSuppliers(report.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, clock.now())
+  // S7-13: the supplier portal's document types and contacts (sheets of phase 1 only)
+  const portalSheets = parseSupplierPortal(workbook)
+  const supplierPortal = portalSheets ? await seedSupplierPortalBase(report.organizationId, portalSheets, clock.now()) : null
   // The account codes invoice lines are coded with (S8-04, sheet GL_Accounts of phase 1; the demo workbook has none)
   const accountCodes = await seedAccountCodes(report.organizationId, parseGlAccounts(workbook))
   // The catalogue and its agreed prices for this fiscal year (S6-10, sheet Items of phase 1; the demo workbook has none)
@@ -74,7 +79,7 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const pinless = seedPin ? await approversWithoutPin(report.organizationId, seedPin, clock.now()) : []
   // S6-21 (BR-UAT-01 BR-UAT-04): SIMEC-UAT, the UAT sandbox of the phase-1 organization, on this machine
   const sandbox = profile === 'p1' && options.sandbox !== false ? await seedP1Sandbox(report.organizationId, { password, ...(totpKey ? { totpKey } : {}), pin: seedPin, now: clock.now() }) : null
-  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, workflow, ai, budget, suppliers, accountCodes, catalog, apProfile, bankAccounts, lineChannel, pins, pinless, sandbox }
+  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, workflow, ai, budget, suppliers, supplierPortal, accountCodes, catalog, apProfile, bankAccounts, lineChannel, pins, pinless, sandbox }
 }
 
 /** The code of the phase-1 organization's sandbox: its own code and "-UAT" */
@@ -118,6 +123,15 @@ export async function seedDemoHistoryFromInputs(organizationId: string, env: Env
   return report
 }
 
+/**
+ * S7-13: the history of the supplier portal (documents on file, applications played back in time) after the history of
+ * requests; null for a workbook without the sheets of S7 (the demo)
+ */
+export async function seedSupplierPortalFromInputs(organizationId: string, clock: Clock, profile: InputProfile): Promise<SupplierPortalHistoryReport | null> {
+  const sheets = parseSupplierPortal(await loadInputWorkbook(INPUT_WORKBOOKS[profile]))
+  return sheets ? seedSupplierPortalHistory(organizationId, sheets, clock.now()) : null
+}
+
 /** P1-11: the parts the history of a workbook is made in (seedDemoHistoryPart) */
 export async function demoHistoryPartsFromInputs(profile: InputProfile): Promise<DemoHistoryPart[]> {
   return demoHistoryParts(parseHistory(await loadInputWorkbook(INPUT_WORKBOOKS[profile])))
@@ -131,7 +145,12 @@ export async function seedDemoHistoryPartFromInputs(organizationId: string, env:
   const workbook = await loadInputWorkbook(INPUT_WORKBOOKS[profile])
   const rows = parseHistory(workbook)
   const report = await seedDemoHistoryPart(organizationId, rows, now, { pin: env.SEED_DEV_PIN ?? null, budgetKeys: budgetKeyLines(parseBudget(workbook)) }, index)
-  if (index === demoHistoryParts(rows).length - 1) await linkHistoryToCatalog(organizationId)
+  if (index === demoHistoryParts(rows).length - 1) {
+    await linkHistoryToCatalog(organizationId)
+    // S7-13: the supplier portal's history with the last part
+    const sheets = parseSupplierPortal(workbook)
+    if (sheets) await seedSupplierPortalHistory(organizationId, sheets, now)
+  }
   return report
 }
 

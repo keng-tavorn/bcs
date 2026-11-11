@@ -90,8 +90,9 @@ export async function readDocument(ctx: Ctx, rawInput: z.input<typeof ReadDocume
   if (!parsed.success) return err('VALIDATION_FAILED', 'invalid input', { field: parsed.error.issues[0]?.path.join('.') || 'fileId' })
   const input = parsed.data
   const file = await forTenant(ctx.organizationId).$transaction(async (tx) => {
-    const row = await tx.fileObject.findUnique({ where: { id: input.fileId }, select: { id: true, status: true, mimeType: true, sizeBytes: true, storageKey: true, sha256: true, uploadedById: true } })
-    if (!row || row.status !== 'AVAILABLE') return null
+    const row = await tx.fileObject.findUnique({ where: { id: input.fileId }, select: { id: true, status: true, mimeType: true, sizeBytes: true, storageKey: true, sha256: true, uploadedById: true, scanStatus: true } })
+    // S7-12 (BR-PORTAL ข้อ 07): a file from the supplier portal is read only once the central scan called it clean
+    if (!row || row.status !== 'AVAILABLE' || row.scanStatus === 'PENDING' || row.scanStatus === 'INFECTED') return null
     const principal = await loadPrincipal(tx, ctx)
     return (await mayViewFile(tx, ctx, principal, row)) ? row : null
   })

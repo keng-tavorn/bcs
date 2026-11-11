@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { systemClock } from '@/lib/clock'
 import { inngest } from '@/server/inngest'
 import { runAllDocumentExpiry, scanFile, supplierDocumentScanned } from '@/server/services/suppliers/documents'
+import { resetPoAck } from '@/server/services/suppliers/po-ack'
 
 // The jobs of S7-06 (BR-PORTAL ข้อ 07 · BR-SDOC ข้อ 04 · docs/sub-specs/S7.md "job Inngest ใหม่"):
 // - file-scan: the central scan of every uploaded file still PENDING, whatever it is linked to; it says what it found in
@@ -29,3 +30,13 @@ export const SUPPLIER_DOCUMENT_EXPIRY_CRON = 'TZ=Asia/Bangkok 0 7 * * *'
 export const supplierDocumentExpiry = inngest.createFunction({ id: 'supplier-document-expiry', retries: 1, triggers: [{ cron: SUPPLIER_DOCUMENT_EXPIRY_CRON }] }, async ({ step }) =>
   step.run('expiry', () => runAllDocumentExpiry(systemClock.now())),
 )
+
+// S7-11 (FR-SUP-105 AC4 · BR-SUP ข้อ 14): a new revision sent to the supplier (S8's po.revision_sent) waits for its
+// acknowledgement again — S8's code untouched
+const RevisionEvent = FileEvent.extend({ data: z.object({ revisionNo: z.number().int().min(1) }).loose() })
+
+export const poAckReset = inngest.createFunction({ id: 'po-ack-reset', triggers: [{ event: 'bcs/po.revision_sent' }] }, async ({ event, step }) => {
+  const payload = RevisionEvent.safeParse(event.data)
+  if (!payload.success) return 'IGNORED'
+  return step.run('reset', () => resetPoAck(payload.data.organizationId, payload.data.aggregateId, payload.data.data.revisionNo, systemClock.now()))
+})

@@ -64,8 +64,8 @@ export interface LiffTaskDecisionProps {
   readonly subjectInput?: { readonly flagsKey: string }
   /** The tick the approver gives before approving (a payment run with flags: "I have checked them"), and its error */
   readonly acknowledge?: { readonly label: string; readonly error: string }
-  /** The words of a subject that has its own (a payment run), written by the server in the reader's language */
-  readonly words?: Partial<Record<'confirmText' | 'returnOption' | 'returnHint' | 'rejectHint' | 'reasonHint' | 'submitReturn' | 'submitReject' | 'returned' | 'rejected', string>>
+  /** The words of a subject that has its own (a payment run, a supplier application), written by the server in the reader's language */
+  readonly words?: Partial<Record<'confirmText' | 'otherLink' | 'returnOption' | 'returnHint' | 'rejectHint' | 'reasonHint' | 'submitReturn' | 'submitReject' | 'returned' | 'rejected', string>>
   readonly children: ReactNode
 }
 

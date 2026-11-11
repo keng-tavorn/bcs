@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import { redirect } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
+import { formatDay } from '@/ui/liff/delegation/day'
 import { listPortalDocumentTypes } from '@/server/portal/queries'
 import { listSupplierDocuments } from '@/server/services/suppliers/documents'
 import { PortalButton, PortalFrame, PortalNotice, portalInputClass } from '@/ui/portal/frame'
-import { one, pageOrg, pageSession, Unavailable, type SearchParams } from '../_lib/page'
+import { PortalFileInput } from '@/ui/portal/file-input'
+import { one, pageOrg, pageSession, portalNav, Unavailable, type SearchParams } from '../_lib/page'
 
 // /portal/[org]/documents (S7-06 · BR-SDOC ข้อ 02 ข้อ 07 · FR-SUP-102 AC4): the contact's own documents with their state,
-// and the form that sends a new one (type, file, dates, scope). S7-08 builds the rest of the portal around it.
+// and the form that sends a new one (type, file, dates, scope). The sections of the portal are the frame's links (S7-08).
 
 const STATUSES = ['PENDING', 'VERIFIED', 'REJECTED', 'EXPIRED', 'SUPERSEDED'] as const
 const ERRORS = ['FORBIDDEN', 'VALIDATION_FAILED', 'RATE_LIMITED', 'PRIVACY_NOTICE_OUTDATED'] as const
@@ -18,8 +20,9 @@ export default async function PortalDocumentsPage({ params, searchParams }: { pa
   const session = await pageSession(org)
   if (!session) redirect(`/portal/${org.code}/login`)
   const { contact, ctx } = session.state
-  const [t, locale, q, docs, types] = await Promise.all([
+  const [t, tp, locale, q, docs, types] = await Promise.all([
     getTranslations('supplierDocs'),
+    getTranslations('portal'),
     getLocale(),
     searchParams,
     listSupplierDocuments(ctx, { supplierId: contact.supplierId, applicationId: contact.supplierId ? null : contact.applicationId }),
@@ -28,7 +31,7 @@ export default async function PortalDocumentsPage({ params, searchParams }: { pa
   const error = one(q.error)
   const known = error && (ERRORS as readonly string[]).includes(error) ? (error as (typeof ERRORS)[number]) : null
   return (
-    <PortalFrame organization={org.nameTh} title={t('documents.title')}>
+    <PortalFrame organization={org.nameTh} title={t('documents.title')} nav={portalNav(org.code, tp, 'documents', contact.supplierId ? 'SUPPLIER' : 'APPLICATION', session.invoices)} navLabel={tp('nav.label')}>
       {one(q.sent) ? <PortalNotice tone="success">{t('documents.uploaded')}</PortalNotice> : null}
       {error ? <PortalNotice tone="danger">{known ? t(`errors.${known}`) : t('errors.FAILED')}</PortalNotice> : null}
       {docs.ok && docs.data.rows.length ? (
@@ -38,7 +41,7 @@ export default async function PortalDocumentsPage({ params, searchParams }: { pa
               <span className="font-medium">{locale === 'en' ? d.typeNameEn : d.typeNameTh}</span>
               {d.scope ? <span className="text-ink-muted">{d.scope}</span> : null}
               <span className="tabular text-ink-muted">
-                {d.issuedOn} – {d.expiresOn}
+                {formatDay(d.issuedOn, locale) ?? d.issuedOn} – {formatDay(d.expiresOn, locale) ?? d.expiresOn}
               </span>
               <span>{(STATUSES as readonly string[]).includes(d.status) ? t(`documents.status.${d.status}`) : d.status}</span>
             </li>
@@ -68,7 +71,7 @@ export default async function PortalDocumentsPage({ params, searchParams }: { pa
           <label htmlFor="file" className="font-medium">
             {t('documents.file')}
           </label>
-          <input id="file" name="file" type="file" required accept="application/pdf,image/jpeg,image/png,image/webp" className="text-base" />
+          <PortalFileInput id="file" name="file" required accept="application/pdf,image/jpeg,image/png,image/webp" chooseLabel={tp('fileInput.choose')} noneLabel={tp('fileInput.none')} />
           <label htmlFor="issuedOn" className="font-medium">
             {t('documents.issuedOn')}
           </label>
@@ -84,9 +87,6 @@ export default async function PortalDocumentsPage({ params, searchParams }: { pa
           <PortalButton type="submit">{t('documents.upload')}</PortalButton>
         </form>
       </section>
-      <a href={`/portal/${org.code}`} className="text-primary underline underline-offset-4">
-        {t('documents.back')}
-      </a>
     </PortalFrame>
   )
 }

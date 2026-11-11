@@ -1,5 +1,6 @@
 import {
   approvalCard,
+  type ApprovalCardData,
   decisionConfirmationCard,
   postbackRefusalMessage,
   type CardLocale,
@@ -53,6 +54,8 @@ interface SubjectSummary {
   readonly typeName: string | null
   readonly requester: { readonly name: string; readonly department: string | null } | null
   readonly budget: 'RESERVED' | null
+  /** S7-09: a supplier application's summary for its card (BR-NOTI ข้อ 10) */
+  readonly supplierApplication?: ApprovalCardData['supplierApplication']
 }
 
 /** Whether anything is held on the budget for these document lines (BudgetAllocation, INV-BUD-03): reserved or committed */
@@ -75,6 +78,8 @@ async function budgetHeld(db: Db, lines: { readonly requestLineIds: readonly str
  *    buyer, not a requester. Whether a PO card should name its requests' requesters is a personal-data decision left to
  *    the user.
  *  - A receiving variance: its PO's number, no person and no budget row.
+ *  - A supplier application (S7-09 · BR-NOTI ข้อ 10): its number, its inviter as the requester, and its supplier — a
+ *    sole proprietor's name is never read into the card — category, documents and duplicate warnings.
  *  - Policy documents and others keep the label their notification carries.
  */
 async function subjectSummary(db: Db, subjectType: string, subjectId: string, fallbackLabel: string, locale: CardLocale): Promise<SubjectSummary> {
@@ -115,6 +120,37 @@ async function subjectSummary(db: Db, subjectType: string, subjectId: string, fa
     if (!po) return none
     const held = await budgetHeld(db, { requestLineIds: po.lines.flatMap((l) => l.sources.map((s) => s.requestLineId)), poLineIds: po.lines.map((l) => l.id) })
     return { ...none, label: po.number ?? fallbackLabel, budget: held ? 'RESERVED' : null }
+  }
+  if (subjectType === 'SUPPLIER_APPLICATION') {
+    const app = await db.supplierApplication.findFirst({
+      where: { id: subjectId },
+      select: {
+        number: true,
+        nameTh: true,
+        nameEn: true,
+        payeeType: true,
+        category: true,
+        duplicateWarnings: true,
+        invitedBy: { select: { displayNameTh: true, displayNameEn: true, primaryDepartment: { select: { nameTh: true, nameEn: true } } } },
+        _count: { select: { documents: { where: { status: { notIn: ['SUPERSEDED', 'REJECTED'] } } } } },
+      },
+    })
+    if (!app) return none
+    const individual = app.payeeType === 'INDIVIDUAL'
+    const inviter = app.invitedBy
+    return {
+      ...none,
+      label: app.number ?? fallbackLabel,
+      requester: inviter ? { name: pick(inviter.displayNameTh, inviter.displayNameEn), department: inviter.primaryDepartment ? pick(inviter.primaryDepartment.nameTh, inviter.primaryDepartment.nameEn) : null } : null,
+      supplierApplication: {
+        individual,
+        name: individual ? null : pick(app.nameTh, app.nameEn),
+        number: app.number,
+        category: app.category,
+        documents: app._count.documents,
+        duplicates: Array.isArray(app.duplicateWarnings) ? app.duplicateWarnings.length : 0,
+      },
+    }
   }
   if (subjectType === 'VARIANCE') {
     const variance = await db.variance.findFirst({ where: { id: subjectId }, select: { po: { select: { number: true } } } })
@@ -199,6 +235,7 @@ export async function approvalCardMessage(
     review: row.step.kind === 'REVIEW' ? { ruleCodes: row.workflowRuleCodes } : null,
     priceBadge: price?.badge ?? null,
     flags,
+    supplierApplication: subject.supplierApplication ?? null,
     tokenId: token?.id ?? null,
     links: { approve: taskLink(cards, task.taskId, 'approve'), decline: taskLink(cards, task.taskId, 'reject'), details: taskLink(cards, task.taskId) },
   })

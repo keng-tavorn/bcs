@@ -65,7 +65,14 @@ P1_ONLY = {'Budget': ['fiscalYear','code','budgetKey','department','costCenter',
  'Scenarios': ['id','area','descriptionTh','where'],
  'Demo_Script_P1': ['scene','core','stage','area','titleTh','actor','others','channel','requestType','chargedDept','budgetKey','site','supplier','itemCode','qty','unitPrice',
                     'net','vat','gross','historyRef','docSample','invoiceNo','invoiceUnitPrice','expectedOutcome','expectedRule','expectedApprover','expectedReviewers',
-                    'escalated','delegation','expectJson','minutes','stepsTh']}
+                    'escalated','delegation','expectJson','minutes','stepsTh'],
+ # S7-13: the supplier portal of phase 2 and the shared demo sheet of phase 2
+ 'Supplier_Contacts': ['supplierCode','nameTh','email','phone','roleLabel','isPrimary','locale','portalEnabled'],
+ 'Supplier_Document_Types': ['code','nameTh','nameEn','appliesTo','required','validityDays','reminderDaysBefore','sensitive','aiReadable','aiReadablePayeeTypes','singleInstance','linkedRiskQuestionCodes','sortOrder'],
+ 'Supplier_Documents': ['supplierCode','docType','docNumber','issuer','scope','issuedDaysAgo','expiresDaysAhead','issuedOn','expiresOn','status','verifiedBy'],
+ 'Supplier_Applications': ['ref','kind','nameTh','taxId','branchCode','payeeType','category','contactName','contactEmail','inviterPhone','invitedBy','routedBy','verifiedBy',
+                           'invitedDaysAgo','lastActivityDaysAgo','status','filledOnBehalf','missingDocs','decidedDaysAgo','expectedApprover','expectedG7Days'],
+ 'Demo_Script_P2': ['scene','core','stage','titleTh','actor','others','portalActor','supplier','module','expectJson','minutes','stepsTh','notes']}
 REQ = {**COMMON, **(DEMO_ONLY if PROFILE == 'demo' else P1_ONLY)}
 miss = [s for s in REQ if s not in wb.sheetnames]
 check(not miss, 'ชีตครบ', f'{len(REQ)} ชีตข้อมูล', f'ขาด {miss}', 'ข้อมูลส่วนนั้นจะไม่ถูกนำเข้า', 'เพิ่มชีตที่ขาดโดยคัดลอกหัวตารางจากไฟล์ v1' if PROFILE == 'demo' else 'สร้างไฟล์ใหม่ด้วย scripts/inputs_p1/make.py')
@@ -165,8 +172,8 @@ check(sig in USR, 'ผู้มีอำนาจลงนามมีบัญ�
 RULES, rprob = {}, []
 # The DOA document types of src/core/doa (DOA_DOCUMENT_TYPES · P1-07): a type without an amount takes no band (BR-DOA-22)
 DOCS = {'PURCHASE_REQUEST','PURCHASE_ORDER','GR_VARIANCE','DOA_CHANGE','ORG_AUTHORITY_CHANGE',
-        'BUDGET_TRANSFER','OVER_BUDGET','INVOICE_EXCEPTION','PO_CHANGE','PAYMENT_RUN','BANK_ACCOUNT_CHANGE'}
-NO_AMOUNT_DOCS = {'BANK_ACCOUNT_CHANGE'}
+        'BUDGET_TRANSFER','OVER_BUDGET','INVOICE_EXCEPTION','PO_CHANGE','PAYMENT_RUN','BANK_ACCOUNT_CHANGE','SUPPLIER_APPROVAL'}
+NO_AMOUNT_DOCS = {'BANK_ACCOUNT_CHANGE', 'SUPPLIER_APPROVAL'}
 # The seed of the phase-1 file switches PAY on (ADR-070), so its DOA needs PAY's types (BR-DOA-23 BR-DOA-24)
 PAY_DOCS = ('INVOICE_EXCEPTION', 'PAYMENT_RUN', 'BANK_ACCOUNT_CHANGE')
 for r, d in table('DOA'):
@@ -186,6 +193,8 @@ if BASIS not in ('GROSS', 'NET'): rprob.append('DOA_Policy amountBasis ต้อ
 if SELF not in ('ESCALATE_NEXT_BAND', 'BLOCK'): rprob.append('DOA_Policy selfApprovalPolicy ต้องเป็น ESCALATE_NEXT_BAND หรือ BLOCK')
 if not RS: rprob.append(f'ไม่มีข้อ DOA ของฉบับ {VER}')
 if PROFILE == 'p1': rprob += [f'ฉบับ {VER} ไม่มีข้อของ {d} ที่โมดูล PAY ต้องมี' for d in PAY_DOCS if not any(r['doc'] == d for r in RS)]
+# S7-13: the seed of the phase-1 file switches SUPPLIER on too (BR-SUP-16), so its DOA needs the supplier's approval
+if PROFILE == 'p1' and not any(r['doc'] == 'SUPPLIER_APPROVAL' for r in RS): rprob.append(f'ฉบับ {VER} ไม่มีข้อของ SUPPLIER_APPROVAL ที่โมดูล SUPPLIER ต้องมี')
 check(not rprob, 'ข้อมูล DOA และนโยบาย', f'ฉบับ {VER}: {len(RS)} ข้อ · ฐาน {BASIS} · step-up {baht(STEPUP)}', '; '.join(rprob), 'engine คำนวณเส้นทางไม่ได้', 'แก้ช่องที่ระบุในชีต DOA หรือ DOA_Policy')
 def is_amt(r): return r['gt'] is not None or r['lte'] is not None
 def lower(r): return r['gt'] or 0
@@ -1404,6 +1413,175 @@ if PROFILE == 'p1':
     cert = any(d['_core'] and RUN.get(d['_n'], {}).get('certs') for d in SC)
     check(not lack and cert, 'สคริปต์ demo ระยะ 1: ครบทุกหัวข้อของ P1-08', f'{len(TOPICS)} หัวข้อมีฉาก core = Y · ฉากรอบจ่ายออก 50 ทวิ',
           (f'หัวข้อที่ยังไม่มีฉาก core: {lack}' if lack else '') + ('' if cert else ' · ไม่มีฉาก core ที่ออกหนังสือรับรอง 50 ทวิ'), 'demo ระยะ 1 ไม่ครบตาม P1-08 (spec §16.13)', 'เพิ่มแถว core = Y ใน scripts/inputs_p1/p1_demo.py')
+
+    # ---------- พอร์ทัลผู้ขาย (S7-13 · docs/sub-specs/S7.md "การอ่านชีตของไฟล์ระยะ 1") ----------
+    PAYEE = {s_(d['supplierCode']): s_(d['payeeType']) for r, d in table('SupplierPayment')}
+    PROC = {c for c, u in USR.items() if 'PROCUREMENT' in u['roles']}
+    # Supplier_Contacts: every supplier has a contact who may sign in, one primary each, e-mails unique and in lower case
+    cp, CEMAIL, prim, enabled = [], {}, {}, set()
+    for r, d in table('Supplier_Contacts'):
+        sc, em = s_(d['supplierCode']), s_(d['email'])
+        if sc not in SUP: cp.append(f'{at("Supplier_Contacts", "supplierCode", r)} ไม่มี {sc} ในชีต Suppliers')
+        if em != em.lower() or not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', em): cp.append(f'{at("Supplier_Contacts", "email", r)} ต้องเป็นอีเมลตัวพิมพ์เล็ก')
+        if em in CEMAIL or em in {u['email'] for u in USR.values()}: cp.append(f'{at("Supplier_Contacts", "email", r)} {em} ซ้ำ')
+        CEMAIL[em] = sc
+        if s_(d['isPrimary']) not in ('Y', 'N') or s_(d['portalEnabled']) not in ('Y', 'N'): cp.append(f'แถว {r} isPrimary และ portalEnabled ต้องเป็น Y หรือ N')
+        if s_(d['isPrimary']) == 'Y': prim[sc] = prim.get(sc, 0) + 1
+        if s_(d['portalEnabled']) == 'Y': enabled.add(sc)
+        if s_(d['locale']) not in ('th', 'en'): cp.append(f'{at("Supplier_Contacts", "locale", r)} ต้องเป็น th หรือ en')
+    cp += [f'{c} ไม่มีผู้ติดต่อที่เข้าพอร์ทัลได้' for c in sorted(set(SUP) - enabled)][:5]
+    cp += [f'{c} มีผู้ติดต่อหลัก {n} คน' for c, n in sorted(prim.items()) if n != 1][:5]
+    cp += [f'{c} ไม่มีผู้ติดต่อหลัก' for c in sorted(set(CEMAIL.values()) - set(prim))][:5]
+    check(not cp, 'พอร์ทัลผู้ขาย: ผู้ติดต่อ (Supplier_Contacts)', f'{len(CEMAIL)} คน · ผู้ขายทุกรายมีผู้ติดต่อหลัก 1 คน', '; '.join(cp[:8]),
+          'ผู้ขายเข้าพอร์ทัลไม่ได้ หรือ S10 S11 หาผู้ติดต่อของผู้ขายในฉากไม่เจอ', 'แก้ scripts/inputs_p1/p1_suppliers_portal.py แล้วสร้างไฟล์ใหม่')
+
+    # Supplier_Document_Types (BR-SDOC-01): codes unique, ages above zero, no AI on an ID card or a bank book (BR-AI-08)
+    PAYEES = {'JURISTIC', 'INDIVIDUAL', 'FOREIGN'}
+    DT, tp2 = {}, []
+    for r, d in table('Supplier_Document_Types'):
+        c = s_(d['code'])
+        if c in DT: tp2.append(f'{c} ซ้ำ')
+        applies = {x.strip() for x in s_(d['appliesTo']).split(',') if x.strip()}
+        if not applies or applies - PAYEES: tp2.append(f'{at("Supplier_Document_Types", "appliesTo", r)} ต้องเป็น {" ".join(sorted(PAYEES))}')
+        vd = d['validityDays']
+        if vd not in (None, '') and not whole_in(vd, 1, None): tp2.append(f'{at("Supplier_Document_Types", "validityDays", r)} ต้องว่างหรือมากกว่า 0')
+        if not whole_in(d['reminderDaysBefore'], 0, 3650): tp2.append(f'{at("Supplier_Document_Types", "reminderDaysBefore", r)} ต้องเป็น 0–3650')
+        flags = {k: s_(d[k]) for k in ('required', 'sensitive', 'aiReadable', 'singleInstance')}
+        if any(v not in ('Y', 'N') for v in flags.values()): tp2.append(f'แถว {r} required sensitive aiReadable singleInstance ต้องเป็น Y หรือ N')
+        if c in ('ID_CARD', 'BANK_BOOK') and flags['aiReadable'] == 'Y': tp2.append(f'{c} ต้องไม่ให้ AI อ่าน (BR-AI-08)')
+        ai_payees = {x.strip() for x in s_(d['aiReadablePayeeTypes']).split(',') if x.strip()}
+        if c == 'VAT_CERT' and ai_payees != {'JURISTIC'}: tp2.append('VAT_CERT aiReadablePayeeTypes ต้องเป็น JURISTIC (ภ.พ.20 ของบุคคลธรรมดามีเลขบัตรประชาชน)')
+        if c == 'ISO_CERT' and flags['singleInstance'] != 'N': tp2.append('ISO_CERT ต้องมีได้หลายฉบับ (singleInstance = N)')
+        codes = [x.strip() for x in s_(d['linkedRiskQuestionCodes']).split(',') if x.strip()]
+        if any(not re.fullmatch(r'RQ-[A-Z]+-\d{2}', x) for x in codes): tp2.append(f'{at("Supplier_Document_Types", "linkedRiskQuestionCodes", r)} ต้องเป็นรูปแบบ RQ-XX-nn')
+        DT[c] = {'applies': applies, 'validity': vd if vd not in (None, '') else None, 'remind': d['reminderDaysBefore'], 'single': flags['singleInstance'] == 'Y'}
+    if s_(next((d['linkedRiskQuestionCodes'] for r, d in table('Supplier_Document_Types') if s_(d['code']) == 'ISO_CERT'), '')) == '': tp2.append('ISO_CERT ต้องมี linkedRiskQuestionCodes ให้ S11')
+    check(not tp2, 'พอร์ทัลผู้ขาย: ประเภทเอกสาร (Supplier_Document_Types)', f'{len(DT)} ประเภท', '; '.join(tp2), 'ผู้ขายส่งเอกสารผิดประเภท หรือ AI อ่านเอกสารที่มีข้อมูลอ่อนไหว', 'แก้ DOC_TYPES ใน scripts/inputs_p1/p1_suppliers_portal.py')
+
+    # Supplier_Documents: dates relative to the day of the seed (or fixed), the expiry by BR-SDOC-02, one verified copy per scope
+    def _day(v):
+        if isinstance(v, datetime): return v.date()
+        if isinstance(v, date): return v
+        return date.fromisoformat(s_(v)) if s_(v) else None
+    dp2, live, expiring, expired, iso27001 = [], set(), set(), set(), False
+    for r, d in table('Supplier_Documents'):
+        sc, t, st = s_(d['supplierCode']), s_(d['docType']), s_(d['status'])
+        if sc not in SUP: dp2.append(f'{at("Supplier_Documents", "supplierCode", r)} ไม่มี {sc}'); continue
+        if t not in DT: dp2.append(f'{at("Supplier_Documents", "docType", r)} ไม่มี {t}'); continue
+        if PAYEE.get(sc) not in DT[t]['applies']: dp2.append(f'แถว {r} {t} ไม่ใช้กับผู้รับเงิน {PAYEE.get(sc)}')
+        if st not in ('PENDING', 'VERIFIED', 'EXPIRED', 'SUPERSEDED'): dp2.append(f'{at("Supplier_Documents", "status", r)} ไม่รู้จัก {st}')
+        if st in ('VERIFIED', 'EXPIRED', 'SUPERSEDED') and s_(d['verifiedBy']) not in PROC: dp2.append(f'{at("Supplier_Documents", "verifiedBy", r)} ต้องเป็นผู้ใช้ PROCUREMENT')
+        fixed = d['issuedOn'] not in (None, '')
+        rel = d['issuedDaysAgo'] not in (None, '')
+        if fixed == rel: dp2.append(f'แถว {r} ใส่ issuedDaysAgo หรือ issuedOn อย่างใดอย่างหนึ่ง'); continue
+        issued = _day(d['issuedOn']) if fixed else TODAY - timedelta(days=whole(d['issuedDaysAgo'], 0))
+        if DT[t]['validity']:
+            expires = issued + timedelta(days=int(DT[t]['validity']) - 1)
+        elif fixed and d['expiresOn'] not in (None, ''):
+            expires = _day(d['expiresOn'])
+        elif d['expiresDaysAhead'] not in (None, ''):
+            expires = TODAY + timedelta(days=whole(d['expiresDaysAhead'], 0))
+        else:
+            dp2.append(f'แถว {r} {t} ไม่มีอายุ ต้องใส่วันหมดอายุ (EXPIRY_REQUIRED)'); continue
+        if expires < issued: dp2.append(f'แถว {r} หมดอายุก่อนวันออก')
+        if issued > TODAY: dp2.append(f'แถว {r} วันออกอยู่ในอนาคต')
+        if st == 'VERIFIED':
+            k = (sc, t, '' if DT[t]['single'] else re.sub(r'\s+', ' ', s_(d['scope'])).strip().lower())
+            if k in live: dp2.append(f'แถว {r} {sc} {t} มีฉบับที่ยืนยันแล้วซ้ำในขอบเขตเดียวกัน')
+            live.add(k)
+        if st in ('VERIFIED', 'PENDING') and expires >= TODAY and (expires - TODAY).days <= 30: expiring.add(sc)
+        if st == 'EXPIRED' or (st == 'VERIFIED' and expires < TODAY): expired.add(sc)
+        if sc == 'SP0141' and t == 'ISO_CERT' and s_(d['scope']) == 'ISO 27001' and st == 'VERIFIED' and issued == date(2024, 4, 1) and expires == date(2027, 3, 31): iso27001 = True
+    if not iso27001: dp2.append('ไม่มีแถว SP0141 ISO_CERT ISO 27001 VERIFIED 2024-04-01 ถึง 2027-03-31 ที่ฉาก 12 ของ S11 อ้าง')
+    P2 = table('Demo_Script_P2')
+    def _ej(d):
+        try: return json.loads(s_(d['expectJson']) or '{}')
+        except ValueError: return None
+    want_expiring = next((_ej(d).get('expiringSuppliers') for r, d in P2 if s_(d['stage']) == 'S7' and d['scene'] == 4 and _ej(d)), None)
+    if want_expiring is not None and len(expiring) != want_expiring: dp2.append(f'ใกล้หมดอายุ {len(expiring)} ราย แต่ฉาก 4 อ้าง {want_expiring} ราย')
+    if 'SP0105' not in expiring: dp2.append('SP0105 (ฉาก 4) ต้องมีเอกสารใกล้หมดอายุ')
+    check(not dp2, 'พอร์ทัลผู้ขาย: เอกสาร (Supplier_Documents)', f'เอกสารใกล้หมดอายุภายใน 30 วัน: {len(expiring)} ราย · หมดอายุแล้ว {len(expired)} ราย ({TODAY})', '; '.join(dp2[:8]),
+          'สถานะเอกสารของผู้ขายในฉาก demo และของ S10 S11 ไม่ตรงที่ฉากพูด', 'แก้ _documents() ใน scripts/inputs_p1/p1_suppliers_portal.py')
+
+    # Supplier_Applications: G-7 of the approved ones fixed in business days (BR-SUP-13), the people of the route apart (BR-SOD-11)
+    CAL_START, CAL_END = 8 * 60 + 30, 17 * 60 + 30
+    m_ = re.search(r'^businessCalendar:\s*\{[^}]*\bstart:\s*"(\d\d):(\d\d)"[^}]*\bend:\s*"(\d\d):(\d\d)"', YML, re.M)
+    if m_: CAL_START, CAL_END = int(m_.group(1)) * 60 + int(m_.group(2)), int(m_.group(3)) * 60 + int(m_.group(4))
+    def _biz(day): return day.weekday() in WORKDAYS and day not in HOLI
+    def add_bmin(at, minutes):  # addBusinessMinutes of src/core/sla in Asia/Bangkok wall time (no daylight saving)
+        day, cur = at.date(), at.hour * 60 + at.minute
+        while True:
+            if _biz(day) and cur < CAL_END:
+                begin = max(cur, CAL_START)
+                if minutes <= CAL_END - begin: return datetime.combine(day, datetime.min.time()) + timedelta(minutes=begin + minutes)
+                minutes -= CAL_END - begin
+            day, cur = day + timedelta(days=1), 0
+    def bmin_between(a, b):
+        total, day = 0, a.date()
+        while datetime.combine(day, datetime.min.time()) < b:
+            if _biz(day):
+                lo = max(datetime.combine(day, datetime.min.time()) + timedelta(minutes=CAL_START), a)
+                hi = min(datetime.combine(day, datetime.min.time()) + timedelta(minutes=CAL_END), b)
+                total += max(0, int((hi - lo).total_seconds() // 60))
+            day += timedelta(days=1)
+        return total
+    DAY_MIN = CAL_END - CAL_START
+    ap_, APP, g7 = [], {}, []
+    APP_STATUS = {'INVITED', 'DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'RETURNED', 'APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED'}
+    for r, d in table('Supplier_Applications'):
+        ref, st = s_(d['ref']), s_(d['status'])
+        tax = re.sub(r'[\s-]', '', s_(d['taxId']))
+        if not taxid_ok(tax): ap_.append(f'{at("Supplier_Applications", "taxId", r)} ไม่ผ่าน mod-11')
+        if s_(d['kind']) == 'NEW' and (tax, s_(d['branchCode'])) in set(SUP.values()): ap_.append(f'{ref} เลขผู้เสียภาษีและสาขาชนผู้ขายในชีต Suppliers')
+        if s_(d['payeeType']) not in ('JURISTIC', 'INDIVIDUAL'): ap_.append(f'{ref} payeeType ต้องเป็น JURISTIC หรือ INDIVIDUAL (ใบ FOREIGN เป็นของ S10)')
+        if st not in APP_STATUS: ap_.append(f'{ref} status ไม่รู้จัก {st}')
+        if s_(d['invitedBy']) not in PROC: ap_.append(f'{ref} invitedBy ต้องเป็นผู้ใช้ PROCUREMENT')
+        approver = s_(d['expectedApprover'])
+        for col in ('invitedBy', 'routedBy', 'verifiedBy', 'filledOnBehalf'):
+            v = s_(d[col])
+            if v and v not in USR: ap_.append(f'{ref} {col} ไม่มีผู้ใช้ {v}')
+            if v and approver and v == approver: ap_.append(f'{ref} {col} เป็นผู้อนุมัติ {approver} เองไม่ได้ (BR-SOD-11)')
+        em = s_(d['contactEmail'])
+        if em in CEMAIL or em in APP.values(): ap_.append(f'{ref} อีเมลผู้ติดต่อ {em} ซ้ำ')
+        APP[ref] = em
+        if st == 'APPROVED':
+            if approver != 'dm_proc': ap_.append(f'{ref} ผู้อนุมัติที่คาดต้องเป็นผู้ดำรง PROC_MGR (dm_proc · ข้อ SA-01)')
+            want = d['expectedG7Days']
+            if not isinstance(want, (int, float)): ap_.append(f'{ref} ต้องมี expectedG7Days'); continue
+            day = TODAY - timedelta(days=whole(d['invitedDaysAgo'], 0))
+            invited = add_bmin(datetime.combine(day, datetime.min.time()) + timedelta(minutes=CAL_START), 90)
+            decided = add_bmin(invited, int(Decimal(str(want)) * DAY_MIN))
+            got = Decimal(bmin_between(invited, decided)) / DAY_MIN
+            got = got.quantize(Decimal('0.1'), ROUND_HALF_UP)
+            if got != Decimal(str(want)): ap_.append(f'{ref} G-7 คำนวณได้ {got} ไม่ตรง {want}')
+            if decided.date() >= TODAY: ap_.append(f'{ref} อนุมัติวันที่ {decided.date()} ไม่อยู่ในอดีต · เพิ่ม invitedDaysAgo')
+            g7.append(got)
+    g7.sort()
+    median = g7[(len(g7) - 1) // 2] if g7 else None
+    want_g7 = next((_ej(d).get('g7Median') for r, d in P2 if s_(d['stage']) == 'S7' and d['scene'] == 7 and _ej(d)), None)
+    if want_g7 is not None and str(median) != str(want_g7): ap_.append(f'มัธยฐาน G-7 {median} แต่ฉาก 7 อ้าง {want_g7}')
+    check(not ap_, 'พอร์ทัลผู้ขาย: ใบสมัคร (Supplier_Applications)', f'{len(APP)} ใบ · G-7 มัธยฐาน {median} วันทำการ ({", ".join(str(x) for x in g7)})', '; '.join(ap_[:8]),
+          'seed เล่นใบสมัครไม่ได้ หรือ KPI G-7 ของ demo ไม่ตรงที่ฉาก 7 พูด', 'แก้ SUPPLIER_APPLICATIONS ใน scripts/inputs_p1/p1_suppliers_portal.py')
+
+    # Demo_Script_P2 (the shared sheet of phase 2): scenes 1–8 of S7 there, numbers in order without gaps, every name known
+    pp, nums = [], []
+    for r, d in P2:
+        n = d['scene']
+        if not whole_in(n, 1, 999): pp.append(f'{at("Demo_Script_P2", "scene", r)} ต้องเป็นเลขฉาก'); continue
+        nums.append(n)
+        if s_(d['core']) not in ('Y', 'N'): pp.append(f'ฉาก {n} core ต้องเป็น Y หรือ N')
+        if s_(d['actor']) not in USR: pp.append(f'ฉาก {n} actor {s_(d["actor"])} ไม่มีในชีต Users')
+        for o in [x.strip() for x in s_(d['others']).split('·') if x.strip()]:
+            if o not in USR: pp.append(f'ฉาก {n} others {o} ไม่มีในชีต Users')
+        pa = s_(d['portalActor'])
+        if pa and pa not in CEMAIL and pa not in APP.values(): pp.append(f'ฉาก {n} portalActor {pa} ไม่มีในชีต Supplier_Contacts หรือ Supplier_Applications')
+        sp_ = s_(d['supplier'])
+        if sp_ and sp_ not in SUP and sp_ not in APP: pp.append(f'ฉาก {n} supplier {sp_} ไม่มีในชีต Suppliers หรือ Supplier_Applications')
+        if _ej(d) is None: pp.append(f'ฉาก {n} expectJson ไม่ใช่ JSON')
+    s7 = sorted(d['scene'] for r, d in P2 if s_(d['stage']) == 'S7')
+    if s7 != list(range(1, 9)): pp.append(f'ฉากของ S7 ต้องเป็น 1–8 (ได้ {s7})')
+    if sorted(nums) != list(range(1, len(nums) + 1)): pp.append('เลขฉากซ้ำหรือไม่ต่อเนื่อง')
+    check(not pp, 'สคริปต์ demo ระยะ 2 (Demo_Script_P2)', f'{len(nums)} ฉาก · S7 ฉาก 1–8', '; '.join(pp[:8]), 'ฉาก e2e @p2demo อ่านแถวของตนไม่ได้', 'แก้ demo_p2_rows() ของขั้นนั้นแล้วสร้างไฟล์ใหม่')
 
 # ---------- รายการข้อมูลและคำถาม ----------
 def contiguous(ids, prefix):

@@ -1,0 +1,9 @@
+{
+  "notYet": "The supplier has not acknowledged this PO on the portal yet",
+  "strip": "The supplier acknowledged on {at} · delivering on {date}",
+  "noDate": "not given",
+  "movedFrom": "(moved from {date})",
+  "boardTitle": "POs the supplier has not acknowledged",
+  "boardRow": "{number} · {supplier} · sent on {date}",
+  "boardEmpty": "Every PO sent was acknowledged by its supplier"
+}

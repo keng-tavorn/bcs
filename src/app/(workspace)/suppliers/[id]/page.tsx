@@ -5,20 +5,28 @@ import { BYTES_PER_KIB } from '@/lib/constants'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { getSupplierBankCard } from '@/server/services/bank-accounts/view'
+import { getSupplierDocumentSummaryForScreen, getSupplierPortalForScreen, listSupplierContactsForScreen, listSupplierPoAcknowledgementsForScreen } from '@/server/services/suppliers/contacts-view'
 import { listSupplierDocuments } from '@/server/services/suppliers/documents'
 import { getSupplierForScreen, type SupplierDetailDto } from '@/server/services/suppliers/view'
 import { SupplierBankCard } from '@/ui/bank-accounts/supplier-bank-card'
+import { DocTabs, type DocTab } from '@/ui/document/doc-tabs'
+import { tabFrom } from '@/ui/document/tab-param'
 import { DocumentsPanel } from '@/ui/supplier-docs/documents-panel'
 import { formatDateTime } from '@/ui/format'
 import { Notice } from '@/ui/form/notice'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { Facts, type Fact } from '@/ui/request-view/facts'
 import { formatTaxId, HEAD_OFFICE } from '@/ui/suppliers/model'
+import { ContactsPanel } from '@/ui/suppliers/contacts-panel'
+import { DocSummary } from '@/ui/suppliers/doc-summary'
 import { SupplierManage } from '@/ui/suppliers/manage'
+import { PoAcksPanel } from '@/ui/suppliers/po-acks-panel'
+import { PortalPanel } from '@/ui/suppliers/portal-panel'
 import { ProofList } from '@/ui/suppliers/proof-list'
 import { Flag, SupplierStatusLabel } from '@/ui/suppliers/status'
 import { getSession } from '../../../_lib/session'
 import { revealAccountAction } from '../../finance/bank-accounts/actions'
+import { addContactAction, deactivateContactAction, makePrimaryContactAction, revokeContactSessionsAction, setContactPortalAction } from './contact-actions'
 import { openDocumentAction, rejectDocumentAction, verifyDocumentAction } from './document-actions'
 import { supplierProofUrlAction, updateSupplierAction } from '../actions'
 
@@ -29,6 +37,8 @@ export async function generateMetadata() {
 
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
+const UUID = /^[0-9a-f-]{36}$/i
+const CONTACT_ACTIONS = { add: addContactAction, deactivate: deactivateContactAction, revoke: revokeContactSessionsAction, makePrimary: makePrimaryContactAction }
 
 type T = Awaited<ReturnType<typeof getTranslations<'suppliers'>>>
 type Full = NonNullable<SupplierDetailDto['full']>
@@ -95,18 +105,30 @@ function registryFacts(t: T, f: Full, s: SupplierDetailDto['supplier'], locale: 
 // Express vendor code and how its identity was checked, with the proof when a person confirmed it. PROCUREMENT edits it
 // and deactivates it here (supplier.manage, checked again by the service). The page's frame (S16-10): the name, code and
 // status on the page's white, then one white card per part — the details, the identity check, and each of the editing forms.
+// S7-09 (docs/sub-specs/S7.md "หน้าจอ" · FR-SUP-101 AC6): the parts stand in tabs, the one chosen in the address (?tab=…,
+// so a link — the notices' ?tab=documents — opens on it and the server draws it without script): ข้อมูล · เอกสาร (the
+// overall state BR-SDOC ข้อ 06 and the list) · ผู้ติดต่อ · การรับทราบ PO · พอร์ทัล. A tab the reader may not see, or one of
+// module SUPPLIER while it is off, is not there at all (§9.9): each read is refused by its service and its tab left out.
 export default async function SupplierPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params
-  const created = one((await searchParams).created) === '1'
+  const query = await searchParams
+  const created = one(query.created) === '1'
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null
-  const [t, locale] = await Promise.all([getTranslations('suppliers'), getLocale().then((l) => (l === 'en' ? 'en' : 'th') as 'th' | 'en')])
+  const [t, tTabs, locale] = await Promise.all([getTranslations('suppliers'), getTranslations('supplierContacts.tabs'), getLocale().then((l) => (l === 'en' ? 'en' : 'th') as 'th' | 'en')])
+  const isId = UUID.test(id)
+  const refusedRead = Promise.resolve({ ok: false as const })
   // S9-09: the card of the account the supplier is paid into (null without module PAY or bankAccount.view)
-  // S7-06: the supplier's documents (refused without supplier.document.view or module SUPPLIER: the panel is not shown)
-  const [result, bankCard, documents, tDocs] = await Promise.all([
+  // S7-06: the supplier's documents (refused without supplier.document.view or module SUPPLIER: the tab is not shown)
+  // S7-09: contacts, POs acknowledged and the portal (refused without supplier.view in full, po.view ORG or module SUPPLIER)
+  const [result, bankCard, documents, docSummary, contacts, acks, portal, tDocs] = await Promise.all([
     getSupplierForScreen(ctx, id),
     getSupplierBankCard(ctx, { supplierId: id }),
-    /^[0-9a-f-]{36}$/i.test(id) ? listSupplierDocuments(ctx, { supplierId: id }) : Promise.resolve({ ok: false as const }),
+    isId ? listSupplierDocuments(ctx, { supplierId: id }) : refusedRead,
+    isId ? getSupplierDocumentSummaryForScreen(ctx, id) : refusedRead,
+    isId ? listSupplierContactsForScreen(ctx, id) : refusedRead,
+    isId ? listSupplierPoAcknowledgementsForScreen(ctx, id) : refusedRead,
+    isId ? getSupplierPortalForScreen(ctx, id) : refusedRead,
     getTranslations('supplierDocs'),
   ])
   if (!result.ok && result.error.code === 'NOT_FOUND') notFound()
@@ -128,6 +150,112 @@ export default async function SupplierPage({ params, searchParams }: { params: P
   const kb = (bytes: number) => new Intl.NumberFormat(locale).format(Math.max(1, Math.ceil(bytes / BYTES_PER_KIB)))
   const stub = f?.registry.source === 'STUB' || f?.registry.recorded?.mode === 'stub'
 
+  const info = (
+    <div className="flex flex-col gap-4 lg:gap-6">
+      <Panel id="supplier-info" title={t('detail.infoTitle')}>
+        <Facts items={factsOf(t, v, locale)} />
+        {!f ? <p className="text-base text-ink-muted md:text-sm">{t('detail.basicNote')}</p> : null}
+      </Panel>
+
+      {f ? (
+        <Panel id="supplier-registry" title={t('detail.registryTitle')}>
+          <Facts items={registryFacts(t, f, s, locale)} />
+          {stub ? <p className="text-base text-ink-muted md:text-sm">{t('detail.stubNote')}</p> : null}
+          {f.proofs.length ? (
+            <div className="flex flex-col gap-2">
+              <h3 className="font-medium text-ink">{t('detail.proofs')}</h3>
+              <ProofList proofs={f.proofs.map((p) => ({ fileId: p.fileId, fileName: p.fileName, detail: t('detail.size', { size: kb(p.sizeBytes) }) }))} open={supplierProofUrlAction} />
+            </div>
+          ) : f.taxIdMasked && f.registry.source === 'MANUAL' ? (
+            <p className="text-ink-muted">{t('detail.proofHidden')}</p>
+          ) : null}
+        </Panel>
+      ) : null}
+
+      {bankCard.ok && bankCard.data ? <SupplierBankCard supplierId={s.id} card={bankCard.data} reveal={revealAccountAction} /> : null}
+
+      {v.canManage && f ? (
+        <>
+          {!f.expressVendorCode ? (
+            <Notice tone="warning">
+              <p>{t('detail.expressMissingManage')}</p>
+            </Notice>
+          ) : null}
+          <SupplierManage
+            supplier={{
+              id: s.id,
+              nameTh: s.nameTh,
+              nameEn: s.nameEn,
+              address: f.address,
+              isVatRegistered: s.isVatRegistered,
+              category: s.category,
+              expressVendorCode: f.expressVendorCode,
+              email: f.email,
+              phone: f.phone,
+              status: s.status,
+              version: s.version,
+            }}
+            actions={{ update: updateSupplierAction }}
+          />
+        </>
+      ) : null}
+    </div>
+  )
+
+  const tabs: DocTab[] = [{ value: 'info', label: tTabs('info'), content: info }]
+  // S7-06 (BR-SDOC ข้อ 03 ข้อ 05 ข้อ 06): the supplier's documents, for whoever may see them (supplier.document.view)
+  if (documents.ok) {
+    tabs.push({
+      value: 'documents',
+      label: tTabs('documents'),
+      content: (
+        <div className="flex flex-col gap-4 lg:gap-6">
+          {docSummary.ok ? (
+            <Panel id="supplier-documents-state" title={tTabs('documentsState')}>
+              <DocSummary rows={docSummary.data.rows} requiredDocumentsOk={docSummary.data.requiredDocumentsOk} />
+            </Panel>
+          ) : null}
+          <Panel id="supplier-documents" title={tDocs('documents.title')}>
+            <DocumentsPanel rows={documents.data.rows} canVerify={documents.data.canVerify} actions={{ verify: verifyDocumentAction, reject: rejectDocumentAction, open: openDocumentAction }} />
+          </Panel>
+        </div>
+      ),
+    })
+  }
+  if (contacts.ok) {
+    tabs.push({
+      value: 'contacts',
+      label: tTabs('contacts'),
+      content: (
+        <Panel id="supplier-contacts" title={tTabs('contactsTitle')}>
+          <ContactsPanel supplierId={s.id} rows={contacts.data.rows} canManage={contacts.data.canManage} seesAddresses={contacts.data.seesAddresses} actions={CONTACT_ACTIONS} />
+        </Panel>
+      ),
+    })
+  }
+  if (acks.ok) {
+    tabs.push({
+      value: 'acknowledgements',
+      label: tTabs('acknowledgements'),
+      content: (
+        <Panel id="supplier-po-acks" title={tTabs('acknowledgementsTitle')}>
+          <PoAcksPanel rows={acks.data.rows} total={acks.data.total} limit={acks.data.limit} />
+        </Panel>
+      ),
+    })
+  }
+  if (portal.ok) {
+    tabs.push({
+      value: 'portal',
+      label: tTabs('portal'),
+      content: (
+        <Panel id="supplier-portal" title={tTabs('portalTitle')}>
+          <PortalPanel view={portal.data} setAccess={setContactPortalAction} />
+        </Panel>
+      ),
+    })
+  }
+
   return (
     <Page>
       <div className="flex flex-col gap-3">
@@ -140,62 +268,7 @@ export default async function SupplierPage({ params, searchParams }: { params: P
       </div>
       {created ? <Notice tone="success">{t('detail.created')}</Notice> : null}
 
-      <PageBody>
-        <Panel id="supplier-info" title={t('detail.infoTitle')}>
-          <Facts items={factsOf(t, v, locale)} />
-          {!f ? <p className="text-base text-ink-muted md:text-sm">{t('detail.basicNote')}</p> : null}
-        </Panel>
-
-        {f ? (
-          <Panel id="supplier-registry" title={t('detail.registryTitle')}>
-            <Facts items={registryFacts(t, f, s, locale)} />
-            {stub ? <p className="text-base text-ink-muted md:text-sm">{t('detail.stubNote')}</p> : null}
-            {f.proofs.length ? (
-              <div className="flex flex-col gap-2">
-                <h3 className="font-medium text-ink">{t('detail.proofs')}</h3>
-                <ProofList proofs={f.proofs.map((p) => ({ fileId: p.fileId, fileName: p.fileName, detail: t('detail.size', { size: kb(p.sizeBytes) }) }))} open={supplierProofUrlAction} />
-              </div>
-            ) : f.taxIdMasked && f.registry.source === 'MANUAL' ? (
-              <p className="text-ink-muted">{t('detail.proofHidden')}</p>
-            ) : null}
-          </Panel>
-        ) : null}
-
-        {bankCard.ok && bankCard.data ? <SupplierBankCard supplierId={s.id} card={bankCard.data} reveal={revealAccountAction} /> : null}
-
-        {/* S7-06 (BR-SDOC ข้อ 03 ข้อ 05): the supplier's documents, for whoever may see them (supplier.document.view) */}
-        {documents.ok ? (
-          <Panel id="supplier-documents" title={tDocs('documents.title')}>
-            <DocumentsPanel rows={documents.data.rows} canVerify={documents.data.canVerify} actions={{ verify: verifyDocumentAction, reject: rejectDocumentAction, open: openDocumentAction }} />
-          </Panel>
-        ) : null}
-
-        {v.canManage && f ? (
-          <>
-            {!f.expressVendorCode ? (
-              <Notice tone="warning">
-                <p>{t('detail.expressMissingManage')}</p>
-              </Notice>
-            ) : null}
-            <SupplierManage
-              supplier={{
-                id: s.id,
-                nameTh: s.nameTh,
-                nameEn: s.nameEn,
-                address: f.address,
-                isVatRegistered: s.isVatRegistered,
-                category: s.category,
-                expressVendorCode: f.expressVendorCode,
-                email: f.email,
-                phone: f.phone,
-                status: s.status,
-                version: s.version,
-              }}
-              actions={{ update: updateSupplierAction }}
-            />
-          </>
-        ) : null}
-      </PageBody>
+      <PageBody>{tabs.length > 1 ? <DocTabs tabs={tabs} initial={tabFrom(query.tab, tabs.map((tab) => tab.value))} label={tTabs('label')} param="tab" /> : info}</PageBody>
     </Page>
   )
 }

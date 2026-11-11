@@ -119,16 +119,21 @@ export interface RfxDraftAiDto {
   readonly available: boolean
   /** The latest draft still open on the RFx: proposed, waiting, confirmed */
   readonly open: OpenAssist | null
+  /** Taken into the RFx already (its values are the RFx's now); not yet, the form starts from what the AI proposed */
+  readonly applied: boolean
 }
 
 /** The draft step of an RFx (/sourcing/[id]/edit): the button, and the AI's draft still open (shown only while AI is on) */
 export async function rfxDraftAiOf(ctx: Ctx, rfxEventId: string): Promise<RfxDraftAiDto> {
-  if (ctx.actor.type !== 'USER') return { available: false, open: null }
+  if (ctx.actor.type !== 'USER') return { available: false, open: null, applied: false }
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
     const available = await mayCall(tx, ctx, 'RFX_DRAFT')
     const open = (await openAssists(tx, { type: RFX_ASSIST_TYPE, id: rfxEventId })).filter((a) => a.purpose === 'RFX_DRAFT')
     // what the AI filled in still holds the RFx back while AI is off (rfx.open counts it), so it stays on the form
-    return { available, open: open[open.length - 1] ?? null }
+    // a draft taken in with fields still waiting holds the RFx back first; else the latest one
+    const last = open.find((a) => a.pendingPaths.length > 0) ?? open[open.length - 1] ?? null
+    const applied = last ? (await tx.agentAction.findFirst({ where: { id: last.agentActionId }, select: { appliedAt: true } }))?.appliedAt != null : false
+    return { available, open: last, applied }
   })
 }
 

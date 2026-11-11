@@ -277,7 +277,14 @@
       "PAST_CLOSE": "The RFx has closed; suppliers can no longer be invited or withdrawn",
       "LAST_LINE": "An RFx keeps one line at least",
       "OTHER": "That did not work. Try again; if it still fails, tell your administrator.",
-      "CONFLICT_VERSION": "Someone changed this RFx first. Reload the page to see it now and try again."
+      "CONFLICT_VERSION": "Someone changed this RFx first. Reload the page to see it now and try again.",
+      "AI_REVIEW_PENDING": "Values the AI filled in still wait for you. Go to the step \"General\" and confirm the kind and the lines' English before opening the RFx",
+      "RFI_KIND_FIXED": "An RFI cannot become another kind",
+      "AI_FAILED": "The assistant could not draft it. Fill it in yourself as usual",
+      "AI_AGENT_DISABLED": "The Sourcing assistant is off. Fill it in yourself as usual",
+      "AI_CREDITS_EXHAUSTED": "This month's AI credits are used up. Fill it in yourself as usual",
+      "AI_NOT_EVALUATED": "The Sourcing assistant has not passed its evaluation yet",
+      "RATE_LIMITED": "Too many assistant calls. Wait a moment and try again"
     },
     "stepsLabel": "Steps of setting up the RFx",
     "stepDone": "done",
@@ -483,6 +490,16 @@
       "openTitle": "Open the RFx and send the invitations",
       "openBody": "The RFx gets its number, the scorecard is locked and every supplier gets an invitation e-mail with a portal link. It closes {closes}. Once open it cannot go back to draft.",
       "openConfirm": "Open the RFx"
+    },
+    "ai": {
+      "draft": "Draft the RFx with AI",
+      "hint": "The assistant drafts the title, description and the lines' English for you to check; never a price, quantity or supplier · uses the organization's AI credits",
+      "drafted": "The assistant drafted it. Check the values marked \"Filled by AI, please check\" and save",
+      "boxTitle": "What the Sourcing assistant drafted",
+      "linesTitle": "The lines in English",
+      "lineDescriptionEn": "English description, line {no}",
+      "lineUomEn": "English unit, line {no}",
+      "savedWaiting": "Saved. {count} fields still need confirming one by one before the RFx opens"
     }
   },
   "detail": {
@@ -905,6 +922,24 @@
       },
       "agreements": "{count} agreed prices made",
       "nothingMade": "No purchase order or agreed price made from this award yet"
+    },
+    "ai": {
+      "title": "Summary by AI",
+      "heading": {
+        "BID_SUMMARY": "Bid summary",
+        "NEGOTIATION_POINTS": "Points to negotiate"
+      },
+      "ask": {
+        "BID_SUMMARY": "Summarize the bids",
+        "NEGOTIATION_POINTS": "Suggest points to negotiate"
+      },
+      "again": {
+        "BID_SUMMARY": "Summarize again",
+        "NEGOTIATION_POINTS": "Suggest points again"
+      },
+      "failed": "The assistant could not write it. The comparison, flags and scores below work as usual",
+      "writing": "The assistant is writing…",
+      "note": "The Sourcing assistant writes only from figures the system calculated; it never scores, awards or messages a supplier. Points to negotiate are for you to raise yourself · each press may use AI credits"
     }
   }
 }

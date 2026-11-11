@@ -6,6 +6,7 @@ import { formatSatang } from '@/core/money/format'
 import { BASIS_POINTS_WHOLE, MS_PER_HOUR } from '@/lib/constants'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
+import { rfxDraftAiOf } from '@/server/services/ai'
 import { rfxSetup, type RfxSetupDto } from '@/server/services/sourcing/rfx-setup'
 import { NoAccess } from '@/ui/admin-settings/no-access'
 import { StatusBadge } from '@/ui/document/badges'
@@ -24,7 +25,7 @@ import { SetupStepNav } from '@/ui/sourcing/setup-steps'
 import { SetupSuppliers } from '@/ui/sourcing/setup-suppliers'
 import { getSession } from '../../../../_lib/session'
 import { localeOf, when } from '../../../_tracking/present'
-import { addNeedLineAction, inviteAction, openRfxAction, removeRfxLineAction, setScorecardAction, uninviteAction, updateRfxAction } from '../../actions'
+import { addNeedLineAction, draftRfxAction, inviteAction, openRfxAction, removeRfxLineAction, setScorecardAction, uninviteAction, updateRfxAction } from '../../actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('sourcing.setup')
@@ -112,7 +113,7 @@ export default async function EditRfxPage({ params, searchParams }: { params: Pr
               </Link>
             </div>
             <Panel title={t(`step.${step}`)} id={`rfx-step-${step}`}>
-              <StepBody t={t} s={s} step={step} locale={locale} id={id} closesAt={closesAt} detailHref={detailHref} hrefOf={hrefOf} />
+              <StepBody t={t} s={s} step={step} locale={locale} id={id} closesAt={closesAt} detailHref={detailHref} hrefOf={hrefOf} ctx={ctx} />
             </Panel>
           </div>
         )}
@@ -121,28 +122,46 @@ export default async function EditRfxPage({ params, searchParams }: { params: Pr
   )
 }
 
-async function StepBody({ t, s, step, locale, id, closesAt, detailHref, hrefOf }: { t: T; s: RfxSetupDto; step: SetupStep; locale: 'th' | 'en'; id: string; closesAt: string | null; detailHref: string; hrefOf: (k: SetupStep) => string }) {
+async function StepBody({ t, s, step, locale, id, closesAt, detailHref, hrefOf, ctx }: { t: T; s: RfxSetupDto; step: SetupStep; locale: 'th' | 'en'; id: string; closesAt: string | null; detailHref: string; hrefOf: (k: SetupStep) => string; ctx: NonNullable<ReturnType<typeof ctxFromSession>> }) {
   const r = s.rfx
   const v = r.version
   const baht = (amount: string) => formatSatang(amountToSatang(amount))
 
   if (step === 'general') {
+    // S10-16: the Sourcing Agent's button and its draft still open (nothing while the AI is off · EG-1)
+    const ai = await rfxDraftAiOf(ctx, id)
+    const draft = ai.open ? { agentActionId: ai.open.agentActionId, proposed: ai.open.proposed, requiredPaths: ai.open.requiredPaths, confirmedPaths: ai.open.confirmedPaths, applied: ai.applied } : null
     return (
       <div className="flex flex-col gap-4">
         <dl className="flex flex-wrap gap-x-8 gap-y-2">
-          <div className="flex flex-col">
-            <dt className="text-base text-ink-muted md:text-sm">{t('field.kind')}</dt>
-            <dd className="text-ink">{t(`kindLong.${r.kind}`)}</dd>
-          </div>
+          {r.kind === 'RFI' ? (
+            <div className="flex flex-col">
+              <dt className="text-base text-ink-muted md:text-sm">{t('field.kind')}</dt>
+              <dd className="text-ink">{t(`kindLong.${r.kind}`)}</dd>
+            </div>
+          ) : null}
           <div className="flex flex-col">
             <dt className="text-base text-ink-muted md:text-sm">{t('field.category')}</dt>
             <dd className="text-ink">{r.categoryCode}</dd>
           </div>
         </dl>
         <SetupGeneral
-          initial={{ title: r.title, titleEn: r.titleEn ?? '', description: r.description, descriptionEn: r.descriptionEn ?? '', allowPartialBids: r.allowPartialBids, allowVatInclusiveBids: r.allowVatInclusiveBids, sealed: r.sealed, unsealReason: '' }}
+          key={`${v}:${draft?.agentActionId ?? 'none'}`}
+          initial={{
+            kind: r.kind as 'RFQ' | 'RFP' | 'RFI',
+            title: r.title,
+            titleEn: r.titleEn ?? '',
+            description: r.description,
+            descriptionEn: r.descriptionEn ?? '',
+            allowPartialBids: r.allowPartialBids,
+            allowVatInclusiveBids: r.allowVatInclusiveBids,
+            sealed: r.sealed,
+            unsealReason: '',
+            lines: s.lines.map((l) => ({ id: l.id, lineNo: l.lineNo, description: l.description, uom: l.uom, descriptionEn: l.descriptionEn ?? '', uomEn: l.uomEn ?? '' })),
+          }}
           vatInclusiveAllowed={s.vatInclusiveAllowed}
           save={updateRfxAction.bind(null, id, v)}
+          ai={ai.available || draft ? { available: ai.available, draft, ask: draftRfxAction.bind(null, id) } : null}
         />
       </div>
     )

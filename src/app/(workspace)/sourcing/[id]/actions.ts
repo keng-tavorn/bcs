@@ -5,6 +5,7 @@ import { z } from 'zod'
 import type { AppError } from '@/core/result'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
+import { summarizeRfx, type SummaryPurpose } from '@/server/services/ai'
 import { amendRfx, answerQuestion, cancelRfx, closeRfxEarly, concludeRfx, exportComparison, extendRfx } from '@/server/services/sourcing'
 import { bidFileUrl } from '@/server/services/sourcing/rfx-view'
 import type { AnswerInput } from '@/ui/sourcing/rfx-detail/answer-form'
@@ -116,4 +117,14 @@ export async function openBidFileAction(rfxEventId: string, fileId: string): Pro
   if (!ctx) return null
   const r = await bidFileUrl(ctx, rfxEventId, fileId)
   return r.ok ? r.data.url : null
+}
+
+export type SummarizeOutcome = { readonly kind: 'READY'; readonly agentActionId: string; readonly sentences: readonly string[] } | { readonly kind: 'FAILED' }
+
+/** "สรุปข้อเสนอ" or "ประเด็นเจรจา" after the close (S10-16 · BR-AI-32): the service checks the reader and the AI's words */
+export async function summarizeRfxAction(rfxEventId: string, purpose: SummaryPurpose, key: string): Promise<SummarizeOutcome> {
+  const ctx = await session()
+  if (!ctx || !uuid.safeParse(rfxEventId).success || !uuid.safeParse(key).success) return { kind: 'FAILED' }
+  const r = await summarizeRfx(ctx, { rfxEventId, purpose }, { idempotencyKey: key })
+  return r.ok && r.data.status === 'READY' ? { kind: 'READY', agentActionId: r.data.agentActionId, sentences: r.data.sentences } : { kind: 'FAILED' }
 }

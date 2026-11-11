@@ -238,7 +238,7 @@ export interface RfxSetupDto {
     readonly estimatedNet: string | null
     readonly closesAt: string | null
   }
-  readonly lines: ReadonlyArray<{ readonly id: string; readonly lineNo: number; readonly description: string; readonly descriptionEn: string | null; readonly quantity: string; readonly uom: string; readonly site: string | null; readonly refUnitPrice: string | null; readonly refSource: string | null; readonly fromRequests: readonly string[] }>
+  readonly lines: ReadonlyArray<{ readonly id: string; readonly lineNo: number; readonly description: string; readonly descriptionEn: string | null; readonly quantity: string; readonly uom: string; readonly uomEn: string | null; readonly site: string | null; readonly refUnitPrice: string | null; readonly refSource: string | null; readonly fromRequests: readonly string[] }>
   readonly invites: readonly SetupInvite[]
   readonly supplierChoices: readonly SetupSupplierChoice[]
   readonly applicationChoices: ReadonlyArray<{ readonly id: string; readonly name: string; readonly status: string }>
@@ -283,7 +283,7 @@ export async function rfxSetup(ctx: Ctx, rfxEventId: string, options: { readonly
       tx.rfxLine.findMany({
         where: { rfxEventId },
         orderBy: { lineNo: 'asc' },
-        select: { id: true, lineNo: true, description: true, descriptionEn: true, quantity: true, uom: true, refUnitPriceSatang: true, refSource: true, deliverySiteId: true, sources: { where: { active: true }, select: { requestLine: { select: { request: { select: { number: true } } } } } } },
+        select: { id: true, lineNo: true, description: true, descriptionEn: true, quantity: true, uom: true, uomEn: true, refUnitPriceSatang: true, refSource: true, deliverySiteId: true, sources: { where: { active: true }, select: { requestLine: { select: { request: { select: { number: true } } } } } } },
       }),
       tx.rfxInvite.findMany({ where: { rfxEventId, status: { not: 'REMOVED' } }, orderBy: [{ invitedAt: 'asc' }, { id: 'asc' }], select: { id: true, supplierId: true, applicationId: true, status: true, supplierSnapshot: true } }),
       tx.scorecard.findFirst({ where: { rfxEventId }, select: { status: true, minEvaluators: true, criteria: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }], select: { code: true, nameTh: true, nameEn: true, weightBp: true, kind: true } }, evaluators: { where: { status: { not: 'RECUSED' } }, select: { memberId: true } } } }),
@@ -339,6 +339,7 @@ export async function rfxSetup(ctx: Ctx, rfxEventId: string, options: { readonly
           lineNo: l.lineNo,
           description: l.description,
           descriptionEn: l.descriptionEn,
+          uomEn: l.uomEn,
           quantity: l.quantity.toString(),
           uom: l.uom,
           site: l.deliverySiteId ? (siteOf.get(l.deliverySiteId) ?? null) : null,

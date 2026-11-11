@@ -59,6 +59,13 @@ export const SETUP_ERROR_KEYS = [
   'CLOSE_TOO_SOON',
   'PAST_CLOSE',
   'LAST_LINE',
+  'AI_REVIEW_PENDING',
+  'RFI_KIND_FIXED',
+  'AI_FAILED',
+  'AI_AGENT_DISABLED',
+  'AI_CREDITS_EXHAUSTED',
+  'AI_NOT_EVALUATED',
+  'RATE_LIMITED',
   'OTHER',
 ] as const
 export type SetupErrorKey = (typeof SETUP_ERROR_KEYS)[number]

@@ -12624,6 +12624,24 @@
       "winnersTitle": "Winners"
     },
     "detail": {
+      "ai": {
+        "again": {
+          "BID_SUMMARY": "Summarize again",
+          "NEGOTIATION_POINTS": "Suggest points again"
+        },
+        "ask": {
+          "BID_SUMMARY": "Summarize the bids",
+          "NEGOTIATION_POINTS": "Suggest points to negotiate"
+        },
+        "failed": "The assistant could not write it. The comparison, flags and scores below work as usual",
+        "heading": {
+          "BID_SUMMARY": "Bid summary",
+          "NEGOTIATION_POINTS": "Points to negotiate"
+        },
+        "note": "The Sourcing assistant writes only from figures the system calculated; it never scores, awards or messages a supplier. Points to negotiate are for you to raise yourself · each press may use AI credits",
+        "title": "Summary by AI",
+        "writing": "The assistant is writing…"
+      },
       "awards": {
         "agreements": "{count} agreed prices made",
         "cancelReason": "Cancelled because: {reason}",
@@ -13152,6 +13170,16 @@
       "weight": "{name} {percent}%"
     },
     "setup": {
+      "ai": {
+        "boxTitle": "What the Sourcing assistant drafted",
+        "draft": "Draft the RFx with AI",
+        "drafted": "The assistant drafted it. Check the values marked \"Filled by AI, please check\" and save",
+        "hint": "The assistant drafts the title, description and the lines' English for you to check; never a price, quantity or supplier · uses the organization's AI credits",
+        "lineDescriptionEn": "English description, line {no}",
+        "lineUomEn": "English unit, line {no}",
+        "linesTitle": "The lines in English",
+        "savedWaiting": "Saved. {count} fields still need confirming one by one before the RFx opens"
+      },
       "back": "Back",
       "criterion": {
         "DELIVERY": "Delivery",
@@ -13170,6 +13198,11 @@
         "toDetail": "Go to the RFx page"
       },
       "errors": {
+        "AI_AGENT_DISABLED": "The Sourcing assistant is off. Fill it in yourself as usual",
+        "AI_CREDITS_EXHAUSTED": "This month's AI credits are used up. Fill it in yourself as usual",
+        "AI_FAILED": "The assistant could not draft it. Fill it in yourself as usual",
+        "AI_NOT_EVALUATED": "The Sourcing assistant has not passed its evaluation yet",
+        "AI_REVIEW_PENDING": "Values the AI filled in still wait for you. Go to the step \"General\" and confirm the kind and the lines' English before opening the RFx",
         "ALREADY_INVITED": "This supplier is invited to this RFx already",
         "APPLICATION_NOT_OPEN": "This application is closed. Invite an approved one as its supplier.",
         "CLOSE_TOO_SOON": "The close is earlier than the system allows. Pick a later close.",
@@ -13198,7 +13231,9 @@
         "PORTAL_NOT_ENABLED": "portal not switched on",
         "PRICE_INCLUDES_VAT": "A request priced with VAT cannot go into an RFx yet. Pick lines of other requests.",
         "PRICE_IS_COMPUTED": "Keep one price criterion; the system scores price from the bids",
+        "RATE_LIMITED": "Too many assistant calls. Wait a moment and try again",
         "RFI_HAS_NO_SCORECARD": "An RFI has no scorecard",
+        "RFI_KIND_FIXED": "An RFI cannot become another kind",
         "SCORECARD_INCOMPLETE": "The scorecard is not complete: criteria must total 100% and it needs its minimum of evaluators",
         "SOD_VIOLATION": "This evaluator may not score: they made the RFx or requested one of its lines (BR-SOD ข้อ 14). Pick someone else.",
         "SUPPLIER_FLAGGED": "The registry or the Revenue Department flags this supplier; it cannot be invited",

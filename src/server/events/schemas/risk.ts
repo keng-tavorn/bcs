@@ -96,8 +96,26 @@ defineEvents('ReviewTask', {
   'review_task.escalated': { schema: z.object({ assessmentId: z.uuid(), notifiedMemberIds: z.array(z.uuid()), toFallback: z.boolean() }) },
 })
 
+const reviewReason = z.enum(['SCHEDULED', 'STATUS_CHANGED', 'OVERRIDE_EXPIRED'])
 defineEvents('RiskReview', {
   'risk_review.completed': { schema: z.object({ byAssessmentId: z.uuid() }) },
+  // S11-09 (FR-RSK-205 · BR-RSK-12 BR-RSK-13): a reassessment due — at remindOn (with the assessment the job opened for it),
+  // after a registry flag, or after an override expired with no valid assessment behind the supplier
+  'risk_review.scheduled': {
+    schema: z.object({
+      supplierId: z.uuid(),
+      reason: reviewReason,
+      tier: tier.nullable(),
+      dueAt: z.string(),
+      sourceAssessmentId: z.uuid().nullable(),
+      sourceOverrideId: z.uuid().nullable(),
+      registryFlag: z.enum(['CEASED', 'VAT_CANCELLED', 'NOT_FOUND']).nullable(),
+      openedAssessmentId: z.uuid().nullable(),
+    }),
+  },
+  // past its dueAt (the job, the day the supplier turns OVERDUE): the state stays OPEN
+  'risk_review.overdue': { schema: z.object({ dueAt: z.string() }) },
+  'risk_review.cancelled': { schema: z.object({ reason: z.enum(['SUPPLIER_INACTIVE', 'REGISTRY_CLEARED']) }) },
 })
 
 // S11-05 (BR-RSK-14): the supplier's risk projection, only when a value changes
@@ -143,4 +161,7 @@ defineEvents('RiskOverride', {
   'risk_override.rejected': { schema: z.object({ number: z.string(), reasonCommentId: z.uuid().nullable() }) },
   'risk_override.returned': { schema: z.object({ number: z.string(), reasonCommentId: z.uuid().nullable() }) },
   'risk_override.cancelled': { schema: z.object({ from: z.enum(['DRAFT', 'RETURNED']) }) },
+  // S11-09 (job risk-review-daily · BR-RSK-10): its last day within seven days (told once), and past it — EXPIRED
+  'risk_override.expiring': { schema: z.object({ number: z.string().nullable(), expiresOn: day, daysLeft: z.int().min(0) }) },
+  'risk_override.expired': { schema: z.object({ number: z.string().nullable(), expiresOn: day, usedCount: z.int(), usedGrossSatang: satang, reviewScheduled: z.boolean() }) },
 })

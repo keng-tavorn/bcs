@@ -33,7 +33,7 @@ export {
   type PoGateTrigger,
   type RegistryFlag,
 } from './gate'
-export { addCalendarDays, addCalendarMonths, overrideExpiryCheck, overrideWindow, reviewDates, type OverrideExpiryReason, type ReviewDates } from './review'
+export { addCalendarDays, addCalendarMonths, g9Rate, overrideExpiryCheck, overrideWindow, reviewDates, type G9Rate, type G9Row, type OverrideExpiryReason, type ReviewDates } from './review'
 export { assessmentCompleteness, scoreAssessment, tierByPoints, type AnswerSource, type Completeness, type Score } from './score'
 export {
   delegationCoversReview,

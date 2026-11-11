@@ -101,6 +101,9 @@
     },
     "review_escalated": {
       "title": "For your information: a risk assessment review is overdue"
+    },
+    "status_changed": {
+      "title": "A supplier needs its risk reassessed"
     }
   },
   "supplier": {

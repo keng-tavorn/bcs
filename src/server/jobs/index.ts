@@ -32,6 +32,7 @@ import { budgetBurnAlerts } from './budget-burn-alerts'
 import { fileScan, poAckReset, supplierDocumentExpiry, supplierDocumentScannedJob } from './supplier-documents'
 import { supplierApplicationSla } from './supplier-application-sla'
 import { riskAssessmentSla, riskEvidenceScannedJob } from './risk-assessments'
+import { riskReviewDaily } from './risk-review-daily'
 import { riskReviewTaskSla } from './risk-reviews'
 import { supplierNoticeSend, supplierNoticeSweep } from './supplier-notice-send'
 
@@ -80,6 +81,8 @@ export const functions = [
   riskAssessmentSla,
   riskEvidenceScannedJob,
   riskReviewTaskSla,
+  // S11-09: reassessments due, overrides lapsing, the state of the day (FR-RSK-205)
+  riskReviewDaily,
   // S8-07: the invoice inbox (ADR-123)
   invoiceInboxPoll,
   // S8-09: retentions whose day has come (ADR-124)

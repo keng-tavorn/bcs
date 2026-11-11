@@ -711,7 +711,10 @@
       "escalated": "Fallback told a risk reviewer task is overdue"
     },
     "risk_review": {
-      "completed": "Reassessment done"
+      "completed": "Reassessment done",
+      "scheduled": "Risk reassessment due",
+      "overdue": "Risk reassessment overdue",
+      "cancelled": "Risk reassessment cancelled"
     },
     "risk_override": {
       "used": "Override used by a purchase order",
@@ -722,7 +725,9 @@
       "approved": "Override approved",
       "rejected": "Override rejected",
       "returned": "Override returned for changes",
-      "cancelled": "Override request cancelled"
+      "cancelled": "Override request cancelled",
+      "expiring": "Risk override about to lapse",
+      "expired": "Risk override lapsed"
     }
   }
 }

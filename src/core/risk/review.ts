@@ -1,3 +1,4 @@
+import { BP_PER_WHOLE } from '../money/constants'
 import { dateIn } from '../supplier-docs'
 import type { RiskTierDef } from './types'
 
@@ -60,4 +61,30 @@ export function reviewDates(completedAt: Date, tier: Pick<RiskTierDef, 'reviewMo
   const completedOn = dateIn(completedAt, timezone)
   const validUntil = addCalendarMonths(completedOn, tier.reviewMonths)
   return { completedOn, validUntil, remindOn: addCalendarDays(validUntil, -tier.reminderDaysBefore) }
+}
+
+/** One supplier whose first PO falls in the period: its gate tier was HIGH, and it passed by an assessment (BR-RSK-15) */
+const WHOLE_BP = Number(BP_PER_WHOLE)
+
+export interface G9Row {
+  readonly high: boolean
+  readonly assessed: boolean
+}
+
+export interface G9Rate {
+  /** floor(numerator × 10000 ÷ denominator); null when no HIGH supplier had its first PO in the period */
+  readonly bp: number | null
+  readonly numerator: number
+  readonly denominator: number
+}
+
+/**
+ * BR-RSK-15 (KPI G-9 · GC-RSK-69 to 72 · S11-09): of the suppliers whose first PO in the period met the gate at tier HIGH,
+ * the share assessed before that PO — an override counts below the line only. Basis points, rounded down.
+ */
+export function g9Rate(rows: readonly G9Row[]): G9Rate {
+  const high = rows.filter((r) => r.high)
+  const numerator = high.filter((r) => r.assessed).length
+  const denominator = high.length
+  return { bp: denominator === 0 ? null : Math.floor((numerator * WHOLE_BP) / denominator), numerator, denominator }
 }

@@ -3650,6 +3650,8 @@
         "approved": "Override approved",
         "cancelled": "Override request cancelled",
         "drafted": "Risk override asked for (draft)",
+        "expired": "Risk override lapsed",
+        "expiring": "Risk override about to lapse",
         "rejected": "Override rejected",
         "released": "Purchase order no longer draws on the override",
         "returned": "Override returned for changes",
@@ -3671,7 +3673,10 @@
         "updated": "Question of a draft changed"
       },
       "risk_review": {
-        "completed": "Reassessment done"
+        "cancelled": "Risk reassessment cancelled",
+        "completed": "Reassessment done",
+        "overdue": "Risk reassessment overdue",
+        "scheduled": "Risk reassessment due"
       },
       "risk_tier": {
         "confirmed": "Risk tier values confirmed",
@@ -10372,6 +10377,9 @@
       },
       "review_reminder": {
         "title": "Reminder: a risk assessment waits for your review"
+      },
+      "status_changed": {
+        "title": "A supplier needs its risk reassessed"
       }
     },
     "supplier": {

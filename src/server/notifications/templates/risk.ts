@@ -15,6 +15,11 @@ const DOMAIN: Readonly<Record<string, Text>> = {
   PREMISES: { th: 'ความปลอดภัยสถานที่', en: 'premises safety' },
   FINANCE: { th: 'การเงิน', en: 'finance' },
 }
+const FLAG: Readonly<Record<string, Text>> = {
+  CEASED: { th: 'เลิกกิจการ', en: 'ceased' },
+  VAT_CANCELLED: { th: 'ยกเลิกจดทะเบียน VAT', en: 'VAT registration cancelled' },
+  NOT_FOUND: { th: 'ไม่พบในทะเบียน', en: 'not found in the registry' },
+}
 const TIER: Readonly<Record<string, Text>> = { LOW: { th: 'ต่ำ', en: 'low' }, MEDIUM: { th: 'กลาง', en: 'medium' }, HIGH: { th: 'สูง', en: 'high' } }
 
 const domains = (d: Data, locale: 'th' | 'en') => (Array.isArray(d.riskDomains) ? d.riskDomains.map((x) => DOMAIN[str(x)]?.[locale] ?? str(x)).join(', ') : '')
@@ -89,6 +94,56 @@ export const RISK_TEMPLATES: Readonly<Record<string, Template>> = {
     return d.outcome === 'RETURNED'
       ? { title: { th: `คำขออนุมัติข้ามด่านความเสี่ยง${n} ถูกตีกลับให้แก้`, en: `Risk override${n} was returned for changes` }, href }
       : { title: { th: `คำขออนุมัติข้ามด่านความเสี่ยง${n} ไม่ได้รับอนุมัติ`, en: `Risk override${n} was rejected` }, href }
+  },
+  // S11-09 (FR-RSK-205 · BR-NOTI-12): PROCUREMENT, in the day's digest — a reassessment due at remindOn (the job opened the
+  // supplier's new assessment) or after an override lapsed with no valid assessment behind the supplier
+  'risk.review_due': (d) => {
+    const who = str(d.supplierCode)
+    const due = str(d.dueOn)
+    const href = d.assessmentId ? `/risk/assessments/${str(d.assessmentId)}` : '/risk'
+    if (d.reason === 'OVERRIDE_EXPIRED') {
+      return {
+        title: { th: `การอนุมัติข้ามด่านของผู้ขาย ${who} หมดอายุ ต้องประเมินความเสี่ยงก่อนออกใบสั่งซื้อใหม่`, en: `The risk override of supplier ${who} lapsed: assess the supplier before new purchase orders` },
+        href,
+      }
+    }
+    return {
+      title: { th: `ถึงรอบประเมินความเสี่ยงซ้ำของผู้ขาย ${who} ภายในวันที่ ${due}`, en: `Supplier ${who} is due for its risk reassessment by ${due}` },
+      body: d.assessmentId
+        ? { th: 'ระบบเปิดแบบประเมินใบใหม่และส่งอีเมลให้ผู้ขายแล้ว', en: 'A new assessment is open and the supplier has been e-mailed' }
+        : { th: 'โปรดเปิดแบบประเมินใบใหม่ให้ผู้ขาย', en: 'Please open a new assessment for the supplier' },
+      href,
+    }
+  },
+  // S11-09 (BR-RSK-12 BR-RSK-13 · BR-NOTI-12): PROCUREMENT — a registry flag at once by LINE then e-mail (REASSESS_REQUIRED),
+  // a lapsed assessment in the day's digest (OVERDUE)
+  'risk.status_changed': (d) => {
+    const who = str(d.supplierCode)
+    const href = d.supplierId ? `/suppliers/${str(d.supplierId)}` : '/risk'
+    if (d.to === 'REASSESS_REQUIRED') {
+      const flag = FLAG[str(d.registryFlag)]
+      return {
+        title: { th: `ผู้ขาย ${who} สถานะทะเบียนเปลี่ยน${flag ? ` (${flag.th})` : ''} ต้องประเมินความเสี่ยงซ้ำ`, en: `Supplier ${who}'s registry status changed${flag ? ` (${flag.en})` : ''}: reassess its risk` },
+        body: { th: 'ใบสั่งซื้อใหม่ของผู้ขายรายนี้ติดด่านจนกว่าจะประเมินซ้ำ', en: 'New purchase orders to this supplier are held until it is reassessed' },
+        href,
+      }
+    }
+    return {
+      title: { th: `แบบประเมินความเสี่ยงของผู้ขาย ${who} เลยรอบแล้ว`, en: `The risk assessment of supplier ${who} is overdue` },
+      body: d.tier === 'HIGH'
+        ? { th: 'ผู้ขายระดับสูงออกใบสั่งซื้อใหม่ไม่ได้จนกว่าจะประเมินซ้ำเสร็จ', en: 'A high-risk supplier gets no new purchase order until its reassessment completes' }
+        : { th: 'ใบสั่งซื้อใหม่ต้องกรอกเหตุผลจนกว่าจะประเมินซ้ำเสร็จ', en: 'New purchase orders need a reason until its reassessment completes' },
+      href,
+    }
+  },
+  // S11-09 (BR-RSK-10 · BR-NOTI-12): the requester and PROCUREMENT, in the day's digest — an override's last day within seven
+  // days, or past
+  'risk.override_expiring': (d) => {
+    const n = d.number ? ` ${str(d.number)}` : ''
+    const href = d.overrideId ? `/risk/overrides/${str(d.overrideId)}` : '/risk/overrides'
+    return d.expired
+      ? { title: { th: `การอนุมัติข้ามด่านความเสี่ยง${n} หมดอายุแล้ว`, en: `Risk override${n} has lapsed` }, href }
+      : { title: { th: `การอนุมัติข้ามด่านความเสี่ยง${n} ใช้ได้ถึงวันที่ ${str(d.expiresOn)}`, en: `Risk override${n} lapses after ${str(d.expiresOn)}` }, href }
   },
   // S11-07 (FR-RSK-203 AC6 · BR-NOTI-12): AUDITOR, in the day's digest, of every PO an override lets out
   'risk.override_used': (d) => ({

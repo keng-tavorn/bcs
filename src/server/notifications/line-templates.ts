@@ -44,6 +44,9 @@ export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   'risk.review_overdue',
   // and the fallback's acknowledgement at escalateAt ("LINE → อีเมล" of the same row)
   'risk.review_escalated',
+  // S11-09: a supplier's registry flag, to PROCUREMENT at once ("LINE → อีเมล" · REASSESS_REQUIRED); its OVERDUE notice
+  // goes in the day's digest
+  'risk.status_changed',
   // S7-07: an application overdue, to its inviter and PROCUREMENT at once
   ...SUPPLIER_LINE_TEMPLATES,
 ])

@@ -216,7 +216,8 @@ async function revokeStaleEvidence(tx: TenantTx, ctx: Ctx, a: AssessmentRow, que
 
 /**
  * Supplier.riskTier riskStatus riskAssessedAt riskValidUntil currentRiskAssessmentId from its COMPLETED assessment, its
- * open assessment and its open reassessments, on the day of `now`; the events of what changed.
+ * open assessment and its open reassessments, on the day of `now`; the events of what changed. IN_PROGRESS only before
+ * the first assessment completes; REASSESS_REQUIRED over every state while a STATUS_CHANGED review is open (BR-RSK-12).
  */
 export async function refreshSupplierRisk(tx: TenantTx, ctx: Ctx, supplierId: string): Promise<EventDraft[]> {
   const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { riskTier: true, riskStatus: true } })
@@ -227,7 +228,9 @@ export async function refreshSupplierRisk(tx: TenantTx, ctx: Ctx, supplierId: st
   let status: 'NOT_ASSESSED' | 'IN_PROGRESS' | 'CURRENT' | 'EXPIRING' | 'OVERDUE' | 'REASSESS_REQUIRED' = 'NOT_ASSESSED'
   if (current?.validUntil && current.remindOn) {
     const s = riskStatusAt({ validUntil: current.validUntil.toISOString().slice(0, 10), remindOn: current.remindOn.toISOString().slice(0, 10), today })
-    status = s === 'OVERDUE' && open > 0 ? 'IN_PROGRESS' : s
+    // a supplier assessed before keeps the state of its days: a reassessment opened at remindOn (risk-review-daily) does
+    // not turn OVERDUE into IN_PROGRESS — the gate's reading too (GateAssessment · S11-09 · scene 20)
+    status = s
   } else if (open > 0) status = 'IN_PROGRESS'
   if (statusChanged > 0) status = 'REASSESS_REQUIRED'
   const tier = (current?.tier ?? null) as RiskTierCode | null
@@ -295,54 +298,92 @@ const openCommand = defineCommand({
     for (const k of SCREENING_KEYS) if (screening[k] === undefined && work.screening[k] !== undefined) screening[k] = work.screening[k]
     if (SCREENING_KEYS.some((k) => screening[k] === undefined)) return fail('VALIDATION_FAILED', 'the three screening answers of the work are needed', { reason: 'SCREENING_REQUIRED', field: 'screening' })
     const context: RiskContext = { screening: screening as Screening, categoryCodes: [...new Set([...work.categories, ...(input.categoryCodes ?? [])])], payeeType: supplier.payeeType, isForeign: supplier.isForeign }
-    const definitions = questionnaire.questions.map(questionDefOf)
-    const inherent = inherentTier(context, policy.data)
-    const set = questionsInSet(definitions, context, inherent)
-    const number = await issueDocumentNumber(tx, ctx, { document: 'RSA' })
-    const created = await tx.riskAssessment.create({
-      data: {
-        organizationId: ctx.organizationId,
-        number,
-        supplierId: supplier.id,
-        questionnaireId: questionnaire.id,
-        triggerRequestId: input.requestId ?? null,
-        triggerPoId: input.poId ?? null,
-        screening: context.screening,
-        categoryCodes: [...context.categoryCodes],
-        payeeType: supplier.payeeType,
-        workScopes: input.workScopes,
-        inherentTier: inherent,
-        lastActivityAt: ctx.now,
-        openedById: who.memberId,
-      },
-      select: { id: true },
+    const opened = await createAssessment(tx, ctx, {
+      supplier,
+      context,
+      questionnaire,
+      policy: policy.data,
+      workScopes: input.workScopes,
+      openedById: who.memberId,
+      triggerRequestId: input.requestId ?? null,
+      triggerPoId: input.poId ?? null,
+      reminder: false,
     })
-    // questions a certificate answers today are filled from it (BR-RSK-05 · FR-RSK-201 AC2)
-    const today = dateIn(ctx.now, RISK_TIMEZONE)
-    const byQuestion = await evidenceDocuments(tx, supplier.id)
-    const filled: string[] = []
-    for (const q of set) {
-      const hit = evidenceFor(q, byQuestion.get(q.code) ?? [], input.workScopes, today)
-      if (!hit) continue
-      const option = q.options.find((o) => o.code === hit.optionCode)!
-      await tx.riskAnswer.create({ data: { organizationId: ctx.organizationId, assessmentId: created.id, questionCode: q.code, optionCode: hit.optionCode, source: 'EVIDENCE', evidenceDocumentId: hit.doc.id, points: option.points, answeredAt: ctx.now } })
-      filled.push(q.code)
-    }
-    const invite = await inviteToAnswer(tx, ctx, { assessmentId: created.id, number, supplierId: supplier.id, portalEnabled: supplier.portalEnabled, memberId: who.memberId })
-    const projection = await refreshSupplierRisk(tx, ctx, supplier.id)
-    return {
-      ok: true,
-      result: { assessmentId: created.id, number, inherentTier: inherent, questions: set.length },
-      events: [
-        { type: 'risk_assessment.opened', aggregateType: 'RiskAssessment', aggregateId: created.id, data: { supplierId: supplier.id, number, inherentTier: inherent, questionCount: set.length, evidenceAnswers: filled, triggerRequestId: input.requestId ?? null, triggerPoId: input.poId ?? null } },
-        ...invite.events,
-        ...projection,
-      ],
-      notifications: invite.notifications,
-      outbox: invite.outbox,
-    }
+    return { ok: true, result: opened.result, events: opened.events, notifications: opened.notifications, outbox: opened.outbox }
   },
 })
+
+type Questionnaire = NonNullable<Awaited<ReturnType<typeof questionnaireInEffect>>>
+type Policy = Extract<Awaited<ReturnType<typeof riskPolicyInEffect>>, { ok: true }>['data']
+
+/**
+ * A new assessment of the supplier (inside the caller's transaction, the supplier locked and no assessment of it open ·
+ * INV-RSK-02): the context given, the questionnaire version in effect, the inherent tier, the questions a certificate
+ * answers today filled from it (BR-RSK-05), the supplier's contact invited (a reminder's words when the daily job opens
+ * it for a reassessment · BR-RSK-13) and the supplier's projection. riskAssessment.open and risk-review-daily both use it.
+ */
+export async function createAssessment(
+  tx: TenantTx,
+  ctx: Ctx,
+  input: {
+    supplier: { id: string; payeeType: 'JURISTIC' | 'INDIVIDUAL' | 'FOREIGN'; isForeign: boolean; portalEnabled: boolean }
+    context: RiskContext
+    questionnaire: Questionnaire
+    policy: Policy
+    workScopes: readonly string[]
+    openedById: string
+    triggerRequestId: string | null
+    triggerPoId: string | null
+    reminder: boolean
+  },
+): Promise<{ result: { assessmentId: string; number: string; inherentTier: RiskTierCode; questions: number }; events: EventDraft[]; notifications: NotificationDraft[]; outbox: OutboxDraft[] }> {
+  const { supplier, context, questionnaire } = input
+  const definitions = questionnaire.questions.map(questionDefOf)
+  const inherent = inherentTier(context, input.policy)
+  const set = questionsInSet(definitions, context, inherent)
+  const number = await issueDocumentNumber(tx, ctx, { document: 'RSA' })
+  const created = await tx.riskAssessment.create({
+    data: {
+      organizationId: ctx.organizationId,
+      number,
+      supplierId: supplier.id,
+      questionnaireId: questionnaire.id,
+      triggerRequestId: input.triggerRequestId,
+      triggerPoId: input.triggerPoId,
+      screening: context.screening,
+      categoryCodes: [...context.categoryCodes],
+      payeeType: supplier.payeeType,
+      workScopes: [...input.workScopes],
+      inherentTier: inherent,
+      lastActivityAt: ctx.now,
+      openedById: input.openedById,
+    },
+    select: { id: true },
+  })
+  // questions a certificate answers today are filled from it (BR-RSK-05 · FR-RSK-201 AC2)
+  const today = dateIn(ctx.now, RISK_TIMEZONE)
+  const byQuestion = await evidenceDocuments(tx, supplier.id)
+  const filled: string[] = []
+  for (const q of set) {
+    const hit = evidenceFor(q, byQuestion.get(q.code) ?? [], input.workScopes, today)
+    if (!hit) continue
+    const option = q.options.find((o) => o.code === hit.optionCode)!
+    await tx.riskAnswer.create({ data: { organizationId: ctx.organizationId, assessmentId: created.id, questionCode: q.code, optionCode: hit.optionCode, source: 'EVIDENCE', evidenceDocumentId: hit.doc.id, points: option.points, answeredAt: ctx.now } })
+    filled.push(q.code)
+  }
+  const invite = await inviteToAnswer(tx, ctx, { assessmentId: created.id, number, supplierId: supplier.id, portalEnabled: supplier.portalEnabled, memberId: ctx.actor.type === 'USER' ? input.openedById : null, reminder: input.reminder })
+  const projection = await refreshSupplierRisk(tx, ctx, supplier.id)
+  return {
+    result: { assessmentId: created.id, number, inherentTier: inherent, questions: set.length },
+    events: [
+      { type: 'risk_assessment.opened', aggregateType: 'RiskAssessment', aggregateId: created.id, data: { supplierId: supplier.id, number, inherentTier: inherent, questionCount: set.length, evidenceAnswers: filled, triggerRequestId: input.triggerRequestId, triggerPoId: input.triggerPoId } },
+      ...invite.events,
+      ...projection,
+    ],
+    notifications: invite.notifications,
+    outbox: invite.outbox,
+  }
+}
 
 /**
  * The e-mail with a link to answer in the portal (BR-RSK-17): to the supplier's primary active contact, when the portal

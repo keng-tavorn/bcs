@@ -2722,7 +2722,32 @@ def run_risk_review(d):
     global HOLD
     use_fixtures(d["fixtures"]); base, out = dict(HOLD), []
     wfs = [golden["tests/golden/" + f][0] for f in d["fixtures"] if "risk-reviewers" in f]
+    tiers = {t["code"]: t for t in d.get("tiers", [])}; D = date.fromisoformat
+    def months(day, n):  # BR-RSK-13: calendar months, a day past the month's end becomes its last day
+        tot = day.year * 12 + day.month - 1 + n; y, m = divmod(tot, 12)
+        nxt = date(y + (m + 1) // 12, (m + 1) % 12 + 1, 1)
+        return date(y, m + 1, min(day.day, (nxt - timedelta(days=1)).day))
     for c in d["cases"]:
+        i, fn = c["input"], c["fn"]
+        # S11-09 (BR-RSK-13 BR-RSK-15 BR-RSK-10): the reassessment dates, the state on a day, G-9 and the override's window
+        if fn == "reviewDates":
+            t = tiers[i["tier"]]; on = dt(i["completedAt"]).astimezone(BKK).date(); until = months(on, t["reviewMonths"])
+            got = {"completedOn": on.isoformat(), "validUntil": until.isoformat(), "remindOn": (until - timedelta(days=t["reminderDaysBefore"])).isoformat()}
+            out.append((c["id"], got == c["expect"], got)); continue
+        if fn == "riskStatusAt":
+            got = "OVERDUE" if i["today"] > i["validUntil"] else "EXPIRING" if i["today"] >= i["remindOn"] else "CURRENT"
+            out.append((c["id"], got == c["expect"], got)); continue
+        if fn == "g9Rate":
+            hi = [r for r in i["rows"] if r["high"]]; num = sum(1 for r in hi if r["assessed"])
+            got = {"bp": num * 10000 // len(hi) if hi else None, "numerator": num, "denominator": len(hi)}
+            out.append((c["id"], got == c["expect"], got)); continue
+        if fn in ("overrideWindow", "overrideExpiryCheck"):
+            last = (D(i["submittedOn"]) + timedelta(days=i["overrideMaxDays"])).isoformat()
+            if fn == "overrideWindow": got = {"lastAllowed": last}
+            elif i["expiresOn"] < i["submittedOn"]: got = {"error": "VALIDATION_FAILED", "reason": "OVERRIDE_EXPIRY_PAST"}
+            elif i["expiresOn"] > last: got = {"error": "VALIDATION_FAILED", "reason": "OVERRIDE_EXPIRY_TOO_FAR"}
+            else: got = {"ok": True}
+            out.append((c["id"], got == c["expect"], got)); continue
         i = {**d["defaults"], **c["input"]}; at = dt(i["at"]); vac = set(i.get("vacate", []))
         vs = sorted([v for w in wfs for v in w["versions"] if dt(v["effectiveFrom"]) <= at], key=lambda v: dt(v["effectiveFrom"]))
         cats = i.get("categoryCodes", [])

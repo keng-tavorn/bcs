@@ -13,9 +13,9 @@ import { INPUT_WORKBOOKS, loadInputWorkbook, type InputProfile } from '@/server/
 import { loadRequestTypeFields } from '@/server/workflow/policy'
 import { workflowVersionFromRows } from '@/server/workflow/snapshot'
 
-// FR-PLT-007 AC4 AC5 (P1-07, ADR-070): the seed of the phase-1 workbook gives DOA-SIMEC version 1 with the 23 rules of
-// sheet DOA — the 14 of the six new document types among them, and SA-01 of phase 2 (S7-13) — and switches PAY AI BCS_GO
-// SUPPLIER on once, after the DOA, with
+// FR-PLT-007 AC4 AC5 (P1-07, ADR-070): the seed of the phase-1 workbook gives DOA-SIMEC version 1 with the 26 rules of
+// sheet DOA — the 14 of the six new document types among them, SA-01 of phase 2 (S7-13) and RA-01 to RA-03 (S10-14) — and switches PAY AI BCS_GO
+// SUPPLIER SOURCING on once, after the DOA, with
 // organization.module_enabled per module; the demo organization keeps CORE alone; a second seed adds nothing. The same
 // seed functions as prisma/seed.ts, under another organization code and e-mail addresses (without the history, which
 // tests/integration/seed-p1-year-*.test.ts cover).
@@ -33,31 +33,31 @@ async function seededOrg(profile: InputProfile) {
   return { organizationId: org.organizationId, users: renamed.users, structure }
 }
 
-describe('[FR-PLT-007/AC4] the phase-1 seed: DOA-SIMEC version 1 with 23 rules, and PAY AI BCS_GO SUPPLIER on', () => {
+describe('[FR-PLT-007/AC4] the phase-1 seed: DOA-SIMEC version 1 with 26 rules, and PAY AI BCS_GO SUPPLIER SOURCING on', () => {
   let p1: Awaited<ReturnType<typeof seededOrg>>
   beforeAll(async () => {
     p1 = await seededOrg('p1')
-    expect(await seedP1Modules(p1.organizationId, NOW)).toEqual({ enabled: 4 })
+    expect(await seedP1Modules(p1.organizationId, NOW)).toEqual({ enabled: 5 })
   })
 
-  it('has the 23 rules of sheet DOA, which pass the full lint with the modules that are on', async () => {
+  it('has the 26 rules of sheet DOA, which pass the full lint with the modules that are on', async () => {
     const db = forTenant(p1.organizationId)
     const version = await db.doaVersion.findFirstOrThrow({ where: { status: 'PUBLISHED' }, include: { rules: true } })
-    expect([version.code, version.versionNo, version.rules.length]).toEqual(['DOA-SIMEC', 1, 23])
+    expect([version.code, version.versionNo, version.rules.length]).toEqual(['DOA-SIMEC', 1, 26])
     expect(new Set(version.rules.map((r) => r.documentType))).toEqual(
-      new Set(['PURCHASE_REQUEST', 'PURCHASE_ORDER', 'GR_VARIANCE', 'DOA_CHANGE', 'ORG_AUTHORITY_CHANGE', 'BUDGET_TRANSFER', 'OVER_BUDGET', 'INVOICE_EXCEPTION', 'PO_CHANGE', 'PAYMENT_RUN', 'BANK_ACCOUNT_CHANGE', 'SUPPLIER_APPROVAL']),
+      new Set(['PURCHASE_REQUEST', 'PURCHASE_ORDER', 'GR_VARIANCE', 'DOA_CHANGE', 'ORG_AUTHORITY_CHANGE', 'BUDGET_TRANSFER', 'OVER_BUDGET', 'INVOICE_EXCEPTION', 'PO_CHANGE', 'PAYMENT_RUN', 'BANK_ACCOUNT_CHANGE', 'SUPPLIER_APPROVAL', 'RFX_AWARD']),
     )
     const org = await db.$transaction((tx) => loadOrgSnapshot(tx))
     expect(lintDoaVersion(versionSnapshotFromRows(version, version.rules), org, NOW, { modules: ['CORE', ...P1_SEED_MODULES] }).errors).toEqual([])
   })
 
-  it('switches on CORE PAY AI BCS_GO SUPPLIER, each with organization.module_enabled', async () => {
+  it('switches on CORE PAY AI BCS_GO SUPPLIER SOURCING, each with organization.module_enabled', async () => {
     const db = forTenant(p1.organizationId)
     const on = await db.orgModule.findMany({ where: { enabled: true }, select: { module: true, contractRef: true } })
-    expect(on.map((m) => m.module).sort()).toEqual(['AI', 'BCS_GO', 'CORE', 'PAY', 'SUPPLIER'])
+    expect(on.map((m) => m.module).sort()).toEqual(['AI', 'BCS_GO', 'CORE', 'PAY', 'SOURCING', 'SUPPLIER'])
     expect(on.filter((m) => m.module !== 'CORE').every((m) => m.contractRef === 'SEED-P1')).toBe(true)
     const events = await db.event.findMany({ where: { type: 'organization.module_enabled' }, select: { data: true } })
-    expect(events.map((e) => (e.data as { module: string }).module).sort()).toEqual(['AI', 'BCS_GO', 'CORE', 'PAY', 'SUPPLIER'])
+    expect(events.map((e) => (e.data as { module: string }).module).sort()).toEqual(['AI', 'BCS_GO', 'CORE', 'PAY', 'SOURCING', 'SUPPLIER'])
   })
 
   it('the demo workbook keeps CORE alone', async () => {
@@ -68,15 +68,15 @@ describe('[FR-PLT-007/AC4] the phase-1 seed: DOA-SIMEC version 1 with 23 rules, 
 })
 
 describe('[FR-PLT-007/AC5] seeding again adds no rule and no module', () => {
-  it('a second run leaves 23 rules, five modules and five events', async () => {
+  it('a second run leaves 26 rules, six modules and six events', async () => {
     const p1 = await seededOrg('p1')
     await seedP1Modules(p1.organizationId, NOW)
     await seedOrgStructure(p1.organizationId, p1.users, p1.structure, NOW)
     expect(await seedP1Modules(p1.organizationId, NOW)).toEqual({ enabled: 0 })
     const db = forTenant(p1.organizationId)
-    expect(await db.doaRule.count()).toBe(23)
-    expect(await db.orgModule.count()).toBe(5)
-    expect(await db.event.count({ where: { type: 'organization.module_enabled' } })).toBe(5)
+    expect(await db.doaRule.count()).toBe(26)
+    expect(await db.orgModule.count()).toBe(6)
+    expect(await db.event.count({ where: { type: 'organization.module_enabled' } })).toBe(6)
   })
 })
 

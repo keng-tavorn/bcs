@@ -9,7 +9,6 @@ import { makeCtx, type Ctx } from '@/server/context'
 import { loadBusinessCalendar } from '@/server/doa/policy'
 import { forTenant } from '@/server/db/tenant'
 import { sendSupplierNotice } from '@/server/notifications/supplier-notices'
-import { portalCtx } from '@/server/portal/session'
 import { giveOneTimePins, randomDemoPin, takeBackOneTimePins, type OneTimePins } from '@/server/seed/pins'
 import type { SourcingScenarioRow, SourcingSheets, SourcingSupplierRow } from '@/server/seed/sourcing'
 import { addDays, dayIn } from '@/server/seed/supplier-portal'
@@ -181,7 +180,8 @@ class RfxPlayer {
   private async contactOf(supplierId: string, at: Date, where: string): Promise<Ctx> {
     const contact = await this.db.supplierContact.findFirst({ where: { supplierId, isPrimary: true, portalEnabled: true }, select: { id: true, supplierId: true, applicationId: true } })
     if (!contact) throw new Error(`${where}: ผู้ขายไม่มีผู้ติดต่อหลักที่เข้าพอร์ทัลได้ (ชีต Supplier_Contacts)`)
-    return portalCtx(this.organizationId, contact, at)
+    // the contact as a portal request makes it (src/server/portal/session.ts portalCtx, which services do not import)
+    return makeCtx({ organizationId: this.organizationId, actor: { type: 'SUPPLIER', supplierContactId: contact.id, ...(contact.supplierId ? { supplierId: contact.supplierId } : {}) }, channel: 'PORTAL', now: at })
   }
 
   private must<T>(where: string, step: string, r: Result<T>): T {

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { BASIS_POINTS_WHOLE } from '@/lib/constants'
 import type { InputWorkbook } from './workbook'
 
 // Sourcing of the phase-1 organization (S10-14 · docs/sub-specs/S10.md "การอ่านชีตของไฟล์ระยะ 1"): the four sheets of S10,
@@ -70,7 +71,7 @@ const NeedLine = z.strictObject({
   uomEn: z.string().trim().min(1).nullable(),
   refUnitPrice: z.string().regex(/^\d{1,13}\.\d{2}$/).nullable(),
 })
-const Weight = z.strictObject({ code: z.string().regex(/^[A-Z][A-Z0-9_]{0,19}$/), nameTh: text, weightBp: z.int().min(0).max(10_000) })
+const Weight = z.strictObject({ code: z.string().regex(/^[A-Z][A-Z0-9_]{0,19}$/), nameTh: text, weightBp: z.int().min(0).max(BASIS_POINTS_WHOLE) })
 const Question = z.strictObject({ supplier: code, afterBusinessDays: z.int().min(0), question: text, answer: text })
 
 const ScenarioRow = z.object({

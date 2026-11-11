@@ -48,7 +48,17 @@ export async function seedSupplierPortalHistory(organizationId: string, sheets: 
 // ---------- an application, played with the real commands back in time ----------
 
 type Calendar = Awaited<ReturnType<typeof loadBusinessCalendar>>
-type Row = SupplierPortalSheets['applications'][number]
+/**
+ * A row of sheet Supplier_Applications, or of another sheet played the same way: S10-14's foreign supplier of sheet
+ * RFx_Suppliers (FOREIGN, no Thai tax id, an English name and a contact who reads English · FR-INT-201)
+ */
+export type ApplicationPlayRow = Omit<SupplierPortalSheets['applications'][number], 'payeeType' | 'taxId'> & {
+  readonly payeeType: 'JURISTIC' | 'INDIVIDUAL' | 'FOREIGN'
+  readonly taxId: string | null
+  readonly nameEn?: string | null
+  readonly contactLocale?: 'th' | 'en'
+}
+type Row = ApplicationPlayRow
 
 const KEY = 'seed-supplier-application'
 const opts = (row: Row, step: string): RunOptions => ({ idempotencyKey: `${KEY}:${row.ref}:${row.taxId}:${step}`, sender: null, suppressOutbox: true })
@@ -71,9 +81,9 @@ const DAY_MINUTES = (calendar: Calendar) => {
   return eh * 60 + em - (sh * 60 + sm)
 }
 
-async function playApplication(organizationId: string, row: Row, now: Date, calendar: Calendar, memberOf: (code: string | null, where: string) => string): Promise<void> {
+export async function playApplication(organizationId: string, row: Row, now: Date, calendar: Calendar, memberOf: (code: string | null, where: string) => string, sheet = 'Supplier_Applications'): Promise<void> {
   const db = forTenant(organizationId)
-  const where = `ชีต Supplier_Applications ${row.ref}`
+  const where = `ชีต ${sheet} ${row.ref}`
   const member = (code: string | null, at: Date): Ctx => makeCtx({ organizationId, actor: { type: 'USER', memberId: memberOf(code, where) }, channel: 'WEB', now: at })
   const latest = new Date(now.getTime() - 5 * MS_PER_MINUTE)
   const t0 = new Date(Math.min(invitedAt(now, row.invitedDaysAgo, calendar).getTime(), latest.getTime() - 60 * MS_PER_MINUTE))
@@ -89,7 +99,7 @@ async function playApplication(organizationId: string, row: Row, now: Date, cale
   const invite = (reasons?: Record<string, string>) =>
     inviteSupplier(
       member(row.invitedBy, t0),
-      { kind: 'NEW', nameTh: row.nameTh, taxId: row.taxId, branchCode: row.branchCode, payeeType: row.payeeType, category: row.category, contact: { nameTh: row.contactName, email: row.contactEmail }, inviterPhone: row.inviterPhone, ...(reasons ? { duplicateReasons: reasons } : {}) },
+      { kind: 'NEW', nameTh: row.nameTh, taxId: row.taxId, branchCode: row.branchCode, payeeType: row.payeeType, category: row.category, contact: { nameTh: row.contactName, email: row.contactEmail, ...(row.contactLocale ? { locale: row.contactLocale } : {}) }, inviterPhone: row.inviterPhone, ...(reasons ? { duplicateReasons: reasons } : {}) },
       opts(row, reasons ? 'invite-reasons' : 'invite'),
     )
   let invited = await invite()
@@ -109,7 +119,7 @@ async function playApplication(organizationId: string, row: Row, now: Date, cale
     if (row.status !== 'EXPIRED') {
       // 3. filled in by its contact, or by procurement on its behalf, with the documents it needs (scanned clean)
       const filler = (t: Date) => (row.filledOnBehalf ? member(row.filledOnBehalf, t) : contactCtx(t))
-      must(row, 'update', await updateApplication(filler(at(0.1)), { applicationId, expectedVersion: await version(applicationId), fields: { address: `${row.ref} ถนนตัวอย่าง (สมมติ)`, isVatRegistered: row.payeeType === 'JURISTIC', category: row.category, email: row.contactEmail } }, opts(row, 'update')))
+      must(row, 'update', await updateApplication(filler(at(0.1)), { applicationId, expectedVersion: await version(applicationId), fields: { address: `${row.ref} ถนนตัวอย่าง (สมมติ)`, isVatRegistered: row.payeeType === 'JURISTIC', category: row.category, email: row.contactEmail, ...(row.nameEn ? { nameEn: row.nameEn } : {}) } }, opts(row, 'update')))
       const docs = (await db.$transaction((tx) => requiredTypes(tx, row.payeeType, row.payeeType === 'JURISTIC'))).filter((t) => !row.missingDocs.includes(t))
       const types = new Map((await db.supplierDocumentType.findMany({ select: { code: true, validityDays: true } })).map((t) => [t.code, t.validityDays]))
       const uploadAt = at(row.status === 'DRAFT' ? 1 : 0.15)
@@ -137,8 +147,9 @@ async function playApplication(organizationId: string, row: Row, now: Date, cale
             must(row, 'verify', await verifySupplierDocument(member(row.verifiedBy, at(0.6)), { documentId, expectedVersion: v }, opts(row, `verify-${documentId}`)))
           }
           const routeAt = at(row.status === 'PENDING_APPROVAL' ? 1 : 0.7)
-          const proof = await seedRegistryProof(organizationId, memberOf(row.routedBy, where), row.ref)
-          const routed = must(row, 'route', await verifyAndRoute(member(row.routedBy, routeAt), { applicationId, expectedVersion: await version(applicationId), registryProofFileId: proof }, opts(row, 'route')))
+          // a foreign supplier skips the Thai registries, so there is no page of theirs to keep (BR-SUP-02)
+          const proof = row.payeeType === 'FOREIGN' ? null : await seedRegistryProof(organizationId, memberOf(row.routedBy, where), row.ref)
+          const routed = must(row, 'route', await verifyAndRoute(member(row.routedBy, routeAt), { applicationId, expectedVersion: await version(applicationId), ...(proof ? { registryProofFileId: proof } : {}) }, opts(row, 'route')))
           if (row.status === 'APPROVED') {
             // 5. approved by the holder of SA-01 exactly expectedG7Days business days after the invitation
             const task = await db.approvalTask.findFirstOrThrow({ where: { step: { routeId: routed.routeId }, status: 'OPEN' }, orderBy: { createdAt: 'asc' }, select: { id: true, assignee: { select: { employeeCode: true } } } })

@@ -12,7 +12,7 @@ import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { RunOptions } from '../../_pipeline'
 import { isRfxRequiredPath, RFX_ASSIST_TYPE, rfxBidFacts, rfxDraftSource, rfxSummarizable, type RfxBidFacts } from '../../sourcing'
 import { completeAgentAction, expireAgentAction, requestAgentAction } from '../actions'
-import { openAssists, type OpenAssist } from '../assist-contract'
+import { assertNoPendingAiReview, openAssists, type OpenAssist } from '../assist-contract'
 import { aiRuntime, checkCallGates } from '../gate'
 import { sourcingFacts, sourcingFactsDigest, sourcingFactsText, type SourcingFacts } from './sourcing-facts'
 
@@ -32,7 +32,8 @@ export const SUMMARY_PURPOSES = ['BID_SUMMARY', 'NEGOTIATION_POINTS'] as const
 export type SummaryPurpose = (typeof SUMMARY_PURPOSES)[number]
 
 export const DraftRfxInput = z.strictObject({ rfxEventId: z.uuid() })
-export const SummarizeRfxInput = z.strictObject({ rfxEventId: z.uuid(), purpose: z.enum(SUMMARY_PURPOSES) })
+/** fresh: "เขียนใหม่" — a new call even when a text of the same facts is there (the button over a text shown) */
+export const SummarizeRfxInput = z.strictObject({ rfxEventId: z.uuid(), purpose: z.enum(SUMMARY_PURPOSES), fresh: z.boolean().optional() })
 
 const aiAssistOn = async (tx: TenantTx, organizationId: string): Promise<boolean> =>
   sourcingSettingsOf((await tx.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { settings: true } })).settings).aiAssist
@@ -68,6 +69,10 @@ export async function draftRfx(ctx: Ctx, rawInput: z.input<typeof DraftRfxInput>
     const source = await rfxDraftSource(tx, ctx, parsed.data.rfxEventId)
     if (!source.ok) return source
     if (!(await aiAssistOn(tx, ctx.organizationId))) return err('AI_AGENT_DISABLED', 'the organization switched AI off for sourcing', { agent: AGENT, reason: 'AI_ASSIST_OFF' })
+    // a draft taken in whose fields still wait is confirmed first: the form shows one draft at a time, and a new one
+    // would hide the fields that hold the RFx back (BR-AI-17)
+    const waiting = await assertNoPendingAiReview(tx, ctx, { type: RFX_ASSIST_TYPE, id: parsed.data.rfxEventId })
+    if (!waiting.ok) return waiting
     return source
   })
   if (!read.ok) return read
@@ -77,10 +82,6 @@ export async function draftRfx(ctx: Ctx, rawInput: z.input<typeof DraftRfxInput>
   const agentActionId = started.data.agentActionId
   const row = await db.agentAction.findFirst({ where: { id: agentActionId }, select: { status: true } })
   if (row?.status !== 'PENDING') return err('IDEMPOTENCY_CONFLICT', 'this draft was asked with this key already', { field: 'idempotencyKey' })
-  // an earlier draft nobody took in is replaced by this one (the form shows one at a time)
-  const earlier = await db.agentAction.findMany({ where: { purpose: 'RFX_DRAFT', subjectType: RFX_ASSIST_TYPE, subjectId: source.rfxEventId, status: 'DRAFT', appliedAt: null, id: { not: agentActionId } }, select: { id: true } })
-  for (const e of earlier) await expireAgentAction(ctx.organizationId, ctx.now, e.id, 'SUPERSEDED')
-
   const model = modelForPurpose('RFX_DRAFT', aiRuntime().modelEnv)
   const finish = finishAs(ctx.organizationId, ctx.now, started.data.promptVersion, agentActionId, model)
   const failed = async (done: Awaited<ReturnType<typeof finish>>): Promise<Result<RfxDraftDto>> => (done.ok ? ok({ agentActionId, status: 'FAILED', proposed: {}, requiredPaths: [] }) : done)
@@ -111,6 +112,10 @@ export async function draftRfx(ctx: Ctx, rawInput: z.input<typeof DraftRfxInput>
     latencyMs: answer.latencyMs,
   })
   if (!done.ok) return done
+  // an earlier draft nobody took in is replaced by this one once it is ready (the form shows one at a time); a call that
+  // failed leaves the earlier one in the form
+  const earlier = await db.agentAction.findMany({ where: { purpose: 'RFX_DRAFT', subjectType: RFX_ASSIST_TYPE, subjectId: source.rfxEventId, status: 'DRAFT', appliedAt: null, id: { not: agentActionId } }, select: { id: true } })
+  for (const e of earlier) await expireAgentAction(ctx.organizationId, ctx.now, e.id, 'SUPERSEDED')
   return ok({ agentActionId, status: 'READY', proposed, requiredPaths })
 }
 
@@ -129,15 +134,35 @@ export async function rfxDraftAiOf(ctx: Ctx, rfxEventId: string): Promise<RfxDra
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
     const available = await mayCall(tx, ctx, 'RFX_DRAFT')
     const open = (await openAssists(tx, { type: RFX_ASSIST_TYPE, id: rfxEventId })).filter((a) => a.purpose === 'RFX_DRAFT')
-    // what the AI filled in still holds the RFx back while AI is off (rfx.open counts it), so it stays on the form
-    // a draft taken in with fields still waiting holds the RFx back first; else the latest one
-    const last = open.find((a) => a.pendingPaths.length > 0) ?? open[open.length - 1] ?? null
-    const applied = last ? (await tx.agentAction.findFirst({ where: { id: last.agentActionId }, select: { appliedAt: true } }))?.appliedAt != null : false
-    return { available, open: last, applied }
+    const taken = new Set(
+      open.length ? (await tx.agentAction.findMany({ where: { id: { in: open.map((a) => a.agentActionId) }, appliedAt: { not: null } }, select: { id: true } })).map((r) => r.id) : [],
+    )
+    // a draft taken in whose fields still wait holds the RFx back (rfx.open counts it), so it stays on the form even
+    // while AI is off; a draft nobody took in is the AI's alone and shows only while AI is on (EG-1 · AC6), the newest
+    const waiting = open.find((a) => taken.has(a.agentActionId) && a.pendingPaths.length > 0)
+    const last = waiting ?? (available ? (open.filter((a) => !taken.has(a.agentActionId)).at(-1) ?? open.at(-1) ?? null) : null)
+    return { available, open: last, applied: last ? taken.has(last.agentActionId) : false }
   })
 }
 
 // ---------- BID_SUMMARY NEGOTIATION_POINTS (L0 · AC2 AC3) ----------
+
+/**
+ * Whether the words on an RFx's bids show at all (EG-1 · AC6): the organization's aiAssist, AI for the system, module AI
+ * and the agent; a call needs every gate of BR-AI-11 too (credits, the rate, the evaluation only hide the buttons)
+ */
+async function summariesOn(tx: TenantTx, ctx: Ctx, purpose: SummaryPurpose, memberId: string | null): Promise<{ readonly shown: boolean; readonly call: Result<unknown> }> {
+  if (!(await aiAssistOn(tx, ctx.organizationId))) return { shown: false, call: err('AI_AGENT_DISABLED', 'the organization switched AI off for sourcing', { agent: AGENT, reason: 'AI_ASSIST_OFF' }) }
+  const call = await checkCallGates(tx, ctx, purpose, memberId)
+  return { shown: call.ok || !['AI_AGENT_DISABLED', 'MODULE_DISABLED'].includes(call.error.code), call }
+}
+
+/** What this member last said of each text (agent_action.feedback_given), so a text shown again keeps it */
+async function feedbackOf(tx: TenantTx, memberId: string, ids: readonly string[]): Promise<ReadonlyMap<string, 'HELPFUL' | 'NOT_HELPFUL' | null>> {
+  if (ids.length === 0) return new Map()
+  const given = await tx.event.findMany({ where: { type: 'agent_action.feedback_given', aggregateType: 'AgentAction', aggregateId: { in: [...ids] }, actorMemberId: memberId }, orderBy: { seq: 'asc' }, select: { aggregateId: true, data: true } })
+  return new Map(given.map((e) => [e.aggregateId, (e.data as { feedback?: 'HELPFUL' | 'NOT_HELPFUL' } | null)?.feedback ?? null]))
+}
 
 export interface RfxSummaryDto {
   readonly agentActionId: string
@@ -190,16 +215,20 @@ export async function summarizeRfx(ctx: Ctx, rawInput: z.input<typeof SummarizeR
   if (ctx.actor.type !== 'USER') return err('FORBIDDEN', 'only a member asks for a summary')
   const parsed = SummarizeRfxInput.safeParse(rawInput)
   if (!parsed.success) return err('VALIDATION_FAILED', 'the RFx and what to write', { field: 'purpose' })
-  const { rfxEventId, purpose } = parsed.data
+  const { rfxEventId, purpose, fresh } = parsed.data
+  const memberId = ctx.actor.memberId
   const read = await forTenant(ctx.organizationId).$transaction(async (tx) => {
     const f = await rfxBidFacts(tx, ctx, rfxEventId)
     if (!f.ok) return f
-    if (!(await aiAssistOn(tx, ctx.organizationId))) return err('AI_AGENT_DISABLED', 'the organization switched AI off for sourcing', { agent: AGENT, reason: 'AI_ASSIST_OFF' })
+    // nothing written before is given back while the AI is off (EG-1 · AC6)
+    const on = await summariesOn(tx, ctx, purpose, memberId)
+    if (!on.shown && !on.call.ok) return on.call
     const facts = sourcingFacts(f.data)
-    return ok({ facts, ahead: await latestSummary(tx, rfxEventId, purpose, facts, true) })
+    const ahead = fresh ? null : await latestSummary(tx, rfxEventId, purpose, facts, true)
+    return ok({ facts, ahead: ahead ? { ...ahead, feedback: (await feedbackOf(tx, memberId, [ahead.agentActionId])).get(ahead.agentActionId) ?? null } : null })
   })
   if (!read.ok) return read
-  if (read.data.ahead) return ok({ agentActionId: read.data.ahead.agentActionId, purpose, status: 'READY', sentences: read.data.ahead.sentences, feedback: null })
+  if (read.data.ahead) return ok({ purpose, status: 'READY', ...read.data.ahead })
   const started = await requestAgentAction(ctx, { purpose, subjectType: RFX_ASSIST_TYPE, subjectId: rfxEventId, inputRefs: { rfxEventId } }, options)
   if (!started.ok) return started
   const row = await forTenant(ctx.organizationId).agentAction.findFirst({ where: { id: started.data.agentActionId }, select: { status: true } })
@@ -226,24 +255,17 @@ export async function rfxSummariesOf(ctx: Ctx, rfx: { readonly id: string; reado
   if (ctx.actor.type !== 'USER' || !rfxSummarizable(rfx)) return NONE
   const memberId = ctx.actor.memberId
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
-    if (!(await aiAssistOn(tx, ctx.organizationId))) return NONE
-    const on = await checkCallGates(tx, ctx, 'BID_SUMMARY', memberId)
-    // shown while the agent is switched on; a call also needs credits and the rate, which only hide the buttons
-    const switchedOn = on.ok || !['AI_AGENT_DISABLED', 'MODULE_DISABLED'].includes(on.error.code)
-    if (!switchedOn) return NONE
+    const on = await summariesOn(tx, ctx, 'BID_SUMMARY', memberId)
+    if (!on.shown) return NONE
     const f = await rfxBidFacts(tx, ctx, rfx.id)
     if (!f.ok) return NONE
     const facts = sourcingFacts(f.data)
     const summary = await latestSummary(tx, rfx.id, 'BID_SUMMARY', facts, false)
     const negotiation = await latestSummary(tx, rfx.id, 'NEGOTIATION_POINTS', facts, false)
-    const ids = [summary, negotiation].filter((x) => x !== null).map((x) => x.agentActionId)
-    const given = ids.length
-      ? await tx.event.findMany({ where: { type: 'agent_action.feedback_given', aggregateType: 'AgentAction', aggregateId: { in: ids }, actorMemberId: memberId }, orderBy: { seq: 'asc' }, select: { aggregateId: true, data: true } })
-      : []
-    const last = new Map(given.map((e) => [e.aggregateId, (e.data as { feedback?: 'HELPFUL' | 'NOT_HELPFUL' } | null)?.feedback ?? null]))
+    const last = await feedbackOf(tx, memberId, [summary, negotiation].filter((x) => x !== null).map((x) => x.agentActionId))
     const dto = (x: { agentActionId: string; sentences: readonly string[] } | null, purpose: SummaryPurpose): RfxSummaryDto | null =>
       x ? { agentActionId: x.agentActionId, purpose, status: 'READY', sentences: x.sentences, feedback: last.get(x.agentActionId) ?? null } : null
-    return { available: on.ok, summary: dto(summary, 'BID_SUMMARY'), negotiation: dto(negotiation, 'NEGOTIATION_POINTS') }
+    return { available: on.call.ok, summary: dto(summary, 'BID_SUMMARY'), negotiation: dto(negotiation, 'NEGOTIATION_POINTS') }
   })
 }
 
@@ -266,9 +288,19 @@ export async function writeSummaryAhead(organizationId: string, rfxEventId: stri
     return (await latestSummary(tx, rfxEventId, 'BID_SUMMARY', facts, true)) ? ('SKIPPED_WRITTEN' as const) : { facts }
   })
   if (typeof read === 'string') return read
-  const started = await requestAgentAction(ctx, { purpose: 'BID_SUMMARY', subjectType: RFX_ASSIST_TYPE, subjectId: rfxEventId, inputRefs: { rfxEventId, trigger } }, { idempotencyKey: `rfx_summary:${rfxEventId}:${trigger}` })
+  const idempotencyKey = `rfx_summary:${rfxEventId}:${trigger}`
+  // the key is the action's own (column idempotencyKey), so a run of this trigger before is found: one that stopped after
+  // starting its call (PENDING) finishes it now, through the gates again; one that ended stays as it ended, with no call
+  const before = await forTenant(organizationId).agentAction.findFirst({ where: { idempotencyKey }, select: { id: true, status: true, promptVersion: true } })
+  if (before && before.status !== 'PENDING') return before.status === 'FAILED' ? 'FAILED' : 'SKIPPED_WRITTEN'
+  if (before) {
+    const gates = await forTenant(organizationId).$transaction((tx) => checkCallGates(tx, ctx, 'BID_SUMMARY', null))
+    if (!gates.ok) return `SKIPPED_${gates.error.code}`
+  }
+  const started = before
+    ? ok({ agentActionId: before.id, promptVersion: before.promptVersion })
+    : await requestAgentAction(ctx, { purpose: 'BID_SUMMARY', subjectType: RFX_ASSIST_TYPE, subjectId: rfxEventId, inputRefs: { rfxEventId, trigger }, idempotencyKey }, { idempotencyKey })
   if (!started.ok) return `SKIPPED_${started.error.code}`
-  if (started.data.existing) return 'SKIPPED_WRITTEN'
   const written = await writeSummary(ctx, read.facts, 'BID_SUMMARY', started.data.agentActionId, started.data.promptVersion)
   return written.ok ? (written.data.status === 'READY' ? 'WRITTEN' : 'FAILED') : `SKIPPED_${written.error.code}`
 }

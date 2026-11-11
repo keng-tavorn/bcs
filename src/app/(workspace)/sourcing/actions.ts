@@ -191,7 +191,8 @@ export async function openRfxAction(rfxEventId: string, version: number, closesA
 export async function draftRfxAction(rfxEventId: string, key: string): Promise<RfxOutcome> {
   return run(key, [rfxEventId], async (ctx) => {
     const r = await draftRfx(ctx, { rfxEventId }, { idempotencyKey: key })
-    if (!r.ok) return r
+    // a draft taken in whose fields still wait is confirmed before another is asked (the words differ from rfx.open's)
+    if (!r.ok) return r.error.code === 'AI_REVIEW_PENDING' ? { ok: false, error: { ...r.error, details: { ...r.error.details, reason: 'AI_DRAFT_WAITING' } } } : r
     return r.data.status === 'READY' ? { ok: true } : { ok: false, error: { code: 'EXTERNAL_SERVICE_ERROR', message: 'the AI could not draft the RFx', details: { reason: 'AI_FAILED' } } }
   })
 }

@@ -21,7 +21,8 @@ export interface RfxSummaryView {
   readonly feedback: AiFeedback | null
 }
 
-export type Summarize = (purpose: SummaryPurpose, key: string) => Promise<{ readonly kind: 'READY'; readonly agentActionId: string; readonly sentences: readonly string[] } | { readonly kind: 'FAILED' }>
+/** fresh: the button over a text shown asks for a new one ("เขียนใหม่"); else a text written ahead of the same facts may come back */
+export type Summarize = (purpose: SummaryPurpose, fresh: boolean, key: string) => Promise<{ readonly kind: 'READY'; readonly agentActionId: string; readonly sentences: readonly string[]; readonly feedback: AiFeedback | null } | { readonly kind: 'FAILED' }>
 
 export function RfxAiSummary({
   canAsk,
@@ -45,11 +46,11 @@ export function RfxAiSummary({
       setFailed(null)
       setAsking(purpose)
       const key = submission.key
-      const outcome = await summarize(purpose, key).catch(() => ({ kind: 'FAILED' as const }))
+      const outcome = await summarize(purpose, texts[purpose] !== null, key).catch(() => ({ kind: 'FAILED' as const }))
       submission.next()
       setAsking(null)
       if (outcome.kind !== 'READY') return setFailed(purpose)
-      setTexts((x) => ({ ...x, [purpose]: { agentActionId: outcome.agentActionId, sentences: outcome.sentences, feedback: null } }))
+      setTexts((x) => ({ ...x, [purpose]: { agentActionId: outcome.agentActionId, sentences: outcome.sentences, feedback: outcome.feedback } }))
     })
   const purposes: readonly SummaryPurpose[] = ['BID_SUMMARY', 'NEGOTIATION_POINTS']
   if (!canAsk && !texts.BID_SUMMARY && !texts.NEGOTIATION_POINTS) return null

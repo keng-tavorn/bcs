@@ -66,6 +66,7 @@ export const SETUP_ERROR_KEYS = [
   'AI_CREDITS_EXHAUSTED',
   'AI_NOT_EVALUATED',
   'RATE_LIMITED',
+  'AI_DRAFT_WAITING',
   'OTHER',
 ] as const
 export type SetupErrorKey = (typeof SETUP_ERROR_KEYS)[number]

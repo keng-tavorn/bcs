@@ -8,7 +8,8 @@ import { prisma } from '@/server/db/client'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { rfxAiSummaryRun } from '@/server/jobs/rfx-ai-summary'
 import { portalCtx } from '@/server/portal/session'
-import { draftRfx, giveAgentFeedback, rfxDraftAiOf, rfxSummariesOf, runMonthlyGrant, setAiRuntimeForTests, summarizeRfx, updateAgentSetting, writeSummaryAhead, type AiRuntime } from '@/server/services/ai'
+import { systemCtx } from '@/server/context'
+import { draftRfx, giveAgentFeedback, requestAgentAction, rfxDraftAiOf, rfxSummariesOf, runMonthlyGrant, setAiRuntimeForTests, summarizeRfx, updateAgentSetting, writeSummaryAhead, type AiRuntime } from '@/server/services/ai'
 import { closeRfxAt, createRfx, inviteToRfx, openRfx, setScorecard, submitBid, updateRfx } from '@/server/services/sourcing'
 import type { DoaOrg } from '../support/doa-org'
 import { createP2Org } from '../support/p2-org'
@@ -332,5 +333,121 @@ describe('[FR-AI-305/AC6] [EG-1] with the AI off, no button and nothing written 
     const ps = [await party('มือ ก'), await party('มือ ข'), await party('มือ ค')]
     await inviteAndScore(draft, ps)
     expect(await open(draft, 3)).toMatchObject({ ok: true })
+  })
+})
+
+/** An hour after every row the tests above wrote: the limit of 10 calls a minute counts each test's own calls only */
+const LATE = (hour: number) => new Date(Date.UTC(2026, 10, 20, hour))
+
+describe('[FR-AI-305/AC1] [FR-AI-305/AC6] review of S10-16: the draft in the form', () => {
+  /** Saves the AI's words without confirming the kind or the lines' English: the draft is taken in, three fields wait */
+  async function takeInWaiting(rfxEventId: string, agentActionId: string) {
+    const lines = await prisma.rfxLine.findMany({ where: { rfxEventId }, orderBy: { lineNo: 'asc' } })
+    ok(
+      await updateRfx(
+        proc(),
+        {
+          rfxEventId,
+          expectedVersion: await version(rfxEventId),
+          title: DRAFT.title,
+          titleEn: DRAFT.titleEn,
+          description: DRAFT.description,
+          descriptionEn: DRAFT.descriptionEn,
+          kind: 'RFQ',
+          lines: lines.map((l, i) => ({ rfxLineId: l.id, descriptionEn: DRAFT.lines[i]!.descriptionEn, uomEn: 'tonne' })),
+          aiAssist: { agentActionId, confirmedPaths: ['title', 'titleEn', 'description', 'descriptionEn', 'lines.1.uomEn', 'lines.2.uomEn'] },
+        },
+        key(),
+      ),
+    )
+  }
+
+  it('[EG-1] a draft nobody took in is not shown while AI is off; one taken in whose fields wait still is (rfx.open counts it)', async () => {
+    const rfxEventId = await draftRfq()
+    reply = (purpose) => (purpose === 'RFX_DRAFT' ? DRAFT : null)
+    const d = ok(await draftRfx(proc(LATE(1)), { rfxEventId }, key()))
+    setAiRuntimeForTests({ ...FIXTURE, enabled: false })
+    expect(await rfxDraftAiOf(proc(LATE(1)), rfxEventId)).toEqual({ available: false, open: null, applied: false })
+    setAiRuntimeForTests(FIXTURE)
+    await takeInWaiting(rfxEventId, d.agentActionId)
+    setAiRuntimeForTests({ ...FIXTURE, enabled: false })
+    expect(await rfxDraftAiOf(proc(LATE(1)), rfxEventId)).toMatchObject({ available: false, applied: true, open: { agentActionId: d.agentActionId, pendingPaths: ['kind', 'lines.1.descriptionEn', 'lines.2.descriptionEn'] } })
+  })
+
+  it('[BR-AI-17] a new draft waits until the fields of the one taken in are confirmed: no call, no credits (AI_REVIEW_PENDING)', async () => {
+    const rfxEventId = await draftRfq()
+    reply = (purpose) => (purpose === 'RFX_DRAFT' ? DRAFT : null)
+    const d = ok(await draftRfx(proc(LATE(2)), { rfxEventId }, key()))
+    await takeInWaiting(rfxEventId, d.agentActionId)
+    const calls = sent.length
+    expect(await draftRfx(proc(LATE(2)), { rfxEventId }, key())).toMatchObject({ ok: false, error: { code: 'AI_REVIEW_PENDING', details: { count: 3 } } })
+    expect(sent).toHaveLength(calls)
+    expect(await rfxDraftAiOf(proc(LATE(2)), rfxEventId)).toMatchObject({ applied: true, open: { agentActionId: d.agentActionId } })
+  })
+
+  it('a draft that failed leaves the earlier one in the form; a ready one replaces it', async () => {
+    const rfxEventId = await draftRfq()
+    reply = (purpose) => (purpose === 'RFX_DRAFT' ? DRAFT : null)
+    const a = ok(await draftRfx(proc(LATE(3)), { rfxEventId }, key()))
+    reply = () => null
+    expect(ok(await draftRfx(proc(LATE(3)), { rfxEventId }, key())).status).toBe('FAILED')
+    expect((await prisma.agentAction.findUniqueOrThrow({ where: { id: a.agentActionId } })).status).toBe('DRAFT')
+    expect(await rfxDraftAiOf(proc(LATE(3)), rfxEventId)).toMatchObject({ applied: false, open: { agentActionId: a.agentActionId } })
+    reply = (purpose) => (purpose === 'RFX_DRAFT' ? DRAFT : null)
+    const c = ok(await draftRfx(proc(LATE(3)), { rfxEventId }, key()))
+    expect((await prisma.agentAction.findUniqueOrThrow({ where: { id: a.agentActionId } })).status).toBe('EXPIRED')
+    expect(await rfxDraftAiOf(proc(LATE(3)), rfxEventId)).toMatchObject({ applied: false, open: { agentActionId: c.agentActionId } })
+  })
+})
+
+describe('[FR-AI-305/AC2] [FR-AI-305/AC4] [FR-AI-305/AC6] review of S10-16: the summary', () => {
+  it('[EG-1] a summary written before is not given back while AI or the agent is off', async () => {
+    const { rfxEventId } = await closedScene()
+    await closeRfxAt(org.organizationId, rfxEventId, CLOSES, AFTER)
+    reply = (purpose) => (purpose === 'BID_SUMMARY' ? SUMMARY : null)
+    ok(await summarizeRfx(proc(LATE(4)), { rfxEventId, purpose: 'BID_SUMMARY' }, key()))
+    setAiRuntimeForTests({ ...FIXTURE, enabled: false })
+    expect(await summarizeRfx(proc(LATE(4)), { rfxEventId, purpose: 'BID_SUMMARY' }, key())).toMatchObject({ ok: false, error: { code: 'AI_AGENT_DISABLED' } })
+    setAiRuntimeForTests(FIXTURE)
+    ok(await updateAgentSetting(org.ctxOf('admin', AFTER), { agent: 'SOURCING', enabled: false }, key()))
+    try {
+      expect(await summarizeRfx(proc(LATE(4)), { rfxEventId, purpose: 'BID_SUMMARY' }, key())).toMatchObject({ ok: false, error: { code: 'AI_AGENT_DISABLED' } })
+    } finally {
+      ok(await updateAgentSetting(org.ctxOf('admin', AFTER), { agent: 'SOURCING', enabled: true }, key()))
+    }
+  })
+
+  it('fresh (the button over a text) calls again for the same facts; without it the text there comes back with what this member said of it', async () => {
+    const { rfxEventId } = await closedScene()
+    await closeRfxAt(org.organizationId, rfxEventId, CLOSES, AFTER)
+    reply = (purpose) => (purpose === 'BID_SUMMARY' ? SUMMARY : null)
+    const first = ok(await summarizeRfx(proc(LATE(5)), { rfxEventId, purpose: 'BID_SUMMARY' }, key()))
+    ok(await giveAgentFeedback(proc(LATE(5)), { agentActionId: first.agentActionId, feedback: 'NOT_HELPFUL' }, key()))
+    const calls = sent.length
+    expect(ok(await summarizeRfx(proc(LATE(5)), { rfxEventId, purpose: 'BID_SUMMARY' }, key()))).toMatchObject({ agentActionId: first.agentActionId, feedback: 'NOT_HELPFUL' })
+    expect(sent).toHaveLength(calls)
+    const again = ok(await summarizeRfx(proc(LATE(5)), { rfxEventId, purpose: 'BID_SUMMARY', fresh: true }, key()))
+    expect(again).toMatchObject({ status: 'READY', feedback: null })
+    expect(again.agentActionId).not.toBe(first.agentActionId)
+    expect(sent).toHaveLength(calls + 1)
+  })
+
+  it('the job finishes a call its earlier run started (PENDING); a run that failed stays FAILED without a second call', async () => {
+    const one = await closedScene()
+    await closeRfxAt(org.organizationId, one.rfxEventId, CLOSES, AFTER)
+    reply = (purpose) => (purpose === 'BID_SUMMARY' ? SUMMARY : null)
+    const ctx = systemCtx(org.organizationId, AFTER, 'rfx-ai-summary')
+    const stopped = ok(await requestAgentAction(ctx, { purpose: 'BID_SUMMARY', subjectType: 'RFX_EVENT', subjectId: one.rfxEventId, inputRefs: { rfxEventId: one.rfxEventId, trigger: 'CLOSED' }, idempotencyKey: 'rfx_summary:' + one.rfxEventId + ':CLOSED' }, { idempotencyKey: 'rfx_summary:' + one.rfxEventId + ':CLOSED' }))
+    expect(await writeSummaryAhead(org.organizationId, one.rfxEventId, 'CLOSED', AFTER)).toBe('WRITTEN')
+    expect((await prisma.agentAction.findUniqueOrThrow({ where: { id: stopped.agentActionId } })).status).toBe('DRAFT')
+    expect(await prisma.agentAction.count({ where: { subjectId: one.rfxEventId, purpose: 'BID_SUMMARY' } })).toBe(1)
+
+    const two = await closedScene()
+    await closeRfxAt(org.organizationId, two.rfxEventId, CLOSES, AFTER)
+    reply = () => null
+    expect(await writeSummaryAhead(org.organizationId, two.rfxEventId, 'CLOSED', AFTER)).toBe('FAILED')
+    const calls = sent.length
+    expect(await writeSummaryAhead(org.organizationId, two.rfxEventId, 'CLOSED', AFTER)).toBe('FAILED')
+    expect(sent).toHaveLength(calls)
   })
 })

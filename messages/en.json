@@ -13200,6 +13200,7 @@
       "errors": {
         "AI_AGENT_DISABLED": "The Sourcing assistant is off. Fill it in yourself as usual",
         "AI_CREDITS_EXHAUSTED": "This month's AI credits are used up. Fill it in yourself as usual",
+        "AI_DRAFT_WAITING": "The earlier draft still has fields waiting for you. Confirm the kind and the lines' English and save, then draft again",
         "AI_FAILED": "The assistant could not draft it. Fill it in yourself as usual",
         "AI_NOT_EVALUATED": "The Sourcing assistant has not passed its evaluation yet",
         "AI_REVIEW_PENDING": "Values the AI filled in still wait for you. Go to the step \"General\" and confirm the kind and the lines' English before opening the RFx",

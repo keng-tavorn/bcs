@@ -1,5 +1,8 @@
 import { spawnSync } from 'node:child_process'
-import type { BrowserContext } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { devices, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import { expect } from '../fixtures'
 import { INPUT_WORKBOOKS, loadInputWorkbook, type SheetRow } from '../../../src/server/seed/workbook'
 import { E2E_BASE_URL, e2eEnv } from '../../support/e2e-env'
 
@@ -147,6 +150,164 @@ export async function portalSessionOn(context: BrowserContext, org: string, emai
     { name: 'bcs_portal', value: sid, url: `${E2E_BASE_URL}/portal/${org}` },
     { name: 'bcs_portal_csrf', value: csrf, url: `${E2E_BASE_URL}/portal/${org}` },
   ])
+}
+
+// ---------- the RFx of S10 (S10-18) ----------
+
+/** One row of RFx_Bids: what a supplier types for a line of an RFx of RFx_Scenarios */
+export interface RfxBidRow {
+  readonly supplier: string
+  readonly lineNo: number
+  readonly unitPrice: string
+  readonly includesVat: boolean
+  readonly deliveryDays: number
+}
+/** One row of RFx_Scores: an evaluator's score of a supplier on a criterion that is not PRICE */
+export interface RfxScoreRow {
+  readonly evaluator: string
+  readonly supplier: string
+  readonly criterion: string
+  readonly score: number
+}
+export interface RfxRows {
+  readonly bids: readonly RfxBidRow[]
+  readonly scores: readonly RfxScoreRow[]
+  /** The scorecard's criteria of the row (weightsJson): code and Thai name, as the score page names them */
+  readonly criteria: ReadonlyArray<{ readonly code: string; readonly nameTh: string }>
+  /** The questions the seed asked and answered while the RFx was open (questionsJson) */
+  readonly questions: ReadonlyArray<{ readonly supplier: string; readonly question: string; readonly answer: string }>
+  /** The award's reason the seed gave (awardReason) */
+  readonly awardReason: string | null
+  /** Procurement's conclusion of an RFI (conclusionNote) */
+  readonly conclusionNote: string | null
+}
+
+/** The bids, scores and criteria of an RFx of sheet RFx_Scenarios, from the phase-1 workbook */
+export async function rfxRowsOf(ref: string): Promise<RfxRows> {
+  const workbook = await loadInputWorkbook(INPUT_WORKBOOKS.p1)
+  const row = workbook.table('RFx_Scenarios').find((r) => text(r, 'ref') === ref)
+  if (!row) throw new Error(`RFx_Scenarios has no ${ref}`)
+  const B = 'RFx_Bids'
+  const bids = workbook
+    .table(B)
+    .filter((r) => text(r, 'rfxRef') === ref)
+    .map((r) => ({ supplier: must(r, B, 'supplier'), lineNo: Number(must(r, B, 'lineNo')), unitPrice: must(r, B, 'unitPrice'), includesVat: must(r, B, 'includesVat') === 'Y', deliveryDays: Number(must(r, B, 'deliveryDays')) }))
+  const S = 'RFx_Scores'
+  const scores = workbook
+    .table(S)
+    .filter((r) => text(r, 'rfxRef') === ref)
+    .map((r) => ({ evaluator: must(r, S, 'evaluator'), supplier: must(r, S, 'supplier'), criterion: must(r, S, 'criterion'), score: Number(must(r, S, 'score')) }))
+  const weights = text(row, 'weightsJson')
+  const criteria = weights ? (JSON.parse(weights) as Array<{ code: string; nameTh: string }>).map((c) => ({ code: c.code, nameTh: c.nameTh })) : []
+  const asked = text(row, 'questionsJson')
+  const questions = asked ? (JSON.parse(asked) as Array<{ supplier: string; question: string; answer: string }>).map((q) => ({ supplier: q.supplier, question: q.question, answer: q.answer })) : []
+  return { bids, scores, criteria, questions, awardReason: text(row, 'awardReason'), conclusionNote: text(row, 'conclusionNote') }
+}
+
+/** What scripts/s10.ts rfx prints of an RFx the seed made */
+export interface RfxFacts {
+  readonly id: string
+  readonly number: string | null
+  readonly status: string
+  readonly closesAt: string | null
+  readonly lines: ReadonlyArray<{ readonly lineNo: number; readonly description: string; readonly quantity: string; readonly uom: string }>
+  readonly invites: ReadonlyArray<{
+    readonly supplierCode: string | null
+    readonly supplierName: string | null
+    readonly applicationId: string | null
+    readonly status: string
+    readonly contacts: ReadonlyArray<{ readonly email: string; readonly locale: string; readonly isPrimary: boolean }>
+  }>
+}
+
+/** What scripts/s10.ts award prints of an RFx's award */
+export interface AwardFacts {
+  readonly number: string | null
+  readonly status: string
+  readonly net: string
+  readonly vat: string
+  readonly gross: string
+  readonly reason: string | null
+  readonly reasonCodes: readonly string[]
+  readonly route: { readonly rule: string; readonly approvers: readonly string[]; readonly openTaskId: string | null } | null
+  readonly pos: ReadonlyArray<{ readonly id: string; readonly number: string | null; readonly status: string; readonly net: string; readonly site: string | null }>
+  readonly agreements: ReadonlyArray<{ readonly item: string; readonly supplier: string; readonly unitPrice: string }>
+  readonly preferred: ReadonlyArray<{ readonly category: string; readonly supplier: string; readonly validFrom: string; readonly validTo: string }>
+  readonly notices: ReadonlyArray<{ readonly template: string; readonly supplier: string | null }>
+}
+
+/** The words of the portal's RFx pages in a contact's language (messages/src/<locale>/portal.json, namespace rfx) */
+export interface PortalRfxWords {
+  readonly detail: { readonly bid: string; readonly applicationWaits: string }
+  readonly bid: { readonly unitPrice: string; readonly vatIncluded: string; readonly deliveryDays: string; readonly next: string; readonly submit: string }
+  readonly notices: { readonly sent: string; readonly asked: string }
+  readonly questions: { readonly question: string; readonly send: string }
+  readonly errors: Readonly<Record<string, string>>
+}
+export function portalRfxWords(locale: string): PortalRfxWords {
+  const file = path.join(process.cwd(), 'messages', 'src', locale === 'en' ? 'en' : 'th', 'portal.json')
+  return (JSON.parse(readFileSync(file, 'utf8')) as { rfx: PortalRfxWords }).rfx
+}
+
+/** A phone of a supplier's contact at 375 px with a session of the portal, in the contact's language */
+export async function portalPhone(browser: Browser, org: string, email: string, locale: string): Promise<BrowserContext> {
+  const phone = await browser.newContext({ ...devices['Pixel 7'], viewport: { width: 375, height: 812 }, baseURL: E2E_BASE_URL, locale: locale === 'en' ? 'en-US' : 'th-TH', timezoneId: 'Asia/Bangkok' })
+  await portalSessionOn(phone, org, email)
+  return phone
+}
+
+/**
+ * A bid typed on the portal's form, step by step as a phone shows it (S10-07): from the RFx's page, the unit prices of
+ * each line (with VAT when the row says so, before VAT otherwise), the delivery days on the terms step, then sent
+ */
+export async function bidOnPhone(page: Page, w: PortalRfxWords, bid: { readonly prices: readonly string[]; readonly includesVat: boolean; readonly deliveryDays: number }) {
+  await page.getByRole('link', { name: w.detail.bid, exact: true }).click()
+  const prices = page.getByLabel(w.bid.unitPrice)
+  const next = page.getByRole('button', { name: w.bid.next, exact: true })
+  await expect(prices.first()).toBeVisible()
+  if (bid.includesVat) await page.getByLabel(w.bid.vatIncluded).filter({ visible: true }).first().check()
+  for (const [i, price] of bid.prices.entries()) {
+    if (!(await prices.nth(i).isVisible())) await next.click()
+    await prices.nth(i).fill(price)
+  }
+  while (await next.isVisible()) {
+    await next.click()
+    const days = page.getByLabel(w.bid.deliveryDays)
+    if (await days.isVisible()) await days.fill(String(bid.deliveryDays))
+  }
+  await page.getByRole('button', { name: w.bid.submit, exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: w.notices.sent })).toBeVisible()
+}
+
+/** The G-8 figures of sheet Demo_Script_P2 scene 15 (afterSeed · afterScene9) */
+export interface G8Figures {
+  readonly awards: number
+  readonly baseline: string
+  readonly savings: string
+  readonly savingsBp: number
+  readonly medianDays: string
+}
+
+/**
+ * /reports/sourcing over the awards approved in the last 120 days up to today (every RFx of the seed opened within
+ * six weeks of it · BR-RFX-15): the savings with their share of the baseline, the baseline, the lower median of the
+ * business days from opening to the award's approval, and how many awards it counts (figures from code, not AI)
+ */
+export async function expectG8(page: Page, g: G8Figures) {
+  const percent = `${g.savingsBp > 0 ? '+' : g.savingsBp < 0 ? '-' : ''}${Math.trunc(Math.abs(g.savingsBp) / 100)}.${String(Math.abs(g.savingsBp) % 100).padStart(2, '0')}%`
+  await page.goto(`/reports/sourcing?${new URLSearchParams({ from: dayFromToday(-120), to: dayFromToday(0) }).toString()}`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('รายงานการจัดหา')
+  const main = page.locator('main')
+  await expect(main.getByText(`${bahtText(g.savings)} บาท (${percent})`).first()).toBeVisible()
+  await expect(main.getByText(`${bahtText(g.baseline)} บาท`, { exact: true }).first()).toBeVisible()
+  await expect(main.getByText(`${g.medianDays} วันทำการ`, { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: `ผลมอบงานที่อนุมัติในช่วงนี้ (${g.awards})` })).toBeVisible()
+}
+
+/** Money as the pages write it: "300950.00" → "300,950.00" */
+export const bahtText = (amount: string) => {
+  const [whole = '0', cents = '00'] = amount.split('.')
+  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${cents.padEnd(2, '0')}`
 }
 
 /** The Thai day N days from today, as a date input takes it */

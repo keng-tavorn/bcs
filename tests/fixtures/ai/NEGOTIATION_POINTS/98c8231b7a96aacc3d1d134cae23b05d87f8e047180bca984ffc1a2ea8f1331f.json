@@ -1,0 +1,16 @@
+{
+  "promptVersion": "NEGOTIATION_POINTS@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "SCENE",
+  "output": {
+    "sentences": [
+      "{{v:incumbent.supplierName}} ผู้ขายรายเดิมเสนอ {{v:incumbent.net}} บาท สูงกว่ายอดต่ำสุด {{v:incumbent.gap}} บาท หรือ {{v:gapBp}} bp",
+      "คะแนนการส่งมอบของ {{v:score.2.supplierName}} คือ {{v:score.2.DELIVERY}} เทียบกับ {{v:score.1.DELIVERY}} ของ {{v:score.1.supplierName}}",
+      "จัดซื้ออาจขอให้ {{v:incumbent.supplierName}} พิจารณายืนราคาเท่ายอดต่ำสุด {{v:lowest.net}} บาท"
+    ]
+  },
+  "usage": {
+    "input": 0,
+    "output": 0
+  }
+}

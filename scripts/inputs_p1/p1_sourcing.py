@@ -233,7 +233,7 @@ def demo_p2_rows():
              notes='RFP ของฉาก 10 อนุมัติผลแล้วใน seed จึงเชิญเพิ่มไม่ได้ · ฉากนี้เปิด RFP สองภาษาใบใหม่สดสำหรับความต้องการเดียวกัน (S10-17 S10-18 กำหนดขั้นตอนจริง)'),
         dict(scene=14, core='N', stage='S10', titleTh='AI ช่วยจัดหา: ร่าง RFx สรุปข้อเสนอ และประเด็นเจรจา', actor='proc_mat1', others=None, portalActor=None, supplier=None,
              module='AI', expectJson={'agent': 'SOURCING', 'purposes': ['RFX_DRAFT', 'BID_SUMMARY', 'NEGOTIATION_POINTS'], 'spread': {'low': '300950.00', 'high': '305500.00', 'bp': 151},
-                                      'negotiation': {'supplier': 'SP0029', 'gap': '4550.00', 'gapBp': 151}},
+                                      'negotiation': {'supplier': 'SP0024', 'gap': '2788.32', 'gapBp': 93}},
              minutes=3, stepsTh='ในฉาก 9 หลังปิดรับ กดสรุปข้อเสนอ แล้วกดประเด็นเจรจา (ข้อความอย่างเดียว ระบบไม่ส่งถึงผู้ขาย)',
              notes='ปิด AI แล้วทุกขั้นของฉาก 9 ทำด้วยมือครบ (EG-1)'),
         dict(scene=15, core='N', stage='S10', titleTh='KPI G-8 ยอดประหยัดและเวลาจัดหา', actor='dm_proc', others=None, portalActor=None, supplier=None, module='SOURCING',

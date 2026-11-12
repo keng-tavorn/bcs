@@ -402,10 +402,10 @@ describe('[BR-AI-04] every transition of AgentAction has its event', () => {
 })
 
 describe('[BR-AI-05] the phase-1 seed switches every agent on and grants the month once', () => {
-  it('[BR-AI-05] seven agents on at their level (the Supplier Onboarding Agent of S7-14 and the Sourcing Agent of S10-16 among them) and one monthly grant; a second run changes nothing', async () => {
+  it('[BR-AI-05] eight agents on at their level (the Supplier Onboarding Agent of S7-14, the Sourcing Agent of S10-16 and the Risk Agent of S11-13 among them) and one monthly grant; a second run changes nothing', async () => {
     const { seedP1Ai } = await import('@/server/seed/p1-ai')
     const org = await createP1Org()
-    expect(await seedP1Ai(org.organizationId, NOW)).toEqual({ agents: 7, granted: 20_000 })
+    expect(await seedP1Ai(org.organizationId, NOW)).toEqual({ agents: 8, granted: 20_000 })
     expect(await seedP1Ai(org.organizationId, NOW)).toEqual({ agents: 0, granted: 0 })
     const settings = await prisma.aiAgentSetting.findMany({ where: { organizationId: org.organizationId }, orderBy: { agent: 'asc' }, select: { agent: true, enabled: true, level: true } })
     expect(settings).toEqual([
@@ -415,6 +415,8 @@ describe('[BR-AI-05] the phase-1 seed switches every agent on and grants the mon
       { agent: 'INSIGHT', enabled: true, level: 'L0' },
       { agent: 'DOA_DRAFTER', enabled: true, level: 'L1' },
       { agent: 'SUPPLIER_ONBOARDING', enabled: true, level: 'L1' },
+      // the database's enum order: RISK (S11-01) sits before SOURCING (S10-01)
+      { agent: 'RISK', enabled: true, level: 'L1' },
       { agent: 'SOURCING', enabled: true, level: 'L1' },
     ])
     expect(await prisma.aiCreditLedger.count({ where: { organizationId: org.organizationId, source: 'MONTHLY' } })).toBe(1)

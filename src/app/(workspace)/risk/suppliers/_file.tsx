@@ -42,6 +42,8 @@ export async function RiskFileView({ file, locale, actions }: { file: SupplierRi
   const st = file.status
   const statusLook = isSupplierRiskStatus(st.status) ? SUPPLIER_RISK_BADGES[st.status] : undefined
   const current = file.assessments.find((a) => a.id === st.currentAssessmentId)
+  // one assessment open at a time (riskAssessment.open refuses another): the button shows only when none is
+  const hasOpen = file.assessments.some((a) => a.status === 'DRAFT' || a.status === 'IN_REVIEW' || a.status === 'RETURNED')
 
   const facts: Fact[] = [
     { label: t('tier'), value: st.tier ? <TierBadge tier={st.tier} label={tierLabel(st.tier)} /> : t('notAssessed') },
@@ -68,7 +70,7 @@ export async function RiskFileView({ file, locale, actions }: { file: SupplierRi
         <Facts items={facts} />
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
           <OpenFileButton label={t('export')} open={actions.exportFile} />
-          {file.canManage ? <OpenAssessmentButton open={actions.open} /> : null}
+          {file.canManage && !hasOpen ? <OpenAssessmentButton open={actions.open} /> : null}
         </div>
         <p className="text-base text-ink-muted md:text-sm">{t('exportNote')}</p>
       </Panel>

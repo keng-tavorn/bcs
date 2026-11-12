@@ -238,6 +238,13 @@ SETTINGS = [
     ('renewal.milestoneDays', '60,30', 'เตือนต่ออายุบริการก่อนหมดกี่วัน (คั่นด้วยจุลภาค)', 'FR-INT-101'),
     ('numbering.BT', 'BT-{BE}-{SEQ5}', 'รูปแบบเลขใบโอนและปรับงบ', 'OQ-12'),
     ('numbering.OB', 'OB-{BE}-{SEQ5}', 'รูปแบบเลขใบขออนุมัติเกินงบ', 'OQ-12'),
+    # S11 (S11-12): the keys that do not decide the gate (those are in sheet Risk_Policy · BR-RSK-02)
+    ('risk.overrideMaxDays', 90, 'อนุมัติข้ามความเสี่ยงได้นานสุดกี่วัน', 'OQ-224'),
+    ('risk.aiAssist', 'Y', 'ให้ AI เสนอคำตอบแบบประเมินและสรุปแฟ้ม (เมื่อเปิดโมดูล AI)', 'OQ-228'),
+    ('risk.portalAnswering', 'Y', 'ให้ผู้ขายตอบแบบประเมินในพอร์ทัล', 'BR-RSK-17'),
+    ('risk.answerRetentionYears', 10, 'เก็บคำตอบและหลักฐานของแบบประเมินกี่ปี', 'OQ-230'),
+    ('numbering.RSA', 'RSA-{BE}-{SEQ5}', 'รูปแบบเลขใบประเมินความเสี่ยงคู่ค้า', 'OQ-12'),
+    ('numbering.RO', 'RO-{BE}-{SEQ5}', 'รูปแบบเลขการอนุมัติข้ามความเสี่ยง', 'OQ-12'),
 ]
 
 # DOA version 1: the proposal v1.2 bands (OQ-01 default, the best evidence of the customer's real DOA) on a bigger org
@@ -280,6 +287,9 @@ DOA_RULES = [  # version, ruleCode, documentType, gt, lte, approverKind, approve
     # Phase 2 (S7-13 · drafted in S7-02): a new supplier approved by the procurement manager, a draft the customer confirms (OQ-182)
     (1, 'SA-01', 'SUPPLIER_APPROVAL', None, None, 'POSITION_OF_ORG', 'PROC_MGR', None, 16, 'อนุมัติผู้ขายใหม่ → ผู้จัดการจัดซื้อ (ร่างระยะ 2 · รอลูกค้ายืนยัน OQ-182)'),
     (1, 'BA-01', 'BANK_ACCOUNT_CHANGE', None, None, 'POSITION_OF_ORG', 'CFO', None, 8, 'เพิ่มหรือเปลี่ยนบัญชีรับเงินของผู้ขาย → CFO (ผู้แก้ห้ามอนุมัติ BR-SOD-05) (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    # Phase 2 (S11-12 · drafted in S11-02): an override of the supplier-risk gate, its amount the cap with VAT of the POs under it (OQ-224)
+    (1, 'RO-01', 'RISK_OVERRIDE', 0, 1000000, 'POSITION_OF_ORG', 'COO', None, 8, 'อนุมัติข้ามความเสี่ยงไม่เกิน 1,000,000 → COO (ร่างระยะ 2 · รอลูกค้ายืนยัน OQ-224)'),
+    (1, 'RO-02', 'RISK_OVERRIDE', 1000000, None, 'POSITION_OF_ORG', 'CEO', None, 16, 'อนุมัติข้ามความเสี่ยงเกิน 1,000,000 → กรรมการผู้จัดการ (ร่างระยะ 2 · รอลูกค้ายืนยัน OQ-224)'),
 ]
 
 WORKFLOW_REVIEWERS = [  # ruleCode, requestType, conditionTh, reviewerPosition, reviewerDepartment, mode, sla, descriptionTh, ref,

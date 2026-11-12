@@ -15,7 +15,7 @@ import { prisma } from '@/server/db/client'
 import type { SeedPinsReport } from '@/server/seed/pins'
 import { INPUT_WORKBOOKS, inputProfileOf, type InputProfile } from '@/server/seed/workbook'
 import { DemoHistoryIncompleteError, DemoHistoryNetError, DemoHistoryNoBudgetLineError, DemoHistoryOutOfYearError, DemoHistoryPinError, DemoHistoryStorageError } from '@/server/services/demo-history'
-import { seedDemoBase, seedDemoHistoryFromInputs, seedSupplierPortalFromInputs } from '@/server/services/demo-seed'
+import { seedDemoBase, seedDemoHistoryFromInputs, seedRiskFromInputs, seedSupplierPortalFromInputs } from '@/server/services/demo-seed'
 import { describeLineSeed } from '@/server/services/line-channel'
 import { ensureBucket } from '../scripts/storage-init'
 
@@ -72,6 +72,10 @@ try {
   const portalStarted = performance.now()
   const supplierPortal = process.env.SEED_DEMO_HISTORY === '0' ? null : await seedSupplierPortalFromInputs(organizationId, systemClock, profile)
   const portalSeconds = ((performance.now() - portalStarted) / 1000).toFixed(1)
+  // S11-12: the supplier-risk history after the requests and the portal (its first part is played before the history)
+  const riskStarted = performance.now()
+  const risk = process.env.SEED_DEMO_HISTORY === '0' ? null : await seedRiskFromInputs(organizationId, systemClock, profile)
+  const riskSeconds = ((performance.now() - riskStarted) / 1000).toFixed(1)
   console.log(
     `db:seed เสร็จใน ${seconds()} วินาที (ข้อมูลตั้งต้น ${baseSeconds} วินาที): อัตรา VAT ใหม่ ${taxRates} ช่วง · องค์กร ${orgCode} (${report.organizationCreated ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) · ` +
       `สมาชิกใหม่ ${report.members.created} มีอยู่แล้ว ${report.members.existing} · บทบาทใหม่ ${report.rolesGranted} · ` +
@@ -87,6 +91,7 @@ try {
           : ' · ประวัติ demo มีอยู่แล้ว'),
   )
   if (supplierPortal) console.log(`db:seed พอร์ทัลผู้ขาย: ${supplierPortal.seeded ? `เอกสาร ${supplierPortal.documents} ฉบับ · ใบสมัคร ${Object.entries(supplierPortal.applications).map(([s, n]) => `${s} ${n}`).join(' ')}` : 'มีอยู่แล้ว'} (${portalSeconds} วินาที)`)
+  if (risk) console.log(`db:seed ความเสี่ยงคู่ค้า: ${risk.seeded ? `ใบประเมินที่ยังเปิด ${Object.entries(risk.assessments).map(([st, n]) => `${st} ${n}`).join(' ')} · ประเมินซ้ำเพราะธงทะเบียน ${risk.registryReviews} ราย` : 'มีอยู่แล้ว'} (${riskSeconds} วินาที)`)
   console.log(`db:seed LINE: ${describeLineSeed(lineChannel)}`)
   if (sandbox) console.log(`db:seed UAT: ${sandbox.code} ระบบทดลองของ ${orgCode} (${sandbox.created ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) ผัง DOA และ workflow ชุดเดียวกัน ไม่มีงบ ผู้ขาย หรือคำขอ · ผู้ใช้ทดสอบอีเมล @…-uat`)
   console.log(`db:seed PIN: ${pinReport(pins, pinless, history?.seeded === true)}`)

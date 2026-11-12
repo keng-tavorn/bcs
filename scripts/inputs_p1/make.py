@@ -27,6 +27,8 @@ from p1_texts import (README, INPUTS, QUESTIONS_Q, QUESTIONS_B, SCENARIOS,  # no
 from p1_demo import COLUMNS as DEMO_COLUMNS, SCENES as DEMO_SCENES, P2_COLUMNS as DEMO_P2_COLUMNS, SCENES_P2 as DEMO_P2_SCENES  # noqa: E402
 from p1_suppliers_portal import (CONTACT_COLUMNS, SUPPLIER_CONTACTS, DOC_TYPE_COLUMNS, DOC_TYPES, DOCUMENT_COLUMNS, SUPPLIER_DOCUMENTS,  # noqa: E402
                                  APPLICATION_COLUMNS, SUPPLIER_APPLICATIONS)
+from p1_risk import (TIER_COLUMNS, RISK_TIERS, POLICY_COLUMNS, RISK_POLICY, QUESTION_COLUMNS, RISK_QUESTIONNAIRE,  # noqa: E402
+                     REVIEWER_COLUMNS, RISK_REVIEWERS, ASSESSMENT_COLUMNS, RISK_ASSESSMENTS, OVERRIDE_COLUMNS, RISK_OVERRIDES)
 
 REAL, DEFAULT, SYNTH = 'real', 'default', 'synthetic'
 FILL = {REAL: '1F3864', DEFAULT: '7F7F7F', SYNTH: 'BF8F00'}
@@ -195,6 +197,11 @@ def main():
     # documents on file and the applications are BCS's synthetic history
     t(sheet('Supplier_Contacts'), REAL, CONTACT_COLUMNS, none(SUPPLIER_CONTACTS))
     t(sheet('Supplier_Document_Types'), DEFAULT, DOC_TYPE_COLUMNS, DOC_TYPES)
+    # S11-12: the supplier-risk drafts of the organization (grey defaults the customer confirms · OQ-221 to OQ-227) and its reviewers
+    t(sheet('Risk_Tiers'), DEFAULT, TIER_COLUMNS, RISK_TIERS)
+    t(sheet('Risk_Policy'), DEFAULT, POLICY_COLUMNS, RISK_POLICY)
+    t(sheet('Risk_Questionnaire'), DEFAULT, QUESTION_COLUMNS, RISK_QUESTIONNAIRE)
+    t(sheet('Risk_Reviewers'), REAL, REVIEWER_COLUMNS, none(RISK_REVIEWERS))
     if not blank:  # the synthetic sheets (gold headers) are BCS's test data, never asked from the customer
         hist_cols = [('ref', 'รหัส'), ('daysAgo', 'กี่วันก่อนวัน seed'), ('requester', 'ผู้ขอ'), ('chargedDept', 'แผนกเจ้าของงบ'), ('requestType', 'ประเภท'),
                      ('title', 'เรื่อง (ไม่ซ้ำ)'), ('site', 'สถานที่ส่ง'), ('supplier', 'ผู้ขาย'), ('budgetKey', 'กุญแจงบ (seed เลือกปีงบตามวันที่)'),
@@ -220,6 +227,8 @@ def main():
         t(sheet('Supplier_Documents'), SYNTH, DOCUMENT_COLUMNS, SUPPLIER_DOCUMENTS)
         t(sheet('Supplier_Applications'), SYNTH, APPLICATION_COLUMNS, SUPPLIER_APPLICATIONS)
         t(sheet('Demo_Script_P2'), SYNTH, DEMO_P2_COLUMNS, DEMO_P2_SCENES)
+        t(sheet('Risk_Assessments'), SYNTH, ASSESSMENT_COLUMNS, RISK_ASSESSMENTS)
+        t(sheet('Risk_Overrides'), SYNTH, OVERRIDE_COLUMNS, RISK_OVERRIDES)
     deterministic(wb, out)
 
     if not blank:
@@ -229,6 +238,8 @@ def main():
         print(f'เขียน {out}')
         print(f'  ผู้ใช้ {len(USERS)} · หน่วยงาน {len(DEPARTMENTS)} · ผู้ขาย {len(SUPPLIERS)} · รายการสินค้า {len(ITEMS)} · บรรทัดงบ {len(budget_rows())}')
         print(f'  พอร์ทัลผู้ขาย: ผู้ติดต่อ {len(SUPPLIER_CONTACTS)} · ประเภทเอกสาร {len(DOC_TYPES)} · เอกสาร {len(SUPPLIER_DOCUMENTS)} · ใบสมัคร {len(SUPPLIER_APPLICATIONS)} · ฉากระยะ 2 {len(DEMO_P2_SCENES)}')
+        done = sum(1 for r in RISK_ASSESSMENTS if r['status'] == 'COMPLETED')
+        print(f'  ความเสี่ยงคู่ค้า: คำถาม {len(RISK_QUESTIONNAIRE)} ข้อ · ผู้ตรวจ {len(RISK_REVIEWERS)} ข้อ · ใบประเมิน {len(RISK_ASSESSMENTS)} ใบ (เสร็จ {done}) · อนุมัติข้าม {len(RISK_OVERRIDES)} รายการ')
         print(f'  ประวัติ {len(history)} คำขอ ({", ".join(f"{k} {v}" for k, v in sorted(st.items()))}) · เอกสาร AI {len(samples)} ฉบับ')
     else:
         print(f'เขียนแบบฟอร์มว่าง {out}')

@@ -262,8 +262,8 @@ async function lintVersion(tx: TenantTx, row: VersionRow): Promise<{ errors: Que
   return lintQuestionnaire(row.questions.map(lintQuestionOf), types)
 }
 
-/** The checksum of what is published: the questions in order with every field that changes an assessment */
-function checksumOf(row: VersionRow): string {
+/** The checksum of what is published: the questions in order with every field that changes an assessment (the seed of S11-12 too) */
+export function questionnaireChecksum(row: VersionRow): string {
   const canonical = row.questions.map((q) => [q.code, q.domain, q.textTh, q.textEn, q.options, q.appliesWhen, q.required, q.evidenceScopeRequired, q.evidenceScope, q.aiReadable, q.sortOrder])
   return createHash('sha256').update(JSON.stringify(canonical)).digest('hex')
 }
@@ -291,7 +291,7 @@ const submitCommand = defineCommand({
     if (lint.errors.length > 0) return fail('VALIDATION_FAILED', 'the version does not pass the lint', { reason: 'RISK_LINT', errors: lint.errors, warnings: lint.warnings })
     await tx.riskQuestionnaire.update({
       where: { id: v.row.id },
-      data: { status: v.to, effectiveFrom, changeReason: input.changeReason, checksum: checksumOf(v.row), submittedById: who.memberId, submittedAt: ctx.now, version: { increment: 1 } },
+      data: { status: v.to, effectiveFrom, changeReason: input.changeReason, checksum: questionnaireChecksum(v.row), submittedById: who.memberId, submittedAt: ctx.now, version: { increment: 1 } },
     })
     return {
       ok: true,
@@ -330,7 +330,7 @@ const publishCommand = defineCommand({
     if (!v.ok) return v
     // someone other than who sent it (BR-RSK-02 · CHECK risk_questionnaire_shape)
     if (v.row.submittedById === who.memberId) return fail('VALIDATION_FAILED', 'the member who sent a version does not publish it', { reason: 'SAME_EDITOR' })
-    if (v.row.checksum !== checksumOf(v.row)) return fail('CONFLICT_VERSION', 'the questions changed after the version was sent', { reason: 'CHECKSUM' })
+    if (v.row.checksum !== questionnaireChecksum(v.row)) return fail('CONFLICT_VERSION', 'the questions changed after the version was sent', { reason: 'CHECKSUM' })
     // a time already passed while it waited takes effect now
     const effectiveFrom = v.row.effectiveFrom.getTime() < ctx.now.getTime() ? ctx.now : v.row.effectiveFrom
     const later = await laterVersionScheduled(tx, v.row, effectiveFrom)

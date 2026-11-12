@@ -682,9 +682,107 @@ def _p2_row(v):
     return {k: v.get(k) for k, _ in P2_COLUMNS}
 
 
+def s11_rows():
+    """The scenes of S11 (supplier risk · docs/sub-specs/S11.md "Demo ของขั้น"): scenes 16–22, after S10's 9–15.
+
+    Suppliers as p1_risk.py plays them: SP0160 has no seed assessment (scene 16 plays it live), SP0141 has the seed DRAFT
+    RA-19 and the EXPIRED override RO-2569-00001 (scene 17 asks for a new one live), SP0132 the HIGH assessment completed
+    2025-12-15. Numbers of the scenes are checked by validate_inputs.py --profile p1 against its own calculator (points,
+    tier, reviewers, DOA rule of the override, G-9)."""
+    from p1_suppliers import SUPPLIERS
+    from p1_suppliers_portal import PRIMARY_CONTACT
+    from p1_risk import RISK_ASSESSMENTS, RISK_OVERRIDES
+    name = {s['code']: s['nameTh'] for s in SUPPLIERS}
+    sp0132 = next(a for a in RISK_ASSESSMENTS if a['supplierCode'] == 'SP0132' and a['status'] == 'COMPLETED')
+    seed_overrides = [o[0] for o in RISK_OVERRIDES]
+    s16_answers = {'RQ-GEN-01': 'B', 'RQ-GEN-02': 'C', 'RQ-GEN-03': 'Y', 'RQ-PRV-01': 'B', 'RQ-PRV-02': 'N', 'RQ-PRV-03': 'N',
+                   'RQ-IS-01': 'N', 'RQ-IS-02': 'Y', 'RQ-IS-03': 'N', 'RQ-FIN-01': 'Y'}
+    return [
+        dict(scene=16, core='Y', stage='S11', titleTh='PO ถูกกันและประเมินจนผ่าน', actor='hr_02', others='ceo · proc_officer · dm_leg · dm_it · dm_fin',
+             portalActor=PRIMARY_CONTACT['SP0160'], supplier='SP0160', module='RISK',
+             expectJson={'request': {'requestType': 'HIRE_SERVICE', 'title': 'จ้างทำบัญชีเงินเดือน 12 เดือน', 'net': '96000.00', 'vat': '6720.00', 'gross': '102720.00',
+                                     'form': {'processesPersonalData': 'Y', 'accessesSystems': 'Y', 'accessesPremises': 'N'}, 'attachments': ['DPA'],
+                                     'rule': 'PR-03', 'approver': 'ceo'},
+                         'gate': {'error': 'RISK_ASSESSMENT_REQUIRED', 'reason': 'NOT_ASSESSED', 'inherentTier': 'HIGH'},
+                         'assessment': {'openedBy': 'proc_officer', 'categoryCodes': ['PROF'], 'payeeType': 'JURISTIC', 'workScopes': ['Payroll'],
+                                        'questions': list(s16_answers), 'linkPurpose': 'RISK_QUESTIONNAIRE', 'linkDays': 7, 'email': 'supplier.risk_questionnaire'},
+                         'answers': s16_answers, 'points': 55, 'tier': 'HIGH',
+                         'reviewers': {'RR-01': 'dm_leg', 'RR-02': 'dm_it', 'RR-04': 'dm_fin'},
+                         'returned': {'by': 'dm_leg', 'domains': ['GENERAL', 'PRIVACY'], 'evidence': 'RISK_EVIDENCE', 'answers': {'RQ-PRV-02': 'Y'}, 'points': 43, 'tier': 'HIGH'},
+                         'completed': {'status': 'COMPLETED', 'validMonths': 12, 'remindDaysBefore': 30, 'riskTier': 'HIGH', 'riskStatus': 'CURRENT'},
+                         'passed': {'event': 'po.risk_gate_passed', 'tier': 'HIGH', 'source': 'ASSESSMENT'},
+                         'numbersFromScreen': ['RSA']},
+             minutes=10,
+             stepsTh=f'hr_02 ส่งคำขอจ้างบริการ จ้างทำบัญชีเงินเดือน 12 เดือน ผู้ขาย SP0160 ({name["SP0160"]}) 96,000.00 + VAT ตอบคัดกรองข้อมูลส่วนบุคคล Y เข้าระบบ Y เข้าพื้นที่ N แนบ DPA → ceo อนุมัติ (PR-03) → '
+                     'proc_officer สร้างและส่ง PO → ติด ต้องประเมินความเสี่ยงก่อน (ระดับตั้งต้นสูง) → เปิดแบบประเมินความเสี่ยงจาก PO → ผู้ติดต่อของผู้ขายเปิดลิงก์ในอีเมลบนมือถือ ตอบ 10 ข้อ (55 คะแนน ระดับสูง) ส่ง → '
+                     'dm_leg ตีกลับ ขอสำเนานโยบาย PDPA → ผู้ขายแนบหลักฐาน แก้ RQ-PRV-02 เป็น Y ส่งใหม่ (43 คะแนน ยังสูง) → dm_leg dm_it dm_fin กด ผ่าน ในการ์ด LINE → proc_officer ส่ง PO เดิมผ่าน',
+             notes='เลขใบประเมินอ่านจากหน้าจอ (seed มีใบของปีนี้อยู่แล้ว) · วันเสร็จคือวันที่เล่น validUntil = วันเสร็จ + 12 เดือน remindOn = validUntil − 30 วัน'),
+        dict(scene=17, core='Y', stage='S11', titleTh='อนุมัติข้ามตาม DOA', actor='proc_officer', others='coo', portalActor=None, supplier='SP0141', module='RISK',
+             expectJson={'po': {'requestType': 'IT_PURCHASE', 'net': '112149.53', 'vat': '7850.47', 'gross': '120000.00',
+                                'form': {'processesPersonalData': 'Y', 'accessesSystems': 'Y', 'accessesPremises': 'N'}},
+                         'gate': {'error': 'RISK_BLOCKED', 'reason': 'OVERRIDE_EXPIRED', 'inherentTier': 'HIGH', 'assessment': 'IN_PROGRESS'},
+                         'expiredSeedOverride': seed_overrides[0],
+                         'override': {'capGross': '150000.00', 'requestedOn': '2026-11-02', 'expiresOn': '2026-12-31', 'expectedNo': 'RO-2569-00003',
+                                      'amount': {'net': '150000.00', 'vat': '0.00'}, 'documentType': 'RISK_OVERRIDE', 'rule': 'RO-01', 'approver': 'coo',
+                                      'stepUp': True, 'chatButton': False, 'status': 'APPROVED'},
+                         'passed': {'event': 'po.risk_gate_passed', 'tier': 'HIGH', 'source': 'OVERRIDE'},
+                         'parallelAssessment': {'status': 'DRAFT', 'riskStatus': 'IN_PROGRESS'},
+                         'payment': {'payDate': '2027-01-08', 'flag': 'RISK_OVERRIDE_EXPIRED', 'reasonRequired': True, 'overrideExpiresOn': '2026-12-31'}},
+             minutes=5,
+             stepsTh=f'proc_officer ส่ง PO ไอที 120,000.00 ของ SP0141 ({name["SP0141"]}) จากคำขอที่ตอบประมวลผลข้อมูลส่วนบุคคล Y → ติดด่านความเสี่ยง (ระดับตั้งต้นสูง การอนุมัติข้ามเดิมหมดอายุ) → '
+                     'ขออนุมัติข้าม กรอกเหตุผล เพดาน 150,000.00 หมดอายุ 31/12/2569 → coo เปิด LIFF จากการ์ด (ไม่มีปุ่มในแชท) เห็นเหตุผล ระดับ และแบบประเมินที่เปิดอยู่ → อนุมัติพร้อม PIN → proc_officer ส่ง PO เดิมผ่าน',
+             notes='ด่านก่อนขอ: การอนุมัติข้ามของ seed (ไม่ผูก PO เพราะ seed เล่นก่อนประวัติ) หมดอายุแล้วจึงบล็อก OVERRIDE_EXPIRED · วันที่ในแถวตามวัน demo ของ sub-spec (ขอ 2026-11-02 · ≤ 90 วัน BR-RSK-10) · '
+                   'เลขการอนุมัติข้ามต่อจาก 2 รายการของ seed เมื่อเล่นในปี 2569 · ฉากต่อของ S9: รอบจ่าย 2027-01-08 ติดธง RISK_OVERRIDE_EXPIRED'),
+        dict(scene=18, core='N', stage='S11', titleTh='ผู้ขายเลิกกิจการถูกบล็อก', actor='proc_mat1', others=None, portalActor=None, supplier='SP0031', module='RISK',
+             expectJson={'registryFlag': 'CEASED', 'gate': {'error': 'RISK_BLOCKED', 'reason': 'REGISTRY_CEASED'}, 'overrideButton': False, 'overrideRefused': True,
+                         'statusChanged': ['SP0011', 'SP0031', 'SP0096'], 'reviewReason': 'STATUS_CHANGED',
+                         'unblockByReassessment': {'SP0011': True, 'SP0031': False}},
+             minutes=3,
+             stepsTh=f'proc_mat1 ส่ง PO เหล็กให้ SP0031 ({name["SP0031"]}) → ถูกบล็อก ผู้ขายเลิกกิจการ ไม่มีปุ่มขออนุมัติข้าม → เปิด /risk เห็นรายการทบทวนเพราะทะเบียนเปลี่ยนของ SP0031 SP0096 SP0011',
+             notes='ธงทะเบียนมาจากชีต SupplierPayment ของ S8 (seed ตั้งหลังเล่นประวัติ จึงไม่กระทบ H065 ของ SP0031)'),
+        dict(scene=19, core='N', stage='S11', titleTh='ตอบด้วยหลักฐานและกฎผู้ขายระดับสูง', actor='proc_officer', others=None, portalActor=PRIMARY_CONTACT['SP0141'], supplier='SP0141', module='RISK',
+             expectJson={'assessment': {'status': 'DRAFT', 'workScopes': ['ISO 27001'], 'inherentTier': 'HIGH'},
+                         'evidence': {'question': 'RQ-IS-01', 'docType': 'ISO_CERT', 'scope': 'ISO 27001', 'expiresOn': '2027-03-31', 'option': 'Y', 'locked': True},
+                         'notFilled': [{'question': 'RQ-PRM-02', 'evidenceScope': 'ISO 45001'}],
+                         'submit': {'error': 'RISK_ANSWERS_INCOMPLETE', 'missing': ['RQ-IS-01']}, 'confirmAnswer': 'RQ-IS-01', 'expiredEvidenceClears': True},
+             minutes=4,
+             stepsTh=f'ผู้ติดต่อของ SP0141 ({name["SP0141"]}) เปิดแบบประเมินที่เปิดค้างในพอร์ทัล → RQ-IS-01 แสดง ตอบด้วยหลักฐาน ISO 27001 หมดอายุ 31/03/2027 แก้ไม่ได้ → ส่ง → ระบบขอให้ยืนยันคำตอบ RQ-IS-01 เอง (ระดับสูง) → กด ยืนยันคำตอบ แล้วส่งได้',
+             notes='ใบรับรอง ISO 27001 ของ SP0141 มาจากชีต Supplier_Documents ของ S7'),
+        dict(scene=20, core='N', stage='S11', titleTh='ประเมินซ้ำตามรอบ', actor='proc_sub1', others=None, portalActor=PRIMARY_CONTACT['SP0132'], supplier='SP0132', module='RISK',
+             expectJson={'assessment': {'tier': sp0132['expectedTier'], 'completedOn': sp0132['completedOn'].isoformat(), 'validUntil': sp0132['expectedValidUntil'].isoformat(),
+                                        'remindOn': '2026-11-15'},
+                         'remind': {'job': 'risk-review-daily', 'on': '2026-11-15', 'reviewReason': 'SCHEDULED', 'dueAt': '2026-12-15', 'email': 'supplier.risk_reminder', 'riskStatus': 'EXPIRING'},
+                         'overdue': {'on': '2026-12-16', 'riskStatus': 'OVERDUE', 'gate': {'error': 'RISK_REASSESSMENT_REQUIRED', 'reason': 'VALIDITY_LAPSED'}},
+                         'reassessed': {'supersedes': True}},
+             minutes=3,
+             stepsTh=f'SP0132 ({name["SP0132"]}) แบบประเมินระดับสูงเสร็จ 15/12/2568 ใช้ได้ถึง 15/12/2569 → วันที่ 15/11/2569 job risk-review-daily สร้างรายการทบทวนตามรอบ ส่งอีเมลเตือนผู้ขาย สถานะ ใกล้ครบรอบ → '
+                     'วันที่ 16/12/2569 สถานะ เกินรอบ → PO ใหม่ของ SP0132 ถูกบล็อกจนประเมินซ้ำเสร็จ',
+             notes='e2e ใช้ clock ของ Inngest dev · วันตายตัวจากคอลัมน์ completedOn ของชีต Risk_Assessments'),
+        dict(scene=21, core='N', stage='S11', titleTh='รายงาน G-9 ผู้ขายความเสี่ยงสูงที่ประเมินก่อน PO แรก', actor='cfo', others=None, portalActor=None, supplier=None, module='RISK',
+             expectJson={'route': '/reports/risk', 'period': {'from': '2026-01-01', 'to': 'DAY_BEFORE_DEMO'},
+                         'g9': {'bp': 7500, 'numerator': 3, 'denominator': 4, 'high': ['SP0132', 'SP0141', 'SP0158', 'SP0165'], 'assessed': ['SP0132', 'SP0158', 'SP0165'], 'override': ['SP0141']},
+                         'afterScene16': {'bp': 8000, 'numerator': 4, 'denominator': 5},
+                         'tiers': {'HIGH': 7, 'MEDIUM': 9, 'LOW': 0}, 'neverAssessed': 183,
+                         'overrides': {'expired': seed_overrides, 'openAfterScene17': 1}, 'export': 'XLSX'},
+             minutes=3,
+             stepsTh='cfo เปิด /reports/risk ช่วง 1 ม.ค. 2569 ถึงวันก่อนวัน demo → ผู้ขายความเสี่ยงสูงที่ประเมินครบก่อน PO แรก 75.00% (3 จาก 4 ราย) → จำนวนผู้ขายต่อระดับ และแถว ไม่เคยประเมิน → การอนุมัติข้ามที่หมดอายุ → ส่งออก Excel',
+             notes='ตัวเลขจากตัวคำนวณของ validate_inputs (Request_History + Items + Risk_Assessments + Risk_Overrides) · ถ้าช่วงรวมวัน demo หลังฉาก 16 เป็น 80.00% (4 จาก 5)'),
+        dict(scene=22, core='N', stage='S11', titleTh='Risk Agent ช่วยตอบแบบประเมินและสรุปแฟ้ม', actor='proc_officer', others=None, portalActor=PRIMARY_CONTACT['SP0141'], supplier='SP0141', module='AI',
+             expectJson={'agent': 'RISK', 'purpose': 'RISK_ANSWER_DRAFT', 'readDocTypes': ['COMPANY_CERT', 'RISK_EVIDENCE'],
+                         'proposals': [{'question': 'RQ-GEN-01', 'option': 'A', 'confidenceBp': 9600}, {'question': 'RQ-IS-02', 'option': 'Y', 'confidenceBp': 8700},
+                                       {'question': 'RQ-IS-03', 'option': 'Y', 'flag': 'EVIDENCE_MISSING', 'severity': 'WARN', 'capBp': 5000}],
+                         'confirm': {'command': 'riskAssessment.answer', 'aiAssist': True, 'subject': 'RISK_ASSESSMENT'},
+                         'summary': {'purpose': 'RISK_FILE_SUMMARY', 'sentences': 3}, 'tierFromEngine': True},
+             minutes=3,
+             stepsTh='เล่นต่อจากฉาก 19: เมื่อเปิดแบบประเมินของ SP0141 พอร์ทัลแสดงคำตอบที่ AI เสนอพร้อมป้าย เติมโดย AI โปรดตรวจ → ผู้ติดต่อยืนยันทีละข้อ (RQ-IS-03 ไม่มีเอกสารรองรับ ต้องยืนยันเอง) → ส่ง → ผู้ตรวจเห็นสรุปแฟ้ม 3 ประโยคในกล่องแยก',
+             notes='ปิด AI แล้วฉาก 16 ถึง 21 ยังทำครบด้วยการกรอกเอง (EG-1)'),
+    ]
+
+
 def scenes_p2():
     from p1_suppliers_portal import demo_p2_rows as s7_rows
     rows = [_p2_row(r) for r in s7_rows()]
+    rows += [_p2_row(r) for r in s11_rows()]  # S11 after S10 (scenes 16–22)
     return sorted(rows, key=lambda r: r['scene'])
 
 

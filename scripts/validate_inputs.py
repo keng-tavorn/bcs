@@ -72,7 +72,15 @@ P1_ONLY = {'Budget': ['fiscalYear','code','budgetKey','department','costCenter',
  'Supplier_Documents': ['supplierCode','docType','docNumber','issuer','scope','issuedDaysAgo','expiresDaysAhead','issuedOn','expiresOn','status','verifiedBy'],
  'Supplier_Applications': ['ref','kind','nameTh','taxId','branchCode','payeeType','category','contactName','contactEmail','inviterPhone','invitedBy','routedBy','verifiedBy',
                            'invitedDaysAgo','lastActivityDaysAgo','status','filledOnBehalf','missingDocs','decidedDaysAgo','expectedApprover','expectedG7Days'],
- 'Demo_Script_P2': ['scene','core','stage','titleTh','actor','others','portalActor','supplier','module','expectJson','minutes','stepsTh','notes']}
+ 'Demo_Script_P2': ['scene','core','stage','titleTh','actor','others','portalActor','supplier','module','expectJson','minutes','stepsTh','notes'],
+ # S11-12: the supplier risk of phase 2 (docs/sub-specs/S11.md "การอ่านชีตของไฟล์ระยะ 1")
+ 'Risk_Tiers': ['code','nameTh','nameEn','minPoints','reviewMonths','reminderDaysBefore','blocksPo','requiresExplicitAnswers'],
+ 'Risk_Policy': ['screeningTierMap','highRiskCategories','registryFlagBlocks','mediumOverdueBlocks','overrideChatButton'],
+ 'Risk_Questionnaire': ['code','domain','textTh','textEn','kind','optionsJson','appliesWhenJson','required','evidenceScopeRequired','evidenceScope','aiReadable','sortOrder'],
+ 'Risk_Reviewers': ['ruleCode','conditionTh','reviewerPosition','reviewerDepartment','fallbackPosition','fallbackDepartment','riskDomains','slaBusinessHours','whenJson','descriptionTh'],
+ 'Risk_Assessments': ['ref','supplierCode','screeningJson','categoryCodes','workScopes','openedBy','openedDaysAgo','answersJson','filledOnBehalf','status',
+                      'completedDaysAgo','completedOn','expectedPoints','expectedTier','expectedValidUntil','reviewers'],
+ 'Risk_Overrides': ['ref','supplierCode','poRef','capGross','expiresDaysAhead','requestedBy','requestedDaysAgo','status','approver','reason']}
 REQ = {**COMMON, **(DEMO_ONLY if PROFILE == 'demo' else P1_ONLY)}
 miss = [s for s in REQ if s not in wb.sheetnames]
 check(not miss, 'ชีตครบ', f'{len(REQ)} ชีตข้อมูล', f'ขาด {miss}', 'ข้อมูลส่วนนั้นจะไม่ถูกนำเข้า', 'เพิ่มชีตที่ขาดโดยคัดลอกหัวตารางจากไฟล์ v1' if PROFILE == 'demo' else 'สร้างไฟล์ใหม่ด้วย scripts/inputs_p1/make.py')
@@ -172,7 +180,7 @@ check(sig in USR, 'ผู้มีอำนาจลงนามมีบัญ�
 RULES, rprob = {}, []
 # The DOA document types of src/core/doa (DOA_DOCUMENT_TYPES · P1-07): a type without an amount takes no band (BR-DOA-22)
 DOCS = {'PURCHASE_REQUEST','PURCHASE_ORDER','GR_VARIANCE','DOA_CHANGE','ORG_AUTHORITY_CHANGE',
-        'BUDGET_TRANSFER','OVER_BUDGET','INVOICE_EXCEPTION','PO_CHANGE','PAYMENT_RUN','BANK_ACCOUNT_CHANGE','SUPPLIER_APPROVAL'}
+        'BUDGET_TRANSFER','OVER_BUDGET','INVOICE_EXCEPTION','PO_CHANGE','PAYMENT_RUN','BANK_ACCOUNT_CHANGE','SUPPLIER_APPROVAL','RISK_OVERRIDE'}
 NO_AMOUNT_DOCS = {'BANK_ACCOUNT_CHANGE', 'SUPPLIER_APPROVAL'}
 # The seed of the phase-1 file switches PAY on (ADR-070), so its DOA needs PAY's types (BR-DOA-23 BR-DOA-24)
 PAY_DOCS = ('INVOICE_EXCEPTION', 'PAYMENT_RUN', 'BANK_ACCOUNT_CHANGE')
@@ -195,6 +203,8 @@ if not RS: rprob.append(f'ไม่มีข้อ DOA ของฉบับ {VE
 if PROFILE == 'p1': rprob += [f'ฉบับ {VER} ไม่มีข้อของ {d} ที่โมดูล PAY ต้องมี' for d in PAY_DOCS if not any(r['doc'] == d for r in RS)]
 # S7-13: the seed of the phase-1 file switches SUPPLIER on too (BR-SUP-16), so its DOA needs the supplier's approval
 if PROFILE == 'p1' and not any(r['doc'] == 'SUPPLIER_APPROVAL' for r in RS): rprob.append(f'ฉบับ {VER} ไม่มีข้อของ SUPPLIER_APPROVAL ที่โมดูล SUPPLIER ต้องมี')
+# S11-12: and RISK on after SUPPLIER (BR-DOA-24), so its DOA needs the override of the supplier-risk gate (an amount type: the cap)
+if PROFILE == 'p1' and not any(r['doc'] == 'RISK_OVERRIDE' for r in RS): rprob.append(f'ฉบับ {VER} ไม่มีข้อของ RISK_OVERRIDE ที่โมดูล RISK ต้องมี (ข้อ RO-01 RO-02 ใน scripts/inputs_p1/p1_master.py)')
 check(not rprob, 'ข้อมูล DOA และนโยบาย', f'ฉบับ {VER}: {len(RS)} ข้อ · ฐาน {BASIS} · step-up {baht(STEPUP)}', '; '.join(rprob), 'engine คำนวณเส้นทางไม่ได้', 'แก้ช่องที่ระบุในชีต DOA หรือ DOA_Policy')
 def is_amt(r): return r['gt'] is not None or r['lte'] is not None
 def lower(r): return r['gt'] or 0
@@ -303,6 +313,17 @@ for k in ['chatIntake.enabled', *S17_MAX]:
     if k == 'chatIntake.enabled':
         if s_(v) not in ('Y', 'N'): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็น Y หรือ N')
     elif not (isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= S17_MAX[k]): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็นจำนวนเต็ม 1–{S17_MAX[k]}')
+# S11-12: the keys of settings.risk that do not decide the gate (RiskSettingsSchema of src/lib/org-settings.ts · the gate's
+# keys are sheet Risk_Policy) and the numbering of RSA and RO · the phase-1 file must have them all, the demo file none
+for k in ('risk.overrideMaxDays', 'risk.aiAssist', 'risk.portalAnswering', 'risk.answerRetentionYears', 'numbering.RSA', 'numbering.RO'):
+    if k not in SET:
+        if PROFILE == 'p1': sp.append(f'ชีต Settings ไม่มีแถว {k} (ค่าตั้งของ S11)')
+        continue
+    v, r = SET[k]
+    if k == 'risk.overrideMaxDays' and not whole_in(v, 7, 365): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็นจำนวนเต็ม 7–365 วัน (BR-RSK-10)')
+    if k in ('risk.aiAssist', 'risk.portalAnswering') and s_(v) not in ('Y', 'N'): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็น Y หรือ N')
+    if k == 'risk.answerRetentionYears' and not whole_in(v, 1, 100): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็นจำนวนเต็ม 1–100 ปี')
+    if k.startswith('numbering.') and not s_(v): sp.append(f'{at("Settings","value",r)} {k} ต้องไม่ว่าง')
 # BR-LINE-10: the chat window never outlasts the draft (windowMinutes <= expireHours x 60; defaults 30 and 24 as in the schema)
 _win, _exp = SET.get('chatIntake.windowMinutes', (30, 0))[0], SET.get('chatIntake.expireHours', (24, 0))[0]
 if isinstance(_win, int) and isinstance(_exp, int) and _win > _exp * 60: sp.append(f'chatIntake.windowMinutes ({_win}) ต้องไม่เกิน chatIntake.expireHours × 60 ({_exp * 60})')
@@ -1580,8 +1601,428 @@ if PROFILE == 'p1':
         if _ej(d) is None: pp.append(f'ฉาก {n} expectJson ไม่ใช่ JSON')
     s7 = sorted(d['scene'] for r, d in P2 if s_(d['stage']) == 'S7')
     if s7 != list(range(1, 9)): pp.append(f'ฉากของ S7 ต้องเป็น 1–8 (ได้ {s7})')
-    if sorted(nums) != list(range(1, len(nums) + 1)): pp.append('เลขฉากซ้ำหรือไม่ต่อเนื่อง')
-    check(not pp, 'สคริปต์ demo ระยะ 2 (Demo_Script_P2)', f'{len(nums)} ฉาก · S7 ฉาก 1–8', '; '.join(pp[:8]), 'ฉาก e2e @p2demo อ่านแถวของตนไม่ได้', 'แก้ demo_p2_rows() ของขั้นนั้นแล้วสร้างไฟล์ใหม่')
+    # S10's scenes 9–15 are another lane's: until they are in, the numbers may skip them (S11 holds 16–22 · SEAM-S10xS11-X-07)
+    gap = set() if any(s_(d['stage']) == 'S10' for r, d in P2) else set(range(9, 16))
+    if len(set(nums)) != len(nums) or sorted(nums) != sorted(set(range(1, max(nums, default=0) + 1)) - gap): pp.append('เลขฉากซ้ำหรือไม่ต่อเนื่อง')
+    check(not pp, 'สคริปต์ demo ระยะ 2 (Demo_Script_P2)', f'{len(nums)} ฉาก · S7 ฉาก 1–8' + ('' if not gap else ' · ยังไม่มีฉาก 9–15 ของ S10'), '; '.join(pp[:8]), 'ฉาก e2e @p2demo อ่านแถวของตนไม่ได้', 'แก้ demo_p2_rows() ของขั้นนั้นแล้วสร้างไฟล์ใหม่')
+
+    # ---------- ความเสี่ยงคู่ค้า (S11-12 · docs/sub-specs/S11.md "การอ่านชีตของไฟล์ระยะ 1") ----------
+    # Every value the seed plays is computed again here from the sheets with the rules of src/core/risk, mirrored (never
+    # imported): the score and tier (score.ts select.ts), the review dates (review.ts), the PO gate (gate.ts) over every PO
+    # of Request_History, and G-9 (BR-RSK-15 · g9Rate). The sheets come from scripts/inputs_p1/p1_risk.py.
+    RK_FIX = 'แก้ scripts/inputs_p1/p1_risk.py แล้วสร้างไฟล์ใหม่'
+    RK_TIER = ('LOW', 'MEDIUM', 'HIGH')
+    RK_SCREEN = ('processesPersonalData', 'accessesSystems', 'accessesPremises')
+    RK_DOMAINS = {'GENERAL', 'PRIVACY', 'INFOSEC', 'PREMISES', 'FINANCE'}
+    def rk_max(a, b): return b if RK_TIER.index(b) > RK_TIER.index(a) else a  # maxTier of src/core/risk/select.ts
+    def rk_csv(v): return [x.strip() for x in s_(v).split(',') if x.strip()]
+    def rk_json(v):
+        try: return json.loads(s_(v)) if s_(v) else None
+        except ValueError: return ValueError
+    def rk_months(day, n):  # addCalendarMonths of src/core/risk/review.ts: a day the month lacks becomes its last day
+        t = day.year * 12 + day.month - 1 + n; y, m = divmod(t, 12)
+        last = (date(y + (m + 1) // 12, (m + 1) % 12 + 1, 1) - timedelta(days=1)).day
+        return date(y, m + 1, min(day.day, last))
+    def rk_day(v):
+        try: return _day(v)
+        except ValueError: return None
+
+    # Risk_Tiers (BR-RSK-02 · tierOrderProblem of src/core/risk/admin.ts): LOW MEDIUM HIGH once each, LOW from 0 and rising
+    TIERS, rt_ = {}, []
+    for r, d in table('Risk_Tiers'):
+        c = s_(d['code'])
+        if c not in RK_TIER or c in TIERS: rt_.append(f'{at("Risk_Tiers", "code", r)} ต้องเป็น LOW MEDIUM HIGH อย่างละแถว (ได้ {c})'); continue
+        if not whole_in(d['minPoints'], 0, None): rt_.append(f'{at("Risk_Tiers", "minPoints", r)} ต้องเป็นจำนวนเต็ม ≥ 0')
+        if not whole_in(d['reviewMonths'], 1, 120): rt_.append(f'{at("Risk_Tiers", "reviewMonths", r)} ต้องเป็น 1–120 เดือน')
+        if not whole_in(d['reminderDaysBefore'], 0, 3650): rt_.append(f'{at("Risk_Tiers", "reminderDaysBefore", r)} ต้องเป็น 0–3650 วัน')
+        if s_(d['blocksPo']) not in ('Y', 'N') or s_(d['requiresExplicitAnswers']) not in ('Y', 'N'): rt_.append(f'แถว {r} blocksPo และ requiresExplicitAnswers ต้องเป็น Y หรือ N')
+        TIERS[c] = {'min': whole(d['minPoints'], 0), 'months': whole(d['reviewMonths'], 12), 'remind': whole(d['reminderDaysBefore'], 30), 'blocks': s_(d['blocksPo']) == 'Y'}
+    if set(TIERS) != set(RK_TIER): rt_.append(f'ต้องมีครบ LOW MEDIUM HIGH (มี {sorted(TIERS)})')
+    else:
+        if TIERS['LOW']['min'] != 0: rt_.append('LOW.minPoints ต้องเป็น 0')
+        if not TIERS['LOW']['min'] < TIERS['MEDIUM']['min'] < TIERS['HIGH']['min']: rt_.append('minPoints ต้องเรียงขึ้น LOW < MEDIUM < HIGH')
+        if not TIERS['HIGH']['blocks']: rt_.append('HIGH.blocksPo ต้องเป็น Y (BR-RSK-09)')
+    for t in RK_TIER: TIERS.setdefault(t, {'min': 0, 'months': 12, 'remind': 30, 'blocks': t == 'HIGH'})
+    check(not rt_, 'ความเสี่ยงคู่ค้า: ระดับ (Risk_Tiers)', f'ขอบ MEDIUM {TIERS["MEDIUM"]["min"]} · HIGH {TIERS["HIGH"]["min"]} คะแนน · ประเมินซ้ำ ' + ' / '.join(f'{t} {TIERS[t]["months"]}' for t in RK_TIER) + ' เดือน',
+          '; '.join(rt_), 'seed เปิดโมดูล RISK ไม่ได้ (RISK_TIER_NOT_CONFIGURED) หรือระดับของผู้ขายผิด', 'แก้ RISK_TIERS ใน scripts/inputs_p1/p1_risk.py')
+
+    # Risk_Policy (BR-RSK-02 BR-RSK-03): one row · screening field:TIER · categories of sheet Items · three switches Y/N
+    RK_CATS = {s_(d['category']) for d in ITEM.values() if s_(d['category'])}
+    pol_rows, pl_ = table('Risk_Policy'), []
+    SCREEN_TIER, HIGH_CATS, RK_POL = {}, set(), {}
+    if len(pol_rows) != 1: pl_.append(f'ต้องมี 1 แถว (มี {len(pol_rows)})')
+    for r, d in pol_rows[:1]:
+        for part in rk_csv(d['screeningTierMap']):
+            f_, _, t = part.partition(':')
+            if f_.strip() not in RK_SCREEN or t.strip() not in RK_TIER or f_.strip() in SCREEN_TIER: pl_.append(f'{at("Risk_Policy", "screeningTierMap", r)} "{part}" ต้องเป็น ฟิลด์คัดกรอง:ระดับ ครั้งเดียวต่อฟิลด์')
+            else: SCREEN_TIER[f_.strip()] = t.strip()
+        HIGH_CATS = set(rk_csv(d['highRiskCategories']))
+        if HIGH_CATS - RK_CATS: pl_.append(f'{at("Risk_Policy", "highRiskCategories", r)} ไม่มีหมวด {sorted(HIGH_CATS - RK_CATS)} ในชีต Items')
+        for k in ('registryFlagBlocks', 'mediumOverdueBlocks', 'overrideChatButton'):
+            if s_(d[k]) not in ('Y', 'N'): pl_.append(f'{at("Risk_Policy", k, r)} ต้องเป็น Y หรือ N')
+            RK_POL[k] = s_(d[k]) == 'Y'
+    def rk_inherent(scr, cats):  # inherentTier of src/core/risk/select.ts
+        t = 'LOW'
+        for f_ in RK_SCREEN:
+            if scr.get(f_) == 'Y' and f_ in SCREEN_TIER: t = rk_max(t, SCREEN_TIER[f_])
+        return 'HIGH' if any(c in HIGH_CATS for c in cats) else t
+    check(not pl_, 'ความเสี่ยงคู่ค้า: นโยบายด่าน (Risk_Policy)', f'คัดกรอง {", ".join(f"{k}→{v}" for k, v in SCREEN_TIER.items())} · หมวดเสี่ยงสูง {sorted(HIGH_CATS)}',
+          '; '.join(pl_), 'seed เปิดโมดูล RISK ไม่ได้ (RISK_POLICY_NOT_CONFIGURED) หรือด่าน PO ใช้นโยบายผิด', 'แก้ RISK_POLICY ใน scripts/inputs_p1/p1_risk.py')
+
+    # Risk_Questionnaire (lintQuestionnaire of src/core/risk/admin.ts · RISK_LINT_OPTIONS RISK_LINT_CONDITION RISK_LINT_SCOPE_REQUIRED)
+    RK_VARS = ('$category', '$payeeType', '$isForeign', '$inherentTier')
+    RK_OPS = ('eq', 'ne', 'in', 'gt', 'gte', 'lt', 'lte', 'empty', 'notEmpty', 'anyIn')
+    def rk_cond_problem(w, fields):  # riskConditionProblem of src/core/risk/admin.ts on the fields allowed
+        if not isinstance(w, dict): return 'NOT_AN_OBJECT'
+        if 'all' in w or 'any' in w:
+            parts = w.get('all', w.get('any'))
+            if not isinstance(parts, list) or not parts: return 'EMPTY_GROUP'
+            return next((p_ for p_ in (rk_cond_problem(x, fields) for x in parts) if p_), None)
+        f_, op = w.get('field'), w.get('op')
+        if f_ not in fields: return f'UNKNOWN_FIELD {f_}'
+        if op not in RK_OPS: return f'UNKNOWN_OP {op}'
+        if (op == 'anyIn') != (f_ == '$category'): return 'CATEGORY_TAKES_ANY_IN'
+        if op == 'anyIn': return None if isinstance(w.get('value'), list) and w['value'] else 'VALUE'
+        if f_ in RK_SCREEN and op == 'eq' and w.get('value') not in ('Y', 'N'): return 'VALUE'
+        if f_ in ('$inherentTier', '$tier') and op == 'eq' and w.get('value') not in RK_TIER: return 'VALUE'
+        return None
+    Q, rq_ = {}, []
+    for r, d in table('Risk_Questionnaire'):
+        c = s_(d['code'])
+        if not re.fullmatch(r'RQ-[A-Z]{2,4}-\d{2}', c): rq_.append(f'{at("Risk_Questionnaire", "code", r)} {c} ต้องตรง ^RQ-[A-Z]{{2,4}}-\\d{{2}}$')
+        if c in Q: rq_.append(f'{c} ซ้ำ')
+        if s_(d['domain']) not in RK_DOMAINS: rq_.append(f'{at("Risk_Questionnaire", "domain", r)} ต้องเป็น {" ".join(sorted(RK_DOMAINS))}')
+        if s_(d['kind']) != 'SINGLE_CHOICE': rq_.append(f'{at("Risk_Questionnaire", "kind", r)} ระยะ 2 มีแต่ SINGLE_CHOICE')
+        opts = rk_json(d['optionsJson'])
+        if not isinstance(opts, list) or not all(isinstance(o, dict) and s_(o.get('code')) and s_(o.get('labelTh')) and s_(o.get('labelEn')) for o in opts):
+            rq_.append(f'{at("Risk_Questionnaire", "optionsJson", r)} ต้องเป็นรายการ {{code labelTh labelEn points}}'); opts = []
+        if len(opts) < 2: rq_.append(f'{c} ต้องมีตัวเลือกอย่างน้อย 2 ตัว')
+        if len({s_(o.get('code')) for o in opts}) != len(opts): rq_.append(f'{c} รหัสตัวเลือกซ้ำ')
+        if any(not whole_in(o.get('points'), 0, None) for o in opts): rq_.append(f'{c} คะแนนต้องเป็นจำนวนเต็ม ≥ 0')
+        if any('minTier' in o and o['minTier'] not in RK_TIER for o in opts): rq_.append(f'{c} minTier ต้องเป็น LOW MEDIUM HIGH')
+        if sum(1 for o in opts if o.get('evidence') is True) > 1: rq_.append(f'{c} ตัวเลือกตอบด้วยหลักฐานได้ไม่เกิน 1 ตัว')
+        when = rk_json(d['appliesWhenJson'])
+        if when is ValueError: rq_.append(f'{at("Risk_Questionnaire", "appliesWhenJson", r)} ไม่ใช่ JSON'); when = None
+        elif when is not None:
+            prob = rk_cond_problem(when, (*RK_SCREEN, *RK_VARS))
+            if prob: rq_.append(f'{at("Risk_Questionnaire", "appliesWhenJson", r)} อ่านไม่ได้ ({prob} · RISK_LINT_CONDITION)')
+        flags = {k: s_(d[k]) for k in ('required', 'evidenceScopeRequired', 'aiReadable')}
+        if any(v not in ('Y', 'N') for v in flags.values()): rq_.append(f'แถว {r} required evidenceScopeRequired aiReadable ต้องเป็น Y หรือ N')
+        if flags['evidenceScopeRequired'] == 'Y' and not s_(d['evidenceScope']): rq_.append(f'{c} บังคับขอบเขตหลักฐานแต่ evidenceScope ว่าง')
+        if not whole_in(d['sortOrder'], 0, None): rq_.append(f'{at("Risk_Questionnaire", "sortOrder", r)} ต้องเป็นจำนวนเต็ม')
+        Q[c] = {'domain': s_(d['domain']), 'opts': {s_(o.get('code')): o for o in opts}, 'when': when, 'required': flags['required'] == 'Y',
+                'scopeReq': flags['evidenceScopeRequired'] == 'Y', 'scope': s_(d['evidenceScope']), 'sort': whole(d['sortOrder'], 0)}
+    for r, d in table('Supplier_Document_Types'):  # the document types of S7 that answer questions (BR-RSK-05)
+        for code in rk_csv(d['linkedRiskQuestionCodes']):
+            if code not in Q: rq_.append(f'{s_(d["code"])} อ้างคำถาม {code} ที่ไม่มีในแบบประเมิน (Supplier_Document_Types)')
+            elif s_(d['singleInstance']) == 'N' and not (Q[code]['scopeReq'] and Q[code]['scope']):
+                rq_.append(f'{code} ที่ {s_(d["code"])} (หลายฉบับ) อ้างต้องมี evidenceScopeRequired = Y และ evidenceScope (RISK_LINT_SCOPE_REQUIRED)')
+    scoped = {code: Q[code]['scope'] for r, d in table('Supplier_Document_Types') if s_(d['singleInstance']) == 'N' for code in rk_csv(d['linkedRiskQuestionCodes']) if code in Q}
+    check(not rq_, 'ความเสี่ยงคู่ค้า: แบบประเมิน (Risk_Questionnaire)', f'{len(Q)} ข้อ · ' + ' '.join(f'{k} {sum(1 for q in Q.values() if q["domain"] == k)}' for k in ('GENERAL', 'PRIVACY', 'INFOSEC', 'PREMISES', 'FINANCE'))
+          + ' · ขอบเขตหลักฐาน ' + ' · '.join(f'{k} "{v}"' for k, v in scoped.items()), '; '.join(rq_[:8]),
+          'seed เผยแพร่แบบประเมินไม่ได้ (RISK_QUESTIONNAIRE_NOT_PUBLISHED) หรือใบ ISO ฉบับเดียวตอบแทนทุกคำถามของประเภท', 'แก้ _QUESTIONS ใน scripts/inputs_p1/p1_risk.py (และ linkedRiskQuestionCodes ใน p1_suppliers_portal.py)')
+
+    def rk_ctx(scr, cats, payee, inh, tier=None):  # the fields a condition reads (riskConditionHolds of src/core/risk/select.ts)
+        return {**scr, '$category': list(cats), '$payeeType': payee, '$isForeign': payee == 'FOREIGN', '$inherentTier': inh, '$tier': tier}
+    def rk_set(scr, cats, payee):  # questionsInSet: no condition, or its condition holds on the context
+        inh = rk_inherent(scr, cats)
+        return inh, sorted((c for c, q in Q.items() if q['when'] is None or holds(q['when'], rk_ctx(scr, cats, payee, inh))), key=lambda c: (Q[c]['sort'], c))
+    def rk_score(scr, cats, payee, answers):  # scoreAssessment of src/core/risk/score.ts: (points, tier)
+        inh, qs_ = rk_set(scr, cats, payee)
+        points, floor = 0, 'LOW'
+        for c in qs_:
+            o = Q[c]['opts'].get(answers.get(c))
+            if o:
+                points += o['points']
+                if o.get('minTier') in RK_TIER: floor = rk_max(floor, o['minTier'])
+        by_points = max((t for t in RK_TIER if points >= TIERS[t]['min']), key=RK_TIER.index)
+        return points, rk_max(rk_max(by_points, inh), floor)
+
+    # Risk_Reviewers (WorkflowRule scope RISK_ASSESSMENT of WF-SIMEC 1 · riskReviewers of src/core/risk/reviewers.ts)
+    RR, rr_ = [], []
+    for r, d in table('Risk_Reviewers'):
+        c = s_(d['ruleCode'])
+        if not re.fullmatch(r'RR-\d{2}', c) or c in {x['code'] for x in RR}: rr_.append(f'{at("Risk_Reviewers", "ruleCode", r)} ต้องเป็น RR-nn และไม่ซ้ำ')
+        pos_, dep_ = s_(d['reviewerPosition']), s_(d['reviewerDepartment'])
+        if pos_ not in POS or dep_ not in DEP: rr_.append(f'{at("Risk_Reviewers", "reviewerPosition", r)} ไม่มีตำแหน่ง {pos_} หรือแผนก {dep_}')
+        elif (pos_, dep_) not in HOLD: rr_.append(f'{at("Risk_Reviewers", "reviewerPosition", r)} ไม่มีผู้ดำรง {pos_}@{dep_}')
+        fp, fd = s_(d['fallbackPosition']), s_(d['fallbackDepartment'])
+        if (fp or fd) and (fp not in POS or fd not in DEP or holder_up(fp, fd) is None): rr_.append(f'{at("Risk_Reviewers", "fallbackPosition", r)} ไม่มีผู้ดำรง {fp}@{fd} ทั้งฝ่ายและสายขึ้นไป')
+        doms = set(rk_csv(d['riskDomains']))
+        if not doms or doms - RK_DOMAINS: rr_.append(f'{at("Risk_Reviewers", "riskDomains", r)} ต้องไม่ว่างและอยู่ใน {" ".join(sorted(RK_DOMAINS))}')
+        if not whole_in(d['slaBusinessHours'], 1, None): rr_.append(f'{at("Risk_Reviewers", "slaBusinessHours", r)} ต้องเป็นจำนวนเต็มบวก')
+        w = rk_json(d['whenJson'])
+        prob = 'NOT_JSON' if w is ValueError or w is None else rk_cond_problem(w, (*RK_SCREEN, '$tier', '$inherentTier', '$category', '$payeeType'))
+        if prob: rr_.append(f'{at("Risk_Reviewers", "whenJson", r)} อ่านไม่ได้ ({prob}) · ใช้ได้เฉพาะฟิลด์คัดกรองกับ $tier $inherentTier $category $payeeType')
+        RR.append({'code': c, 'pos': pos_, 'dep': dep_, 'fp': fp, 'fd': fd, 'when': w if isinstance(w, dict) else {'all': [{'field': '-', 'op': 'eq', 'value': 'never'}]}})
+    def rk_reviewers(scr, cats, payee, tier, conflicts):  # rule → the reviewer (the fallback when vacant or in conflict · BR-SOD-16)
+        ctx, out = rk_ctx(scr, cats, payee, rk_inherent(scr, cats), tier), {}
+        for x in RR:
+            if not holds(x['when'], ctx): continue
+            who = holder_up(x['pos'], x['dep'])
+            if who is None or who in conflicts: who = holder_up(x['fp'], x['fd'])
+            out[x['code']] = who if who and who not in conflicts else '?'
+        return out
+    check(not rr_, 'ความเสี่ยงคู่ค้า: ผู้ตรวจแบบประเมิน (Risk_Reviewers)', f'{len(RR)} ข้อ · ' + ' · '.join(f'{x["code"]} {holder_up(x["pos"], x["dep"])}' for x in RR) + ' · ทุกข้อครบทุกฝ่าย (ALL)',
+          '; '.join(rr_[:8]), 'seed สร้างข้อผู้ตรวจของ WF-SIMEC ไม่ได้ หรือแบบประเมินไปหาผู้ตรวจที่ไม่มีตัวตน', 'แก้ RISK_REVIEWERS ใน scripts/inputs_p1/p1_risk.py')
+
+    # Risk_Assessments: the calculator of points, tier and review dates against the expected columns, the answers against the set
+    RK_OPEN = ('DRAFT', 'IN_REVIEW', 'RETURNED')
+    RK_CONTACT = set(CEMAIL.values())
+    RA, ra_ = [], []
+    for r, d in table('Risk_Assessments'):
+        ref, sup, st = s_(d['ref']), s_(d['supplierCode']), s_(d['status'])
+        if not re.fullmatch(r'RA-\d{2}', ref) or ref in {a['ref'] for a in RA}: ra_.append(f'{at("Risk_Assessments", "ref", r)} ต้องเป็น RA-nn และไม่ซ้ำ')
+        if sup not in SUP: ra_.append(f'{ref} ไม่มีผู้ขาย {sup}'); continue
+        if sup not in RK_CONTACT: ra_.append(f'{ref} ผู้ขาย {sup} ไม่มีผู้ติดต่อในชีต Supplier_Contacts')
+        if st not in ('COMPLETED', *RK_OPEN, 'CANCELLED'): ra_.append(f'{ref} status ไม่รู้จัก {st}')
+        scr = rk_json(d['screeningJson'])
+        if not isinstance(scr, dict) or set(scr) != set(RK_SCREEN) or any(v not in ('Y', 'N') for v in scr.values()):
+            ra_.append(f'{ref} screeningJson ต้องมี {" ".join(RK_SCREEN)} ครบเป็น Y หรือ N'); scr = {k: 'N' for k in RK_SCREEN}
+        cats = rk_csv(d['categoryCodes'])
+        if not cats or set(cats) - RK_CATS: ra_.append(f'{ref} categoryCodes ต้องไม่ว่างและอยู่ในหมวดของชีต Items')
+        opener, behalf = s_(d['openedBy']), s_(d['filledOnBehalf'])
+        if opener not in PROC: ra_.append(f'{ref} openedBy ต้องเป็นผู้ใช้ PROCUREMENT')
+        if behalf and behalf not in PROC: ra_.append(f'{ref} filledOnBehalf ต้องเป็นผู้ใช้ PROCUREMENT')
+        if not whole_in(d['openedDaysAgo'], 0, 3650): ra_.append(f'{ref} openedDaysAgo ต้องเป็นจำนวนเต็ม ≥ 0')
+        ans = rk_json(d['answersJson']) or {}
+        if not isinstance(ans, dict): ra_.append(f'{ref} answersJson ไม่ใช่ {{รหัสคำถาม: ตัวเลือก}}'); ans = {}
+        payee = PAYEE.get(sup, 'JURISTIC')
+        inh, qset = rk_set(scr, cats, payee)
+        for qc, oc in ans.items():
+            if qc not in qset: ra_.append(f'{ref} ตอบ {qc} ที่ไม่อยู่ในชุดของใบ')
+            elif s_(oc) not in Q[qc]['opts']: ra_.append(f'{ref} {qc} ไม่มีตัวเลือก {oc}')
+        if st in ('COMPLETED', 'IN_REVIEW', 'RETURNED'):
+            lack_q = [c for c in qset if Q[c]['required'] and c not in ans]
+            if lack_q: ra_.append(f'{ref} {st} แต่ยังไม่ตอบ {lack_q}')
+        points, tier = rk_score(scr, cats, payee, {k: s_(v) for k, v in ans.items()})
+        revs = [x.strip() for x in s_(d['reviewers']).split('·') if x.strip()]
+        conflicts = {opener, behalf} - {''}
+        if conflicts & set(revs): ra_.append(f'{ref} ผู้ตรวจ {sorted(conflicts & set(revs))} เป็นผู้เปิดหรือผู้กรอกแทนเองไม่ได้ (BR-SOD-16)')
+        if any(x not in USR for x in revs): ra_.append(f'{ref} ผู้ตรวจไม่มีในชีต Users')
+        if st in ('COMPLETED', 'IN_REVIEW', 'RETURNED'):
+            # WF-SIMEC version 1 takes effect with DOA version 1 (src/server/seed/workflow.ts): an assessment sent before
+            # that day has no rule to name a reviewer and completes at the send (resolveReviewStep gives null). The seed
+            # sends a row with completedOn on that day; the others on the day they open
+            fixed_day = rk_day(d['completedOn'])
+            send_day = fixed_day if (st == 'COMPLETED' and fixed_day) else TODAY - timedelta(days=whole(d['openedDaysAgo'], 0))
+            wf_from = rk_day(POL.get('effectiveFrom', (None, 0))[0])
+            want_rev = {} if wf_from and send_day < wf_from else rk_reviewers(scr, cats, payee, tier, conflicts)
+            if sorted(set(want_rev.values())) != sorted(set(revs)): ra_.append(f'{ref} ผู้ตรวจ {revs} ไม่ตรงข้อผู้ตรวจ {want_rev}')
+        a = {'ref': ref, 'sup': sup, 'status': st, 'scr': scr, 'cats': cats, 'tier': None, 'done': None, 'until': None, 'points': points, 'inh': inh}
+        fixed, rel = rk_day(d['completedOn']), d['completedDaysAgo']
+        if st == 'COMPLETED':
+            if (fixed is None) == (rel in (None, '')): ra_.append(f'{ref} ใส่ completedDaysAgo หรือ completedOn อย่างใดอย่างหนึ่ง'); continue
+            done_day = fixed if fixed else TODAY - timedelta(days=whole(rel, 0))
+            if done_day >= TODAY: ra_.append(f'{ref} วันเสร็จ {done_day} ไม่อยู่ในอดีต')
+            if not fixed and whole(d['openedDaysAgo'], 0) <= whole(rel, 0): ra_.append(f'{ref} เปิดหลังวันเสร็จ (openedDaysAgo ต้องมากกว่า completedDaysAgo)')
+            months = TIERS[tier]['months']
+            until = rk_months(done_day, months)
+            if whole(d['expectedPoints'], None) != points or s_(d['expectedTier']) != tier: ra_.append(f'{ref} คาด {s_(d["expectedPoints"])} คะแนน {s_(d["expectedTier"])} แต่ตัวคำนวณได้ {points} คะแนน {tier}')
+            ev = d['expectedValidUntil']
+            if fixed and rk_day(ev) != until: ra_.append(f'{ref} expectedValidUntil {s_(ev)} ต้องเป็น {until} (completedOn + {months} เดือน)')
+            if not fixed and s_(ev) != f'+{months}M': ra_.append(f'{ref} expectedValidUntil ต้องเป็น +{months}M (วันเสร็จ + {months} เดือน)')
+            a.update(tier=tier, done=done_day, until=until)
+        else:
+            if fixed or rel not in (None, '') or s_(d['expectedTier']) or s_(d['expectedValidUntil']): ra_.append(f'{ref} {st} ต้องไม่มีวันเสร็จและค่าที่คาด')
+        RA.append(a)
+    RA_DONE = {}
+    for a in RA:
+        if a['status'] == 'COMPLETED': RA_DONE.setdefault(a['sup'], []).append(a)
+    tier_now = {s: max(v, key=lambda a: (a['done'], a['ref']))['tier'] for s, v in RA_DONE.items()}
+    tier_count = {t: sum(1 for v in tier_now.values() if v == t) for t in RK_TIER}
+    # the report counts every active supplier of the organization: those of sheet Suppliers and the new ones of the
+    # applications S7's seed approves (NEW · APPROVED), none of them assessed (BR-RSK-14)
+    APPROVED_NEW = len([1 for _, d in table('Supplier_Applications') if s_(d['kind']) == 'NEW' and s_(d['status']) == 'APPROVED'])
+    never = len([c for c in SUP if c not in tier_now]) + APPROVED_NEW
+    rk_status = {}
+    for a in RA: rk_status[a['status']] = rk_status.get(a['status'], 0) + 1
+    check(not ra_, 'ความเสี่ยงคู่ค้า: ใบประเมิน (Risk_Assessments)', f'{len(RA)} ใบ (' + ' '.join(f'{k} {v}' for k, v in sorted(rk_status.items())) + ') · คะแนน ระดับ วันครบรอบ และผู้ตรวจตรงตัวคำนวณ · '
+          + f'ผู้ขายต่อระดับ HIGH {tier_count["HIGH"]} · MEDIUM {tier_count["MEDIUM"]} · LOW {tier_count["LOW"]} · ไม่เคยประเมิน {never} ราย', '; '.join(ra_[:8]),
+          'seed เล่นใบประเมินแล้วได้คะแนน ระดับ หรือวันครบรอบไม่ตรงชีต (seed ล้ม) หรือผู้ตรวจเป็นผู้เปิดใบเอง', RK_FIX)
+
+    # Risk_Overrides (ADR-226 · BR-RSK-10 · BR-SOD-15): the DOA rule of the cap, the window, the registry, the status on the seed day
+    MAXD = whole(SET.get('risk.overrideMaxDays', (90, 0))[0], 90)
+    def rk_route(doc, amt, requester):  # resolveRoute as route() above (route() is shadowed by a later name of this file): (rule, approver)
+        cand = [x for x in RS if x['doc'] == doc and matches(x, amt)]
+        if len(cand) != 1: return None, None
+        band = sorted([x for x in RS if x['doc'] == doc], key=lower)
+        for x in band[band.index(cand[0]):]:
+            who = (x['mem'] or None) if x['kind'] == 'MEMBER' else HOLD.get((x['pos'], ROOT)) if x['kind'] == 'POSITION_OF_ORG' else holder_up(x['pos'], USR.get(requester, {}).get('dept'))
+            if who is None or SELF == 'BLOCK' and who == requester: return cand[0]['code'], None
+            if who != requester: return cand[0]['code'], who
+        return cand[0]['code'], None
+    RO, ro_ = [], []
+    for r, d in table('Risk_Overrides'):
+        ref, sup, po = s_(d['ref']), s_(d['supplierCode']), s_(d['poRef'])
+        cap, E, R_, by, ap, st = money(d['capGross']), d['expiresDaysAhead'], d['requestedDaysAgo'], s_(d['requestedBy']), s_(d['approver']), s_(d['status'])
+        if not re.fullmatch(r'RO-\d{4}-\d{5}', ref) or ref in {o['ref'] for o in RO}: ro_.append(f'{at("Risk_Overrides", "ref", r)} ต้องเป็น RO-ปีพ.ศ.-เลข 5 หลักและไม่ซ้ำ')
+        if sup not in SUP: ro_.append(f'{ref} ไม่มีผู้ขาย {sup}'); continue
+        if STATUS.get(sup, 'ACTIVE') != 'ACTIVE': ro_.append(f'{ref} ผู้ขาย {sup} ติดธงทะเบียน {STATUS.get(sup)} อนุมัติข้ามไม่ได้ (BR-RSK-12)')
+        if cap is None or cap <= 0: ro_.append(f'{ref} capGross ต้องเป็นเงินบวก'); continue
+        if not whole_in(E, 0, min(90, MAXD)): ro_.append(f'{ref} expiresDaysAhead ต้องเป็น 0–{min(90, MAXD)} วันนับจากวันขอ (BR-RSK-10)'); continue
+        if not whole_in(R_, 0, 366): ro_.append(f'{ref} requestedDaysAgo ต้องเป็น 0–366'); continue
+        if by not in PROC: ro_.append(f'{ref} requestedBy ต้องเป็นผู้ใช้ PROCUREMENT')
+        rule, who = rk_route('RISK_OVERRIDE', cap, by)
+        if rule is None or who != ap: ro_.append(f'{ref} ผู้อนุมัติ {ap} ไม่ตรงข้อ DOA {rule} ของเพดาน {baht(cap)} (ได้ {who})')
+        if ap == by: ro_.append(f'{ref} ผู้ขออนุมัติเองไม่ได้ (BR-SOD-15)')
+        expires = TODAY - timedelta(days=R_) + timedelta(days=E)
+        want_st = 'EXPIRED' if expires < TODAY else 'APPROVED'
+        if st != want_st: ro_.append(f'{ref} สถานะ ณ วัน seed ต้องเป็น {want_st} (หมดอายุ {expires})')
+        h = HIST.get(po)
+        if h is None or s_(h['supplier']) != sup or s_(h['status']) not in ('ORDERED', 'COMPLETED'): ro_.append(f'{ref} poRef {po} ต้องเป็นแถวที่ถึง PO ของผู้ขาย {sup} ใน Request_History')
+        elif not R_ - E <= whole(h['daysAgo'], -1) <= R_: ro_.append(f'{ref} PO ของ {po} ({whole(h["daysAgo"], -1)} วันก่อน seed) ไม่อยู่ในหน้าต่าง [{R_ - E}, {R_}]')
+        RO.append({'ref': ref, 'sup': sup, 'po': po, 'cap': cap, 'from': TODAY - timedelta(days=R_), 'to': expires, 'status': st, 'rule': rule, 'ap': ap, 'R': R_, 'used': 0, 'pos': []})
+    seqs = [int(o['ref'][-5:]) for o in sorted(RO, key=lambda o: (-o['R'], o['ref'])) if re.fullmatch(r'RO-\d{4}-\d{5}', o['ref'])]
+    if seqs != list(range(1, len(seqs) + 1)): ro_.append(f'เลข RO ต้องรัน 1, 2, … ตามลำดับวันขอ (ได้ {seqs})')
+
+    # The gate over every PO of the history (BR-RSK-09 · poGate of src/core/risk/gate.ts) in the order the seed plays them:
+    # tier = max(the PO's inherent tier, the tier of the supplier's assessment completed before the PO's day); a blocking tier
+    # passes by an assessment valid on the day that covers the PO, or by an override whose window holds the day and whose
+    # cumulative cap is enough. The registry flags come after the history (the seed sets them last), so they are not weighed
+    def rk_po(h):
+        f_ = rk_json(h['form'])
+        scr = {k: s_(f_.get(k)) for k in RK_SCREEN} if isinstance(f_, dict) else {}
+        cat = s_(ITEM.get(s_(h['itemCode']), {}).get('category'))
+        return scr, [cat] if cat else []
+    GATE, gt_ = {}, []
+    po_rows = sorted((h for h in HIST.values() if s_(h['status']) in ('ORDERED', 'COMPLETED')), key=lambda h: (-whole(h['daysAgo'], 0), s_(h['ref'])))
+    for h in po_rows:
+        ref, sup, day = s_(h['ref']), s_(h['supplier']), TODAY - timedelta(days=whole(h['daysAgo'], 0))
+        scr, cats = rk_po(h)
+        inh = rk_inherent(scr, cats)
+        before = [a for a in RA_DONE.get(sup, []) if a['done'] < day]
+        cur = max(before, key=lambda a: (a['done'], a['ref'])) if before else None
+        tier = rk_max(inh, cur['tier']) if cur else inh
+        g = {'ref': ref, 'sup': sup, 'day': day, 'inh': inh, 'tier': tier, 'source': None}
+        overdue_blocks = tier == 'MEDIUM' and cur is not None and day > cur['until'] and RK_POL.get('mediumOverdueBlocks')
+        if not TIERS[tier]['blocks'] and not overdue_blocks: g['source'] = 'NOT_REQUIRED'
+        elif cur and day <= cur['until'] and all(v != 'Y' or cur['scr'].get(k) == 'Y' for k, v in scr.items()) and all(c in cur['cats'] or c not in HIGH_CATS for c in cats):
+            g['source'] = 'ASSESSMENT'  # screeningCovers of src/core/risk/gate.ts
+        else:
+            gross = money(h['gross']) or 0
+            for o in sorted((o for o in RO if o['sup'] == sup), key=lambda o: (o['to'], o['ref']), reverse=True):
+                if o['from'] <= day <= o['to'] and o['used'] + gross <= o['cap']:
+                    o['used'] += gross; o['pos'].append(ref); g['source'] = 'OVERRIDE'; g['override'] = o['ref']; break
+        if g['source'] is None: gt_.append(f'{ref} ({sup} {day} · ระดับ {tier} ตั้งต้น {inh}) ไม่มีใบ COMPLETED ที่ครอบและยังไม่หมดอายุ และไม่มีการอนุมัติข้ามที่หน้าต่างและเพดานพอ')
+        GATE[ref] = g
+    for o in RO:
+        if o['po'] in HIST and o['po'] not in o['pos']: ro_.append(f'{o["ref"]} ไม่ได้ถูกใช้กับ PO ของ {o["po"]} (PO นั้นผ่านด่านทางอื่นหรือเพดานไม่พอ)')
+    expired_ro = [o['ref'] for o in RO if o['status'] == 'EXPIRED']
+    check(not ro_, 'ความเสี่ยงคู่ค้า: การอนุมัติข้าม (Risk_Overrides)', f'การอนุมัติข้ามของ seed {len(RO)} รายการ ({"EXPIRED" if len(expired_ro) == len(RO) else "EXPIRED " + str(len(expired_ro))}) · '
+          + ' · '.join(f'{o["ref"]} {o["sup"]} {o["rule"]} {o["ap"]} เพดาน {baht(o["cap"])} ใช้ {baht(o["used"])} กับ {" ".join(o["pos"])}' for o in RO), '; '.join(ro_[:8]),
+          'seed เล่นการอนุมัติข้ามไม่ได้ หรือ PO ของประวัติที่อาศัยการอนุมัติข้ามจะติดด่าน', RK_FIX)
+    inh_high = [g['ref'] for g in GATE.values() if g['inh'] == 'HIGH']
+    gate_high = [g['ref'] for g in GATE.values() if g['tier'] == 'HIGH']
+    flagged_po = [f'{g["ref"]} ({g["sup"]} {STATUS.get(g["sup"])})' for g in GATE.values() if STATUS.get(g['sup'], 'ACTIVE') != 'ACTIVE']
+    check(not gt_, 'ความเสี่ยงคู่ค้า: PO ทุกใบของประวัติผ่านด่าน (BR-RSK-09)', f'{len(GATE)} PO · ตั้งต้น HIGH {len(inh_high)} แถว ({" ".join(sorted(inh_high))}) · ระดับของด่าน HIGH {len(gate_high)} แถว ('
+          + ' '.join(f'{x}:{GATE[x]["source"]}' for x in sorted(gate_high)) + ')' + (f' · ผู้ขายติดธงที่มี PO ในประวัติ {", ".join(flagged_po)} (seed ตั้งธงหลังเล่นประวัติ)' if flagged_po else ''),
+          'PO ของประวัติจะติดด่าน: ' + '; '.join(gt_[:6]), 'seed ล้มกลางการเล่น Request_History (RISK_ASSESSMENT_REQUIRED) เพราะเปิด RISK ก่อนเล่นประวัติ',
+          'ให้ใบ COMPLETED ที่ครอบ PO นั้นก่อนวัน PO หรือแถว Risk_Overrides ที่ครอบ ใน scripts/inputs_p1/p1_risk.py (ระวังตัวหาร G-9)')
+
+    # G-9 (BR-RSK-15 · g9Rate): of the suppliers whose first PO of the history met the gate at HIGH, the share passed by an
+    # assessment · the spec fixes the seed at 4 suppliers and 7500 bp (S11-12 · scene 21)
+    first = {}
+    for g in GATE.values():
+        if g['day'] < TODAY: first.setdefault(g['sup'], g)  # GATE is in the order of the PO days
+    g9_high = sorted(s for s, g in first.items() if g['tier'] == 'HIGH')
+    g9_inh = sorted(s for s, g in first.items() if g['inh'] == 'HIGH')
+    g9_num = sorted(s for s in g9_high if first[s]['source'] == 'ASSESSMENT')
+    G9_BP = (len(g9_num) * 10000) // len(g9_high) if g9_high else None
+    g9_ok = len(g9_high) == 4 and G9_BP == 7500 and len(g9_inh) == 3
+    g9_list = ' '.join(f'{s} {first[s]["ref"]}' for s in g9_high)
+    check(g9_ok, 'ความเสี่ยงคู่ค้า: KPI G-9 ของ seed (BR-RSK-15)',
+          f'ผู้ขาย HIGH ที่ PO แรก {len(g9_high)} ราย ({g9_list}) · ตั้งต้น HIGH {len(g9_inh)} ราย · '
+          f'G-9 {G9_BP // 100 if G9_BP is not None else 0}.{(G9_BP or 0) % 100:02d}% ({len(g9_num)}/{len(g9_high)}) · ไม่เคยประเมิน {never} ราย · ผ่านด้วยการอนุมัติข้าม {" ".join(s for s in g9_high if s not in g9_num) or "-"}',
+          f'ผู้ขาย HIGH ที่ PO แรก {len(g9_high)} ราย {g9_high} (ต้อง 4) · ตั้งต้น HIGH {len(g9_inh)} ราย {g9_inh} (ต้อง 3) · G-9 {G9_BP} bp ({len(g9_num)}/{len(g9_high)} · ต้อง 7500)',
+          'ฉากรายงาน G-9 (ฉาก 21) และ /reports/risk ไม่แสดง 75.00% ตามที่ spec S11-12 กำหนด', 'ปรับใบ COMPLETED หรือการอนุมัติข้ามใน scripts/inputs_p1/p1_risk.py ให้ได้ 3 จาก 4 ราย')
+    flagged = sorted(c for c, v in STATUS.items() if v != 'ACTIVE')
+    check(len(flagged) == 3, 'ความเสี่ยงคู่ค้า: ผู้ขายติดธงทะเบียน', f'ผู้ขายติดธงทะเบียน {len(flagged)} ราย (' + ' '.join(f'{c} {STATUS[c]}' for c in flagged) + ') · seed สร้าง RiskReview STATUS_CHANGED ทุกราย',
+          f'ผู้ขายติดธงทะเบียน {len(flagged)} ราย {flagged} (ฉาก 18 อ้าง 3 ราย)', 'ฉาก 18 และรายการทบทวนเพราะทะเบียนเปลี่ยนไม่ตรงที่ฉากพูด', 'แก้ registryStatus ใน scripts/inputs_p1/p1_suppliers.py')
+
+    # The scenes of S11 in Demo_Script_P2 (16–22): who and which supplier exist, and every number agrees with the calculator
+    s11 = {d['scene']: (r, d, _ej(d) or {}) for r, d in P2 if s_(d['stage']) == 'S11'}
+    sp11 = []
+    if sorted(s11) != list(range(16, 23)): sp11.append(f'ฉากของ S11 ต้องเป็น 16–22 (ได้ {sorted(s11)})')
+    core11 = sorted(n for n, (r, d, e) in s11.items() if s_(d['core']) == 'Y')
+    if core11 != [16, 17]: sp11.append(f'ฉาก core ของ S11 ต้องเป็น 16 (ประเมินจนผ่าน) และ 17 (อนุมัติข้าม) (ได้ {core11})')
+    for n, (r, d, e) in s11.items():
+        if _ej(d) is None: sp11.append(f'ฉาก {n} expectJson ไม่ใช่ JSON')
+        sp_ = s_(d['supplier'])
+        if sp_ and (sp_ not in SUP or sp_ not in RK_CONTACT): sp11.append(f'ฉาก {n} ผู้ขาย {sp_} ต้องอยู่ในชีต Suppliers และมีผู้ติดต่อ')
+        pa = s_(d['portalActor'])
+        if pa and CEMAIL.get(pa) != sp_: sp11.append(f'ฉาก {n} portalActor {pa} ไม่ใช่ผู้ติดต่อของ {sp_}')
+    def rk_vat(net): return rhu(net * RATE_BP, 10000)
+    if 16 in s11:
+        r, d, e = s11[16]; rq = e.get('request', {}); sup = s_(d['supplier'])
+        if sup in RA_DONE or any(a['sup'] == sup for a in RA): sp11.append(f'ฉาก 16 เล่น {sup} สด จึงต้องไม่มีใบใน Risk_Assessments')
+        net = money(rq.get('net'))
+        if net is None or money(rq.get('vat')) != rk_vat(net) or money(rq.get('gross')) != net + rk_vat(net): sp11.append('ฉาก 16 ยอด VAT หรือรวม VAT ไม่ตรง')
+        else:
+            rule, who = rk_route('PURCHASE_REQUEST', net + rk_vat(net) if BASIS == 'GROSS' else net, s_(d['actor']))
+            if (rule, who) != (rq.get('rule'), rq.get('approver')): sp11.append(f'ฉาก 16 เส้นทางคำขอได้ {rule} {who} ไม่ใช่ {rq.get("rule")} {rq.get("approver")}')
+        scr = {k: s_((rq.get('form') or {}).get(k)) or 'N' for k in RK_SCREEN}; cats = e.get('assessment', {}).get('categoryCodes', [])
+        inh, qset = rk_set(scr, cats, PAYEE.get(sup, 'JURISTIC'))
+        if e.get('gate', {}).get('inherentTier') != inh: sp11.append(f'ฉาก 16 ระดับตั้งต้นได้ {inh}')
+        if e.get('assessment', {}).get('questions') != qset: sp11.append(f'ฉาก 16 ชุดคำถามได้ {qset}')
+        ans = e.get('answers', {})
+        if set(ans) != set(qset) or any(v not in Q.get(k, {}).get('opts', {}) for k, v in ans.items()): sp11.append('ฉาก 16 คำตอบต้องครบชุดและมีตัวเลือกจริง')
+        pts, tier = rk_score(scr, cats, PAYEE.get(sup, 'JURISTIC'), ans)
+        if (pts, tier) != (e.get('points'), e.get('tier')): sp11.append(f'ฉาก 16 คะแนนได้ {pts} {tier} ไม่ใช่ {e.get("points")} {e.get("tier")}')
+        ret = e.get('returned', {})
+        pts2, tier2 = rk_score(scr, cats, PAYEE.get(sup, 'JURISTIC'), {**ans, **ret.get('answers', {})})
+        if (pts2, tier2) != (ret.get('points'), ret.get('tier')): sp11.append(f'ฉาก 16 ส่งใหม่ได้ {pts2} {tier2} ไม่ใช่ {ret.get("points")} {ret.get("tier")}')
+        revs = rk_reviewers(scr, cats, PAYEE.get(sup, 'JURISTIC'), tier, {s_(e.get('assessment', {}).get('openedBy'))})
+        if revs != e.get('reviewers'): sp11.append(f'ฉาก 16 ผู้ตรวจได้ {revs}')
+        if e.get('completed', {}).get('validMonths') != TIERS[tier]['months'] or e.get('completed', {}).get('remindDaysBefore') != TIERS[tier]['remind']: sp11.append('ฉาก 16 รอบประเมินซ้ำไม่ตรง Risk_Tiers')
+    if 17 in s11:
+        r, d, e = s11[17]; po_ = e.get('po', {}); ov = e.get('override', {}); sup = s_(d['supplier'])
+        net = money(po_.get('net'))
+        if net is None or money(po_.get('vat')) != rk_vat(net) or money(po_.get('gross')) != net + rk_vat(net): sp11.append('ฉาก 17 ยอด VAT หรือรวม VAT ของ PO ไม่ตรง')
+        cap = money(ov.get('capGross'))
+        rule, who = rk_route('RISK_OVERRIDE', cap, s_(d['actor'])) if cap else (None, None)
+        if (rule, who) != (ov.get('rule'), ov.get('approver')): sp11.append(f'ฉาก 17 ข้อ DOA ของเพดาน {ov.get("capGross")} ได้ {rule} {who}')
+        if cap and money(po_.get('gross')) and money(po_.get('gross')) > cap: sp11.append('ฉาก 17 เพดานต้องไม่ต่ำกว่ายอด PO')
+        if ov.get('stepUp') != (cap is not None and cap >= STEPUP): sp11.append(f'ฉาก 17 stepUp ต้องเป็น {cap is not None and cap >= STEPUP} (เพดาน ≥ {baht(STEPUP)})')
+        if ov.get('chatButton') != RK_POL.get('overrideChatButton'): sp11.append('ฉาก 17 chatButton ไม่ตรง Risk_Policy overrideChatButton')
+        rq_on, ex_on = rk_day(ov.get('requestedOn')), rk_day(ov.get('expiresOn'))
+        if not rq_on or not ex_on or not 0 <= (ex_on - rq_on).days <= MAXD: sp11.append(f'ฉาก 17 วันหมดอายุต้องไม่เกิน {MAXD} วันนับจากวันขอ (BR-RSK-10)')
+        scr = {k: s_((po_.get('form') or {}).get(k)) or 'N' for k in RK_SCREEN}
+        if e.get('gate', {}).get('inherentTier') != rk_inherent(scr, []): sp11.append('ฉาก 17 ระดับตั้งต้นไม่ตรง')
+        seed_ro = [o['ref'] for o in RO if o['sup'] == sup and o['status'] == 'EXPIRED']
+        if e.get('expiredSeedOverride') not in seed_ro: sp11.append(f'ฉาก 17 การอนุมัติข้ามเดิมของ {sup} ที่หมดอายุคือ {seed_ro}')
+        if sup in RA_DONE or not any(a['sup'] == sup and a['status'] in RK_OPEN for a in RA): sp11.append(f'ฉาก 17 {sup} ต้องไม่มีใบ COMPLETED และมีใบเปิดอยู่')
+        if ov.get('expectedNo') and int(s_(ov['expectedNo'])[-5:] or 0) != len(RO) + 1: sp11.append(f'ฉาก 17 เลขการอนุมัติข้ามต้องต่อจาก {len(RO)} รายการของ seed')
+    if 18 in s11:
+        r, d, e = s11[18]
+        if STATUS.get(s_(d['supplier'])) != e.get('registryFlag'): sp11.append(f'ฉาก 18 ธงทะเบียนของ {s_(d["supplier"])} คือ {STATUS.get(s_(d["supplier"]))}')
+        if sorted(e.get('statusChanged', [])) != flagged: sp11.append(f'ฉาก 18 ผู้ขายติดธงคือ {flagged}')
+    if 19 in s11:
+        r, d, e = s11[19]; ev = e.get('evidence', {}); sup = s_(d['supplier'])
+        q = Q.get(ev.get('question'), {})
+        if not q or q.get('scope') != ev.get('scope') or not any(o.get('evidence') is True and k == ev.get('option') for k, o in q.get('opts', {}).items()): sp11.append('ฉาก 19 คำถามที่ตอบด้วยหลักฐานต้องมีตัวเลือก evidence และขอบเขตตรง')
+        docs = [d2 for r2, d2 in table('Supplier_Documents') if s_(d2['supplierCode']) == sup and s_(d2['docType']) == ev.get('docType') and s_(d2['scope']) == ev.get('scope') and s_(d2['status']) == 'VERIFIED']
+        if not any(rk_day(d2['expiresOn']) == rk_day(ev.get('expiresOn')) for d2 in docs): sp11.append(f'ฉาก 19 ไม่มีเอกสาร {ev.get("docType")} {ev.get("scope")} VERIFIED หมดอายุ {ev.get("expiresOn")} ของ {sup}')
+        for nf in e.get('notFilled', []):
+            if Q.get(nf.get('question'), {}).get('scope') != nf.get('evidenceScope') or nf.get('evidenceScope') == ev.get('scope'): sp11.append(f'ฉาก 19 {nf.get("question")} ต้องมีขอบเขตอื่นที่ใบไม่ตรง')
+        if not any(a['sup'] == sup and a['status'] == 'DRAFT' and a['inh'] == e.get('assessment', {}).get('inherentTier') for a in RA): sp11.append(f'ฉาก 19 ต้องมีใบ DRAFT ของ {sup} ระดับตั้งต้นตามแถว')
+    if 20 in s11:
+        r, d, e = s11[20]; a20 = e.get('assessment', {}); sup = s_(d['supplier'])
+        cur = max(RA_DONE.get(sup, []), key=lambda a: a['done'], default=None)
+        if not cur or (cur['tier'], str(cur['done']), str(cur['until'])) != (a20.get('tier'), a20.get('completedOn'), a20.get('validUntil')): sp11.append(f'ฉาก 20 ใบของ {sup} ไม่ตรงชีต Risk_Assessments')
+        elif str(cur['until'] - timedelta(days=TIERS[cur['tier']]['remind'])) != a20.get('remindOn') or str(cur['until'] + timedelta(days=1)) != e.get('overdue', {}).get('on'): sp11.append('ฉาก 20 วันเตือนหรือวันเกินรอบไม่ตรง')
+    if 21 in s11:
+        r, d, e = s11[21]; g = e.get('g9', {})
+        want = {'bp': G9_BP, 'numerator': len(g9_num), 'denominator': len(g9_high), 'high': g9_high, 'assessed': g9_num, 'override': [s for s in g9_high if s not in g9_num]}
+        if any(g.get(k) != v for k, v in want.items()): sp11.append(f'ฉาก 21 G-9 ต้องเป็น {want}')
+        if e.get('tiers') != tier_count or e.get('neverAssessed') != never: sp11.append(f'ฉาก 21 ผู้ขายต่อระดับ {tier_count} ไม่เคยประเมิน {never}')
+        if e.get('overrides', {}).get('expired') != expired_ro: sp11.append(f'ฉาก 21 การอนุมัติข้ามที่หมดอายุคือ {expired_ro}')
+    if 22 in s11:
+        r, d, e = s11[22]
+        for p_ in e.get('proposals', []):
+            if p_.get('option') not in Q.get(p_.get('question'), {}).get('opts', {}): sp11.append(f'ฉาก 22 ข้อเสนอ {p_.get("question")} {p_.get("option")} ไม่มีในแบบประเมิน')
+    check(not sp11, 'สคริปต์ demo ระยะ 2: ฉากของ S11 (16–22)', f'{len(s11)} ฉาก · ฉาก 16 {s11.get(16, (0, 0, {}))[2].get("points")} คะแนน · ฉาก 17 ' + s_(s11.get(17, (0, 0, {}))[2].get('override', {}).get('rule'))
+          + f' · G-9 ของฉาก 21 = {G9_BP} bp', '; '.join(sp11[:8]), 'ฉาก e2e @p2demo ของ S11 คาดค่าที่ระบบจะไม่ได้', 'แก้ s11_rows() ใน scripts/inputs_p1/p1_demo.py แล้วสร้างไฟล์ใหม่')
 
 # ---------- รายการข้อมูลและคำถาม ----------
 def contiguous(ids, prefix):

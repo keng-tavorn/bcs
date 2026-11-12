@@ -20,6 +20,8 @@ import { parseBudget, parseCatalogItems, parseCostCenters, parseGlAccounts, pars
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { parseSupplierPortal, seedSupplierPortalBase } from '@/server/seed/supplier-portal'
 import { seedSupplierPortalHistory, type SupplierPortalHistoryReport } from './supplier-portal'
+import { parseRiskSheets } from '@/server/seed/risk'
+import { riskReady, seedRiskAfterHistory, seedRiskBeforeHistory, seedRiskConfig, type RiskHistoryReport } from './risk'
 import { seedAccountCodes } from '@/server/seed/account-codes'
 import { parseApProfile, seedApProfile } from '@/server/seed/ap-profile'
 import { parseBankAccounts, seedBankAccounts } from '@/server/seed/bank-accounts'
@@ -49,8 +51,14 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const totpKey = env.SEED_TOTP_KEY
   const report = await seedDemoOrganization(input, { password, ...(totpKey ? { totpKey } : {}), now: clock.now() })
   const structure = await seedOrgStructure(report.organizationId, input.users, parseOrgStructureInput(workbook), clock.now())
-  // The phase-1 organization switches PAY AI BCS_GO on once its DOA has their rules (ADR-070); the demo keeps CORE alone
-  const modules = profile === 'p1' ? await seedP1Modules(report.organizationId, clock.now()) : { enabled: 0 }
+  // S11-12: the risk tiers, gate policy and questionnaire of the phase-1 organization in effect before RISK is on (BR-RSK-16)
+  const riskSheets = profile === 'p1' ? parseRiskSheets(workbook) : null
+  const portalSheets = parseSupplierPortal(workbook)
+  const documentTypes = (portalSheets?.types ?? []).map((t) => ({ code: t.code, singleInstance: t.singleInstance, linkedRiskQuestionCodes: t.linkedRiskQuestionCodes }))
+  const riskConfig = riskSheets ? await seedRiskConfig(report.organizationId, riskSheets, input.org.code, documentTypes, clock.now()) : null
+  // The phase-1 organization switches PAY AI BCS_GO SUPPLIER (and RISK once its sheets are in) on once its DOA has their
+  // rules (ADR-070); the demo keeps CORE alone
+  const modules = profile === 'p1' ? await seedP1Modules(report.organizationId, clock.now(), riskSheets ? { riskReady } : {}) : { enabled: 0 }
   // The parallel reviewers of the phase-1 organization from its sheet Workflow_Reviewers (S6-04); the demo has none
   const workflowInput = parseWorkflowReviewers(workbook, input.org.code)
   const workflow = workflowInput ? await seedWorkflow(report.organizationId, workflowInput, clock.now()) : null
@@ -59,7 +67,6 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const budget = await seedBudget(report.organizationId, parseBudget(workbook), clock.now(), parseCostCenters(workbook))
   const suppliers = await seedSuppliers(report.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, clock.now())
   // S7-13: the supplier portal's document types and contacts (sheets of phase 1 only)
-  const portalSheets = parseSupplierPortal(workbook)
   const supplierPortal = portalSheets ? await seedSupplierPortalBase(report.organizationId, portalSheets, clock.now()) : null
   // The account codes invoice lines are coded with (S8-04, sheet GL_Accounts of phase 1; the demo workbook has none)
   const accountCodes = await seedAccountCodes(report.organizationId, parseGlAccounts(workbook))
@@ -79,7 +86,7 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const pinless = seedPin ? await approversWithoutPin(report.organizationId, seedPin, clock.now()) : []
   // S6-21 (BR-UAT-01 BR-UAT-04): SIMEC-UAT, the UAT sandbox of the phase-1 organization, on this machine
   const sandbox = profile === 'p1' && options.sandbox !== false ? await seedP1Sandbox(report.organizationId, { password, ...(totpKey ? { totpKey } : {}), pin: seedPin, now: clock.now() }) : null
-  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, workflow, ai, budget, suppliers, supplierPortal, accountCodes, catalog, apProfile, bankAccounts, lineChannel, pins, pinless, sandbox }
+  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, riskConfig, modules, workflow, ai, budget, suppliers, supplierPortal, accountCodes, catalog, apProfile, bankAccounts, lineChannel, pins, pinless, sandbox }
 }
 
 /** The code of the phase-1 organization's sandbox: its own code and "-UAT" */
@@ -117,6 +124,9 @@ export async function seedP1Sandbox(
 /** The requests of the past (sheet Demo_History, or History of phase 1), made through the real services for the organization of the base */
 export async function seedDemoHistoryFromInputs(organizationId: string, env: Env, clock: Clock, profile: InputProfile = 'demo'): Promise<DemoHistoryReport> {
   const workbook = await loadInputWorkbook(INPUT_WORKBOOKS[profile])
+  // S11-12: the completed risk assessments and the overrides first, so the gate of each PO of the history finds them
+  const risk = parseRiskSheets(workbook)
+  if (risk) await seedRiskBeforeHistory(organizationId, risk, clock.now(), env.SEED_DEV_PIN ?? null)
   const report = await seedDemoHistory(organizationId, parseHistory(workbook), clock.now(), { pin: env.SEED_DEV_PIN ?? null, budgetKeys: budgetKeyLines(parseBudget(workbook)) })
   // The history's lines of catalogue items point at them (S6-10); the demo has no catalogue
   await linkHistoryToCatalog(organizationId)
@@ -132,6 +142,16 @@ export async function seedSupplierPortalFromInputs(organizationId: string, clock
   return sheets ? seedSupplierPortalHistory(organizationId, sheets, clock.now()) : null
 }
 
+/**
+ * S11-12: the supplier-risk history that comes after the requests and the portal (overrides expired on their day, the
+ * assessments still open, the registry flags of today); null for a workbook without the risk sheets (the demo)
+ */
+export async function seedRiskFromInputs(organizationId: string, clock: Clock, profile: InputProfile): Promise<RiskHistoryReport | null> {
+  const workbook = await loadInputWorkbook(INPUT_WORKBOOKS[profile])
+  const sheets = parseRiskSheets(workbook)
+  return sheets ? seedRiskAfterHistory(organizationId, sheets, workbook, clock.now()) : null
+}
+
 /** P1-11: the parts the history of a workbook is made in (seedDemoHistoryPart) */
 export async function demoHistoryPartsFromInputs(profile: InputProfile): Promise<DemoHistoryPart[]> {
   return demoHistoryParts(parseHistory(await loadInputWorkbook(INPUT_WORKBOOKS[profile])))
@@ -144,12 +164,16 @@ export async function demoHistoryPartsFromInputs(profile: InputProfile): Promise
 export async function seedDemoHistoryPartFromInputs(organizationId: string, env: Env, now: Date, profile: InputProfile, index: number): Promise<DemoHistoryReport> {
   const workbook = await loadInputWorkbook(INPUT_WORKBOOKS[profile])
   const rows = parseHistory(workbook)
+  // S11-12: the risk history the requests need, before the first part
+  const risk = parseRiskSheets(workbook)
+  if (risk && index === 0) await seedRiskBeforeHistory(organizationId, risk, now, env.SEED_DEV_PIN ?? null)
   const report = await seedDemoHistoryPart(organizationId, rows, now, { pin: env.SEED_DEV_PIN ?? null, budgetKeys: budgetKeyLines(parseBudget(workbook)) }, index)
   if (index === demoHistoryParts(rows).length - 1) {
     await linkHistoryToCatalog(organizationId)
     // S7-13: the supplier portal's history with the last part
     const sheets = parseSupplierPortal(workbook)
     if (sheets) await seedSupplierPortalHistory(organizationId, sheets, now)
+    if (risk) await seedRiskAfterHistory(organizationId, risk, workbook, now)
   }
   return report
 }

@@ -104,6 +104,8 @@ describe('[FR-PLT-013/AC2] [FR-PLT-002/AC1] the sidebar follows the table of §9
     ['procurement', 'savings', '/procurement/savings'],
     // S10-12 (FR-SRC-201): the RFx of the organization, once SOURCING is on, for sourcing.view at ORG
     ['procurement', 'sourcing', '/sourcing'],
+    // S11-10 (BR-RSK-14): the supplier risk overview, once RISK is on, for risk.assessment.view
+    ['procurement', 'risk', '/risk'],
     ['procurement', 'receiving', '/receiving'],
     ['procurement', 'suppliers', '/suppliers'],
     // S6-10 (FR-INT-102): the catalogue with its agreed prices, every member's (catalog.view)

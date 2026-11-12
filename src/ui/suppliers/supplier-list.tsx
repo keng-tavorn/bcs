@@ -1,5 +1,8 @@
 import Link from 'next/link'
 import { cn } from '../cn'
+import { StatusBadge } from '../document/badges'
+import { isSupplierRiskStatus, SUPPLIER_RISK_BADGES } from '../risk-file/model'
+import { TierBadge } from '../risk-review/badges'
 import { Flag, SupplierStatusLabel } from './status'
 
 // Rows of the supplier register (/suppliers, S4-02): the supplier (a link) with its code, branch and category, its
@@ -22,6 +25,8 @@ export interface SupplierRow {
     readonly express: { readonly text: string; readonly missing: boolean }
     readonly check: string
   } | null
+  /** S11-10 (BR-RSK-14): the supplier's risk tier and status while RISK is on */
+  readonly risk?: { readonly tier: { readonly code: 'LOW' | 'MEDIUM' | 'HIGH'; readonly label: string } | null; readonly status: { readonly code: string; readonly label: string } } | null
   /** Readers of prices only: the latest items, each its price and the PO it came from */
   readonly prices?: {
     readonly label: string
@@ -85,6 +90,12 @@ export function SupplierList({ rows, labels, full }: { rows: readonly SupplierRo
               <span className="sr-only">{labels.status}: </span>
               <SupplierStatusLabel status={row.status} label={row.statusLabel} className="self-start" />
               <span className="text-base text-ink md:text-sm">{row.vat}</span>
+              {row.risk ? (
+                <span className="mt-1 flex flex-wrap gap-1.5">
+                  {row.risk.tier ? <TierBadge tier={row.risk.tier.code} label={row.risk.tier.label} /> : null}
+                  <StatusBadge look={isSupplierRiskStatus(row.risk.status.code) ? SUPPLIER_RISK_BADGES[row.risk.status.code] : undefined} label={row.risk.status.label} />
+                </span>
+              ) : null}
             </div>
             {row.full ? (
               <div className="flex min-w-0 flex-col gap-0.5">

@@ -9,7 +9,9 @@
     "documentsState": "Documents by type",
     "contactsTitle": "The supplier's contacts",
     "acknowledgementsTitle": "POs sent to the supplier and their acknowledgement",
-    "portalTitle": "Use of the supplier portal"
+    "portalTitle": "Use of the supplier portal",
+    "risk": "Risk",
+    "riskTitle": "Risk file"
   },
   "docSummary": {
     "allOk": "Every required document is in and still valid",

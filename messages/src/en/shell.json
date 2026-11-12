@@ -58,7 +58,8 @@
     "admin": "Organization admin",
     "workflows": "Parallel reviewers (workflow)",
     "ai": "AI assistants",
-    "config": "Configuration packages"
+    "config": "Configuration packages",
+    "risk": "Supplier risk"
   },
   "counts": {
     "tasks": "{count, plural, one {# open task} other {# open tasks}}",

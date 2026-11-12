@@ -752,6 +752,7 @@
       "answered": "Questionnaire answers saved",
       "evidence_uploaded": "Evidence file attached to an answer",
       "evidence_rejected": "Evidence file failed the security check",
+      "evidence_purged": "Evidence files removed after the keeping period",
       "submitted": "Questionnaire sent",
       "completed": "Risk assessment completed",
       "superseded": "Risk assessment replaced by a newer one",

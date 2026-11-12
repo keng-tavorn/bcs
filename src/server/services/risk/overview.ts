@@ -12,7 +12,7 @@ import { RISK_TIMEZONE } from './screening'
 // /risk (S11-10 · docs/sub-specs/S11.md "หน้าจอ" · BR-RSK-14): what needs attention in the organization's supplier risk —
 // the suppliers whose assessment is about to run out, has run out or must be done again (or any tier and status the
 // reader filters for), the assessments still being answered or reviewed, the reviewers' slots still open, and the
-// overrides being asked for or running out within OVERRIDE_EXPIRY_NOTICE_DAYS. Read with risk.assessment.view
+// overrides being asked for or running out within OVERRIDE_EXPIRY_NOTICE_DAYS, and the reassessments still open. Read with risk.assessment.view
 // (PROCUREMENT FINANCE EXECUTIVE AUDITOR). Read only.
 
 export const RISK_OVERVIEW_LIMIT = 200
@@ -31,7 +31,9 @@ export interface RiskOverview {
   readonly openAssessments: readonly { readonly id: string; readonly number: string | null; readonly status: string; readonly supplier: { readonly id: string; readonly code: string; readonly nameTh: string }; readonly inherentTier: RiskTierCode; readonly lastActivityAt: Date }[]
   readonly openSlots: readonly { readonly assessmentId: string; readonly assessmentNumber: string | null; readonly supplierName: string; readonly riskDomains: readonly RiskDomain[]; readonly reviewerName: string; readonly since: Date }[]
   readonly overrides: readonly { readonly id: string; readonly number: string | null; readonly status: string; readonly supplierName: string; readonly expiresOn: string; readonly expiringSoon: boolean }[]
-  readonly counts: { readonly suppliers: number; readonly openAssessments: number; readonly openSlots: number; readonly overrides: number }
+  /** The reassessments still open: by cycle, an expired override, a registry flag (scene 18) */
+  readonly openReviews: readonly { readonly id: string; readonly supplier: { readonly id: string; readonly code: string; readonly nameTh: string }; readonly reason: string; readonly tier: RiskTierCode | null; readonly dueAt: Date; readonly registryFlag: string | null }[]
+  readonly counts: { readonly suppliers: number; readonly openAssessments: number; readonly openSlots: number; readonly overrides: number; readonly openReviews: number }
 }
 
 const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null)
@@ -68,6 +70,11 @@ export async function riskOverview(ctx: Ctx, filter: RiskOverviewFilter = {}): P
       await tx.riskOverride.findMany({ where: overrideWhere, orderBy: [{ expiresOn: 'asc' }, { id: 'asc' }], take: RISK_OVERVIEW_LIMIT, select: { id: true, number: true, status: true, expiresOn: true, supplier: { select: { nameTh: true } } } }),
       await tx.riskOverride.count({ where: overrideWhere }),
     ]
+    const reviewWhere = { status: 'OPEN' as const }
+    const [openReviews, reviewCount] = [
+      await tx.riskReview.findMany({ where: reviewWhere, orderBy: [{ dueAt: 'asc' }, { id: 'asc' }], take: RISK_OVERVIEW_LIMIT, select: { id: true, reason: true, tier: true, dueAt: true, registryFlag: true, supplier: { select: { id: true, code: true, nameTh: true } } } }),
+      await tx.riskReview.count({ where: reviewWhere }),
+    ]
     const reviewers = await tx.member.findMany({ where: { id: { in: [...new Set(slots.map((x) => x.assigneeMemberId))] } }, select: { id: true, displayNameTh: true } })
 
     return {
@@ -78,7 +85,8 @@ export async function riskOverview(ctx: Ctx, filter: RiskOverviewFilter = {}): P
         openAssessments: assessments.map((a) => ({ id: a.id, number: a.number, status: a.status, supplier: a.supplier, inherentTier: a.inherentTier, lastActivityAt: a.lastActivityAt })),
         openSlots: slots.map((x) => ({ assessmentId: x.assessmentId, assessmentNumber: x.assessment.number, supplierName: x.assessment.supplier.nameTh, riskDomains: x.riskDomains as RiskDomain[], reviewerName: reviewers.find((m) => m.id === x.assigneeMemberId)?.displayNameTh ?? '', since: x.createdAt })),
         overrides: overrides.map((o) => ({ id: o.id, number: o.number, status: o.status, supplierName: o.supplier.nameTh, expiresOn: iso(o.expiresOn)!, expiringSoon: o.status === 'APPROVED' })),
-        counts: { suppliers: supplierCount, openAssessments: assessmentCount, openSlots: slotCount, overrides: overrideCount },
+        openReviews: openReviews.map((r) => ({ id: r.id, supplier: r.supplier, reason: r.reason, tier: r.tier, dueAt: r.dueAt, registryFlag: r.registryFlag })),
+        counts: { suppliers: supplierCount, openAssessments: assessmentCount, openSlots: slotCount, overrides: overrideCount, openReviews: reviewCount },
       },
     }
   })

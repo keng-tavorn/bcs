@@ -9,7 +9,9 @@
     "documentsState": "สถานะเอกสารตามประเภท",
     "contactsTitle": "ผู้ติดต่อของผู้ขาย",
     "acknowledgementsTitle": "PO ที่ส่งให้ผู้ขายและการรับทราบ",
-    "portalTitle": "การใช้พอร์ทัลผู้ขาย"
+    "portalTitle": "การใช้พอร์ทัลผู้ขาย",
+    "risk": "ความเสี่ยง",
+    "riskTitle": "แฟ้มความเสี่ยง"
   },
   "docSummary": {
     "allOk": "เอกสารที่บังคับครบและยังไม่หมดอายุ",

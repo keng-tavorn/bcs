@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
+import { supplierRiskBadges } from '@/server/services/risk'
 import { preferredSuppliersLinked } from '@/server/services/sourcing/preferred-view'
 import { canSeeApplicationList } from '@/server/services/suppliers/applications-view'
 import { listSuppliersForScreen, type SupplierListRowDto } from '@/server/services/suppliers/view'
@@ -95,6 +96,8 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
     )
   }
   const list = result.data
+  // S11-10 (BR-RSK-14): the risk badges of the listed suppliers, an empty map with RISK off
+  const [risk, tRisk, tRiskAdmin] = await Promise.all([supplierRiskBadges(ctx, list.rows.map((s) => s.id)), getTranslations('risk'), getTranslations('risk.admin')])
   const full = list.level === 'FULL'
   const filtered = Boolean(q) || status !== '' || (full && missing)
   const searchHint = `${list.taxIdMatch === 'WHOLE_FOR_INDIVIDUALS' ? t('list.filter.searchHintMasked') : full ? t('list.filter.searchHintFull') : t('list.filter.searchHintBasic')}${list.seesPrices ? ` ${t('list.filter.searchHintItems')}` : ''}`
@@ -167,7 +170,10 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
           {list.rows.length ? (
             <SupplierList
               full={full}
-              rows={list.rows.map((s) => rowOf(t, locale, s))}
+              rows={list.rows.map((s) => {
+                const r = risk.get(s.id)
+                return { ...rowOf(t, locale, s), risk: r ? { tier: r.tier ? { code: r.tier, label: tRiskAdmin(`tierName.${r.tier}`) } : null, status: { code: r.status, label: tRisk(`supplierStatus.${r.status}`) } } : null }
+              })}
               labels={{ list: t('list.listLabel'), supplier: t('list.columns.supplier'), status: t('list.columns.status'), account: t('list.columns.account') }}
             />
           ) : list.total === 0 ? (

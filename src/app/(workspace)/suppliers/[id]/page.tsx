@@ -7,6 +7,7 @@ import { ctxFromSession } from '@/server/auth/session'
 import { getSupplierBankCard } from '@/server/services/bank-accounts/view'
 import { getSupplierDocumentSummaryForScreen, getSupplierPortalForScreen, listSupplierContactsForScreen, listSupplierPoAcknowledgementsForScreen } from '@/server/services/suppliers/contacts-view'
 import { listSupplierDocuments } from '@/server/services/suppliers/documents'
+import { supplierRiskFile } from '@/server/services/risk'
 import { getSupplierForScreen, type SupplierDetailDto } from '@/server/services/suppliers/view'
 import { SupplierBankCard } from '@/ui/bank-accounts/supplier-bank-card'
 import { DocTabs, type DocTab } from '@/ui/document/doc-tabs'
@@ -25,6 +26,9 @@ import { PortalPanel } from '@/ui/suppliers/portal-panel'
 import { ProofList } from '@/ui/suppliers/proof-list'
 import { Flag, SupplierStatusLabel } from '@/ui/suppliers/status'
 import { getSession } from '../../../_lib/session'
+import { localeOf } from '../../_tracking/present'
+import { RiskFileView } from '../../risk/suppliers/_file'
+import { exportRiskFileAction, openAssessmentAction } from '../../risk/suppliers/actions'
 import { revealAccountAction } from '../../finance/bank-accounts/actions'
 import { addContactAction, deactivateContactAction, makePrimaryContactAction, revokeContactSessionsAction, setContactPortalAction } from './contact-actions'
 import { openDocumentAction, rejectDocumentAction, verifyDocumentAction } from './document-actions'
@@ -109,6 +113,7 @@ function registryFacts(t: T, f: Full, s: SupplierDetailDto['supplier'], locale: 
 // so a link — the notices' ?tab=documents — opens on it and the server draws it without script): ข้อมูล · เอกสาร (the
 // overall state BR-SDOC ข้อ 06 and the list) · ผู้ติดต่อ · การรับทราบ PO · พอร์ทัล. A tab the reader may not see, or one of
 // module SUPPLIER while it is off, is not there at all (§9.9): each read is refused by its service and its tab left out.
+// S11-10 (FR-RSK-204 AC1 · BR-RSK-14): ความเสี่ยง — the supplier's risk file, for risk.assessment.view while RISK is on.
 export default async function SupplierPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params
   const query = await searchParams
@@ -121,7 +126,8 @@ export default async function SupplierPage({ params, searchParams }: { params: P
   // S9-09: the card of the account the supplier is paid into (null without module PAY or bankAccount.view)
   // S7-06: the supplier's documents (refused without supplier.document.view or module SUPPLIER: the tab is not shown)
   // S7-09: contacts, POs acknowledged and the portal (refused without supplier.view in full, po.view ORG or module SUPPLIER)
-  const [result, bankCard, documents, docSummary, contacts, acks, portal, tDocs] = await Promise.all([
+  // S11-10 (FR-RSK-204 AC1): the risk file, refused without risk.assessment.view or module RISK (the tab is not shown)
+  const [result, bankCard, documents, docSummary, contacts, acks, portal, tDocs, riskFile] = await Promise.all([
     getSupplierForScreen(ctx, id),
     getSupplierBankCard(ctx, { supplierId: id }),
     isId ? listSupplierDocuments(ctx, { supplierId: id }) : refusedRead,
@@ -130,6 +136,7 @@ export default async function SupplierPage({ params, searchParams }: { params: P
     isId ? listSupplierPoAcknowledgementsForScreen(ctx, id) : refusedRead,
     isId ? getSupplierPortalForScreen(ctx, id) : refusedRead,
     getTranslations('supplierDocs'),
+    isId ? supplierRiskFile(ctx, id) : refusedRead,
   ])
   if (!result.ok && result.error.code === 'NOT_FOUND') notFound()
   if (!result.ok) {
@@ -242,6 +249,13 @@ export default async function SupplierPage({ params, searchParams }: { params: P
           <PoAcksPanel rows={acks.data.rows} total={acks.data.total} limit={acks.data.limit} />
         </Panel>
       ),
+    })
+  }
+  if (riskFile.ok) {
+    tabs.push({
+      value: 'risk',
+      label: tTabs('risk'),
+      content: <RiskFileView file={riskFile.data} locale={localeOf(locale)} actions={{ exportFile: exportRiskFileAction.bind(null, s.id), open: openAssessmentAction.bind(null, s.id) }} />,
     })
   }
   if (portal.ok) {

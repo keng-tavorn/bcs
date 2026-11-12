@@ -22,6 +22,7 @@ export type MenuKey =
   | 'pos'
   | 'savings'
   | 'sourcing'
+  | 'risk'
   | 'suppliers'
   | 'catalog'
   | 'invoices'
@@ -94,6 +95,9 @@ export const MENU: readonly MenuItem[] = [
   // S10-12 (FR-SRC-201): the RFx of the organization, for whoever reads every one (sourcing.view at ORG: PROCUREMENT FINANCE
   // EXECUTIVE AUDITOR), once the BCS team switched SOURCING on (§9.9: no menu of a module that is off · NG-13)
   { key: 'sourcing', href: '/sourcing', group: 'procurement', capability: 'sourcing.view', scopes: ['ORG'], module: 'SOURCING', ready: true },
+  // S11-10 (BR-RSK-14): the supplier risk overview, for whoever reads the risk files (risk.assessment.view: PROCUREMENT
+  // FINANCE EXECUTIVE AUDITOR), once the BCS team switched RISK on
+  { key: 'risk', href: '/risk', group: 'procurement', capability: 'risk.assessment.view', module: 'RISK', ready: true },
   { key: 'receiving', href: '/receiving', group: 'procurement', capability: 'gr.post', scopes: ['DEPT', 'ASSIGNED'], module: 'CORE', ready: true },
   { key: 'suppliers', href: '/suppliers', group: 'procurement', capability: 'supplier.view', module: 'CORE', ready: true },
   // The catalogue with its agreed prices (S6-10, FR-INT-102): every member searches it; PROCUREMENT keeps it from its page

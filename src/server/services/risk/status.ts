@@ -1,7 +1,10 @@
+import type { Result } from '@/core/result'
 import { poGate, type GateAssessment, type RegistryFlag, type RiskTierCode } from '@/core/risk'
 import { dateIn } from '@/core/supplier-docs'
-import type { TenantTx } from '@/server/db/tenant'
-import { riskModuleOn, supplierRiskStatusIn } from '@/server/queries/risk'
+import { authorize, isAllowed, loadPrincipal } from '@/server/authz'
+import type { Ctx } from '@/server/context'
+import { forTenant, type TenantTx } from '@/server/db/tenant'
+import { riskModuleOn, supplierRiskStatusIn, type SupplierRiskStatusCode, type SupplierRiskStatusDto } from '@/server/queries/risk'
 import type { SupplierRiskStatus } from '../sourcing/risk-link'
 import { RISK_TIMEZONE } from './screening'
 import { riskPolicyInEffect, riskTiersInEffect } from './tiers'
@@ -46,4 +49,40 @@ export async function supplierRiskProvider(tx: TenantTx, _organizationId: string
     trigger: 'SEND',
   })
   return { tier: status.tier, blocked: !decision.allowed, status: status.status, openOverrideId: status.openOverrideId, registryFlagBlocks: policy.data.registryFlagBlocks }
+}
+
+/**
+ * supplierRiskStatus(ctx, supplierId) of the sub-spec's interface table: MODULE_DISABLED with RISK off, FORBIDDEN for a
+ * reader of neither the risk files nor the register, NOT_FOUND for a supplier of another organization.
+ */
+export async function supplierRiskStatus(ctx: Ctx, supplierId: string): Promise<Result<SupplierRiskStatusDto>> {
+  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+    if (!(await riskModuleOn(tx))) return { ok: false as const, error: { code: 'MODULE_DISABLED' as const, message: 'module RISK is off', details: { module: 'RISK' } } }
+    const principal = await loadPrincipal(tx, ctx)
+    const full = isAllowed(principal, 'risk.assessment.view')
+    if (!full) {
+      const basic = await authorize(tx, ctx, 'supplier.view')
+      if (!basic.ok) return basic
+    }
+    const status = await supplierRiskStatusIn(tx, supplierId)
+    if (!status) return { ok: false as const, error: { code: 'NOT_FOUND' as const, message: 'supplier not found' } }
+    return { ok: true as const, data: full ? status : { tier: status.tier, status: status.status } }
+  })
+}
+
+/**
+ * The badges of the supplier list (/suppliers): tier and status per supplier given, for a reader of the register or of the
+ * risk files; an empty map with RISK off or for anyone else.
+ */
+export async function supplierRiskBadges(ctx: Ctx, supplierIds: readonly string[]): Promise<ReadonlyMap<string, { readonly tier: RiskTierCode | null; readonly status: SupplierRiskStatusCode }>> {
+  const out = new Map<string, { tier: RiskTierCode | null; status: SupplierRiskStatusCode }>()
+  if (supplierIds.length === 0) return out
+  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+    if (!(await riskModuleOn(tx))) return out
+    const principal = await loadPrincipal(tx, ctx)
+    if (!isAllowed(principal, 'risk.assessment.view') && !isAllowed(principal, 'supplier.view')) return out
+    const rows = await tx.supplier.findMany({ where: { id: { in: [...new Set(supplierIds)] } }, select: { id: true, riskTier: true, riskStatus: true } })
+    for (const r of rows) out.set(r.id, { tier: r.riskTier, status: r.riskStatus })
+    return out
+  })
 }

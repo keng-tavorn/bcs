@@ -422,10 +422,13 @@ def run_numbering(d):
 
 # DOA document types in lint order and their traits (BR-DOA-20 to BR-DOA-23 · src/core/doa/types.ts DOC_TYPE_TRAITS)
 DOC_ORDER = ("PURCHASE_REQUEST", "PURCHASE_ORDER", "GR_VARIANCE", "DOA_CHANGE", "ORG_AUTHORITY_CHANGE", "BUDGET_TRANSFER",
-             "OVER_BUDGET", "INVOICE_EXCEPTION", "PO_CHANGE", "PAYMENT_RUN", "BANK_ACCOUNT_CHANGE", "SUPPLIER_APPROVAL", "RFX_AWARD")
-AMOUNT_REQUIRED = {"PURCHASE_REQUEST", "PURCHASE_ORDER", "BUDGET_TRANSFER", "OVER_BUDGET", "INVOICE_EXCEPTION", "PO_CHANGE", "PAYMENT_RUN", "RFX_AWARD"}
+             "OVER_BUDGET", "INVOICE_EXCEPTION", "PO_CHANGE", "PAYMENT_RUN", "BANK_ACCOUNT_CHANGE", "SUPPLIER_APPROVAL", "RFX_AWARD",
+             "RISK_OVERRIDE")
+AMOUNT_REQUIRED = {"PURCHASE_REQUEST", "PURCHASE_ORDER", "BUDGET_TRANSFER", "OVER_BUDGET", "INVOICE_EXCEPTION", "PO_CHANGE", "PAYMENT_RUN", "RFX_AWARD",
+                   "RISK_OVERRIDE"}
 AMOUNT_NONE = {"BANK_ACCOUNT_CHANGE", "SUPPLIER_APPROVAL"}
-MODULE_DOCS = {"PAY": ("INVOICE_EXCEPTION", "PAYMENT_RUN", "BANK_ACCOUNT_CHANGE"), "SUPPLIER": ("SUPPLIER_APPROVAL", "BANK_ACCOUNT_CHANGE"), "SOURCING": ("RFX_AWARD",)}
+MODULE_DOCS = {"PAY": ("INVOICE_EXCEPTION", "PAYMENT_RUN", "BANK_ACCOUNT_CHANGE"), "SUPPLIER": ("SUPPLIER_APPROVAL", "BANK_ACCOUNT_CHANGE"), "SOURCING": ("RFX_AWARD",),
+               "RISK": ("RISK_OVERRIDE",)}
 DEFAULT_FIXTURES = ["fixtures/org-demo.yaml", "fixtures/doa-versions.yaml"]
 def use_fixtures(files=None):
     # Each DOA golden file names its own fixtures (`fixtures:` line · ADR-069); the helpers below read these globals
@@ -534,12 +537,17 @@ def run_sod(d):
             elif subj == "PAYMENT_RUN" and sod_recent_change(i): rule = "BR-SOD-10"
             elif subj == "BANK_ACCOUNT_CHANGE" and i.get("source") == "PORTAL" and i["actor"] in [i.get("submittedBy"), i.get("callVerifiedBy")]: rule = "BR-SOD-12"
             elif subj == "BANK_ACCOUNT_CHANGE" and i["actor"] == i.get("requester"): rule = "BR-SOD-05"
+            # S11-08 (BR-SOD-15): the requester, the PO's creator and the assessment's filler-in never approve an override
+            elif subj == "RISK_OVERRIDE" and i["actor"] in [i.get("requester"), *i.get("alsoConflicting", [])]: rule = "BR-SOD-15"
             elif i["actor"] == i.get("requester"): rule = "BR-SOD-01"
             elif subj == "PURCHASE_ORDER" and i["actor"] == i.get("poCreator"): rule = "BR-SOD-03"
             # S10-10: the RFx's creator, its evaluators, the requesters of its source lines and who recorded a bid for a supplier
             elif subj == "AWARD_DECISION" and i["actor"] in [i.get("rfxCreator"), *i.get("evaluators", []), *i.get("sourceRequesters", []), *i.get("recordedOnBehalfBy", [])]: rule = "BR-SOD-13"
         elif i["action"] == "PREPARE_PAYMENT":
             if sod_recent_change(i): rule = "BR-SOD-10"
+        elif i["action"] == "DECIDE_RISK_REVIEW":
+            # S11-06 (BR-SOD-16): who opened the assessment or filled it in for the supplier never reviews it
+            if i["actor"] in [i.get("assessmentOpenedBy"), i.get("filledOnBehalfBy")]: rule = "BR-SOD-16"
         elif i["action"] == "SCORE_RFX":  # S10-08: the RFx's creator and the requesters of its source lines
             if i["actor"] == i.get("rfxCreator") or i["actor"] in i.get("sourceRequesters", []): rule = "BR-SOD-14"
         elif i["action"] == "POST_GR":
@@ -1416,6 +1424,36 @@ def run_risk_tier(d):
             miss = [q["code"] for q in qset if q.get("required", True) and not ok_(src.get(q["code"]))]
             got = {"complete": not miss, "missing": miss}
         else: raise ValueError(f"fn {fn}")
+        out.append((c["id"], got == c["expect"], got))
+    return out
+def run_risk_gate(d):
+    # BR-RSK-09 BR-RSK-12 (§7.24 · S11-07): the gate before a PO goes out, in the rule's order — a registry flag (CEASED
+    # always, VAT_CANCELLED and NOT_FOUND until an assessment completed after it; a policy that does not block turns it
+    # into a warning with a reason) → a tier that does not block passes NOT_REQUIRED (overdue = a warning with a reason,
+    # unless the policy blocks an overdue MEDIUM) → a blocking tier passes with a current covering assessment → an APPROVED
+    # (or job-EXPIRED) override for every PO or for this one: past its day blocks, a cumulative cap (held − this PO's held
+    # share + gross) over it blocks, else passes → what the assessment lacks. Money in satang, days compared as ISO text
+    tiers = {t["code"]: t for t in d["tiers"]}; df = d["defaults"]; out = []
+    for c in d["cases"]:
+        i = c["input"]; g = lambda k: i.get(k, df.get(k)); pol = i.get("policy", d["policy"])
+        ov = {**df["override"], **i["override"]} if "override" in i else None
+        warn = []; got = None
+        flag = g("registryFlag")
+        if flag != "NONE" and (flag == "CEASED" or not g("assessedAfterFlag")):
+            if pol["registryFlagBlocks"]: got = {"allowed": False, "error": "RISK_BLOCKED", "reason": "REGISTRY_CEASED" if flag == "CEASED" else "REGISTRY_FLAGGED"}
+            else: warn.append("REGISTRY_FLAGGED")
+        a = i["assessment"]
+        ok_ = lambda src, w: {"allowed": True, "source": src, "warnings": w, "requiresReason": any(x in ("REGISTRY_FLAGGED", "REASSESSMENT_OVERDUE") for x in w)}
+        if got is None and not tiers[i["tier"]]["blocksPo"] and not (i["tier"] == "MEDIUM" and a == "OVERDUE" and pol["mediumOverdueBlocks"]):
+            got = ok_("NOT_REQUIRED", warn + (["REASSESSMENT_OVERDUE"] if a == "OVERDUE" else []))
+        if got is None and a == "CURRENT" and g("screeningCovered"): got = ok_("ASSESSMENT", warn)
+        if got is None and ov and ov["status"] in ("APPROVED", "EXPIRED") and ov.get("poId") in (None, df["poId"]):
+            if ov["expiresOn"] < df["poDate"]: got = {"allowed": False, "error": "RISK_BLOCKED", "reason": "OVERRIDE_EXPIRED"}
+            elif sat(ov["usedGrossAmount"]) - sat(i.get("priorGrossAmount", "0.00")) + sat(g("grossAmount")) > sat(ov["capGrossAmount"]): got = {"allowed": False, "error": "RISK_BLOCKED", "reason": "OVERRIDE_CAP_EXCEEDED"}
+            else: got = ok_("OVERRIDE", warn + ["OVERRIDE_USED"])
+        if got is None:
+            err, why = {"CURRENT": ("RISK_REASSESSMENT_REQUIRED", "SCOPE_EXPANDED"), "OVERDUE": ("RISK_REASSESSMENT_REQUIRED", "VALIDITY_LAPSED"), "IN_PROGRESS": ("RISK_ASSESSMENT_REQUIRED", "IN_PROGRESS"), "NONE": ("RISK_ASSESSMENT_REQUIRED", "NOT_ASSESSED")}[a]
+            got = {"allowed": False, "error": err, "reason": why}
         out.append((c["id"], got == c["expect"], got))
     return out
 def run_retention(d):  # BR-RET-01 แบ่งงวด · BR-RET-03 เงินประกัน (largest remainder สองส่วน) · BR-WHT-05 ภาษีตอนจ่าย (S8-09)
@@ -2706,7 +2744,32 @@ def run_risk_review(d):
     global HOLD
     use_fixtures(d["fixtures"]); base, out = dict(HOLD), []
     wfs = [golden["tests/golden/" + f][0] for f in d["fixtures"] if "risk-reviewers" in f]
+    tiers = {t["code"]: t for t in d.get("tiers", [])}; D = date.fromisoformat
+    def months(day, n):  # BR-RSK-13: calendar months, a day past the month's end becomes its last day
+        tot = day.year * 12 + day.month - 1 + n; y, m = divmod(tot, 12)
+        nxt = date(y + (m + 1) // 12, (m + 1) % 12 + 1, 1)
+        return date(y, m + 1, min(day.day, (nxt - timedelta(days=1)).day))
     for c in d["cases"]:
+        i, fn = c["input"], c["fn"]
+        # S11-09 (BR-RSK-13 BR-RSK-15 BR-RSK-10): the reassessment dates, the state on a day, G-9 and the override's window
+        if fn == "reviewDates":
+            t = tiers[i["tier"]]; on = dt(i["completedAt"]).astimezone(BKK).date(); until = months(on, t["reviewMonths"])
+            got = {"completedOn": on.isoformat(), "validUntil": until.isoformat(), "remindOn": (until - timedelta(days=t["reminderDaysBefore"])).isoformat()}
+            out.append((c["id"], got == c["expect"], got)); continue
+        if fn == "riskStatusAt":
+            got = "OVERDUE" if i["today"] > i["validUntil"] else "EXPIRING" if i["today"] >= i["remindOn"] else "CURRENT"
+            out.append((c["id"], got == c["expect"], got)); continue
+        if fn == "g9Rate":
+            hi = [r for r in i["rows"] if r["high"]]; num = sum(1 for r in hi if r["assessed"])
+            got = {"bp": num * 10000 // len(hi) if hi else None, "numerator": num, "denominator": len(hi)}
+            out.append((c["id"], got == c["expect"], got)); continue
+        if fn in ("overrideWindow", "overrideExpiryCheck"):
+            last = (D(i["submittedOn"]) + timedelta(days=i["overrideMaxDays"])).isoformat()
+            if fn == "overrideWindow": got = {"lastAllowed": last}
+            elif i["expiresOn"] < i["submittedOn"]: got = {"error": "VALIDATION_FAILED", "reason": "OVERRIDE_EXPIRY_PAST"}
+            elif i["expiresOn"] > last: got = {"error": "VALIDATION_FAILED", "reason": "OVERRIDE_EXPIRY_TOO_FAR"}
+            else: got = {"ok": True}
+            out.append((c["id"], got == c["expect"], got)); continue
         i = {**d["defaults"], **c["input"]}; at = dt(i["at"]); vac = set(i.get("vacate", []))
         vs = sorted([v for w in wfs for v in w["versions"] if dt(v["effectiveFrom"]) <= at], key=lambda v: dt(v["effectiveFrom"]))
         cats = i.get("categoryCodes", [])
@@ -2779,6 +2842,7 @@ RUNNERS = {
     "retention": run_retention,
     "rfx-award": run_rfx_award,
     "rfx-scoring": run_rfx_scoring,
+    "risk-gate": run_risk_gate,
     "risk-review": run_risk_review,
     "risk-tier": run_risk_tier,
     "savings": run_savings,

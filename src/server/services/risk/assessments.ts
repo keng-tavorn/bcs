@@ -34,9 +34,10 @@ import { requireModule } from '../modules'
 import { issueDocumentNumber } from '../numbering'
 import { issuePortalLink } from '../suppliers/links'
 import { storedOptions, questionnaireInEffect } from './questionnaire'
+import { mergeScreening, RISK_TIMEZONE, SCREENING_KEYS } from './screening'
 import { RISK_SUPPLIER_TEMPLATES } from './templates'
 import { riskPolicyInEffect, riskTiersInEffect } from './tiers'
-import { reviewSlotsFor } from './reviewers'
+import { reviewSlotsFor, withReviewerGapReport } from './reviewers'
 
 // Risk assessments (S11-05 · FR-RSK-201 · BR-RSK-01 BR-RSK-03 to 06 BR-RSK-13 BR-RSK-14 · ADR-221 ADR-224): PROCUREMENT
 // opens one for a supplier (from a PO, a request, or the supplier's page) with the questionnaire version in effect and
@@ -48,12 +49,12 @@ import { reviewSlotsFor } from './reviewers'
 type Fail = { readonly ok: false; readonly error: AppError }
 const fail = (code: AppError['code'], message: string, details?: Record<string, unknown>): Fail => ({ ok: false, error: { code, message, ...(details ? { details } : {}) } })
 
-export const RISK_TIMEZONE = 'Asia/Bangkok'
 const YN = z.enum(['Y', 'N'])
 const ScreeningInput = z.strictObject({ processesPersonalData: YN, accessesSystems: YN, accessesPremises: YN })
-const SCREENING_KEYS = ['processesPersonalData', 'accessesSystems', 'accessesPremises'] as const
 const CATEGORY = z.string().trim().min(1).max(30)
 const OPEN_STATUSES = ['DRAFT', 'IN_REVIEW', 'RETURNED'] as const
+
+export { mergeScreening, RISK_TIMEZONE }
 
 // ---------- who acts ----------
 
@@ -215,7 +216,8 @@ async function revokeStaleEvidence(tx: TenantTx, ctx: Ctx, a: AssessmentRow, que
 
 /**
  * Supplier.riskTier riskStatus riskAssessedAt riskValidUntil currentRiskAssessmentId from its COMPLETED assessment, its
- * open assessment and its open reassessments, on the day of `now`; the events of what changed.
+ * open assessment and its open reassessments, on the day of `now`; the events of what changed. IN_PROGRESS only before
+ * the first assessment completes; REASSESS_REQUIRED over every state while a STATUS_CHANGED review is open (BR-RSK-12).
  */
 export async function refreshSupplierRisk(tx: TenantTx, ctx: Ctx, supplierId: string): Promise<EventDraft[]> {
   const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { riskTier: true, riskStatus: true } })
@@ -226,7 +228,9 @@ export async function refreshSupplierRisk(tx: TenantTx, ctx: Ctx, supplierId: st
   let status: 'NOT_ASSESSED' | 'IN_PROGRESS' | 'CURRENT' | 'EXPIRING' | 'OVERDUE' | 'REASSESS_REQUIRED' = 'NOT_ASSESSED'
   if (current?.validUntil && current.remindOn) {
     const s = riskStatusAt({ validUntil: current.validUntil.toISOString().slice(0, 10), remindOn: current.remindOn.toISOString().slice(0, 10), today })
-    status = s === 'OVERDUE' && open > 0 ? 'IN_PROGRESS' : s
+    // a supplier assessed before keeps the state of its days: a reassessment opened at remindOn (risk-review-daily) does
+    // not turn OVERDUE into IN_PROGRESS — the gate's reading too (GateAssessment · S11-09 · scene 20)
+    status = s
   } else if (open > 0) status = 'IN_PROGRESS'
   if (statusChanged > 0) status = 'REASSESS_REQUIRED'
   const tier = (current?.tier ?? null) as RiskTierCode | null
@@ -253,19 +257,6 @@ const OpenInput = z.strictObject({
   /** The standards the work asks for, compared with a certificate's scope (BR-RSK-05) */
   workScopes: z.array(z.string().trim().min(1).max(100)).max(10).default([]),
 })
-
-/** Y wins: a screening field asked of several requests is Y when any of them says Y (FR-RSK-201 AC1) */
-function mergeScreening(forms: readonly unknown[]): Partial<Screening> {
-  const out: Partial<Record<(typeof SCREENING_KEYS)[number], 'Y' | 'N'>> = {}
-  for (const form of forms) {
-    const f = (form && typeof form === 'object' ? form : {}) as Record<string, unknown>
-    for (const k of SCREENING_KEYS) {
-      if (f[k] === 'Y') out[k] = 'Y'
-      else if (f[k] === 'N' && out[k] !== 'Y') out[k] = 'N'
-    }
-  }
-  return out
-}
 
 async function workOf(tx: TenantTx, input: z.infer<typeof OpenInput>): Promise<{ ok: true; screening: Partial<Screening>; categories: string[] } | Fail> {
   if (input.poId) {
@@ -307,54 +298,92 @@ const openCommand = defineCommand({
     for (const k of SCREENING_KEYS) if (screening[k] === undefined && work.screening[k] !== undefined) screening[k] = work.screening[k]
     if (SCREENING_KEYS.some((k) => screening[k] === undefined)) return fail('VALIDATION_FAILED', 'the three screening answers of the work are needed', { reason: 'SCREENING_REQUIRED', field: 'screening' })
     const context: RiskContext = { screening: screening as Screening, categoryCodes: [...new Set([...work.categories, ...(input.categoryCodes ?? [])])], payeeType: supplier.payeeType, isForeign: supplier.isForeign }
-    const definitions = questionnaire.questions.map(questionDefOf)
-    const inherent = inherentTier(context, policy.data)
-    const set = questionsInSet(definitions, context, inherent)
-    const number = await issueDocumentNumber(tx, ctx, { document: 'RSA' })
-    const created = await tx.riskAssessment.create({
-      data: {
-        organizationId: ctx.organizationId,
-        number,
-        supplierId: supplier.id,
-        questionnaireId: questionnaire.id,
-        triggerRequestId: input.requestId ?? null,
-        triggerPoId: input.poId ?? null,
-        screening: context.screening,
-        categoryCodes: [...context.categoryCodes],
-        payeeType: supplier.payeeType,
-        workScopes: input.workScopes,
-        inherentTier: inherent,
-        lastActivityAt: ctx.now,
-        openedById: who.memberId,
-      },
-      select: { id: true },
+    const opened = await createAssessment(tx, ctx, {
+      supplier,
+      context,
+      questionnaire,
+      policy: policy.data,
+      workScopes: input.workScopes,
+      openedById: who.memberId,
+      triggerRequestId: input.requestId ?? null,
+      triggerPoId: input.poId ?? null,
+      reminder: false,
     })
-    // questions a certificate answers today are filled from it (BR-RSK-05 · FR-RSK-201 AC2)
-    const today = dateIn(ctx.now, RISK_TIMEZONE)
-    const byQuestion = await evidenceDocuments(tx, supplier.id)
-    const filled: string[] = []
-    for (const q of set) {
-      const hit = evidenceFor(q, byQuestion.get(q.code) ?? [], input.workScopes, today)
-      if (!hit) continue
-      const option = q.options.find((o) => o.code === hit.optionCode)!
-      await tx.riskAnswer.create({ data: { organizationId: ctx.organizationId, assessmentId: created.id, questionCode: q.code, optionCode: hit.optionCode, source: 'EVIDENCE', evidenceDocumentId: hit.doc.id, points: option.points, answeredAt: ctx.now } })
-      filled.push(q.code)
-    }
-    const invite = await inviteToAnswer(tx, ctx, { assessmentId: created.id, number, supplierId: supplier.id, portalEnabled: supplier.portalEnabled, memberId: who.memberId })
-    const projection = await refreshSupplierRisk(tx, ctx, supplier.id)
-    return {
-      ok: true,
-      result: { assessmentId: created.id, number, inherentTier: inherent, questions: set.length },
-      events: [
-        { type: 'risk_assessment.opened', aggregateType: 'RiskAssessment', aggregateId: created.id, data: { supplierId: supplier.id, number, inherentTier: inherent, questionCount: set.length, evidenceAnswers: filled, triggerRequestId: input.requestId ?? null, triggerPoId: input.poId ?? null } },
-        ...invite.events,
-        ...projection,
-      ],
-      notifications: invite.notifications,
-      outbox: invite.outbox,
-    }
+    return { ok: true, result: opened.result, events: opened.events, notifications: opened.notifications, outbox: opened.outbox }
   },
 })
+
+type Questionnaire = NonNullable<Awaited<ReturnType<typeof questionnaireInEffect>>>
+type Policy = Extract<Awaited<ReturnType<typeof riskPolicyInEffect>>, { ok: true }>['data']
+
+/**
+ * A new assessment of the supplier (inside the caller's transaction, the supplier locked and no assessment of it open ·
+ * INV-RSK-02): the context given, the questionnaire version in effect, the inherent tier, the questions a certificate
+ * answers today filled from it (BR-RSK-05), the supplier's contact invited (a reminder's words when the daily job opens
+ * it for a reassessment · BR-RSK-13) and the supplier's projection. riskAssessment.open and risk-review-daily both use it.
+ */
+export async function createAssessment(
+  tx: TenantTx,
+  ctx: Ctx,
+  input: {
+    supplier: { id: string; payeeType: 'JURISTIC' | 'INDIVIDUAL' | 'FOREIGN'; isForeign: boolean; portalEnabled: boolean }
+    context: RiskContext
+    questionnaire: Questionnaire
+    policy: Policy
+    workScopes: readonly string[]
+    openedById: string
+    triggerRequestId: string | null
+    triggerPoId: string | null
+    reminder: boolean
+  },
+): Promise<{ result: { assessmentId: string; number: string; inherentTier: RiskTierCode; questions: number }; events: EventDraft[]; notifications: NotificationDraft[]; outbox: OutboxDraft[] }> {
+  const { supplier, context, questionnaire } = input
+  const definitions = questionnaire.questions.map(questionDefOf)
+  const inherent = inherentTier(context, input.policy)
+  const set = questionsInSet(definitions, context, inherent)
+  const number = await issueDocumentNumber(tx, ctx, { document: 'RSA' })
+  const created = await tx.riskAssessment.create({
+    data: {
+      organizationId: ctx.organizationId,
+      number,
+      supplierId: supplier.id,
+      questionnaireId: questionnaire.id,
+      triggerRequestId: input.triggerRequestId,
+      triggerPoId: input.triggerPoId,
+      screening: context.screening,
+      categoryCodes: [...context.categoryCodes],
+      payeeType: supplier.payeeType,
+      workScopes: [...input.workScopes],
+      inherentTier: inherent,
+      lastActivityAt: ctx.now,
+      openedById: input.openedById,
+    },
+    select: { id: true },
+  })
+  // questions a certificate answers today are filled from it (BR-RSK-05 · FR-RSK-201 AC2)
+  const today = dateIn(ctx.now, RISK_TIMEZONE)
+  const byQuestion = await evidenceDocuments(tx, supplier.id)
+  const filled: string[] = []
+  for (const q of set) {
+    const hit = evidenceFor(q, byQuestion.get(q.code) ?? [], input.workScopes, today)
+    if (!hit) continue
+    const option = q.options.find((o) => o.code === hit.optionCode)!
+    await tx.riskAnswer.create({ data: { organizationId: ctx.organizationId, assessmentId: created.id, questionCode: q.code, optionCode: hit.optionCode, source: 'EVIDENCE', evidenceDocumentId: hit.doc.id, points: option.points, answeredAt: ctx.now } })
+    filled.push(q.code)
+  }
+  const invite = await inviteToAnswer(tx, ctx, { assessmentId: created.id, number, supplierId: supplier.id, portalEnabled: supplier.portalEnabled, memberId: ctx.actor.type === 'USER' ? input.openedById : null, reminder: input.reminder })
+  const projection = await refreshSupplierRisk(tx, ctx, supplier.id)
+  return {
+    result: { assessmentId: created.id, number, inherentTier: inherent, questions: set.length },
+    events: [
+      { type: 'risk_assessment.opened', aggregateType: 'RiskAssessment', aggregateId: created.id, data: { supplierId: supplier.id, number, inherentTier: inherent, questionCount: set.length, evidenceAnswers: filled, triggerRequestId: input.triggerRequestId, triggerPoId: input.triggerPoId } },
+      ...invite.events,
+      ...projection,
+    ],
+    notifications: invite.notifications,
+    outbox: invite.outbox,
+  }
+}
 
 /**
  * The e-mail with a link to answer in the portal (BR-RSK-17): to the supplier's primary active contact, when the portal
@@ -394,7 +423,7 @@ const AnswerItem = z.strictObject({
   note: z.string().trim().max(500).nullable().optional(),
   /** The person confirms the answer a certificate gave: it becomes theirs and keeps the document (BR-RSK-05) */
   confirmEvidence: z.boolean().optional(),
-  /** The uploader allows the AI to read the files of this answer (BR-AI-33) */
+  /** The uploader allows the AI to read the files of this answer (BR-AI-34) */
   evidenceAiReadable: z.boolean().optional(),
 })
 const AnswerInput = z.strictObject({
@@ -519,7 +548,7 @@ const submitCommand = defineCommand({
       highRiskCategories: [...policy.data.highRiskCategories],
     }
     const round = a.reviewRound + 1
-    const slots = await reviewSlotsFor(tx, ctx, a, score.tier, round)
+    const slots = await reviewSlotsFor(tx, ctx, a, score.tier, round, questions)
     if (!slots.ok) return slots
     const events: EventDraft[] = [...stale.events]
     const base = { pointsTotal: score.points, tier: score.tier, scoringSnapshot, submittedAt: ctx.now, submittedByContactId: who.actor.kind === 'CONTACT' ? who.actor.contactId : null, lastActivityAt: ctx.now, reviewRound: round, version: { increment: 1 } }
@@ -594,9 +623,24 @@ const cancelCommand = defineCommand({
 })
 
 export const openRiskAssessment = (ctx: Ctx, input: z.input<typeof OpenInput>, options: RunOptions) => runCommand(ctx, openCommand, input, options)
+
+/** S11-07 (FR-RSK-203 AC6): "เปิดแบบประเมินความเสี่ยง" on a PO held at the risk gate — the PO's supplier, its work */
+export async function openRiskAssessmentForPo(ctx: Ctx, poId: string, options: RunOptions) {
+  // who may open one is checked first: a refusal never tells whether the PO exists
+  const po = await forTenant(ctx.organizationId).$transaction(async (tx) => {
+    const who = await managerOf(tx, ctx)
+    if (!who.ok) return who
+    const found = await tx.purchaseOrder.findFirst({ where: { id: poId }, select: { supplierId: true } })
+    return found ? ({ ok: true, supplierId: found.supplierId } as const) : fail('NOT_FOUND', 'purchase order not found')
+  })
+  if (!po.ok) return po
+  return openRiskAssessment(ctx, { supplierId: po.supplierId, poId }, options)
+}
 export const answerRiskAssessment = (ctx: Ctx, input: z.input<typeof AnswerInput>, options: RunOptions) => runCommand(ctx, answerCommand, input, options)
 export const fillRiskAssessmentOnBehalf = (ctx: Ctx, input: z.input<typeof AnswerInput>, options: RunOptions) => runCommand(ctx, fillOnBehalfCommand, input, options)
-export const submitRiskAssessment = (ctx: Ctx, input: z.input<typeof SubmitInput>, options: RunOptions) => runCommand(ctx, submitCommand, input, options)
+// FR-RSK-202 AC1: a send refused for a missing reviewer is told to the administrators (reviewers.ts)
+export const submitRiskAssessment = async (ctx: Ctx, input: z.input<typeof SubmitInput>, options: RunOptions) =>
+  withReviewerGapReport(ctx, input.assessmentId, await runCommand(ctx, submitCommand, input, options), options)
 export const cancelRiskAssessment = (ctx: Ctx, input: z.input<typeof cancelCommand.input>, options: RunOptions) => runCommand(ctx, cancelCommand, input, options)
 
 // ---------- reads ----------

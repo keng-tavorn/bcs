@@ -29,7 +29,8 @@
     "PAYMENT_RUN": "Payment run",
     "BANK_ACCOUNT_CHANGE": "Bank account change",
     "SUPPLIER_APPROVAL": "New supplier approval",
-    "RFX_AWARD": "Sourcing award approval"
+    "RFX_AWARD": "Sourcing award approval",
+    "RISK_OVERRIDE": "Supplier risk override approval"
   },
   "maxAmount": "Highest amount handed over (baht)",
   "maxAmountHint": "Leave blank for no cap, still within your position's authority. With a cap, tasks without an amount, such as DOA changes, do not go to the acting approver.",

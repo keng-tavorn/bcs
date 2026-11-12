@@ -39,6 +39,8 @@ import '@/server/services/approvals/line-postback'
 import '@/server/services/line-link/follow'
 // S17-06: chat messages (registerLineMessageHandler), and whether an organization asks through the chat
 import '@/server/services/chat-intake/line-message'
+// S11-06 (BR-NOTI-12): the "ผ่าน" button of a reviewer's card of a supplier risk assessment (`risk_pass`)
+import '@/server/services/risk/line-postback'
 
 export { LINE_WEBHOOK_BODY_MAX_BYTES } from '@/server/line/webhook'
 

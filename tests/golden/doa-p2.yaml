@@ -16,3 +16,10 @@ cases:
   - { id: GC-DOA-77, title: ขอบบนของช่วงผู้จัดการจัดซื้อ, input: { documentType: RFX_AWARD, amount: "500000.00" }, expect: { version: 1, rule: RA-01, approvers: [dm_proc] } }
   - { id: GC-DOA-78, title: เกินขอบ 1 สตางค์ไป COO, input: { documentType: RFX_AWARD, amount: "500000.01" }, expect: { version: 1, rule: RA-02, approvers: [coo] } }
   - { id: GC-DOA-79, title: CEO เป็นผู้ประเมินในช่วงบนสุด, input: { documentType: RFX_AWARD, amount: "5000000.01", alsoConflicting: [ceo] }, expect: { error: NO_HIGHER_AUTHORITY } }
+  # S11 (BR-DOA-28): requester = who asks for the override (PROCUREMENT) · department = the requester's · amount = the cap
+  # with VAT of every PO it lets through, sent as { net: cap, vat: 0 }, so the GROSS basis of DOA-P2 gives the cap itself
+  - { id: GC-DOA-81, title: อนุมัติข้ามเพดานขอบบนของ COO, input: { documentType: RISK_OVERRIDE, amount: "1000000.00" }, expect: { version: 1, rule: RO-01, approvers: [coo] } }
+  - { id: GC-DOA-82, title: เกินเพดาน COO หนึ่งสตางค์ไป CEO, input: { documentType: RISK_OVERRIDE, amount: "1000000.01" }, expect: { version: 1, rule: RO-02, approvers: [ceo] } }
+  - { id: GC-DOA-83, title: COO ขอเอง ยกไปช่วงถัดไป, input: { documentType: RISK_OVERRIDE, amount: "500000.00", requester: coo, department: HQ }, expect: { version: 1, rule: RO-01, escalatedTo: RO-02, approvers: [ceo] } }
+  - { id: GC-DOA-84, title: CEO ขอเองในช่วงบนสุด, input: { documentType: RISK_OVERRIDE, amount: "2000000.00", requester: ceo, department: HQ }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-DOA-85, title: เพดานศูนย์, input: { documentType: RISK_OVERRIDE, amount: "0.00" }, expect: { error: VALIDATION_FAILED } }

@@ -25,6 +25,7 @@ export function boardFilter(params: Params): BoardFilter {
   return {
     ...(department && z.uuid().safeParse(department).success ? { departmentId: department } : {}),
     ...(type && (BOARD_SUBJECTS as readonly string[]).includes(type) ? { subjectType: type as BoardSubject } : {}),
+    ...(one(params.risk) === 'gated' ? { riskGated: true } : {}),
   }
 }
 
@@ -33,6 +34,7 @@ export function filterQuery(filter: BoardFilter): string {
   const q = new URLSearchParams()
   if (filter.departmentId) q.set('department', filter.departmentId)
   if (filter.subjectType) q.set('type', filter.subjectType)
+  if (filter.riskGated) q.set('risk', 'gated')
   const s = q.toString()
   return s ? `?${s}` : ''
 }

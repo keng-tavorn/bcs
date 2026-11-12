@@ -196,7 +196,15 @@
     "VALIDATION_MISSING": "The supplier has no e-mail address. Add one in the supplier register before sending.",
     "VALIDATION_REASON": "Type a reason",
     "VALIDATION_FAILED": "Some fields are not right. Check them and try again.",
-    "other": "This did not go through. Try again; if it still fails, tell the administrator."
+    "other": "This did not go through. Try again; if it still fails, tell the administrator.",
+    "RISK_NOT_ASSESSED": "This supplier is high risk and has never been assessed: have the supplier answer the risk questionnaire until it passes review, or ask for an override under the DOA",
+    "RISK_IN_PROGRESS": "This supplier's risk assessment is not finished: wait for the supplier's answers and every reviewer, or ask for an override under the DOA",
+    "RISK_SCOPE_EXPANDED": "The work of this purchase order carries a risk the supplier's assessment did not cover: reassess, or ask for an override under the DOA",
+    "RISK_VALIDITY_LAPSED": "This supplier's risk assessment is past its review date: reassess, or ask for an override under the DOA",
+    "RISK_REGISTRY_CEASED": "This supplier has ceased trading according to the registry: no new purchase order and no override",
+    "RISK_REGISTRY_FLAGGED": "This supplier's registry status changed (out of the VAT register, or not found): finish a new risk assessment first",
+    "RISK_OVERRIDE_EXPIRED": "This supplier's override has expired: finish the risk assessment, or ask for a new override",
+    "RISK_OVERRIDE_CAP_EXCEEDED": "This purchase order with the earlier ones goes over the override's cap: finish the risk assessment, or ask for a new override"
   },
   "task": {
     "heading": "PO change",

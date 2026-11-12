@@ -310,3 +310,6 @@ export const RISK_TIER_POINTS_MAX = 1_000_000
 export const RISK_EVIDENCE_FILES_PER_QUESTION = 5
 /** S11-05 (docs/sub-specs/S11.md job risk-assessment-sla): a business day counted as 540 business minutes (08:30–17:30) */
 export const BUSINESS_DAY_MINUTES = 540
+/** S11-08 (BR-RSK-10): the reason of a risk override — at least this many characters, at most RiskOverride.reason's */
+export const RISK_OVERRIDE_REASON_MIN = 20
+export const RISK_OVERRIDE_REASON_MAX = 2000

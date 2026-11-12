@@ -263,6 +263,13 @@ export function resolveReviewStep(versions: readonly WorkflowVersionSnapshot[], 
   return ok({ workflowVersionId: version.id, workflowCode: version.code, versionNo: version.versionNo, slots, groups: reviewGroups, slaBusinessMinutes: Math.max(...slots.map((s) => s.slaBusinessMinutes)) })
 }
 
+/**
+ * The versions as a request's reviewers read them: the rules of REQUEST scope only (S11 · BR-RSK-07). A RISK_ASSESSMENT
+ * rule names no request type, so the engine would not match it anyway; the filter keeps that true whatever a row holds.
+ */
+export const requestScopeOnly = (versions: readonly WorkflowVersionSnapshot[]): WorkflowVersionSnapshot[] =>
+  versions.map((v) => (v.rules.every((r) => (r.scope ?? 'REQUEST') === 'REQUEST') ? v : { ...v, rules: v.rules.filter((r) => (r.scope ?? 'REQUEST') === 'REQUEST') }))
+
 export interface RequestRoute {
   readonly review: ReviewStep | null
   readonly approval: RouteResult
@@ -280,7 +287,7 @@ export function resolveRequestRoute(
   const approval = resolveRoute(route, policy)
   if (!approval.ok) return approval
   const step = resolveReviewStep(
-    policy.workflows,
+    requestScopeOnly(policy.workflows),
     { ...review, requesterMemberId: route.requesterMemberId, conflictMemberIds: route.conflictMemberIds, at: route.at, basisAmountSatang: approval.data.basisAmountSatang },
     policy.org,
     policy.delegations,

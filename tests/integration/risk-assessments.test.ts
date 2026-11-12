@@ -97,9 +97,10 @@ describe('[FR-RSK-201/AC1] the question set comes from the screening of the work
     const line = await flow.fundedLine(1_000_000n)
     const first = await flow.approvedRequest(line, [{ quantity: '1', unitPrice: '1000.00' }])
     const second = await flow.approvedRequest(line, [{ quantity: '1', unitPrice: '2000.00' }])
+    // the screening is given once the PO is approved: with it before, S11-07's gate would hold the PO at its submit (HIGH)
+    const po = await flow.approvedPo([first.lines[0]!.id, second.lines[0]!.id], s.supplierId)
     await prisma.request.update({ where: { id: first.id }, data: { formData: { processesPersonalData: 'N', accessesSystems: 'Y', accessesPremises: 'N' } } })
     await prisma.request.update({ where: { id: second.id }, data: { formData: { processesPersonalData: 'Y', accessesSystems: 'N', accessesPremises: 'N' } } })
-    const po = await flow.approvedPo([first.lines[0]!.id, second.lines[0]!.id], s.supplierId)
     await prisma.poLine.updateMany({ where: { poId: po.id }, data: { categoryCode: 'IT' } })
     const opened = ok(await openRiskAssessment(as('proc_officer'), { supplierId: s.supplierId, poId: po.id }, key()))
     expect(opened).toMatchObject({ inherentTier: 'HIGH', questions: 3 })
@@ -266,7 +267,7 @@ describe('[FR-RSK-204/AC4] [BR-RSK-18] the files behind an answer', () => {
     expect(await prisma.supplierNotice.count({ where: { subjectId: a.assessmentId, templateKey: 'supplier.risk_evidence_rejected' } })).toBe(1)
   })
 
-  it('[BR-AI-33] the AI reads the files of an answer only while every one of them was ticked as it was sent', async () => {
+  it('[BR-AI-34] the AI reads the files of an answer only while every one of them was ticked as it was sent', async () => {
     const s = await supplierWithContact('RA-AI')
     const a = ok(await openRiskAssessment(as('proc_officer'), { supplierId: s.supplierId, screening: SCREEN }, key()))
     ok(await answerRiskAssessment(s.portal(), { assessmentId: a.assessmentId, expectedVersion: await version(a.assessmentId), answers: [{ questionCode: 'RQ-GEN-01', optionCode: 'Y' }] }, key()))

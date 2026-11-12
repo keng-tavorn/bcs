@@ -5,6 +5,7 @@ import { systemClock } from '@/lib/clock'
 import { platformCtx } from '@/server/auth/session'
 import { listModules } from '@/server/services/modules'
 import { getTenant } from '@/server/services/platform/tenants'
+import { riskGateDryRun } from '@/server/services/risk'
 import { ModuleState } from '@/ui/admin/module-state'
 import { ModuleSwitch } from '@/ui/admin/module-switch'
 import { DOC_TYPES } from '@/ui/admin-doa/editor-model'
@@ -37,6 +38,10 @@ export default async function TenantModulesPage({ params }: { params: Promise<{ 
       </div>
     )
   }
+  // S11-07 (moved from S11-02): before RISK is switched on, how many POs not yet out the gate would hold (poGate, dry run)
+  const riskOff = modules.data.some((m) => m.module === 'RISK' && !m.enabled)
+  const dryRun = riskOff && ctx ? await riskGateDryRun(ctx) : null
+  const riskCount = dryRun?.ok ? (dryRun.data.kind === 'COUNTED' ? t('riskDryRun', { held: dryRun.data.held, open: dryRun.data.open }) : t('riskDryRunNotConfigured')) : null
   const names = Object.fromEntries(modules.data.map((m) => [m.module, tModules(`names.${m.module}`)]))
   const documentTypeNames = Object.fromEntries(DOC_TYPES.map((d) => [d, tDoa(`documentTypes.${d}`)]))
   const when = (iso: string) => formatDateTime(locale, iso)
@@ -70,6 +75,7 @@ export default async function TenantModulesPage({ params }: { params: Promise<{ 
               </div>
               <ModuleState enabled={m.enabled} label={m.enabled ? tModules('on') : tModules('off')} />
             </div>
+            {m.module === 'RISK' && riskCount ? <p className="text-ink">{riskCount}</p> : null}
             {m.module === 'CORE' ? (
               <p className="text-base text-ink-muted md:text-sm">{t('coreAlwaysOn')}</p>
             ) : (

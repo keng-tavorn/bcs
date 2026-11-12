@@ -26,6 +26,7 @@ import { holdsAnotherSlot } from '../approvals/step-complete'
 import { warningKey } from '../doa/lint-view'
 import { openTasksOnTree } from './reparent'
 import { revokeMemberPasskeys } from '../self/passkeys'
+import { reresolveReviewTasks } from '../risk/reviews'
 
 // Changes to the authority structure (spec FR-DOA-010, BR-DOA-17, BR-SOD-08, BR-AUTH-07): ORG_ADMIN proposes one of five
 // kinds with an effective time that is not in the past and a reason; the approver of the ORG_AUTHORITY_CHANGE rule
@@ -654,6 +655,8 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
     }
   }
 
+  // S11-06 (BR-RSK-07 · ADR-108): the open reviewer tasks of risk assessments follow the same tree and holders
+  await reresolveReviewTasks(tx, ctx, at, { events, notifications: extra })
   if (!alreadyApplied) await tx.orgAuthorityChange.update({ where: { id: change.id }, data: { status: 'APPLIED', appliedAt: ctx.now, version: { increment: 1 } } })
   else await tx.orgAuthorityChange.update({ where: { id: change.id }, data: { appliedAt: ctx.now } })
   events.push({ type: 'org_authority_change.applied', aggregateType: 'OrgAuthorityChange', aggregateId: change.id, data: { kind: change.kind } })

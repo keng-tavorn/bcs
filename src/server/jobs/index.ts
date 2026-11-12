@@ -35,6 +35,8 @@ import { bidFileScannedJob, rfxClose, rfxInviteLink, rfxReminder } from './rfx'
 import { rfxAiSummary } from './rfx-ai-summary'
 import { preferredSupplierExpiry } from './preferred-supplier-expiry'
 import { riskAssessmentSla, riskEvidenceScannedJob } from './risk-assessments'
+import { riskReviewDaily } from './risk-review-daily'
+import { riskReviewTaskSla } from './risk-reviews'
 import { supplierNoticeSend, supplierNoticeSweep } from './supplier-notice-send'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
@@ -81,6 +83,9 @@ export const functions = [
   // S11-05
   riskAssessmentSla,
   riskEvidenceScannedJob,
+  riskReviewTaskSla,
+  // S11-09: reassessments due, overrides lapsing, the state of the day (FR-RSK-205)
+  riskReviewDaily,
   // S10-04
   rfxClose,
   rfxReminder,

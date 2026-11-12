@@ -4,11 +4,14 @@
 # org-s6.yaml = org-p1 + แผนก LEG QSE + dm_leg dm_qse (fixture ที่ GC-WF ใช้อยู่) · fixtures/risk-reviewers.yaml = ข้อ scope
 # RISK_ASSESSMENT ของ WF-SIMEC ฉบับ 1 (RR-01 ถึง RR-04 · OQ-223) และข้อ REQUEST หนึ่งข้อที่ต้องไม่ถูกนับ
 # input: screening tier (แช่แข็งตอนส่ง) · inherentTier (ว่าง = เท่า tier) · categoryCodes · conflictMemberIds = ผู้กรอกแทน
-# (ผู้เปิดใบคือ openedBy ของ defaults · BR-SOD ข้อ 16) · vacate = ตำแหน่งที่ว่าง · delegations = การรักษาการ (from to
+# (ผู้เปิดใบคือ openedBy ของ defaults · BR-SOD-16) · vacate = ตำแหน่งที่ว่าง · delegations = การรักษาการ (from to
 # documentTypes? maxAmount?) · expect.review = slot เรียงตาม sortOrder: rules reviewers (ผู้ถืองานหลังรักษาการ) fallback?
 # principal? domains · review null = ไม่มีข้อที่ตรง ใบเสร็จทันที
+# S11-09 (BR-RSK-13 BR-RSK-15 BR-RSK-10): tiers = รอบประเมินซ้ำของ SIMEC ตาม risk-tier.yaml (HIGH 12 · MEDIUM 24 · LOW 36 เดือน ·
+# เตือนก่อน 30 วัน · OQ-226) · reviewDates input completedAt tier · riskStatusAt · g9Rate rows · overrideWindow · overrideExpiryCheck
 suite: risk-review
 fixtures: [fixtures/org-s6.yaml, fixtures/risk-reviewers.yaml]
+tiers: [{ code: LOW, reviewMonths: 36, reminderDaysBefore: 30 }, { code: MEDIUM, reviewMonths: 24, reminderDaysBefore: 30 }, { code: HIGH, reviewMonths: 12, reminderDaysBefore: 30 }]
 defaults: { at: "2026-11-02T03:00:00Z", openedBy: proc_officer, categoryCodes: [], payeeType: JURISTIC }
 cases:
   # S11-06 · ผู้ตรวจจากคำตอบคัดกรอง (BR-RSK-07 · §8.12 FR-RSK-202) · ใช้ resolveReviewStep ของ S6 บน snapshot scope RISK
@@ -21,3 +24,25 @@ cases:
   # รอบตรวจของขั้น · ขอบการรักษาการของงานผู้ตรวจ (BR-RSK-07 · BR-DLG-01)
   - { id: GC-RSK-31, title: การรักษาการที่จำกัดชนิดเอกสารไม่ครอบงานผู้ตรวจ, fn: riskReviewers, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, tier: MEDIUM, delegations: [{ from: dm_it, to: vp_sup, documentTypes: [PURCHASE_ORDER] }] }, expect: { review: { quorum: ALL, slots: [{ rules: [RR-02], reviewers: [dm_it], domains: [INFOSEC] }] } } }
   - { id: GC-RSK-32, title: การรักษาการที่ไม่จำกัดชนิดและยอด งานไปที่ผู้รักษาการ, fn: riskReviewers, input: { screening: { processesPersonalData: "N", accessesSystems: "Y", accessesPremises: "N" }, tier: MEDIUM, delegations: [{ from: dm_it, to: vp_sup }] }, expect: { review: { quorum: ALL, slots: [{ rules: [RR-02], reviewers: [vp_sup], principal: dm_it, domains: [INFOSEC] }] } } }
+  # S11-09 · วันครบรอบ (BR-RSK-13) · เดือนปฏิทิน ปัดวันเกินเป็นสิ้นเดือน · วันที่ตาม Asia/Bangkok · รอบและวันเตือนจาก tiers
+  - { id: GC-RSK-59, title: สิ้นเดือนมกราคม + 12 เดือน, fn: reviewDates, input: { completedAt: "2026-01-31T04:00:00Z", tier: HIGH }, expect: { completedOn: "2026-01-31", validUntil: "2027-01-31", remindOn: "2027-01-01" } }
+  - { id: GC-RSK-60, title: สิ้นเดือนสิงหาคม + 24 เดือน, fn: reviewDates, input: { completedAt: "2026-08-31T04:00:00Z", tier: MEDIUM }, expect: { completedOn: "2026-08-31", validUntil: "2028-08-31", remindOn: "2028-08-01" } }
+  - { id: GC-RSK-61, title: 29 กุมภาพันธ์ปีอธิกสุรทิน + 12 เดือน ปัดเป็น 28, fn: reviewDates, input: { completedAt: "2028-02-29T04:00:00Z", tier: HIGH }, expect: { completedOn: "2028-02-29", validUntil: "2029-02-28", remindOn: "2029-01-29" } }
+  - { id: GC-RSK-62, title: 30 พฤศจิกายน + 36 เดือน, fn: reviewDates, input: { completedAt: "2026-11-30T04:00:00Z", tier: LOW }, expect: { completedOn: "2026-11-30", validUntil: "2029-11-30", remindOn: "2029-10-31" } }
+  - { id: GC-RSK-63, title: เวลา UTC ข้ามวันเมื่อแปลงเป็นเวลาไทย, fn: reviewDates, input: { completedAt: "2026-10-31T17:30:00Z", tier: HIGH }, expect: { completedOn: "2026-11-01", validUntil: "2027-11-01", remindOn: "2027-10-02" } }
+  - { id: GC-RSK-64, title: สิ้นปี + 24 เดือน, fn: reviewDates, input: { completedAt: "2025-12-31T10:00:00Z", tier: MEDIUM }, expect: { completedOn: "2025-12-31", validUntil: "2027-12-31", remindOn: "2027-12-01" } }
+  # S11-09 · สถานะ ณ วัน (ใบของฉาก 20: เสร็จ 2025-12-15 HIGH → validUntil 2026-12-15 remindOn 2026-11-15)
+  - { id: GC-RSK-65, title: วันก่อนเตือน, fn: riskStatusAt, input: { validUntil: "2026-12-15", remindOn: "2026-11-15", today: "2026-11-14" }, expect: CURRENT }
+  - { id: GC-RSK-66, title: วันเตือนพอดี, fn: riskStatusAt, input: { validUntil: "2026-12-15", remindOn: "2026-11-15", today: "2026-11-15" }, expect: EXPIRING }
+  - { id: GC-RSK-67, title: วันหมดอายุพอดียังใช้ได้, fn: riskStatusAt, input: { validUntil: "2026-12-15", remindOn: "2026-11-15", today: "2026-12-15" }, expect: EXPIRING }
+  - { id: GC-RSK-68, title: วันถัดจากหมดอายุ, fn: riskStatusAt, input: { validUntil: "2026-12-15", remindOn: "2026-11-15", today: "2026-12-16" }, expect: OVERDUE }
+  # S11-09 · G-9 (BR-RSK-15) · rows = ผู้ขายที่ PO แรกอยู่ในช่วง (high = riskGate.tier HIGH · assessed = source ASSESSMENT)
+  - { id: GC-RSK-69, title: 4 จาก 5 ราย ประเมินก่อน PO แรก, fn: g9Rate, input: { rows: [{ high: true, assessed: true }, { high: true, assessed: true }, { high: true, assessed: true }, { high: true, assessed: true }, { high: true, assessed: false }, { high: false, assessed: false }, { high: false, assessed: false }, { high: false, assessed: false }] }, expect: { bp: 8000, numerator: 4, denominator: 5 } }
+  - { id: GC-RSK-70, title: ครบทุกราย, fn: g9Rate, input: { rows: [{ high: true, assessed: true }, { high: true, assessed: true }, { high: true, assessed: true }] }, expect: { bp: 10000, numerator: 3, denominator: 3 } }
+  - { id: GC-RSK-71, title: ไม่มีผู้ขายระดับสูงในช่วง, fn: g9Rate, input: { rows: [{ high: false, assessed: true }, { high: false, assessed: true }] }, expect: { bp: null, numerator: 0, denominator: 0 } }
+  - { id: GC-RSK-72, title: 2 จาก 3 ปัดลง, fn: g9Rate, input: { rows: [{ high: true, assessed: true }, { high: true, assessed: true }, { high: true, assessed: false }] }, expect: { bp: 6666, numerator: 2, denominator: 3 } }
+  # S11-09 · หน้าต่างวันหมดอายุของการอนุมัติข้าม (BR-RSK-10 · expiresOn ≥ วันส่ง และ ≤ วันส่ง + overrideMaxDays)
+  - { id: GC-RSK-73, title: วันหมดอายุไกลสุดของการอนุมัติข้าม 90 วัน, fn: overrideWindow, input: { submittedOn: "2026-10-16", overrideMaxDays: 90 }, expect: { lastAllowed: "2027-01-14" } }
+  - { id: GC-RSK-74, title: วันหมดอายุเท่าวันส่ง ตั้งได้, fn: overrideExpiryCheck, input: { submittedOn: "2026-10-16", expiresOn: "2026-10-16", overrideMaxDays: 90 }, expect: { ok: true } }
+  - { id: GC-RSK-75, title: วันหมดอายุก่อนวันส่งหนึ่งวัน, fn: overrideExpiryCheck, input: { submittedOn: "2026-10-16", expiresOn: "2026-10-15", overrideMaxDays: 90 }, expect: { error: VALIDATION_FAILED, reason: OVERRIDE_EXPIRY_PAST } }
+  - { id: GC-RSK-76, title: วันหมดอายุเกินหน้าต่าง 91 วัน, fn: overrideExpiryCheck, input: { submittedOn: "2026-10-16", expiresOn: "2027-01-15", overrideMaxDays: 90 }, expect: { error: VALIDATION_FAILED, reason: OVERRIDE_EXPIRY_TOO_FAR } }

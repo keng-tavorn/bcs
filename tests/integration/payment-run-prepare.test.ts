@@ -328,3 +328,53 @@ describe('[S9-05] [BR-PAY-10] cancelled before approval: every document is ready
     ok(await add(next, { invoiceIds: [inv], retentionIds: [ret] }))
   })
 })
+
+describe('[FR-PAY-101/AC13] [FR-RSK-203/AC5] a risk override that ran out before the pay date flags the item (S11-08)', () => {
+  it('RISK_OVERRIDE_EXPIRED from riskOverridesForPayment needs the preparer’s reason; a newer override clears it; RISK off never raises it', async () => {
+    const lapsed = await supplier()
+    const renewed = await supplier()
+    const docs = [await readyInvoice(lapsed.id, '500.00', '35.00', '2026-10-15'), await readyInvoice(renewed.id, '600.00', '42.00', '2026-10-15')]
+    const override = (supplierId: string, status: 'APPROVED' | 'EXPIRED', expiresOn: string) =>
+      prisma.riskOverride.create({
+        data: {
+          organizationId: ap.org.organizationId,
+          number: `RO-T-${randomUUID().slice(0, 8)}`,
+          supplierId,
+          reason: 'ผู้ขายรายเดียวที่ส่งมอบได้ทันกำหนดของโครงการนี้',
+          capGrossSatang: 5_000_000n,
+          expiresOn: new Date(`${expiresOn}T00:00:00Z`),
+          requestedById: ap.org.member.proc_officer!,
+          submittedAt: new Date('2026-09-01T03:00:00Z'),
+          decidedAt: new Date('2026-09-02T03:00:00Z'),
+          status,
+        },
+      })
+    // the last day 15 Oct is before the pay date 16 Oct (GC-PAY-30); the renewed supplier has a newer one to 31 Dec
+    await override(lapsed.id, 'APPROVED', '2026-10-15')
+    await override(renewed.id, 'EXPIRED', '2026-10-01')
+    await override(renewed.id, 'APPROVED', '2026-12-31')
+    const flagsOf = async (run: string) => Object.fromEntries((await prisma.paymentRunItem.findMany({ where: { paymentRunId: run } })).map((i) => [i.supplierId, i.flags]))
+
+    // RISK off: the overrides are not read (FR-RSK-203 AC5)
+    const offRun = await draftRun()
+    ok(await add(offRun, { invoiceIds: docs }))
+    expect(Object.values(await flagsOf(offRun)).flat()).not.toContain('RISK_OVERRIDE_EXPIRED')
+    ok(await cancelPaymentRun(finance(), { paymentRunId: offRun, version: await versionOf(offRun), reason: 'เตรียมใหม่หลังเปิดโมดูลความเสี่ยง' }, key()))
+
+    await prisma.orgModule.create({ data: { organizationId: ap.org.organizationId, module: 'RISK', enabled: true, enabledAt: AP_NOW, contractRef: 'TEST-S11', reason: 'ทดสอบธงการอนุมัติข้าม' } })
+    try {
+      const run = await draftRun()
+      ok(await add(run, { invoiceIds: docs }))
+      const flags = await flagsOf(run)
+      expect(flags[lapsed.id]).toEqual(['RISK_OVERRIDE_EXPIRED'])
+      expect(flags[renewed.id]).toEqual([])
+      expect(await submitPaymentRun(finance(), { paymentRunId: run, version: await versionOf(run) }, key())).toMatchObject({ ok: false, error: { code: 'PAYMENT_FLAG_REASON_REQUIRED', details: { supplier: lapsed.code, flag: 'RISK_OVERRIDE_EXPIRED' } } })
+      ok(await setPaymentFlagReason(finance(), { paymentRunId: run, version: await versionOf(run), supplierId: lapsed.id, reason: 'งานส่งมอบครบก่อนการอนุมัติข้ามหมดอายุ' }, key()))
+      const sent = ok(await submitPaymentRun(finance(), { paymentRunId: run, version: await versionOf(run) }, key()))
+      expect(sent.flagsKey).toBe(`${lapsed.code}:RISK_OVERRIDE_EXPIRED`)
+      ok(await cancelPaymentRun(finance(), { paymentRunId: run, version: await versionOf(run), reason: 'จบการทดสอบธงการอนุมัติข้าม' }, key()))
+    } finally {
+      await prisma.orgModule.updateMany({ where: { organizationId: ap.org.organizationId, module: 'RISK' }, data: { enabled: false } })
+    }
+  })
+})

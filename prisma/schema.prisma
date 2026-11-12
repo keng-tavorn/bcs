@@ -3421,7 +3421,7 @@ enum AiPurpose {
   RFX_DRAFT
   BID_SUMMARY
   NEGOTIATION_POINTS
-  /// S11: a draft answer from evidence, and a summary of a supplier's risk file (BR-AI-32 · BR-AI-33)
+  /// S11: a draft answer from evidence, and a summary of a supplier's risk file (BR-AI-33 · BR-AI-34)
   RISK_ANSWER_DRAFT
   RISK_FILE_SUMMARY
 }
@@ -5989,7 +5989,7 @@ model RiskQuestion {
   evidenceScopeRequired Boolean          @default(false)
   /// The scope or standard the question asks for, e.g. "ISO 27001"
   evidenceScope         String?
-  /// The Risk Agent may read the evidence files of this question (BR-AI-33)
+  /// The Risk Agent may read the evidence files of this question (BR-AI-34)
   aiReadable            Boolean          @default(false)
   sortOrder             Int              @default(0)
   createdAt             DateTime         @default(now()) @db.Timestamptz(6)
@@ -6086,10 +6086,10 @@ model RiskAnswer {
   answeredAt          DateTime         @db.Timestamptz(6)
   answeredByContactId String?          @db.Uuid
   answeredByMemberId  String?          @db.Uuid
-  /// The AI's value that a person confirmed (BR-AI-32)
+  /// The AI's value that a person confirmed (BR-AI-33)
   agentActionId       String?          @db.Uuid
   note                String?
-  /// The uploader ticked "this file holds no personal data, the AI may read it" (BR-AI-33)
+  /// The uploader ticked "this file holds no personal data, the AI may read it" (BR-AI-34)
   evidenceAiReadable  Boolean          @default(false)
   createdAt           DateTime         @default(now()) @db.Timestamptz(6)
   updatedAt           DateTime         @updatedAt @db.Timestamptz(6)

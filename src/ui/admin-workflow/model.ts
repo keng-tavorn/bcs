@@ -2,9 +2,36 @@
 // (rules, test cases, conditions of §7.9 with anyIn) and what the screen edits (a rule's form, a condition as rows of
 // field · op · value joined by all or any, a document of the dry-run or of a test case). Money stays a baht string with
 // two decimals (§7.0 (3)); the service checks every value again.
+// S11-06 (BR-RSK-07 · FR-RSK-202 AC2): a rule is of one of two scopes. REQUEST picks the reviewers of a request (S6);
+// RISK_ASSESSMENT picks the reviewers of a supplier risk assessment from its screening answers, tier, categories and
+// payee type, names no request type, has one reviewer who must pass, and names the parts of the assessment that
+// reviewer sees (riskDomains). A rule read without a scope is a REQUEST rule, as every rule saved before S11.
 
 export type Mode = 'ALL' | 'ANY' | 'COUNT'
 export const MODES: readonly Mode[] = ['ALL', 'ANY', 'COUNT']
+
+export type RuleScope = 'REQUEST' | 'RISK_ASSESSMENT'
+
+// The values of supplier risk the screens may name. src/ui may not import src/core/risk (eslint boundaries), so these
+// repeat src/core/risk/types.ts (RISK_DOMAINS RISK_TIER_CODES SCREENING_FIELDS RISK_REVIEW_VARIABLES) and the payee
+// types of the dry-run's input; the service and the lint (WF_LINT_RISK_*) check every value again.
+
+/** The parts of an assessment (BR-RSK-08): every reviewer sees GENERAL; a rule names the parts its reviewer checks */
+export const RISK_DOMAIN_CODES = ['GENERAL', 'PRIVACY', 'INFOSEC', 'PREMISES', 'FINANCE'] as const
+export type RiskDomainCode = (typeof RISK_DOMAIN_CODES)[number]
+export const RISK_TIERS = ['LOW', 'MEDIUM', 'HIGH'] as const
+export type RiskTier = (typeof RISK_TIERS)[number]
+/** The three screening questions of BR-RSK-01, answered Y or N */
+export const SCREENING_FIELDS = ['processesPersonalData', 'accessesSystems', 'accessesPremises'] as const
+export type ScreeningField = (typeof SCREENING_FIELDS)[number]
+export const PAYEE_TYPES = ['JURISTIC', 'INDIVIDUAL', 'FOREIGN'] as const
+export type PayeeType = (typeof PAYEE_TYPES)[number]
+/** What a RISK rule's condition may name besides the screening answers (WF_LINT_RISK_FIELD) */
+export const RISK_VARIABLES: readonly string[] = ['$tier', '$inherentTier', '$category', '$payeeType']
+export const RISK_FIELDS: readonly string[] = [...SCREENING_FIELDS, ...RISK_VARIABLES]
+
+/** The scope of a rule; absent = REQUEST */
+export const scopeOf = (r: { readonly scope?: RuleScope }): RuleScope => r.scope ?? 'REQUEST'
 
 export type ReviewerValue = { readonly kind: 'POSITION_AT'; readonly position: string; readonly department: string } | { readonly kind: 'MEMBER'; readonly memberId: string }
 
@@ -17,6 +44,11 @@ export type ConditionValue =
 
 export interface RuleValue {
   readonly code: string
+  /** REQUEST when absent (a rule read before S11) */
+  readonly scope?: RuleScope
+  /** RISK_ASSESSMENT: the parts of the assessment its reviewer sees (BR-RSK-08); none for a REQUEST rule */
+  readonly riskDomains?: readonly string[]
+  /** REQUEST: one at least; RISK_ASSESSMENT: none */
   readonly requestTypeCodes: readonly string[]
   readonly when: ConditionValue
   readonly reviewers: readonly ReviewerValue[]
@@ -52,7 +84,8 @@ export const VARIABLES: readonly string[] = [...MONEY_VARIABLES, '$requestType',
 export type Op = 'eq' | 'ne' | 'in' | 'gt' | 'gte' | 'lt' | 'lte' | 'empty' | 'notEmpty' | 'anyIn'
 export const OPS: readonly Op[] = ['eq', 'ne', 'in', 'gt', 'gte', 'lt', 'lte', 'empty', 'notEmpty', 'anyIn']
 
-export type FieldKind = 'money' | 'requestType' | 'set' | 'choice' | 'text'
+/** fixed: a value of a risk assessment that always has one of a few values (a screening answer, a tier, a payee type) */
+export type FieldKind = 'money' | 'requestType' | 'set' | 'choice' | 'text' | 'fixed'
 
 /** What a field is, for the operators and the value it takes: a variable, or a form field with or without options */
 export function fieldKind(field: string, formField?: { readonly options: readonly unknown[] }): FieldKind {
@@ -62,12 +95,32 @@ export function fieldKind(field: string, formField?: { readonly options: readonl
   return formField && formField.options.length ? 'choice' : 'text'
 }
 
+/**
+ * What a field of a RISK rule is (BR-RSK-07): $category is the supplier's categories, a list read with anyIn; the
+ * screening answers, $tier, $inherentTier and $payeeType always hold one of their values. Anything else is no field
+ * of a risk assessment (text, which checkRule refuses as RISK_FIELD).
+ */
+export function riskFieldKind(field: string): FieldKind {
+  if (field === '$category') return 'set'
+  return RISK_FIELDS.includes(field) ? 'fixed' : 'text'
+}
+
+/** The values a RISK rule's field takes, in order; [] for $category, whose codes are typed */
+export function riskFieldValues(field: string): readonly string[] {
+  if ((SCREENING_FIELDS as readonly string[]).includes(field)) return ['Y', 'N']
+  if (field === '$tier' || field === '$inherentTier') return RISK_TIERS
+  if (field === '$payeeType') return PAYEE_TYPES
+  return []
+}
+
 export const OPS_BY_KIND: Readonly<Record<FieldKind, readonly Op[]>> = {
   money: ['gt', 'gte', 'lt', 'lte', 'eq', 'ne'],
   requestType: ['eq', 'ne', 'in'],
   set: ['anyIn', 'empty', 'notEmpty'],
   choice: ['eq', 'ne', 'in', 'anyIn', 'empty', 'notEmpty'],
   text: ['eq', 'ne', 'empty', 'notEmpty'],
+  // Never empty, and a tier is a word, not a number: more or less than it would match nothing (§7.9)
+  fixed: ['eq', 'ne', 'in'],
 }
 
 /** in and anyIn take a list; empty and notEmpty take nothing */
@@ -129,7 +182,8 @@ export function conditionDraftOf(when: ConditionValue): ConditionDraft {
   return { join, rows: [], nested: when }
 }
 
-export type RowError = 'FIELD' | 'OP' | 'VALUE' | 'MONEY' | 'VALUES'
+/** RISK_FIELD: a row of a RISK rule names what an assessment does not have (WF_LINT_RISK_FIELD) */
+export type RowError = 'FIELD' | 'OP' | 'VALUE' | 'MONEY' | 'VALUES' | 'RISK_FIELD'
 
 /** What is wrong with one row, or null */
 export function rowError(row: ConditionRow, kindOf: (field: string) => FieldKind): RowError | null {
@@ -161,7 +215,10 @@ export function conditionOf(draft: ConditionDraft, kindOf: (field: string) => Fi
 
 export interface RuleDraft {
   readonly code: string
+  readonly scope: RuleScope
   readonly requestTypeCodes: readonly string[]
+  /** RISK_ASSESSMENT only */
+  readonly riskDomains: readonly string[]
   readonly condition: ConditionDraft
   readonly reviewers: readonly ReviewerValue[]
   readonly fallback: ReviewerValue | null
@@ -171,7 +228,7 @@ export interface RuleDraft {
   readonly descriptionTh: string
 }
 
-export type RuleField = 'code' | 'requestTypes' | 'condition' | 'reviewers' | 'fallback' | 'quorumCount' | 'slaHours' | 'descriptionTh'
+export type RuleField = 'code' | 'requestTypes' | 'riskDomains' | 'condition' | 'reviewers' | 'fallback' | 'quorumCount' | 'slaHours' | 'descriptionTh'
 export type RuleError = 'CODE' | 'DUPLICATE' | 'REQUIRED' | 'ONE_REVIEWER' | 'TWO_REVIEWERS' | 'INCOMPLETE' | 'QUORUM' | 'SLA' | 'TOO_LONG' | 'ROWS' | 'TOO_MANY'
 
 const MINUTES_PER_HOUR = 60
@@ -193,20 +250,39 @@ export function slaMinutesOf(text: string, maxHours: number): number | null {
   return minutes >= 1 && minutes <= maxHours * MINUTES_PER_HOUR ? minutes : null
 }
 
-/** The next free code after the rules' own: RV-01 … RV-10 → RV-11 */
-export function nextRuleCode(rules: readonly { readonly code: string }[]): string {
-  const numbers = rules.map((r) => /^RV-(\d+)$/.exec(r.code)?.[1]).filter((n): n is string => n !== undefined).map(Number)
+/** The prefix of a new rule's code: RV for a request's reviewers, RR for a risk assessment's (as SIMEC's RR-01 to RR-04) */
+export const codePrefixOf = (scope: RuleScope) => (scope === 'RISK_ASSESSMENT' ? 'RR' : 'RV')
+
+/** The next free code after the rules' own: RV-01 … RV-10 → RV-11 (codes are unique across both scopes) */
+export function nextRuleCode(rules: readonly { readonly code: string }[], prefix = 'RV'): string {
+  const own = new RegExp(`^${prefix}-(\\d+)$`)
+  const numbers = rules.map((r) => own.exec(r.code)?.[1]).filter((n): n is string => n !== undefined).map(Number)
   const next = (numbers.length ? Math.max(...numbers) : 0) + 1
-  return `RV-${String(next).padStart(2, '0')}`
+  return `${prefix}-${String(next).padStart(2, '0')}`
 }
 
-export function ruleDraftOf(rule: RuleValue | null, rules: readonly RuleValue[], defaultSlaHours: string): RuleDraft {
+/** A rule as its form; `scope` is the scope of a new rule (an existing rule keeps its own) */
+export function ruleDraftOf(rule: RuleValue | null, rules: readonly RuleValue[], defaultSlaHours: string, scope: RuleScope = 'REQUEST'): RuleDraft {
   if (!rule) {
-    return { code: nextRuleCode(rules), requestTypeCodes: [], condition: { join: 'all', rows: [], nested: null }, reviewers: [{ kind: 'POSITION_AT', position: '', department: '' }], fallback: null, mode: 'ALL', quorumCount: '', slaHours: defaultSlaHours, descriptionTh: '' }
+    return {
+      code: nextRuleCode(rules, codePrefixOf(scope)),
+      scope,
+      requestTypeCodes: [],
+      riskDomains: [],
+      condition: { join: 'all', rows: [], nested: null },
+      reviewers: [{ kind: 'POSITION_AT', position: '', department: '' }],
+      fallback: null,
+      mode: 'ALL',
+      quorumCount: '',
+      slaHours: defaultSlaHours,
+      descriptionTh: '',
+    }
   }
   return {
     code: rule.code,
+    scope: scopeOf(rule),
     requestTypeCodes: rule.requestTypeCodes,
+    riskDomains: rule.riskDomains ?? [],
     condition: conditionDraftOf(rule.when),
     reviewers: rule.reviewers,
     fallback: rule.fallback,
@@ -227,17 +303,23 @@ export type RuleCheck =
  * The form checked as BR-WF-11 and the service will: a code of capitals, digits, - and _ used once; at least one
  * request type; complete rows; ALL and ANY with one reviewer, COUNT with two or more and a count from 1 to them; the
  * time under the SLA in hours. `editing` is the code of the rule being edited, null for a new one.
+ * A RISK_ASSESSMENT rule as the lint will (WF_LINT_RISK_*): no request type, one part of the assessment at least,
+ * rows on the fields of an assessment only, and one reviewer who must pass (ALL, whatever the form held).
  */
 export function checkRule(draft: RuleDraft, rules: readonly RuleValue[], editing: string | null, kindOf: (field: string) => FieldKind, slaMaxHours: number): RuleCheck {
   const errors: Partial<Record<RuleField, RuleError>> = {}
+  const risk = draft.scope === 'RISK_ASSESSMENT'
+  const mode: Mode = risk ? 'ALL' : draft.mode
   const code = draft.code.trim().toUpperCase()
   if (!CODE.test(code)) errors.code = 'CODE'
   else if (rules.some((r) => r.code === code && r.code !== editing)) errors.code = 'DUPLICATE'
-  if (draft.requestTypeCodes.length === 0) errors.requestTypes = 'REQUIRED'
+  if (!risk && draft.requestTypeCodes.length === 0) errors.requestTypes = 'REQUIRED'
+  const riskDomains = RISK_DOMAIN_CODES.filter((d) => draft.riskDomains.includes(d))
+  if (risk && riskDomains.length === 0) errors.riskDomains = 'REQUIRED'
   const rowErrors: Record<number, RowError> = {}
   if (!draft.condition.nested) {
     draft.condition.rows.forEach((row, i) => {
-      const e = rowError(row, kindOf)
+      const e = risk && row.field !== '' && !RISK_FIELDS.includes(row.field) ? 'RISK_FIELD' : rowError(row, kindOf)
       if (e) rowErrors[i] = e
     })
     if (Object.keys(rowErrors).length) errors.condition = 'ROWS'
@@ -245,12 +327,12 @@ export function checkRule(draft: RuleDraft, rules: readonly RuleValue[], editing
   const reviewers = draft.reviewers
   if (reviewers.length === 0) errors.reviewers = 'REQUIRED'
   else if (!reviewers.every(reviewerComplete)) errors.reviewers = 'INCOMPLETE'
-  else if (draft.mode !== 'COUNT' && reviewers.length !== 1) errors.reviewers = 'ONE_REVIEWER'
-  else if (draft.mode === 'COUNT' && reviewers.length < 2) errors.reviewers = 'TWO_REVIEWERS'
+  else if (mode !== 'COUNT' && reviewers.length !== 1) errors.reviewers = 'ONE_REVIEWER'
+  else if (mode === 'COUNT' && reviewers.length < 2) errors.reviewers = 'TWO_REVIEWERS'
   else if (reviewers.length > MAX_REVIEWERS) errors.reviewers = 'TOO_MANY'
   if (draft.fallback && !reviewerComplete(draft.fallback)) errors.fallback = 'INCOMPLETE'
   let quorumCount: number | null = null
-  if (draft.mode === 'COUNT') {
+  if (mode === 'COUNT') {
     const n = /^\d{1,2}$/.test(draft.quorumCount.trim()) ? Number(draft.quorumCount.trim()) : NaN
     if (!Number.isInteger(n) || n < 1 || n > Math.max(reviewers.length, 1)) errors.quorumCount = 'QUORUM'
     else quorumCount = n
@@ -264,11 +346,13 @@ export function checkRule(draft: RuleDraft, rules: readonly RuleValue[], editing
     ok: true,
     rule: {
       code,
-      requestTypeCodes: [...draft.requestTypeCodes],
+      // A REQUEST rule stays as it was before S11, without the two keys (the service reads them as REQUEST and none)
+      ...(risk ? { scope: 'RISK_ASSESSMENT' as const, riskDomains } : {}),
+      requestTypeCodes: risk ? [] : [...draft.requestTypeCodes],
       when: conditionOf(draft.condition, kindOf),
       reviewers: [...reviewers],
       fallback: draft.fallback,
-      mode: draft.mode,
+      mode,
       quorumCount,
       slaMinutes,
       descriptionTh: description === '' ? null : description,
@@ -282,11 +366,17 @@ export function putRule(rules: readonly RuleValue[], rule: RuleValue, editing: s
   return rules.map((r) => (r.code === editing ? rule : r))
 }
 
-/** Moves a rule one place up or down (the order the slots are numbered in, BR-WF-06); no dragging (NG-4) */
+/**
+ * Moves a rule one place up or down among the rules of its own scope (the order the slots are numbered in, BR-WF-06;
+ * each scope is a list of its own on screen); no dragging (NG-4)
+ */
 export function moveRule(rules: readonly RuleValue[], code: string, by: -1 | 1): RuleValue[] {
   const i = rules.findIndex((r) => r.code === code)
-  const j = i + by
-  if (i < 0 || j < 0 || j >= rules.length) return [...rules]
+  if (i < 0) return [...rules]
+  const scope = scopeOf(rules[i]!)
+  let j = i + by
+  while (j >= 0 && j < rules.length && scopeOf(rules[j]!) !== scope) j += by
+  if (j < 0 || j >= rules.length) return [...rules]
   const next = [...rules]
   ;[next[i], next[j]] = [next[j]!, next[i]!]
   return next
@@ -294,7 +384,13 @@ export function moveRule(rules: readonly RuleValue[], code: string, by: -1 | 1):
 
 // ---------- what changed against the saved version ----------
 
-export type RulePart = 'requestTypes' | 'when' | 'reviewers' | 'fallback' | 'mode' | 'sla' | 'description'
+/** scope and riskDomains as the service's comparison names them (WorkflowRuleField, S11-06) */
+export type RulePart = 'requestTypes' | 'when' | 'reviewers' | 'fallback' | 'mode' | 'sla' | 'description' | 'scope' | 'riskDomains'
+
+const domainsKey = (r: RuleValue) => canonical([...(r.riskDomains ?? [])].sort())
+
+/** A rule with its scope and parts written out, so a rule read with them and the same rule without compare equal */
+const withScope = (r: RuleValue): RuleValue => ({ ...r, scope: scopeOf(r), riskDomains: [...(r.riskDomains ?? [])].sort() })
 
 /** JSON with its keys in order, so the same value compares equal however its keys came */
 export function canonical(value: unknown): string {
@@ -319,6 +415,8 @@ export function changedParts(before: RuleValue | undefined, after: RuleValue): R
     mode: canonical([r.mode, r.mode === 'COUNT' ? r.quorumCount : null]),
     sla: String(r.slaMinutes),
     description: r.descriptionTh ?? '',
+    scope: scopeOf(r),
+    riskDomains: domainsKey(r),
   })
   const a = parts(before)
   const b = parts(after)
@@ -333,7 +431,7 @@ export interface DraftState {
 }
 
 export function isDirty(saved: DraftState, now: DraftState): boolean {
-  return canonical(saved.rules) !== canonical(now.rules) || canonical(saved.testCases) !== canonical(now.testCases) || saved.effectiveDate !== now.effectiveDate
+  return canonical(saved.rules.map(withScope)) !== canonical(now.rules.map(withScope)) || canonical(saved.testCases) !== canonical(now.testCases) || saved.effectiveDate !== now.effectiveDate
 }
 
 // ---------- a document of the dry-run or of a test case ----------
@@ -381,6 +479,48 @@ export function documentOf(d: DocumentDraft): { readonly ok: true; readonly valu
   }
 }
 
+// ---------- an assessment of the dry-run of the risk rules (S11-06 · BR-RSK-07) ----------
+
+/** What the service's dry-run reads of a supplier risk assessment (riskCases) */
+export interface RiskCaseValue {
+  readonly screening: Readonly<Record<ScreeningField, 'Y' | 'N'>>
+  /** The tier frozen at the send */
+  readonly tier: RiskTier
+  /** The tier before the answers; the service takes the tier when it is left out */
+  readonly inherentTier?: RiskTier
+  readonly categoryCodes: readonly string[]
+  readonly payeeType: PayeeType
+  /** The member who opened it: never its reviewer (BR-SOD-16), so the fallback stands in */
+  readonly openedById: string
+}
+
+export interface RiskCaseDraft {
+  readonly screening: Readonly<Record<ScreeningField, 'Y' | 'N'>>
+  readonly tier: RiskTier
+  /** '' = the same as the tier */
+  readonly inherentTier: RiskTier | ''
+  /** Codes typed with commas */
+  readonly categoryCodes: string
+  readonly payeeType: PayeeType
+  readonly openedById: string
+}
+
+export const MAX_RISK_CASES = 20
+
+/** A new assessment to try: nothing screened in, the lowest tier, a juristic person, opened by the given member */
+export function riskCaseDraftOf(openedById: string | null): RiskCaseDraft {
+  return { screening: { processesPersonalData: 'N', accessesSystems: 'N', accessesPremises: 'N' }, tier: 'LOW', inherentTier: '', categoryCodes: '', payeeType: 'JURISTIC', openedById: openedById ?? '' }
+}
+
+/** The form as the dry-run's input; who opened it is the one thing to choose */
+export function riskCaseOf(d: RiskCaseDraft): { readonly ok: true; readonly value: RiskCaseValue } | { readonly ok: false; readonly errors: { readonly openedById: 'REQUIRED' } } {
+  if (d.openedById === '') return { ok: false, errors: { openedById: 'REQUIRED' } }
+  return {
+    ok: true,
+    value: { screening: { ...d.screening }, tier: d.tier, ...(d.inherentTier !== '' ? { inherentTier: d.inherentTier } : {}), categoryCodes: codesOf(d.categoryCodes), payeeType: d.payeeType, openedById: d.openedById },
+  }
+}
+
 // ---------- the save ----------
 
 export interface SaveInput {
@@ -392,14 +532,22 @@ export interface SaveInput {
   readonly testCases: readonly TestCaseValue[]
 }
 
-/** What the save sends: the draft as the service's update reads it (quorumCount only for COUNT) */
+/**
+ * What the save sends: the draft as the service's update reads it (quorumCount only for COUNT). A RISK_ASSESSMENT rule
+ * carries its scope and parts, no request type, and ALL; a REQUEST rule goes without the two keys, which the service
+ * reads as REQUEST and none (S11-06).
+ */
 export function saveInput(versionId: string, lock: number, effectiveDate: string, changeReason: string, rules: readonly RuleValue[], testCases: readonly TestCaseValue[]): SaveInput {
+  const ruleOf = ({ scope, riskDomains, ...r }: RuleValue) =>
+    scope === 'RISK_ASSESSMENT'
+      ? { ...r, scope, riskDomains: RISK_DOMAIN_CODES.filter((d) => (riskDomains ?? []).includes(d)), requestTypeCodes: [], reviewers: [...r.reviewers], mode: 'ALL' as const, quorumCount: null }
+      : { ...r, requestTypeCodes: [...r.requestTypeCodes], reviewers: [...r.reviewers], quorumCount: r.mode === 'COUNT' ? r.quorumCount : null }
   return {
     versionId,
     version: lock,
     effectiveDate,
     changeReason: changeReason.trim(),
-    rules: rules.map((r) => ({ ...r, requestTypeCodes: [...r.requestTypeCodes], reviewers: [...r.reviewers], quorumCount: r.mode === 'COUNT' ? r.quorumCount : null })),
+    rules: rules.map(ruleOf),
     testCases: testCases.map((t) => ({ ...t, expected: { ruleCodes: [...t.expected.ruleCodes] } })),
   }
 }

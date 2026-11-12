@@ -307,36 +307,88 @@ const rejectCommand = defineCommand({
 
 const DOWNLOAD_TTL_SECONDS = 300
 
-const downloadCommand = defineCommand({
-  name: 'supplierDocument.requestDownload',
-  capability: 'supplier.document.view',
-  input: z.object({ documentId: z.uuid(), purpose: z.string().trim().min(3).max(200).default('ตรวจเอกสารผู้ขาย'), grantedBy: z.enum(['RISK_REVIEW']).optional() }),
-  async execute(tx, input, ctx): Promise<CommandOutcome<{ storageKey: string; fileName: string; mimeType: string }>> {
-    const doc = await tx.supplierDocument.findUnique({ where: { id: input.documentId }, include: { documentType: { select: { sensitive: true } }, file: true } })
-    if (!doc) return fail('NOT_FOUND', 'document not found')
-    // supplier.document.view always: S11 brings its reviewer's own right (grantedBy RISK_REVIEW) with the check of the
-    // reviewer's slot in its own step; until then the field only names the grant in the event
-    const who = await actingOn(tx, ctx, doc, 'supplier.document.view')
-    if ('ok' in who) return who
-    if (doc.file.scanStatus !== 'CLEAN') return fail(doc.file.scanStatus === 'INFECTED' ? 'FILE_INFECTED' : 'FILE_NOT_SCANNED', 'the file is not clean', { scanStatus: doc.file.scanStatus })
-    if (doc.documentType.sensitive && who.side === 'MEMBER') {
-      const sensitive = await authorize(tx, ctx, 'supplier.document.viewSensitive')
-      if (!sensitive.ok) return { ok: false, error: sensitive.error }
-      await tx.sensitiveAccessLog.create({ data: { organizationId: ctx.organizationId, memberId: (ctx.actor as { memberId: string }).memberId, subjectType: 'SupplierDocument', subjectId: doc.id, fields: ['file'], purpose: input.purpose, at: ctx.now } })
-    }
-    return {
-      ok: true,
-      result: { storageKey: doc.file.storageKey, fileName: doc.file.fileName, mimeType: doc.file.mimeType },
-      events: [{ type: 'file.downloaded', aggregateType: 'File', aggregateId: doc.fileId, data: { fileId: doc.fileId, ...(input.grantedBy ? { grantedBy: input.grantedBy } : {}) } }],
-    }
-  },
-})
+/**
+ * Another module's own right to open one supplier document in place of supplier.document.view (BR-SDOC ข้อ 05): S11's
+ * reviewer of a slot opens the certificate an answer of its own domains rests on (grantedBy RISK_REVIEW · BR-RSK-08 ·
+ * S11-24). The grant is an argument a service passes, never a field a caller sends, so no caller claims it by naming
+ * it; its check is the granting module's own and runs inside this command's transaction, before anything of the
+ * document is read — a check that refuses refuses the download. Only src/server/services/risk/evidence.ts passes one
+ * (tests/unit/supplier-document-grant.test.ts).
+ */
+export interface SupplierDocumentGrant {
+  readonly grantedBy: 'RISK_REVIEW'
+  /** ok when the member of `ctx` may open the document under the grant; a refusal is returned as it is */
+  check(tx: TenantTx, ctx: Ctx, documentId: string): Promise<{ readonly ok: true } | { readonly ok: false; readonly error: AppError }>
+}
 
-/** A download URL of at most five minutes, after the checks and the log (never a GET that makes one) */
-export async function requestSupplierDocumentDownload(ctx: Ctx, input: { documentId: string; purpose?: string; grantedBy?: 'RISK_REVIEW' }, options: RunOptions): Promise<Result<{ url: string; expiresInSeconds: number }>> {
-  const r = await runCommand(ctx, downloadCommand, input, options)
+const DownloadInput = z.strictObject({ documentId: z.uuid(), purpose: z.string().trim().min(3).max(200).default('ตรวจเอกสารผู้ขาย') })
+// The granted call's own input: the grant's name is set here from the grant, never by a caller, so a granted download
+// and a plain one never share a stored result under one key (the command log hashes the input)
+const GrantedInput = DownloadInput.extend({ grantedBy: z.literal('RISK_REVIEW') })
+type Downloaded = { storageKey: string; fileName: string; mimeType: string }
+
+/** A member let in by another module's grant, checked here: the module on, a member, the grant's own check */
+async function grantedMember(tx: TenantTx, ctx: Ctx, documentId: string, grant: SupplierDocumentGrant): Promise<{ readonly side: 'MEMBER'; readonly grantedBy: 'RISK_REVIEW' | null } | Fail> {
+  const on = await requireModule(ctx, 'SUPPLIER', tx)
+  if (!on.ok) return { ok: false, error: on.error }
+  // a contact opens the documents of its own supplier on the portal, never through another module's grant
+  if (ctx.actor.type !== 'USER') return fail('FORBIDDEN', 'a grant is a member’s')
+  const granted = await grant.check(tx, ctx, documentId)
+  if (!granted.ok) return granted
+  // the member's own supplier.document.view needs no grant: the event names one only where it let the member in
+  const own = await authorize(tx, ctx, 'supplier.document.view')
+  return { side: 'MEMBER', grantedBy: own.ok ? null : grant.grantedBy }
+}
+
+function downloadCommandOf(grant: SupplierDocumentGrant | null) {
+  return defineCommand<z.output<typeof DownloadInput>, Downloaded>({
+    name: 'supplierDocument.requestDownload',
+    capability: 'supplier.document.view',
+    input: grant ? GrantedInput : DownloadInput,
+    async execute(tx, input, ctx): Promise<CommandOutcome<Downloaded>> {
+      // with a grant its check comes first: who may not open the document learns nothing of it
+      const granted = grant ? await grantedMember(tx, ctx, input.documentId, grant) : null
+      if (granted && 'ok' in granted) return granted
+      const doc = await tx.supplierDocument.findUnique({ where: { id: input.documentId }, include: { documentType: { select: { sensitive: true } }, file: true } })
+      if (!doc) return fail('NOT_FOUND', 'document not found')
+      const own = granted ? null : await actingOn(tx, ctx, doc, 'supplier.document.view')
+      if (own && 'ok' in own) return own
+      const who = (granted ?? own)!
+      if (doc.file.scanStatus !== 'CLEAN') return fail(doc.file.scanStatus === 'INFECTED' ? 'FILE_INFECTED' : 'FILE_NOT_SCANNED', 'the file is not clean', { scanStatus: doc.file.scanStatus })
+      // a sensitive type (an ID card) asks supplier.document.viewSensitive of every member, a grant or not, and is logged
+      if (doc.documentType.sensitive && who.side === 'MEMBER') {
+        const sensitive = await authorize(tx, ctx, 'supplier.document.viewSensitive')
+        if (!sensitive.ok) return { ok: false, error: sensitive.error }
+        await tx.sensitiveAccessLog.create({ data: { organizationId: ctx.organizationId, memberId: (ctx.actor as { memberId: string }).memberId, subjectType: 'SupplierDocument', subjectId: doc.id, fields: ['file'], purpose: input.purpose, at: ctx.now } })
+      }
+      const grantedBy = granted?.grantedBy ?? null
+      return {
+        ok: true,
+        result: { storageKey: doc.file.storageKey, fileName: doc.file.fileName, mimeType: doc.file.mimeType },
+        events: [{ type: 'file.downloaded', aggregateType: 'File', aggregateId: doc.fileId, data: { fileId: doc.fileId, ...(grantedBy ? { grantedBy } : {}) } }],
+      }
+    },
+  })
+}
+
+const downloadCommand = downloadCommandOf(null)
+
+async function presigned(r: Result<Downloaded>): Promise<Result<{ url: string; expiresInSeconds: number }>> {
   if (!r.ok) return r
   return { ok: true, data: { url: await presignDownload(r.data.storageKey, { fileName: r.data.fileName, contentType: r.data.mimeType, inline: true }, DOWNLOAD_TTL_SECONDS), expiresInSeconds: DOWNLOAD_TTL_SECONDS } }
+}
+
+/**
+ * A download URL of at most five minutes, after the checks and the log (never a GET that makes one): supplier.document.view
+ * or the supplier's own contact. The input names no grant — one sent along is refused (VALIDATION_FAILED · S11-24)
+ */
+export async function requestSupplierDocumentDownload(ctx: Ctx, input: { documentId: string; purpose?: string }, options: RunOptions): Promise<Result<{ url: string; expiresInSeconds: number }>> {
+  return presigned(await runCommand(ctx, downloadCommand, input, options))
+}
+
+/** The same download for a member another module grants it to, its check run in this command's transaction (S11-24) */
+export async function requestSupplierDocumentDownloadGranted(ctx: Ctx, input: { documentId: string; purpose?: string }, grant: SupplierDocumentGrant, options: RunOptions): Promise<Result<{ url: string; expiresInSeconds: number }>> {
+  return presigned(await runCommand(ctx, downloadCommandOf(grant), { ...input, grantedBy: grant.grantedBy }, options))
 }
 
 export const verifySupplierDocument = (ctx: Ctx, input: z.input<typeof VerifyInput>, options: RunOptions) => runCommand(ctx, verifyCommand, input, options)

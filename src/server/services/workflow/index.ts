@@ -2,6 +2,7 @@ import { err, ok, type AppError, type Result } from '@/core/result'
 import { z } from 'zod'
 import { amountToSatang } from '@/core/money/dto'
 import { WORKFLOW_VERSION_MACHINE, transition, type WorkflowVersionState } from '@/core/state-machines'
+import { RISK_DOMAINS, RISK_TIER_CODES, riskReviewers } from '@/core/risk'
 import { lintWorkflowVersion, resolveRequestRoute, resolveReviewer, workflowConditionHolds, type ReviewInput, type WorkflowRuleSnapshot, type WorkflowVersionSnapshot } from '@/core/workflow'
 import { COMMAND_TX_MAX_WAIT_MS, COMMAND_TX_TIMEOUT_MS, REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
@@ -11,7 +12,7 @@ import { systemCtx, type Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { setTransactionTimeouts } from '@/server/db/sql/timeouts'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
-import { loadOrgSnapshot, loadRoutePolicy } from '@/server/doa/policy'
+import { loadDelegations, loadOrgSnapshot, loadRoutePolicy } from '@/server/doa/policy'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { loadRequestTypeFields, loadWorkflowVersions } from '@/server/workflow/policy'
@@ -42,9 +43,14 @@ const MINUTES_PER_HOUR = 60
 const SLA_MAX_MINUTES = SLA_MAX_HOURS * MINUTES_PER_HOUR
 const MAX_REVIEWERS = 20
 
-const RuleInput = z.strictObject({
+const RuleInput = z
+  .strictObject({
   code: Code,
-  requestTypeCodes: z.array(Code).min(1).max(20),
+  /** S11-06 (BR-RSK-07 · ADR-222): RISK_ASSESSMENT picks the reviewers of a supplier risk assessment, and names no request type */
+  scope: z.enum(['REQUEST', 'RISK_ASSESSMENT']).default('REQUEST'),
+  requestTypeCodes: z.array(Code).max(20),
+  /** RISK_ASSESSMENT: the parts of the assessment its reviewer sees (BR-RSK-08); the lint asks for one at least */
+  riskDomains: z.array(z.enum(RISK_DOMAINS)).max(RISK_DOMAINS.length).default([]),
   when: ConditionJson,
   reviewers: z.array(ReviewerJson).min(1).max(MAX_REVIEWERS),
   fallback: ReviewerJson.nullable(),
@@ -52,7 +58,15 @@ const RuleInput = z.strictObject({
   quorumCount: z.number().int().positive().max(MAX_REVIEWERS).nullable(),
   slaMinutes: z.number().int().positive().max(SLA_MAX_MINUTES),
   descriptionTh: z.string().trim().max(500).nullable().optional(),
-})
+  })
+  .superRefine((r, issue) => {
+    // a REQUEST rule names its request types; a RISK_ASSESSMENT rule none, and only it names domains
+    if (r.scope === 'REQUEST' && r.requestTypeCodes.length === 0) issue.addIssue({ code: 'custom', path: ['requestTypeCodes'], message: 'a request rule names its request types' })
+    if (r.scope === 'RISK_ASSESSMENT' && r.requestTypeCodes.length > 0) issue.addIssue({ code: 'custom', path: ['requestTypeCodes'], message: 'a risk rule names no request type' })
+    if (r.scope === 'REQUEST' && r.riskDomains.length > 0) issue.addIssue({ code: 'custom', path: ['riskDomains'], message: 'only a risk rule names domains' })
+    // the CHECK workflow_rule_risk_scope of S11-01: a risk rule names the parts its reviewer sees (BR-RSK-08)
+    if (r.scope === 'RISK_ASSESSMENT' && r.riskDomains.length === 0) issue.addIssue({ code: 'custom', path: ['riskDomains'], message: 'a risk rule names the domains its reviewer sees' })
+  })
 
 /** A document of a test case or of the dry-run: what the engine reads of a request */
 const DocumentInput = z.strictObject({
@@ -74,7 +88,18 @@ const TestCaseInput = z.strictObject({ name: z.string().trim().min(1).max(200), 
 type RuleInput = z.output<typeof RuleInput>
 
 function snapshotOfInput(r: RuleInput, sortOrder: number): WorkflowRuleSnapshot {
-  return { code: r.code, requestTypeCodes: r.requestTypeCodes, when: r.when, reviewers: r.reviewers, fallback: r.fallback, mode: r.mode, quorumCount: r.quorumCount, slaBusinessMinutes: r.slaMinutes, sortOrder }
+  return {
+    code: r.code,
+    requestTypeCodes: r.requestTypeCodes,
+    when: r.when,
+    reviewers: r.reviewers,
+    fallback: r.fallback,
+    mode: r.mode,
+    quorumCount: r.quorumCount,
+    slaBusinessMinutes: r.slaMinutes,
+    sortOrder,
+    ...(r.scope === 'RISK_ASSESSMENT' ? { scope: 'RISK_ASSESSMENT' as const, riskDomains: [...new Set(r.riskDomains)] } : {}),
+  }
 }
 
 async function writeRules(tx: TenantTx, ctx: Ctx, versionId: string, rules: ReadonlyArray<WorkflowRuleSnapshot & { readonly descriptionTh?: string | null }>) {
@@ -94,6 +119,8 @@ async function writeRules(tx: TenantTx, ctx: Ctx, versionId: string, rules: Read
         slaBusinessMinutes: rule.slaBusinessMinutes,
         descriptionTh: rule.descriptionTh ?? null,
         sortOrder: rule.sortOrder,
+        scope: rule.scope ?? 'REQUEST',
+        riskDomains: [...(rule.riskDomains ?? [])],
       },
     })
   }
@@ -102,7 +129,7 @@ async function writeRules(tx: TenantTx, ctx: Ctx, versionId: string, rules: Read
 /** The matched rule codes of one document under a version: what a test case states (BR-WF-06 without the people) */
 export function matchedRuleCodes(version: WorkflowVersionSnapshot, document: z.output<typeof DocumentInput>): string[] {
   const input = reviewInputOf(document)
-  return version.rules.filter((r) => r.requestTypeCodes.includes(document.requestType) && workflowConditionHolds(r.when, { ...input, requesterMemberId: '', conflictMemberIds: [], at: new Date(0), basisAmountSatang: null })).map((r) => r.code)
+  return version.rules.filter((r) => (r.scope ?? 'REQUEST') === 'REQUEST' && r.requestTypeCodes.includes(document.requestType) && workflowConditionHolds(r.when, { ...input, requesterMemberId: '', conflictMemberIds: [], at: new Date(0), basisAmountSatang: null })).map((r) => r.code)
 }
 
 function reviewInputOf(d: z.output<typeof DocumentInput>): Omit<ReviewInput, 'requesterMemberId' | 'conflictMemberIds' | 'at' | 'basisAmountSatang'> {
@@ -237,13 +264,28 @@ export function updateWorkflowVersion(ctx: Ctx, input: z.input<typeof UpdateInpu
 
 // ---------- dry-run: the version in effect beside the draft (FR-WF-103 AC2) ----------
 
-const DryRunInput = z.strictObject({
-  versionId: z.uuid(),
-  documents: z
-    .array(DocumentInput.extend({ requesterMemberId: z.uuid(), chargedDepartmentId: z.uuid() }))
-    .min(1)
-    .max(MAX_DRY_RUN),
+const YN = z.enum(['Y', 'N'])
+/** S11-06: an assessment of the dry-run of the risk rules: its screening, its tier and who opened it (BR-RSK-07) */
+const RiskCaseInput = z.strictObject({
+  screening: z.strictObject({ processesPersonalData: YN, accessesSystems: YN, accessesPremises: YN }),
+  tier: z.enum(RISK_TIER_CODES),
+  /** The tier before the answers; the tier when left out */
+  inherentTier: z.enum(RISK_TIER_CODES).optional(),
+  categoryCodes: z.array(z.string().min(1).max(40)).max(20).default([]),
+  payeeType: z.enum(['JURISTIC', 'INDIVIDUAL', 'FOREIGN']).default('JURISTIC'),
+  openedById: z.uuid(),
 })
+
+const DryRunInput = z
+  .strictObject({
+    versionId: z.uuid(),
+    documents: z
+      .array(DocumentInput.extend({ requesterMemberId: z.uuid(), chargedDepartmentId: z.uuid() }))
+      .max(MAX_DRY_RUN)
+      .default([]),
+    riskCases: z.array(RiskCaseInput).max(MAX_DRY_RUN).default([]),
+  })
+  .refine((v) => v.documents.length + v.riskCases.length > 0, { path: ['documents'], message: 'try one document or one assessment at least' })
 
 export interface DryRunSide {
   readonly ok: boolean
@@ -257,6 +299,45 @@ export interface DryRunRow {
   readonly current: DryRunSide
   readonly draft: DryRunSide
   readonly changed: boolean
+}
+
+/** S11-06: the reviewers of one assessment of the dry-run, under one version (BR-RSK-07) */
+export interface DryRunRiskSide {
+  readonly ok: boolean
+  /** The slots: rule codes, the reviewer's member id and the domains it sees; [] = no rule matches (it completes at once) */
+  readonly slots: ReadonlyArray<{ readonly ruleCodes: readonly string[]; readonly memberIds: readonly string[]; readonly riskDomains: readonly string[] }>
+  readonly error: { readonly code: string; readonly details?: Readonly<Record<string, unknown>> } | null
+}
+
+export interface DryRunRiskRow {
+  readonly current: DryRunRiskSide
+  readonly draft: DryRunRiskSide
+  readonly changed: boolean
+}
+
+type RiskCases = z.output<typeof DryRunInput>['riskCases']
+
+/** The version in effect now and this version as if it were, for each assessment: the adapter real sending uses (riskReviewers) */
+async function dryRunRiskRows(tx: TenantTx, ctx: Ctx, row: VersionWithRules, cases: RiskCases): Promise<DryRunRiskRow[]> {
+  if (cases.length === 0) return []
+  const draft = workflowVersionFromRows(row, row.rules)
+  const asInEffect: WorkflowVersionSnapshot = { ...draft, status: 'PUBLISHED', effectiveFrom: ctx.now, effectiveTo: null }
+  const [workflows, org, delegations] = await Promise.all([loadWorkflowVersions(tx), loadOrgSnapshot(tx), loadDelegations(tx)])
+  const side = (versions: readonly WorkflowVersionSnapshot[], c: RiskCases[number]): DryRunRiskSide => {
+    const r = riskReviewers(
+      versions,
+      { screening: c.screening, tier: c.tier, inherentTier: c.inherentTier ?? c.tier, categoryCodes: c.categoryCodes, payeeType: c.payeeType, openedById: c.openedById, filledOnBehalfByIds: [], at: ctx.now },
+      org,
+      delegations,
+    )
+    if (!r.ok) return { ok: false, slots: [], error: { code: r.error.code, ...(r.error.details ? { details: r.error.details } : {}) } }
+    return { ok: true, slots: (r.data?.slots ?? []).map((x) => ({ ruleCodes: x.ruleCodes, memberIds: x.assignees.map((a) => a.assigneeMemberId), riskDomains: x.riskDomains })), error: null }
+  }
+  return cases.map((c) => {
+    const current = side(workflows, c)
+    const next = side([asInEffect], c)
+    return { current, draft: next, changed: JSON.stringify(current) !== JSON.stringify(next) }
+  })
 }
 
 /**
@@ -323,7 +404,7 @@ export const dryRunWorkflowCommand = defineCommand({
   name: 'workflowVersion.dry_run',
   capability: 'admin.workflow.simulate',
   input: DryRunInput,
-  async execute(tx, input, ctx): Promise<CommandOutcome<{ rows: DryRunRow[] }>> {
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ rows: DryRunRow[]; riskRows: DryRunRiskRow[] }>> {
     const refused = await mayDryRun(tx, ctx, input.versionId)
     if (refused) return refused
     const [locked] = await lockRowsForUpdate(tx, 'WorkflowVersion', ctx.organizationId, [input.versionId])
@@ -332,11 +413,12 @@ export const dryRunWorkflowCommand = defineCommand({
     // A version sent on since dryRunWorkflowVersion looked: its try-out is a read (INV-EVT-02), so ask again
     if (row.status !== 'DRAFT') return fail('INVALID_STATE_TRANSITION', 'only a draft records its dry-run', { from: row.status })
     const rows = await dryRunRows(tx, ctx, row, input.documents)
+    const riskRows = await dryRunRiskRows(tx, ctx, row, input.riskCases)
     await tx.workflowVersion.update({ where: { id: row.id }, data: { dryRunAt: ctx.now } })
     return {
       ok: true,
-      result: { rows },
-      events: [{ type: 'workflow_version.dry_run', aggregateType: 'WorkflowVersion', aggregateId: row.id, data: { code: row.code, versionNo: row.versionNo, documents: input.documents.length } }],
+      result: { rows, riskRows },
+      events: [{ type: 'workflow_version.dry_run', aggregateType: 'WorkflowVersion', aggregateId: row.id, data: { code: row.code, versionNo: row.versionNo, documents: input.documents.length + input.riskCases.length } }],
     }
   },
 })
@@ -346,16 +428,16 @@ export const dryRunWorkflowCommand = defineCommand({
  * the one its approver reads before deciding (NEW-102) — is read only: nothing is stored, so no event and no CommandLog,
  * as the DOA try-out and the backtest.
  */
-export async function dryRunWorkflowVersion(ctx: Ctx, input: z.input<typeof DryRunInput>, options: RunOptions): Promise<Result<Jsonified<{ rows: DryRunRow[] }>>> {
+export async function dryRunWorkflowVersion(ctx: Ctx, input: z.input<typeof DryRunInput>, options: RunOptions): Promise<Result<Jsonified<{ rows: DryRunRow[]; riskRows: DryRunRiskRow[] }>>> {
   const parsed = DryRunInput.safeParse(input)
   // The command answers a bad input or a missing key the way every command does, whatever the version
   if (!parsed.success || !options.idempotencyKey) return runCommand(ctx, dryRunWorkflowCommand, input, options)
-  const { versionId, documents } = parsed.data
-  let read: Result<Jsonified<{ rows: DryRunRow[] }>> | 'DRAFT'
+  const { versionId, documents, riskCases } = parsed.data
+  let read: Result<Jsonified<{ rows: DryRunRow[]; riskRows: DryRunRiskRow[] }>> | 'DRAFT'
   try {
     // Bounded as a command's transaction (runCommand): a busy database answers RATE_LIMITED, not a thrown error
     read = await forTenant(ctx.organizationId).$transaction(
-      async (tx): Promise<Result<Jsonified<{ rows: DryRunRow[] }>> | 'DRAFT'> => {
+      async (tx): Promise<Result<Jsonified<{ rows: DryRunRow[]; riskRows: DryRunRiskRow[] }>> | 'DRAFT'> => {
         await setTransactionTimeouts(tx)
         const refused = await mayDryRun(tx, ctx, versionId)
         if (refused) return refused
@@ -363,7 +445,7 @@ export async function dryRunWorkflowVersion(ctx: Ctx, input: z.input<typeof DryR
         if (!found) return err('NOT_FOUND', 'workflow version not found')
         if (found.status === 'DRAFT') return 'DRAFT'
         const row = await tx.workflowVersion.findUniqueOrThrow({ where: { id: versionId }, include: { rules: true } })
-        return ok(toJsonSafe({ rows: await dryRunRows(tx, ctx, row, documents) }) as Jsonified<{ rows: DryRunRow[] }>)
+        return ok(toJsonSafe({ rows: await dryRunRows(tx, ctx, row, documents), riskRows: await dryRunRiskRows(tx, ctx, row, riskCases) }) as Jsonified<{ rows: DryRunRow[]; riskRows: DryRunRiskRow[] }>)
       },
       { maxWait: COMMAND_TX_MAX_WAIT_MS, timeout: COMMAND_TX_TIMEOUT_MS },
     )

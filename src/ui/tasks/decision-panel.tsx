@@ -63,7 +63,7 @@ export interface TaskDecisionInput {
  * SUPPLIER_APPLICATION: a new supplier's application (S7-05 · FR-SUP-104), approved, returned or rejected, never asked
  * about, in the words of an application (S7-18: it read as a request with a budget)
  */
-export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN' | 'SUPPLIER_APPLICATION'
+export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN' | 'RISK_OVERRIDE' | 'SUPPLIER_APPLICATION'
 type Disposition = 'CLOSE_SHORT' | 'ACCEPT_EXCESS' | 'ACCEPT_DAMAGED'
 const HINTED: readonly string[] = ['CLOSE_SHORT', 'ACCEPT_EXCESS', 'ACCEPT_DAMAGED']
 
@@ -185,9 +185,11 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
   const transfer = kind === 'BUDGET_TRANSFER'
   // S6-16: its amount is the shortfall (no VAT); deciding it changes the budget only when approved
   const overrun = kind === 'BUDGET_OVERRUN'
-  // The words of the two budget kinds and of a supplier application, under tasks.decide.transfer, .overrun or
-  // .supplierApplication (the same keys)
-  const budget = transfer ? 'transfer' : overrun ? 'overrun' : kind === 'SUPPLIER_APPLICATION' ? 'supplierApplication' : null
+  // S11-08: an override of the risk gate — no budget is held, a return goes back to the one who asked (BR-RSK-10)
+  const override = kind === 'RISK_OVERRIDE'
+  // The words of the two budget kinds, the override and a supplier application, under tasks.decide.transfer, .overrun,
+  // .override or .supplierApplication (the same keys)
+  const budget = transfer ? 'transfer' : overrun ? 'overrun' : override ? 'override' : kind === 'SUPPLIER_APPLICATION' ? 'supplierApplication' : null
   const hinted = (disposition && HINTED.includes(disposition) ? disposition : 'other') as Disposition | 'other'
   const ask = kind === 'REQUEST' || review ? actions.ask : undefined
   // The words of each kind; a request keeps the words it always had

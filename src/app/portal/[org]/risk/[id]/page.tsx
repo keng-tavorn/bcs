@@ -10,7 +10,7 @@ import { checkboxClass, textareaClass } from '@/ui/liff/requests/classes'
 import { PortalButton, PortalFrame, PortalNotice } from '@/ui/portal/frame'
 import { one, pageOrg, pageSession, Unavailable, type SearchParams } from '../../_lib/page'
 
-// /portal/[org]/risk/[id] (S11-05 · BR-RSK-17 · BR-RSK-05 · BR-RSK-06 · BR-RSK-18 · BR-AI-33 · FR-RSK-201 AC5): one
+// /portal/[org]/risk/[id] (S11-05 · BR-RSK-17 · BR-RSK-05 · BR-RSK-06 · BR-RSK-18 · BR-AI-34 · FR-RSK-201 AC5): one
 // assessment of the contact's own supplier. The questions of its set (portalQuestionSet: appliesWhen on its own context),
 // by domain with GENERAL first, as radio groups with a note; an answer from a certificate (source EVIDENCE) is shown
 // locked and can only be confirmed; one form saves every answer of the page, a second sends the assessment (the
@@ -303,7 +303,7 @@ function Question({
               </label>
               <input id={`file-${q.code}`} name="file" type="file" required accept="application/pdf,image/jpeg,image/png,image/webp" className="text-base" />
               <label className="flex min-h-11 items-start gap-3 py-2">
-                {/* each file is its own consent (BR-AI-33): unticked unless the contact ticks it for this file */}
+                {/* each file is its own consent (BR-AI-34): unticked unless the contact ticks it for this file */}
                 <input type="checkbox" name="aiReadable" value="1" aria-describedby={`ai-${q.code}`} className={choiceClass} />
                 <span>{t('risk.evidence.aiReadable')}</span>
               </label>

@@ -40,6 +40,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "purchase order",
       "REQUEST": "purchase request",
+      "RISK_OVERRIDE": "supplier risk override",
       "SUPPLIER_APPLICATION": "supplier application",
       "VARIANCE": "the receiving variance of purchase order",
       "WORKFLOW_VERSION": "workflow change"
@@ -682,6 +683,7 @@
       "PURCHASE_ORDER": "Purchase order (PO)",
       "PURCHASE_REQUEST": "Purchase request (PR)",
       "RFX_AWARD": "Sourcing award approval",
+      "RISK_OVERRIDE": "Supplier risk override approval",
       "SUPPLIER_APPROVAL": "New supplier approval"
     },
     "download": "Download {name} as YAML",
@@ -982,6 +984,7 @@
         "PURCHASE_ORDER": "Purchase order (PO)",
         "PURCHASE_REQUEST": "Purchase request (PR)",
         "RFX_AWARD": "Sourcing award approval",
+        "RISK_OVERRIDE": "Supplier risk override approval",
         "SUPPLIER_APPROVAL": "New supplier approval"
       },
       "effectiveApplied": "Took effect {time}",
@@ -1601,6 +1604,7 @@
       "beforeAfter": "From {before} to {after}",
       "changed": "Changed rule {rule}",
       "removed": "Removed rule {rule}",
+      "riskRuleLine": "Risk reviewers · {condition} · {reviewers} · checks {domains}",
       "ruleLine": "{types} · {condition} · {reviewers}"
     },
     "diffTab": {
@@ -1723,6 +1727,9 @@
       "WF_LINT_MEMBER_REVIEWER": "Rule {rule}: a named-person reviewer does not follow the organization chart",
       "WF_LINT_NO_FALLBACK": "Rule {rule}: no fallback",
       "WF_LINT_QUORUM_INVALID": "Rule {rule}: the number of reviewers or how many must pass is not valid",
+      "WF_LINT_RISK_DOMAIN_REQUIRED": "Rule {rule}: a risk reviewer rule must choose at least one part of the assessment its reviewer sees",
+      "WF_LINT_RISK_FIELD": "Rule {rule}: the condition names {field}, which a risk assessment does not have; only the screening answers, the tiers, the product categories and the payee type can be used",
+      "WF_LINT_RISK_QUORUM": "Rule {rule}: a risk reviewer rule must have one reviewer, who must pass",
       "WF_LINT_UNKNOWN_FIELD": "Rule {rule}: the condition names field {field}, which is not on the form of every type the rule uses",
       "WF_LINT_UNKNOWN_REQUEST_TYPE": "Rule {rule}: request type {type} does not exist in the organization",
       "WF_LINT_VACANT_REVIEWER": "Rule {rule}: the reviewer is vacant on the effective date",
@@ -1768,8 +1775,10 @@
     "moveUp": "Move up",
     "moveUpRule": "Move rule {rule} up",
     "noDescription": "No description",
+    "noDomains": "None chosen",
     "noFallback": "No fallback",
     "noReason": "No reason given yet",
+    "noRequestTypes": "None",
     "noRules": "No reviewer rules yet: every request goes straight to its DOA approvers",
     "onBehalf": "{name} (acting for {principal})",
     "ops": {
@@ -1790,8 +1799,15 @@
       "mode": "How many must pass",
       "requestTypes": "Request types",
       "reviewers": "Reviewers",
+      "riskDomains": "Parts the reviewer sees",
+      "scope": "Kind of rule",
       "sla": "Review time",
       "when": "Condition"
+    },
+    "payeeTypes": {
+      "FOREIGN": "Foreign",
+      "INDIVIDUAL": "Individual",
+      "JURISTIC": "Juristic person"
     },
     "period": "In effect {from} to {to}",
     "periodOpen": "In effect from {from} until a new version",
@@ -1817,6 +1833,95 @@
     "reviewerN": "Reviewer {n}",
     "reviewerPosition": "{position} of {department}",
     "reviewerPositionLabel": "Position",
+    "risk": {
+      "add": "Add a risk reviewer rule",
+      "categoryHint": "Enters this rule when the supplier has at least one of the categories given",
+      "conditionAlways": "Every assessment",
+      "conditionNone": "No condition yet: every assessment enters this rule",
+      "domainsLine": "Parts the reviewer checks: {domains}",
+      "headerWhen": "Condition and parts seen",
+      "hintEditable": "Edit one rule at a time with its Edit button. Nothing is saved until you save the draft below.",
+      "hintReadOnly": "The risk reviewer rules of this version",
+      "intro": "A supplier risk assessment, once sent, goes at the same time to the reviewer of every rule it matches: one reviewer per rule, and every one must pass. Conditions use the screening answers, the risk tier, the product categories and the payee type.",
+      "listLabel": "Risk reviewer rules",
+      "moduleOff": "This organization has not switched on supplier risk. Existing rules can be edited or removed, but no rule can be added. Ask the BCS team to switch it on.",
+      "none": "No risk reviewer rules yet: every assessment completes at once without reviewers",
+      "saveFirst": "There are unsaved changes. Save the draft below first.",
+      "title": "Risk reviewer rules ({count})"
+    },
+    "riskDialog": {
+      "addTitle": "Add a risk reviewer rule",
+      "codeHint": "Capitals, digits, - and _, e.g. RR-05; not used by another rule",
+      "conditionHint": "Only the screening answers, the risk tier, the initial tier, the product categories and the payee type can be used",
+      "description": "A risk reviewer rule says which supplier risk assessments must pass which reviewer, and which parts of the assessment that reviewer sees",
+      "descriptionHint": "Tell the reviewer why assessments like this need this review; at most 500 characters",
+      "domains": "Parts of the assessment the reviewer sees",
+      "domainsHint": "Every reviewer already sees the general part. Choose the parts this reviewer checks, at least one.",
+      "domainsRequired": "Choose at least one part the reviewer sees",
+      "generalAlways": "{name} (every reviewer sees it)",
+      "hasFallback": "Use a fallback when the reviewer is vacant or opened the assessment",
+      "noFallbackHint": "Without a fallback, an assessment whose reviewer is vacant cannot be sent. You tick this warning before sending for approval.",
+      "oneReviewer": "A risk reviewer rule has one reviewer only. Choose the reviewer again to keep just one.",
+      "reviewer": "Reviewer",
+      "reviewerHint": "A risk reviewer rule has one reviewer, who must pass",
+      "reviewerWho": "The reviewer of this rule",
+      "usePosition": "Use a reviewer by position instead"
+    },
+    "riskDomains": {
+      "FINANCE": "Finance",
+      "GENERAL": "General",
+      "INFOSEC": "Information security",
+      "PREMISES": "Site safety",
+      "PRIVACY": "Personal data"
+    },
+    "riskDryRun": {
+      "addCase": "Add a sample assessment",
+      "answer": "{field}: {answer}",
+      "caseEditing": "Assessment {n} (being edited)",
+      "caseN": "Assessment {n}",
+      "casesLabel": "Sample assessments",
+      "casesTitle": "Sample assessments ({count})",
+      "categories": "Supplier's product categories",
+      "changed": "The draft's reviewers differ from the version in effect",
+      "editCase": "Edit",
+      "editCaseNamed": "Edit assessment {n}",
+      "inherentSame": "Same as the tier reached",
+      "inherentTier": "Initial tier",
+      "inherentTierHint": "The tier from the screening answers, before the questionnaire",
+      "intro": "Enter sample assessments and see the reviewers of the version in effect beside {name}, from the real engine. A try-out creates no assessment.",
+      "noCategories": "none",
+      "noOpener": "not chosen",
+      "noSlots": "No rule matches: the assessment completes at once without reviewers",
+      "openedBy": "Opened by",
+      "openedByHint": "Whoever opened an assessment cannot review it; where they are a rule's reviewer, the fallback stands in",
+      "openedByRequired": "Choose who opened the assessment",
+      "payeeType": "Payee type",
+      "removeCase": "Remove",
+      "removeCaseNamed": "Remove assessment {n}",
+      "resultTitle": "Result of assessment {n}",
+      "run": "Find the reviewers ({count, plural, one {# assessment} other {# assessments}})",
+      "same": "The draft's reviewers are the same as the version in effect",
+      "screening": "Screening answers",
+      "sideErrors": {
+        "OTHER": "The reviewers could not be worked out ({code})",
+        "REVIEWER_NOT_FOUND": "Rule {rule}: no reviewer found: the reviewer and the fallback are vacant or opened the assessment; such an assessment cannot be sent",
+        "REVIEWER_NOT_FOUND_NO_RULE": "No reviewer found: the reviewer and the fallback are vacant or opened the assessment; such an assessment cannot be sent"
+      },
+      "slot": "Rule {rules}: {names} · checks {domains}",
+      "summary": "{screening} · {tier} tier · {payee} · categories {categories} · opened by {opener}",
+      "summaryInherent": "{screening} · {tier} tier (initially {inherent}) · {payee} · categories {categories} · opened by {opener}",
+      "tier": "Risk tier reached",
+      "title": "Try out the risk reviewers"
+    },
+    "riskFields": {
+      "accessesPremises": "Enters the organization's premises",
+      "accessesSystems": "Accesses information systems",
+      "category": "Product category",
+      "inherentTier": "Initial tier",
+      "payeeType": "Payee type",
+      "processesPersonalData": "Accesses personal data",
+      "tier": "Risk tier"
+    },
     "routeApproved": "{name} approved on {time} under {ref}",
     "routeRejected": "{name} did not approve on {time} under {ref}",
     "routeWaiting": "Waiting for {name} to approve under {ref}",
@@ -1824,6 +1929,7 @@
       "FIELD": "Choose the information used",
       "MONEY": "Enter an amount in baht with at most 2 decimals, e.g. 1,000,000.00",
       "OP": "Choose how it is compared",
+      "RISK_FIELD": "A risk reviewer rule cannot use this; choose information of the assessment instead",
       "VALUE": "Enter the value to compare with",
       "VALUES": "Choose or type at least one value"
     },
@@ -1853,6 +1959,10 @@
     "saveTitle": "Save the draft",
     "saved": "Draft {name} saved. Next, dry-run it on the Dry run tab.",
     "saving": "Saving the draft",
+    "scopes": {
+      "REQUEST": "Request reviewers",
+      "RISK_ASSESSMENT": "Risk reviewers"
+    },
     "slaHours": "within {hours} business hours",
     "slaMinutes": "within {minutes} business minutes",
     "status": {
@@ -1904,6 +2014,7 @@
       "diff": "Compare with earlier",
       "dryRun": "Dry run",
       "label": "Parts of this version",
+      "risk": "Risk reviewers",
       "rules": "Reviewer rules"
     },
     "tagChanged": "Changed: {parts}",
@@ -1932,6 +2043,11 @@
       "summary": "{type}, total with VAT {amount}",
       "title": "Test cases"
     },
+    "tiers": {
+      "HIGH": "High",
+      "LOW": "Low",
+      "MEDIUM": "Medium"
+    },
     "title": "Parallel reviewers (workflow)",
     "unknownMember": "Unknown member",
     "unsavedHint": "There are unsaved changes. The dry run and the send use the saved draft.",
@@ -1942,7 +2058,11 @@
       "lineCategories": "Line categories",
       "requestType": "Request type"
     },
-    "versionName": "{code} version {version}"
+    "versionName": "{code} version {version}",
+    "yesNo": {
+      "N": "No",
+      "Y": "Yes"
+    }
   },
   "aiAssist": {
     "allConfirmed": "Everything the AI filled in is confirmed",
@@ -3114,6 +3234,7 @@
       "RfxEvent": "RFx",
       "RfxInvite": "Bid invitation",
       "RiskAssessment": "Risk assessment",
+      "RiskOverride": "Risk override",
       "RiskPolicy": "Risk check policy",
       "RiskQuestionnaire": "Risk questionnaire version",
       "RiskReview": "Reassessment",
@@ -3153,6 +3274,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order {label}",
       "REQUEST": "Request {label}",
+      "RISK_OVERRIDE": "Supplier risk override",
       "SUPPLIER": "Supplier {label}",
       "SUPPLIER_APPLICATION": "Supplier application",
       "VARIANCE": "Receiving variance of {label}",
@@ -3467,6 +3589,7 @@
         "returned": "Purchase order returned",
         "revised": "Purchase order revised",
         "revision_sent": "Revised purchase order sent to the supplier",
+        "risk_gate_passed": "Passed the supplier risk gate",
         "send_bounced": "Purchase order e-mail bounced",
         "sent": "Purchase order sent to the supplier",
         "submitted": "Purchase order sent for approval",
@@ -3543,7 +3666,13 @@
         "released": "Retention released"
       },
       "review_task": {
-        "cancelled": "Risk reviewer task cancelled"
+        "assigned": "Risk reviewer task assigned",
+        "cancelled": "Risk reviewer task cancelled",
+        "decided": "Risk reviewer decided",
+        "escalated": "Fallback told a risk reviewer task is overdue",
+        "overdue": "Risk reviewer task overdue",
+        "reassigned": "Risk reviewer task moved after an org change",
+        "reminded": "Risk reviewer reminded"
       },
       "rfx": {
         "amended": "RFx amended after opening",
@@ -3579,8 +3708,24 @@
         "evidence_uploaded": "Evidence file attached to an answer",
         "opened": "Risk assessment opened",
         "reminded": "Supplier reminded to answer",
+        "returned": "Questionnaire returned by a reviewer",
+        "reviewer_gap_reported": "Questionnaire not sent: no reviewer, administrators told",
+        "reviewers_assigned": "Questionnaire sent to the risk reviewers",
         "submitted": "Questionnaire sent",
         "superseded": "Risk assessment replaced by a newer one"
+      },
+      "risk_override": {
+        "approved": "Override approved",
+        "cancelled": "Override request cancelled",
+        "drafted": "Risk override asked for (draft)",
+        "expired": "Risk override lapsed",
+        "expiring": "Risk override about to lapse",
+        "rejected": "Override rejected",
+        "released": "Purchase order no longer draws on the override",
+        "returned": "Override returned for changes",
+        "submitted": "Override request sent to its approvers",
+        "updated": "Override request changed",
+        "used": "Override used by a purchase order"
       },
       "risk_policy": {
         "confirmed": "Risk check policy confirmed",
@@ -3596,7 +3741,10 @@
         "updated": "Question of a draft changed"
       },
       "risk_review": {
-        "completed": "Reassessment done"
+        "cancelled": "Risk reassessment cancelled",
+        "completed": "Reassessment done",
+        "overdue": "Risk reassessment overdue",
+        "scheduled": "Risk reassessment due"
       },
       "risk_tier": {
         "confirmed": "Risk tier values confirmed",
@@ -3768,6 +3916,7 @@
       "rfx": "Sourcing (RFx)",
       "rfx_invite": "Bid invitations",
       "risk_assessment": "Supplier risk assessments",
+      "risk_override": "Risk overrides",
       "risk_policy": "Risk check policy",
       "risk_questionnaire": "Risk questionnaire",
       "risk_review": "Reassessments",
@@ -4024,6 +4173,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order",
       "REQUEST": "Purchase request",
+      "RISK_OVERRIDE": "Supplier risk override",
       "SUPPLIER_APPLICATION": "Supplier application",
       "VARIANCE": "Receiving variance"
     },
@@ -4437,10 +4587,13 @@
     },
     "filters": {
       "allDepartments": "All departments",
+      "allRisk": "All tasks",
       "allTypes": "All kinds",
       "clear": "Clear filters",
       "department": "Holder's department",
       "label": "Board filters",
+      "risk": "Supplier risk gate",
+      "riskGated": "POs held at the risk gate",
       "submit": "Apply filters",
       "type": "Kind of document"
     },
@@ -4489,6 +4642,7 @@
       "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order",
       "REQUEST": "Request",
+      "RISK_OVERRIDE": "Supplier risk override",
       "SUPPLIER_APPLICATION": "Supplier application",
       "VARIANCE": "Receiving variance",
       "WORKFLOW_VERSION": "Workflow change"
@@ -5448,6 +5602,7 @@
       "PURCHASE_ORDER": "Purchase order (PO)",
       "PURCHASE_REQUEST": "Purchase request (PR)",
       "RFX_AWARD": "Sourcing award approval",
+      "RISK_OVERRIDE": "Supplier risk override approval",
       "SUPPLIER_APPROVAL": "New supplier approval"
     },
     "errors": {
@@ -5931,8 +6086,12 @@
     "RFX_CLOSED": "This RFx closed for bids at {closesAt}",
     "RISK_ANSWERS_INCOMPLETE": "The risk questionnaire still lacks answers: {missing}",
     "RISK_ASSESSMENT_OPEN": "This supplier already has an open risk assessment.",
+    "RISK_ASSESSMENT_REQUIRED": "This supplier is high risk: complete its risk assessment or get an override before the purchase order goes out",
+    "RISK_BLOCKED": "No purchase order can go to this supplier: its registry status or its override does not allow it",
+    "RISK_OVERRIDE_OPEN": "This supplier already has an open risk override",
     "RISK_POLICY_NOT_CONFIGURED": "The supplier risk policy is not confirmed yet. Please contact your administrator.",
     "RISK_QUESTIONNAIRE_NOT_PUBLISHED": "No supplier risk questionnaire is in effect yet. Please contact your administrator.",
+    "RISK_REASSESSMENT_REQUIRED": "The supplier's risk assessment no longer covers this purchase order: reassess it or get an override",
     "RISK_TIER_NOT_CONFIGURED": "The risk tiers are not set yet. Please contact your administrator.",
     "SCORECARD_INCOMPLETE": "The criteria must weigh 100% in all and the scorecard needs at least {min} evaluators",
     "SCORES_INCOMPLETE": "{missing} scores are still missing (every criterion of every bid)",
@@ -6804,6 +6963,7 @@
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order",
         "REQUEST": "Request",
+        "RISK_OVERRIDE": "Supplier risk override",
         "SUPPLIER_APPLICATION": "Supplier application",
         "VARIANCE": "Receiving variance",
         "WORKFLOW_VERSION": "Workflow change"
@@ -7040,6 +7200,7 @@
         "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order {label}",
         "REQUEST": "Request {label}",
+        "RISK_OVERRIDE": "Supplier risk override",
         "SUPPLIER": "Supplier {label}",
         "SUPPLIER_APPLICATION": "Supplier application",
         "VARIANCE": "Receiving variance of {label}",
@@ -7697,6 +7858,107 @@
       "notFoundTitle": "Request not found",
       "sessionEnded": "Your session has ended, so this was not done. Close this page and open the same link again, or open the request from Track in the menu of the LINE chat",
       "title": "Request"
+    }
+  },
+  "liffRisk": {
+    "review": {
+      "back": "Home",
+      "decide": {
+        "backToChat": "Back to the chat",
+        "barLabel": "Decide this review",
+        "checkFirst": "Check first",
+        "confirm": "Confirm pass",
+        "confirmError": "Tick the confirmation before returning",
+        "confirmReturn": "I have checked the reason and understand a return cannot be undone",
+        "confirmText": "Confirm passing assessment {number} for the part you review. This cannot be changed once confirmed.",
+        "failed": "We could not tell whether this reached BCS because the connection failed. Try again; if it was sent, this page shows it after loading again.",
+        "pass": "Pass this part",
+        "passed": "Passed",
+        "reason": "Reason for the return",
+        "reasonError": "Write the reason for the return, at least 3 characters",
+        "reasonHint": "Say which answers are missing or wrong. Procurement and the auditors read this.",
+        "reload": "Load this page again",
+        "returnHint": "The assessment goes back for changes, and the other reviews still waiting are cancelled.",
+        "returnLink": "Return for changes",
+        "returnTitle": "Return for changes",
+        "returned": "Returned for changes",
+        "share": "This message may go to the supplier",
+        "shareHint": "Unticked, the supplier does not see this message and only learns that the assessment was returned",
+        "signedOut": "Your sign-in in LINE has ended and nothing was sent. Load this page again and try once more.",
+        "submitReturn": "Return for changes",
+        "working": "Sending…"
+      },
+      "domain": {
+        "FINANCE": "Finance",
+        "GENERAL": "General",
+        "INFOSEC": "Information security",
+        "PREMISES": "Premises safety",
+        "PRIVACY": "Privacy"
+      },
+      "due": "Due",
+      "errors": {
+        "closed": "This review is closed: there is nothing more to do.",
+        "done": "This review was already done by {name} on {time}",
+        "moduleOff": "Supplier risk is switched off for this organization, so this review cannot be decided.",
+        "notYours": "This review is no longer yours. The page now shows where it stands.",
+        "other": "The decision was not saved. Try again; if it still fails, tell your administrator.",
+        "reason": "Write the reason for the return, at least 3 characters",
+        "signedOut": "Your sign-in has ended and nothing was sent. Load this page again and try once more.",
+        "sod": "You cannot review this assessment: you opened or filled it in (separation of duties)."
+      },
+      "heading": "Assessment {number}",
+      "metaTitle": "Risk assessment review",
+      "moduleOff": "Supplier risk is switched off for this organization, so this review cannot be opened.",
+      "notYours": "This review cannot be opened",
+      "notYoursHint": "This review was not sent to you, moved to someone else, or no longer exists. Reviews sent to you arrive as cards in the LINE chat.",
+      "onBehalfOf": "You review on behalf of {name}",
+      "overdue": "past due",
+      "parts": "Your part",
+      "questions": {
+        "empty": "This assessment asked no question in your part",
+        "evidence": "Document {type}, expires {date}",
+        "evidenceScope": "Document scope: {scope}",
+        "files": "{count} attached file(s)",
+        "hint": "Only the general part and the parts you review are shown",
+        "noAnswer": "No answer yet",
+        "note": "Note: {note}",
+        "openOnWeb": "Open the files on the web",
+        "source": {
+          "EVIDENCE": "Answered with a supporting document",
+          "EXPLICIT": "Answered by the supplier",
+          "ON_BEHALF": "Filled in by procurement for the supplier"
+        },
+        "title": "Questions and answers of your part"
+      },
+      "slots": {
+        "hint": "Only the state of the other parts is shown, never their answers or reasons",
+        "mine": "Your part",
+        "slot": "Part {no}: {parts}",
+        "status": {
+          "CANCELLED": "Cancelled",
+          "OPEN": "Waiting",
+          "PASSED": "Passed",
+          "RETURNED": "Returned"
+        },
+        "title": "Every reviewer's part"
+      },
+      "state": {
+        "CANCELLED": "This review was cancelled because another reviewer returned the assessment. There is nothing more to do.",
+        "PASSED": "This part was passed on {time}",
+        "RETURNED": "This part was returned for changes on {time}",
+        "cannotDecide": "You can read this review but cannot decide it now: the assessment may no longer wait for review, or you opened or filled it in.",
+        "reason": "Reason for the return: {reason}"
+      },
+      "summary": "Summary of this review",
+      "tier": "Risk tier",
+      "tierInherent": "{tier} (starting tier from the screening)",
+      "tierName": {
+        "HIGH": "High",
+        "LOW": "Low",
+        "MEDIUM": "Medium"
+      },
+      "toHome": "Go to the home page",
+      "waiting": "Waiting for your review"
     }
   },
   "liffTasks": {
@@ -8624,12 +8886,17 @@
         "REASON": "Enter a reason of at least 3 characters.",
         "REQUIRED_BY": "These modules still use this one: {modules}. Switch them off first.",
         "REQUIRES": "Switch on {modules} first, then this module.",
+        "RISK_POLICY_NOT_CONFIGURED": "The organization's risk gate policy is not confirmed yet. The customer's admin must set it and a second admin confirm it first, then this module can be switched on.",
+        "RISK_QUESTIONNAIRE_NOT_PUBLISHED": "The organization has no risk questionnaire in effect yet. The customer's admin must publish one first, then this module can be switched on.",
+        "RISK_TIER_NOT_CONFIGURED": "The organization's three risk tiers are not confirmed yet. The customer's admin must set them and a second admin confirm them first, then this module can be switched on.",
         "UNAUTHENTICATED": "Your session has ended. Sign in again, then do this again."
       },
       "intro": "Switch modules only as the contract says. Every change needs a contract reference and a reason; the organization admins will be told, and switching off deletes no data.",
       "openDisable": "Switch off {name}",
       "openEnable": "Switch on {name}",
       "reason": "Reason (kept in the history)",
+      "riskDryRun": "If switched on: {held} of {open} purchase orders not yet out would be held at the risk gate",
+      "riskDryRunNotConfigured": "The purchase orders the gate would hold cannot be counted until the organization confirms its risk tiers and policy",
       "title": "Modules of {name}",
       "titleShort": "Customer modules"
     },
@@ -8739,6 +9006,14 @@
       "PO_CHANGE_BELOW_PROGRESS_RECEIVED_IN_FULL": "This purchase order was received in full, so its quantities cannot go up. Issue a new purchase order for more.",
       "PO_CHANGE_EXCEEDS_REQUEST": "The new quantity of line {lineNo} is more than the source request has left ({left} left). Lower the quantity.",
       "PO_CHANGE_OPEN": "This PO has a change that is not finished. Send or cancel it before making another.",
+      "RISK_IN_PROGRESS": "This supplier's risk assessment is not finished: wait for the supplier's answers and every reviewer, or ask for an override under the DOA",
+      "RISK_NOT_ASSESSED": "This supplier is high risk and has never been assessed: have the supplier answer the risk questionnaire until it passes review, or ask for an override under the DOA",
+      "RISK_OVERRIDE_CAP_EXCEEDED": "This purchase order with the earlier ones goes over the override's cap: finish the risk assessment, or ask for a new override",
+      "RISK_OVERRIDE_EXPIRED": "This supplier's override has expired: finish the risk assessment, or ask for a new override",
+      "RISK_REGISTRY_CEASED": "This supplier has ceased trading according to the registry: no new purchase order and no override",
+      "RISK_REGISTRY_FLAGGED": "This supplier's registry status changed (out of the VAT register, or not found): finish a new risk assessment first",
+      "RISK_SCOPE_EXPANDED": "The work of this purchase order carries a risk the supplier's assessment did not cover: reassess, or ask for an override under the DOA",
+      "RISK_VALIDITY_LAPSED": "This supplier's risk assessment is past its review date: reassess, or ask for an override under the DOA",
       "SOD_VIOLATION": "Not allowed: it breaks the separation of duties",
       "UNAUTHENTICATED": "Your sign-in has expired. Sign in again and try again.",
       "VALIDATION_ALREADY_SPLIT": "This line is split already",
@@ -10230,6 +10505,16 @@
       "QUANTITY": "Type a quantity above 0",
       "QUANTITY_OVER_REQUEST": "More than the request has left ({left} left). Lower the quantity and save again.",
       "REASON": "Type a reason of at least 3 characters",
+      "RISK_IN_PROGRESS": "This supplier's risk assessment is not finished: wait for the supplier's answers and every reviewer, or ask for an override under the DOA",
+      "RISK_NOT_ASSESSED": "This supplier is high risk and has never been assessed: have the supplier answer the risk questionnaire until it passes review, or ask for an override under the DOA",
+      "RISK_OPEN_FAILED": "The assessment could not be opened: reload the page, or see the supplier's open assessment",
+      "RISK_OVERRIDE_CAP_EXCEEDED": "This purchase order with the earlier ones goes over the override's cap: finish the risk assessment, or ask for a new override",
+      "RISK_OVERRIDE_EXPIRED": "This supplier's override has expired: finish the risk assessment, or ask for a new override",
+      "RISK_REASON": "Give the reason this purchase order still goes to this supplier, at least 3 characters",
+      "RISK_REGISTRY_CEASED": "This supplier has ceased trading according to the registry: no new purchase order and no override",
+      "RISK_REGISTRY_FLAGGED": "This supplier's registry status changed (out of the VAT register, or not found): finish a new risk assessment first",
+      "RISK_SCOPE_EXPANDED": "The work of this purchase order carries a risk the supplier's assessment did not cover: reassess, or ask for an override under the DOA",
+      "RISK_VALIDITY_LAPSED": "This supplier's risk assessment is past its review date: reassess, or ask for an override under the DOA",
       "SHORT_NOT_APPROVED": "Some lines did not come in full. It closes once they come; if the rest will not come, ask to close the purchase order short on its receiving page, and close it once that is approved.",
       "STATE": "This purchase order changed status already. Reload the page to see where it is now.",
       "SUPPLIER_INACTIVE": "This supplier is inactive, so the PO cannot be sent for approval. Activate the supplier in the supplier register first, then come back to send it.",
@@ -10250,6 +10535,7 @@
       "paymentCash": "Cash on delivery",
       "paymentDays": "{days} days credit",
       "paymentTerms": "Payment terms",
+      "risk": "Supplier risk",
       "sent": "Last sent to the supplier",
       "sentValue": "{time} to {email}",
       "site": "Delivery site",
@@ -10330,6 +10616,62 @@
       "noFiles": "This request has no attachments",
       "requester": "Requested by {name}",
       "title": "{number} · {title}"
+    },
+    "risk": {
+      "band": {
+        "blocked": "This purchase order cannot be sent for approval yet (supplier risk: {tier})",
+        "blockedSend": "This purchase order cannot go to the supplier yet (supplier risk: {tier})",
+        "open": "Open a risk assessment",
+        "opening": "Opening the assessment",
+        "override": "This purchase order will pass the risk gate on override {number}; the auditors are told",
+        "reason": {
+          "IN_PROGRESS": "This supplier's risk assessment is not finished: wait for the supplier's answers and every reviewer, or ask for an override under the DOA",
+          "NOT_ASSESSED": "This supplier is high risk and has never been assessed: have the supplier answer the risk questionnaire until it passes review, or ask for an override under the DOA",
+          "OVERRIDE_CAP_EXCEEDED": "This purchase order with the earlier ones goes over the override's cap: finish the risk assessment, or ask for a new override",
+          "OVERRIDE_EXPIRED": "This supplier's override has expired: finish the risk assessment, or ask for a new override",
+          "REGISTRY_CEASED": "This supplier has ceased trading according to the registry: no new purchase order and no override",
+          "REGISTRY_FLAGGED": "This supplier's registry status changed (out of the VAT register, or not found): finish a new risk assessment first",
+          "SCOPE_EXPANDED": "The work of this purchase order carries a risk the supplier's assessment did not cover: reassess, or ask for an override under the DOA",
+          "VALIDITY_LAPSED": "This supplier's risk assessment is past its review date: reassess, or ask for an override under the DOA"
+        },
+        "reasonNeeded": "This supplier has warnings: {warnings}. Give the reason to order from it anyway in the reason field when you {when}",
+        "requestOverride": "Ask for an override",
+        "title": "Supplier risk",
+        "viewOpen": "See the open assessment {number}",
+        "viewOverride": "See override {number}",
+        "when": {
+          "SEND": "send it to the supplier",
+          "SUBMIT": "send it for approval"
+        }
+      },
+      "fact": "{tier} risk · {source} · {trigger}",
+      "noNumber": "without a number yet",
+      "reasonField": {
+        "hint": "Its approvers and the auditors see this reason",
+        "label": "Why this purchase order still goes to this supplier"
+      },
+      "reasoned": "a reason was given",
+      "source": {
+        "ASSESSMENT": "passed on assessment {number}",
+        "NOT_REQUIRED": "no assessment needed",
+        "OVERRIDE": "passed on override {number}"
+      },
+      "tier": {
+        "HIGH": "high",
+        "LOW": "low",
+        "MEDIUM": "medium"
+      },
+      "trigger": {
+        "PO_CHANGE": "checked when the PO was changed",
+        "SEND": "checked when sent to the supplier",
+        "SUBMIT": "checked when sent for approval"
+      },
+      "warning": {
+        "OVERRIDE_USED": "an override was used",
+        "REASSESSMENT_OVERDUE": "the supplier's assessment is past its review date",
+        "REGISTRY_FLAGGED": "the supplier's registry status changed"
+      },
+      "warnings": "Warnings: {list}"
     },
     "status": {
       "APPROVED": "Approved",
@@ -10467,6 +10809,23 @@
       },
       "info_requested": {
         "title": "A question for you"
+      }
+    },
+    "risk": {
+      "review_assigned": {
+        "title": "A risk assessment waits for your review"
+      },
+      "review_escalated": {
+        "title": "For your information: a risk assessment review is overdue"
+      },
+      "review_overdue": {
+        "title": "A risk assessment review is overdue"
+      },
+      "review_reminder": {
+        "title": "Reminder: a risk assessment waits for your review"
+      },
+      "status_changed": {
+        "title": "A supplier needs its risk reassessed"
       }
     },
     "supplier": {
@@ -11776,6 +12135,7 @@
           "PO_CHANGE": "PO change",
           "PURCHASE_ORDER": "purchase order",
           "REQUEST": "purchase request",
+          "RISK_OVERRIDE": "supplier risk override",
           "SUPPLIER_APPLICATION": "supplier application",
           "VARIANCE": "receiving variance",
           "WORKFLOW_VERSION": "workflow change"
@@ -11912,7 +12272,9 @@
       },
       "errors": {
         "code": {
+          "APPROVER_NOT_FOUND": "No approver was found under the DOA. Please contact the administrator",
           "CONFLICT_VERSION": "Someone changed this before you. Reload the page and check again",
+          "DOA_NOT_CONFIGURED": "The DOA in effect has no risk override rule. Please contact the DOA administrator",
           "FAILED": "That did not work. Try again",
           "FILE_INFECTED": "This file failed the security check, so it cannot be opened.",
           "FILE_NOT_SCANNED": "The file is still being checked for viruses. Try again in a moment.",
@@ -11921,12 +12283,15 @@
           "MODULE_DISABLED": "This organization has not switched on supplier risk",
           "NOT_FOUND": "Not found",
           "NO_ANSWER": "No answer came back. Press again; the same request runs once only",
+          "NO_HIGHER_AUTHORITY": "The DOA has no approver above you. Please let someone else ask for it",
+          "RISK_OVERRIDE_OPEN": "This supplier already has an open risk override",
           "RISK_POLICY_NOT_CONFIGURED": "The supplier risk policy is not confirmed yet. Please contact your administrator",
           "RISK_TIER_NOT_CONFIGURED": "The risk tiers are not set yet. Please contact your administrator",
           "UNAUTHENTICATED": "Your sign-in has ended. Sign in again and retry",
           "VALIDATION_FAILED": "Something is missing or not valid"
         },
         "reason": {
+          "AMOUNT_NOT_POSITIVE": "The cap must be above zero",
           "CHECKSUM": "The questions changed after it was sent. Send it again",
           "CONDITION": "The condition reads something an assessment does not have",
           "DOA_ADMIN_SEPARATED": "The organization separated its DOA administrators. Only a DOA administrator may do this",
@@ -11934,17 +12299,25 @@
           "EFFECTIVE_IN_PAST": "The effective date cannot be before today",
           "LATER_VERSION_SCHEDULED": "Another version takes effect on the same day or later",
           "NOT_A_PERMUTATION": "The new order must name every question",
+          "NOT_REQUESTER": "Only who asked for it changes, sends or cancels it",
           "NO_CHANGE": "The proposal is the same as the values in effect",
+          "NO_DEPARTMENT": "The requester has no main department, so no approver can be found. Please contact the administrator",
           "NO_PENDING_CHANGE": "Nothing is waiting for confirmation any more",
           "OPTION_DUPLICATE": "Two options share a code",
           "OPTION_EVIDENCE": "Only one option may be chosen by evidence",
+          "OVERRIDE_EXPIRY_PAST": "The last day may not be before the day it is sent",
+          "OVERRIDE_EXPIRY_TOO_FAR": "The last day is further than the organization allows from the day it is sent",
           "PENDING_CHANGED": "The proposal has changed. Reload the page and check again",
           "PENDING_CHANGE_EXISTS": "A proposal is already waiting. Confirm or discard it before proposing again",
           "POLICY_UNREADABLE": "The policy in effect cannot be read. Please contact the BCS team",
+          "PO_NOT_OPEN": "The purchase order is closed or cancelled",
+          "PO_OTHER_SUPPLIER": "The purchase order is of another supplier",
+          "REGISTRY_BLOCKED": "The supplier has a registry flag, so no override can be asked for",
           "RISK_LINT": "This version does not pass the checks yet. See the checks before sending",
           "SAME_EDITOR": "Whoever proposed or sent it cannot confirm or publish it. Another administrator must",
           "SCOPE_REQUIRED": "Name the standard or scope asked for",
           "SCREENING_REQUIRED": "Pick every screening answer",
+          "SUPPLIER_INACTIVE": "This supplier is not active",
           "TIER_ORDER": "Lowest points must rise from low to high, and low starts at 0",
           "UNKNOWN_CATEGORY": "A category code the organization uses in neither its catalogue nor its POs"
         }
@@ -12247,6 +12620,17 @@
       "questions": "Questions and answers",
       "result": "Result",
       "resultValue": "{tier} tier · {points} points",
+      "reviews": {
+        "reason": "Reason for the return",
+        "round": "Round {round}",
+        "status": {
+          "CANCELLED": "Cancelled",
+          "OPEN": "Waiting",
+          "PASSED": "Passed",
+          "RETURNED": "Returned"
+        },
+        "title": "Risk reviewers"
+      },
       "save": "Save the answers",
       "saving": "Saving…",
       "scan": {
@@ -12273,6 +12657,247 @@
       "validUntil": "Valid until",
       "work": "The work assessed",
       "workScopes": "Standards the work needs"
+    },
+    "override": {
+      "detail": {
+        "actions": "Send or cancel",
+        "asked": "Asked on {time}",
+        "cancel": "Cancel the request",
+        "cancelBody": "Once cancelled it cannot be changed or sent: a new one must be asked for",
+        "cancelConfirm": "Cancel the request",
+        "cancelTitle": "Cancel this override request?",
+        "cancelled": "Request cancelled",
+        "decision": {
+          "REJECTED": "The approver rejected it",
+          "RETURNED": "The approver returned it for changes"
+        },
+        "draftHeading": "Override request (draft)",
+        "edit": "Change the request",
+        "heading": "Override {number}",
+        "hint": {
+          "APPROVED": "Purchase orders of this supplier pass the gate within the cumulative cap until the last day; the assessment still has to be done",
+          "DRAFT": "This draft has not reached an approver yet. Check it, then press “Send for approval”",
+          "PENDING_APPROVAL": "Waiting for the DOA approver. The approver opens the reason first: there is no approve button in the chat",
+          "RETURNED": "The approver returned it for changes. Change it and send it again; the DOA finds the approvers anew"
+        },
+        "keep": "Keep it",
+        "openTask": "Open the approval task",
+        "poShare": "counts {amount} THB",
+        "posUsing": "Purchase orders let out under it",
+        "route": "Approval route",
+        "rule": "DOA rule",
+        "sent": "Sent for approval",
+        "submit": "Send for approval",
+        "title": "Risk override",
+        "waitingFor": "Waiting for",
+        "working": "Working"
+      },
+      "facts": {
+        "assessment": {
+          "CURRENT": "{number} valid until {date}",
+          "IN_PROGRESS": "In progress {number}: {answered} of {total} questions answered",
+          "NONE": "No assessment yet",
+          "OVERDUE": "{number} lapsed on {date}",
+          "label": "Assessment"
+        },
+        "cap": "Cap with VAT (cumulative)",
+        "capValue": "{amount} THB",
+        "expiresOn": "Valid until",
+        "heading": "Risk override",
+        "po": "Purchase order",
+        "poAll": "Every purchase order of the supplier within the cap",
+        "poDraft": "Draft purchase order",
+        "poValue": "{number} · {amount} THB",
+        "reason": "Reason",
+        "registry": "Registry status",
+        "registryFlag": {
+          "CEASED": "Ceased",
+          "NONE": "Normal",
+          "NOT_FOUND": "Not found in the registry",
+          "VAT_CANCELLED": "VAT registration cancelled"
+        },
+        "requestedBy": "Asked by",
+        "submittedAt": "Sent for approval on",
+        "supplier": "Supplier",
+        "tier": "Risk tier",
+        "tierName": {
+          "HIGH": "High",
+          "LOW": "Low",
+          "MEDIUM": "Medium"
+        },
+        "tierNone": "No tier yet",
+        "tierSource": {
+          "ASSESSMENT": "from the assessment",
+          "SCREENING": "from the screening of the work"
+        },
+        "used": "Used so far",
+        "usedValue": "{count} purchase orders · {amount} THB"
+      },
+      "form": {
+        "backToPo": "Back to the purchase order",
+        "cap": "Cap with VAT (THB)",
+        "capHint": "The gross with VAT of every purchase order let out under it, added up; the DOA finds the approver by it",
+        "capInvalid": "Enter an amount above zero with at most 2 decimals",
+        "create": "Save the request",
+        "dateRequired": "Choose the last day it may be used",
+        "expiresOn": "Valid until",
+        "expiresOnHint": "From today to {last}. Sent on another day, it is checked against the day it is sent",
+        "flagged": "This supplier has a registry flag, so no override can be asked for: it needs a new risk assessment",
+        "fromPo": "Open this form from “Ask for an override” on the supplier risk band of a purchase order the gate holds",
+        "inactive": "This supplier is not active, so no override can be asked for",
+        "intro": "Give the reason, the cap with VAT of the purchase orders it lets out (counted across all of them) and the last day it may be used. Saved, check it once more before sending it for approval",
+        "label": "Risk override request",
+        "noRule": "The DOA in effect has no risk override rule (RISK_OVERRIDE), so none can be asked for. Please contact the DOA administrator",
+        "notFound": "This purchase order or supplier was not found",
+        "openExists": "This supplier already has an open override ({number}): edit or send that one instead",
+        "openLink": "Open the open request",
+        "pickDate": "Choose a date",
+        "reason": "Reason",
+        "reasonHint": "At least {min} characters. The approver reads it before deciding",
+        "reasonShort": "The reason needs at least {min} characters",
+        "save": "Save the changes",
+        "saved": "Saved",
+        "saving": "Saving",
+        "title": "Ask for a risk override"
+      },
+      "list": {
+        "by": "Asked by {name}",
+        "cap": "Cap {cap} THB · used {used} THB",
+        "draft": "Draft (no number yet)",
+        "empty": "No override in this state yet",
+        "emptyHint": "An override is asked for from the supplier risk band of a purchase order the gate holds",
+        "emptyHintRequest": "Ask for an override from the supplier risk band of a purchase order the gate holds, with “Ask for an override”",
+        "forPo": "For purchase order {number}",
+        "forSupplier": "For every purchase order of the supplier within the cap",
+        "intro": "Requests to let purchase orders go to a supplier the risk gate holds, within a cap and until a last day, approved under the DOA",
+        "row": "{number} · {supplier}",
+        "tab": {
+          "all": "All",
+          "approved": "Approved",
+          "closed": "Closed",
+          "open": "Open"
+        },
+        "tabs": "State of the overrides",
+        "title": "Risk overrides",
+        "until": "Valid until {date}"
+      },
+      "status": {
+        "APPROVED": "Approved",
+        "CANCELLED": "Cancelled",
+        "DRAFT": "Draft",
+        "EXPIRED": "Expired",
+        "PENDING_APPROVAL": "Waiting for approval",
+        "REJECTED": "Rejected",
+        "RETURNED": "Returned for changes"
+      },
+      "toList": "Back to the overrides"
+    }
+  },
+  "riskReview": {
+    "decide": {
+      "cancelled": "This task was cancelled: another part returned the assessment, or the assessment was cancelled.",
+      "decidedAt": "Decided {time}",
+      "hint": "Pass when the answers and evidence of your part are enough; return when something must be fixed. A review has no rejection.",
+      "keep": "Go back and check",
+      "myReason": "Reason for returning",
+      "notDecider": "You can read this task but not decide it. Whoever opened or filled in the assessment cannot review it, and acting for a reviewer must still be in effect.",
+      "notInReview": "This assessment no longer waits for its reviewers, so this task cannot be decided.",
+      "pass": "Pass",
+      "passBody": "When every part passes, the assessment is complete and its risk tier takes effect. A decision cannot be changed.",
+      "passTitle": "Confirm your part of assessment {number} passes",
+      "passedCompleted": "Your part is recorded as passed. Every part passed and the assessment is complete",
+      "passedOpen": "Your part is recorded as passed. Waiting for the other parts",
+      "reason": "Reason for returning (required)",
+      "reasonHint": "Say which answer or evidence is missing or wrong. Procurement and the auditors always read it.",
+      "return": "Return",
+      "returnBody": "The assessment goes back to be fixed, the other parts of this round not yet decided are cancelled, and procurement is told. A decision cannot be changed.",
+      "returnTitle": "Return assessment {number}",
+      "returned": "Assessment returned",
+      "share": "The supplier may read this message",
+      "shareHint": "Tick it when the supplier may read these words: they go into the e-mail to the supplier. Unticked, the supplier only learns the assessment was returned.",
+      "title": "Your decision",
+      "working": "Saving…"
+    },
+    "detail": {
+      "answer": "Answer: {option}",
+      "assessment": "This assessment",
+      "assessmentStatus": "Assessment status",
+      "assignedAt": "Assigned",
+      "back": "Back to my reviews",
+      "dueAt": "Review by",
+      "evidenceDocument": "Certificate {type}, scope {scope}, valid until {date}",
+      "file": "File {name} · {scan}",
+      "heading": "Review assessment {number} · {supplier}",
+      "intro": "You review {domains} · review round {round}",
+      "noQuestions": "This assessment has no questions in your part. Decide from what the work is.",
+      "notAnswered": "Not answered",
+      "note": "Note: {note}",
+      "openDocument": "Open the certificate {type}",
+      "openFile": "Open file {name}",
+      "questions": "Questions, answers and evidence of your part",
+      "questionsHint": "This page shows the general part and the parts you review only. The answers of other parts belong to their reviewers.",
+      "slot": "Part {no}: {domains}",
+      "slotMine": "Part {no} (yours): {domains}",
+      "slots": "Every part of this round",
+      "slotsHint": "You see the state of the other parts only, not their answers or reasons.",
+      "source": {
+        "EVIDENCE": "Answered by the supplier's certificate",
+        "EXPLICIT": "Answered by the supplier",
+        "ON_BEHALF": "Filled in by procurement for the supplier"
+      },
+      "submittedAt": "Sent",
+      "supplier": "Supplier",
+      "tier": "Tier from the points",
+      "title": "Review a supplier risk assessment"
+    },
+    "due": {
+      "open": "Due {time}",
+      "overdue": "Overdue · due {time}"
+    },
+    "errors": {
+      "CONFLICT_VERSION": "Another reviewer decided this assessment at the same moment. Reload the page and check again",
+      "DECIDED_BY": "{name} decided this task at {time}. The page now shows where it stands",
+      "FAILED": "That did not work. Try again",
+      "FORBIDDEN": "You are not the reviewer of this part, or acting for its reviewer has ended",
+      "INVALID_STATE_TRANSITION": "This task has been decided or closed already. The page now shows where it stands",
+      "MODULE_DISABLED": "This organization has not switched on supplier risk",
+      "NOT_FOUND": "This review task was not found. Reload the page and check again",
+      "NO_ANSWER": "No answer came back. Press again; the same decision is recorded once only",
+      "REASON": "Enter the reason for returning first",
+      "SOD_VIOLATION": "You, or the reviewer you act for, opened or filled in this assessment. Whoever prepared it cannot review it; ask your organization's administrator for another reviewer",
+      "UNAUTHENTICATED": "Your sign-in has ended. Sign in again and retry",
+      "VALIDATION_FAILED": "Something is missing or not valid. Check it and try again"
+    },
+    "list": {
+      "assignedAt": "Assigned {time}",
+      "countDone": "{count, plural, one {# assessment} other {# assessments}} reviewed",
+      "countOpen": "{count, plural, one {# assessment} other {# assessments}} to review",
+      "decidedAt": "Decided {time}",
+      "emptyDone": "You have not reviewed an assessment yet",
+      "emptyDoneHint": "The assessments you pass or return are listed here.",
+      "emptyDoneLink": "See the reviews waiting",
+      "emptyOpen": "No assessment is waiting for your review right now",
+      "emptyOpenHint": "When procurement sends an assessment with a part for you, it appears here and you are notified.",
+      "emptyOpenLink": "See the assessments you reviewed",
+      "intro": "Supplier risk assessments with a part for you to review. You see the general questions and the parts you are responsible for, then pass or return it.",
+      "onBehalfOf": "For {name}",
+      "row": "Assessment {number} · {supplier}",
+      "rowDomains": "Parts you review: {domains}",
+      "tabDone": "Reviewed",
+      "tabOpen": "To review",
+      "tabs": "My reviews",
+      "title": "Risk assessment reviews"
+    },
+    "taskStatus": {
+      "CANCELLED": "Cancelled",
+      "OPEN": "To review",
+      "PASSED": "Passed",
+      "RETURNED": "Returned"
+    },
+    "tier": {
+      "HIGH": "High risk",
+      "LOW": "Low risk",
+      "MEDIUM": "Medium risk"
     }
   },
   "savings": {
@@ -14428,6 +15053,18 @@
       "confirmText": "Approve {label}, total incl. VAT {amount} baht. The decision cannot be changed later.",
       "otherLink": "Return, reject or ask for information",
       "otherTitle": "Return or reject",
+      "override": {
+        "confirmText": "Approve {label} with a cap with VAT of {amount} THB. The decision cannot be changed later",
+        "otherLink": "Return or reject",
+        "reasonHint": "The requester will see this. Say clearly what to change or why it is not approved",
+        "rejectHint": "The request is closed; the supplier's purchase orders stay held until its assessment is done",
+        "rejected": "Request rejected",
+        "returnHint": "The request goes back to the requester to change and send again; the supplier's purchase orders stay held until it is approved",
+        "returnOption": "Return to the requester for changes",
+        "returned": "Returned to the requester",
+        "submitReject": "Reject this request",
+        "submitReturn": "Return to the requester"
+      },
       "overrun": {
         "confirmText": "Approve {label}, over budget by {amount} baht. The amount enters the budget line, set aside for the source request. The decision cannot be changed later.",
         "otherLink": "Return or reject",
@@ -14577,6 +15214,7 @@
       "PIN_NOT_SET_LINK": "Set your PIN",
       "QUESTION": "Write a question of at least 3 characters",
       "REASON": "Give a reason of at least 3 characters so the requester knows what to change",
+      "RISK_GATE": "It cannot be approved now: the supplier risk gate does not let this purchase order out at its new amount. Return it so procurement settles the supplier's risk first",
       "SOD": "You cannot decide this task because you are part of this document ({rule}). Ask your administrator to give the task to someone else.",
       "STATE": "This task no longer waits for a decision. Reload the page to see its latest status.",
       "STEP_UP": "Every decision on this task needs your PIN. Enter it and try again.",
@@ -14732,6 +15370,7 @@
         "PURCHASE_ORDER": "Purchase order (PO)",
         "PURCHASE_REQUEST": "Purchase request (PR)",
         "RFX_AWARD": "Sourcing award approval",
+        "RISK_OVERRIDE": "Supplier risk override approval",
         "SUPPLIER_APPROVAL": "New supplier approval"
       },
       "doaEffective": "In effect from",

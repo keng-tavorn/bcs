@@ -6,13 +6,16 @@ import { SelectField } from '../admin-org/select-field'
 import { Button } from '../form/button'
 import { Field } from '../form/field'
 import { Notice } from '../form/notice'
-import { OPS_BY_KIND, SET_VARIABLES, VARIABLES, emptyRow, fieldKind, isListOp, takesValue, type ConditionDraft, type ConditionRow, type FieldKind, type Op, type RowError } from './model'
+import { OPS_BY_KIND, RISK_FIELDS, SET_VARIABLES, VARIABLES, emptyRow, fieldKind, isListOp, riskFieldKind, riskFieldValues, takesValue, type ConditionDraft, type ConditionRow, type FieldKind, type Op, type RowError, type RuleScope } from './model'
 import type { FormField, WorkflowWords } from './words'
 
 // The condition of a reviewer rule as rows (FR-WF-103 AC1, BR-WF-07): each row is a field — a variable of the request
 // or a field of the forms of the rule's types — how it compares, and the value; the rows are joined by "all" or "any".
 // No rows: every request of the rule's types. A list (in, anyIn) is ticked from the field's options, or typed as codes
 // split by commas. A stored condition with groups inside groups is kept as it is until replaced. No dragging (NG-4).
+// S11-06 (BR-RSK-07): a RISK_ASSESSMENT rule's rows name the fields of a supplier risk assessment only — the three
+// screening answers, the tier, the tier before the answers, the supplier's categories and its payee type — with the
+// values each takes (WF_LINT_RISK_FIELD); the categories are codes, read with "any of".
 
 export interface ConditionBuilderProps {
   readonly id: string
@@ -26,6 +29,8 @@ export interface ConditionBuilderProps {
   readonly categoryCodes: readonly string[]
   readonly accountCodes: readonly string[]
   readonly words: WorkflowWords
+  /** RISK_ASSESSMENT: the fields of a risk assessment instead of a request's; REQUEST when absent */
+  readonly scope?: RuleScope
 }
 
 /** Codes typed with commas: the text stays as typed, the list follows it */
@@ -47,13 +52,18 @@ function CodesField({ id, label, hint, values, onValues, error }: { id: string; 
   )
 }
 
-export function ConditionBuilder({ id, draft, onChange, fields, requestTypes, rowErrors, categoryCodes, accountCodes, words }: ConditionBuilderProps) {
+export function ConditionBuilder({ id, draft, onChange, fields, requestTypes, rowErrors, categoryCodes, accountCodes, words, scope = 'REQUEST' }: ConditionBuilderProps) {
   const { t } = words
-  const kindOf = (field: string): FieldKind => fieldKind(field, fields.find((f) => f.id === field))
+  const risk = scope === 'RISK_ASSESSMENT'
+  const kindOf = (field: string): FieldKind => (risk ? riskFieldKind(field) : fieldKind(field, fields.find((f) => f.id === field)))
   const setRow = (i: number, change: Partial<ConditionRow>) => onChange({ ...draft, rows: draft.rows.map((r, j) => (j === i ? { ...r, ...change } : r)) })
-  const fieldOptions = [...VARIABLES.map((v) => ({ value: v, label: words.field(v) })), ...fields.map((f) => ({ value: f.id, label: t('formFieldOption', { label: words.field(f.id) }) }))]
-  const optionsOf = (field: string) =>
-    field === '$requestType' ? requestTypes.map((r) => ({ value: r.code, label: r.label })) : (fields.find((f) => f.id === field)?.options ?? []).map((o) => ({ value: o.value, label: words.optionText(field, o.value) }))
+  const fieldOptions = risk
+    ? RISK_FIELDS.map((f) => ({ value: f, label: words.riskField(f) }))
+    : [...VARIABLES.map((v) => ({ value: v, label: words.field(v) })), ...fields.map((f) => ({ value: f.id, label: t('formFieldOption', { label: words.field(f.id) }) }))]
+  const optionsOf = (field: string) => {
+    if (risk) return riskFieldValues(field).map((v) => ({ value: v, label: words.riskValue(field, v) }))
+    return field === '$requestType' ? requestTypes.map((r) => ({ value: r.code, label: r.label })) : (fields.find((f) => f.id === field)?.options ?? []).map((o) => ({ value: o.value, label: words.optionText(field, o.value) }))
+  }
   const rowError = (i: number) => (rowErrors[i] ? t(`rowErrors.${rowErrors[i]}`) : undefined)
 
   if (draft.nested) {
@@ -98,7 +108,7 @@ export function ConditionBuilder({ id, draft, onChange, fields, requestTypes, ro
           </fieldset>
         )
       }
-      const known = row.field === '$lineCategories' ? categoryCodes : row.field === '$budgetAccountCodes' ? accountCodes : []
+      const known = row.field === '$lineCategories' || row.field === '$category' ? categoryCodes : row.field === '$budgetAccountCodes' ? accountCodes : []
       return (
         <CodesField
           key={`${row.field}-${row.op}`}
@@ -131,7 +141,7 @@ export function ConditionBuilder({ id, draft, onChange, fields, requestTypes, ro
 
   return (
     <div className="flex flex-col gap-3">
-      {draft.rows.length === 0 ? <p className="text-ink-muted">{t('conditionNone')}</p> : null}
+      {draft.rows.length === 0 ? <p className="text-ink-muted">{risk ? t('risk.conditionNone') : t('conditionNone')}</p> : null}
       {draft.rows.length > 1 ? (
         <fieldset className="flex flex-col gap-1">
           <legend className="mb-1 font-medium">{t('joinLabel')}</legend>
@@ -163,7 +173,7 @@ export function ConditionBuilder({ id, draft, onChange, fields, requestTypes, ro
                       setRow(i, { field, op: first, value: '', values: [] })
                     }}
                     options={fieldOptions}
-                    error={error === 'FIELD' ? t('rowErrors.FIELD') : undefined}
+                    error={error === 'FIELD' || error === 'RISK_FIELD' ? t(`rowErrors.${error}`) : undefined}
                   />
                   <SelectField
                     id={`${id}-row${i}-op`}
@@ -176,8 +186,9 @@ export function ConditionBuilder({ id, draft, onChange, fields, requestTypes, ro
                     error={error === 'OP' ? t('rowErrors.OP') : undefined}
                   />
                 </div>
-                {error === 'FIELD' || error === 'OP' ? null : valueControl(row, i)}
+                {error === 'FIELD' || error === 'OP' || error === 'RISK_FIELD' ? null : valueControl(row, i)}
                 {SET_VARIABLES.includes(row.field) && row.op === 'anyIn' ? <p className="text-base text-ink-muted md:text-sm">{t('anyInHint')}</p> : null}
+                {risk && row.field === '$category' && row.op === 'anyIn' ? <p className="text-base text-ink-muted md:text-sm">{t('risk.categoryHint')}</p> : null}
               </fieldset>
               <Button variant="secondary" className="self-start" aria-label={t('removeRowNamed', { n: i + 1 })} onClick={() => onChange({ ...draft, rows: draft.rows.filter((_, j) => j !== i) })}>
                 <Trash2 className="size-4 shrink-0" aria-hidden="true" />

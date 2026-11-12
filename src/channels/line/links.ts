@@ -17,6 +17,8 @@ const LIFF_PAGES: ReadonlyArray<readonly [RegExp, (id: string) => string]> = [
   // S17-04 (FR-LINE-303 AC3 AC4): the lists the role buttons of the rich menu open
   [/^\/receiving$/, () => '/gr'],
   [/^\/procurement\/pool$/, () => '/procurement'],
+  // S11-06 (BR-NOTI-12): a reviewer's task of a supplier risk assessment (its reminders link here too)
+  [new RegExp(`^/risk/reviews/(${UUID})$`, 'i'), (id) => liffRiskReviewPath(id)],
 ]
 
 /** The LIFF page of a workspace page (e.g. /requests/<id> → /requests/<id>, /settings/delegation → /delegation), or null */
@@ -34,4 +36,9 @@ export type LiffTaskAction = 'approve' | 'reject'
 /** /tasks/<taskId>, with ?action= when a button opens the page to decide (§9.3: /liff/tasks/<taskId>?action=approve) */
 export function liffTaskPath(taskId: string, action?: LiffTaskAction): string {
   return `/tasks/${encodeURIComponent(taskId)}${action ? `?action=${action}` : ''}`
+}
+
+/** S11-06 (BR-NOTI-12): a reviewer's task of a supplier risk assessment, /risk/reviews/<reviewTaskId> in the LIFF app */
+export function liffRiskReviewPath(reviewTaskId: string): string {
+  return `/risk/reviews/${encodeURIComponent(reviewTaskId)}`
 }

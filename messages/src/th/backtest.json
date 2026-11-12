@@ -39,6 +39,7 @@
     "BANK_ACCOUNT_CHANGE": "เปลี่ยนบัญชีธนาคารผู้ขาย",
     "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
     "AWARD_DECISION": "ผลการจัดหา",
+    "RISK_OVERRIDE": "การอนุมัติข้ามด่านความเสี่ยง",
     "OTHER": "เอกสาร"
   },
   "sideErrors": {

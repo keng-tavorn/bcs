@@ -2,7 +2,8 @@ import { createTranslator } from 'next-intl'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { cappedSentence, dayText, detailSentence, kpiGoals, kpiItemViews, listTitle, type KpiT, type TimelineT } from '@/app/(workspace)/kpi/_present'
+import { cappedSentence, dayText, detailSentence, isKind, kpiGoals, kpiItemViews, listTitle, type KpiT, type TimelineT } from '@/app/(workspace)/kpi/_present'
+import { APPROVAL_SUBJECTS } from '@/core/sod'
 import type { KpiResult } from '@/server/services/reports/kpi'
 import type { KpiBaseline, KpiDetailDto, KpiItemDto } from '@/server/services/reports/screens'
 import { KpiTable, type KpiMeasureView } from '@/ui/insight/kpi-table'
@@ -225,6 +226,17 @@ describe('[FR-VIS-003/AC2] the KPI table draws a detail that stands for a list o
       expect(part).toContain(`href="/kpi/g3c${QUERY.replace(/&/g, '&amp;')}">2.7%</a>`)
       // G-5's "3 จาก 5 การตัดสิน" stays words: its value opens all 5, counted or not
       expect(part).toMatch(/<span class="[^"]*">3 จาก 5 การตัดสิน<\/span>/)
+    }
+  })
+})
+
+describe('[FR-VIS-003/AC2] every approval subject is a kind the KPI pages filter by and name (S11-02 review)', () => {
+  it('each subject of APPROVAL_SUBJECTS (a request as PURCHASE_REQUEST) is a kind with Thai words', () => {
+    const kinds = (th as unknown as { kpi: { kinds: Record<string, string> } }).kpi.kinds
+    for (const subject of APPROVAL_SUBJECTS) {
+      const kind = subject === 'REQUEST' ? 'PURCHASE_REQUEST' : subject
+      expect(isKind(kind), kind).toBe(true)
+      expect(kinds[kind], kind).toBeTruthy()
     }
   })
 })

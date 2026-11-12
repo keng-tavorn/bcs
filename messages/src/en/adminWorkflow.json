@@ -66,7 +66,8 @@
     "dryRun": "Dry run",
     "diff": "Compare with earlier",
     "check": "Check and send for approval",
-    "backtest": "90-day backtest"
+    "backtest": "90-day backtest",
+    "risk": "Risk reviewers"
   },
   "headers": {
     "rule": "Rule",
@@ -176,7 +177,8 @@
     "OP": "Choose how it is compared",
     "VALUE": "Enter the value to compare with",
     "MONEY": "Enter an amount in baht with at most 2 decimals, e.g. 1,000,000.00",
-    "VALUES": "Choose or type at least one value"
+    "VALUES": "Choose or type at least one value",
+    "RISK_FIELD": "A risk reviewer rule cannot use this; choose information of the assessment instead"
   },
   "memberReviewerHint": "A named-person reviewer comes from the earlier version. It can be removed but not added; use a position so it follows the organization chart.",
   "reviewerPositionLabel": "Position",
@@ -251,7 +253,9 @@
     "fallback": "Fallback",
     "mode": "How many must pass",
     "sla": "Review time",
-    "description": "Description"
+    "description": "Description",
+    "scope": "Kind of rule",
+    "riskDomains": "Parts the reviewer sees"
   },
   "document": {
     "requestType": "Request type",
@@ -334,7 +338,8 @@
     "added": "Added rule {rule}",
     "removed": "Removed rule {rule}",
     "beforeAfter": "From {before} to {after}",
-    "ruleLine": "{types} · {condition} · {reviewers}"
+    "ruleLine": "{types} · {condition} · {reviewers}",
+    "riskRuleLine": "Risk reviewers · {condition} · {reviewers} · checks {domains}"
   },
   "lint": {
     "WF_LINT_UNKNOWN_REQUEST_TYPE": "Rule {rule}: request type {type} does not exist in the organization",
@@ -345,7 +350,10 @@
     "WF_LINT_NO_FALLBACK": "Rule {rule}: no fallback",
     "WF_LINT_MEMBER_REVIEWER": "Rule {rule}: a named-person reviewer does not follow the organization chart",
     "OTHER": "Rule {rule}: something must be fixed",
-    "withCode": "{sentence} (code {code})"
+    "withCode": "{sentence} (code {code})",
+    "WF_LINT_RISK_DOMAIN_REQUIRED": "Rule {rule}: a risk reviewer rule must choose at least one part of the assessment its reviewer sees",
+    "WF_LINT_RISK_FIELD": "Rule {rule}: the condition names {field}, which a risk assessment does not have; only the screening answers, the tiers, the product categories and the payee type can be used",
+    "WF_LINT_RISK_QUORUM": "Rule {rule}: a risk reviewer rule must have one reviewer, who must pass"
   },
   "submit": {
     "errorsTitle": "Problems to fix before sending",
@@ -408,5 +416,114 @@
     "NO_ANSWER": "No answer came back; check the connection and press again",
     "FAILED": "This did not work; try again"
   },
-  "backtestSavedOnly": "The backtest uses the saved draft; unsaved changes are not counted"
+  "backtestSavedOnly": "The backtest uses the saved draft; unsaved changes are not counted",
+  "risk": {
+    "title": "Risk reviewer rules ({count})",
+    "intro": "A supplier risk assessment, once sent, goes at the same time to the reviewer of every rule it matches: one reviewer per rule, and every one must pass. Conditions use the screening answers, the risk tier, the product categories and the payee type.",
+    "hintEditable": "Edit one rule at a time with its Edit button. Nothing is saved until you save the draft below.",
+    "hintReadOnly": "The risk reviewer rules of this version",
+    "moduleOff": "This organization has not switched on supplier risk. Existing rules can be edited or removed, but no rule can be added. Ask the BCS team to switch it on.",
+    "none": "No risk reviewer rules yet: every assessment completes at once without reviewers",
+    "headerWhen": "Condition and parts seen",
+    "domainsLine": "Parts the reviewer checks: {domains}",
+    "listLabel": "Risk reviewer rules",
+    "add": "Add a risk reviewer rule",
+    "conditionAlways": "Every assessment",
+    "conditionNone": "No condition yet: every assessment enters this rule",
+    "categoryHint": "Enters this rule when the supplier has at least one of the categories given",
+    "saveFirst": "There are unsaved changes. Save the draft below first."
+  },
+  "riskFields": {
+    "processesPersonalData": "Accesses personal data",
+    "accessesSystems": "Accesses information systems",
+    "accessesPremises": "Enters the organization's premises",
+    "tier": "Risk tier",
+    "inherentTier": "Initial tier",
+    "category": "Product category",
+    "payeeType": "Payee type"
+  },
+  "tiers": {
+    "LOW": "Low",
+    "MEDIUM": "Medium",
+    "HIGH": "High"
+  },
+  "payeeTypes": {
+    "JURISTIC": "Juristic person",
+    "INDIVIDUAL": "Individual",
+    "FOREIGN": "Foreign"
+  },
+  "yesNo": {
+    "Y": "Yes",
+    "N": "No"
+  },
+  "riskDomains": {
+    "GENERAL": "General",
+    "PRIVACY": "Personal data",
+    "INFOSEC": "Information security",
+    "PREMISES": "Site safety",
+    "FINANCE": "Finance"
+  },
+  "noDomains": "None chosen",
+  "scopes": {
+    "REQUEST": "Request reviewers",
+    "RISK_ASSESSMENT": "Risk reviewers"
+  },
+  "noRequestTypes": "None",
+  "riskDialog": {
+    "addTitle": "Add a risk reviewer rule",
+    "description": "A risk reviewer rule says which supplier risk assessments must pass which reviewer, and which parts of the assessment that reviewer sees",
+    "codeHint": "Capitals, digits, - and _, e.g. RR-05; not used by another rule",
+    "conditionHint": "Only the screening answers, the risk tier, the initial tier, the product categories and the payee type can be used",
+    "reviewer": "Reviewer",
+    "reviewerHint": "A risk reviewer rule has one reviewer, who must pass",
+    "reviewerWho": "The reviewer of this rule",
+    "usePosition": "Use a reviewer by position instead",
+    "oneReviewer": "A risk reviewer rule has one reviewer only. Choose the reviewer again to keep just one.",
+    "domains": "Parts of the assessment the reviewer sees",
+    "domainsHint": "Every reviewer already sees the general part. Choose the parts this reviewer checks, at least one.",
+    "generalAlways": "{name} (every reviewer sees it)",
+    "domainsRequired": "Choose at least one part the reviewer sees",
+    "hasFallback": "Use a fallback when the reviewer is vacant or opened the assessment",
+    "noFallbackHint": "Without a fallback, an assessment whose reviewer is vacant cannot be sent. You tick this warning before sending for approval.",
+    "descriptionHint": "Tell the reviewer why assessments like this need this review; at most 500 characters"
+  },
+  "riskDryRun": {
+    "title": "Try out the risk reviewers",
+    "intro": "Enter sample assessments and see the reviewers of the version in effect beside {name}, from the real engine. A try-out creates no assessment.",
+    "casesTitle": "Sample assessments ({count})",
+    "casesLabel": "Sample assessments",
+    "caseN": "Assessment {n}",
+    "caseEditing": "Assessment {n} (being edited)",
+    "editCase": "Edit",
+    "editCaseNamed": "Edit assessment {n}",
+    "removeCase": "Remove",
+    "removeCaseNamed": "Remove assessment {n}",
+    "addCase": "Add a sample assessment",
+    "screening": "Screening answers",
+    "tier": "Risk tier reached",
+    "inherentTier": "Initial tier",
+    "inherentTierHint": "The tier from the screening answers, before the questionnaire",
+    "inherentSame": "Same as the tier reached",
+    "payeeType": "Payee type",
+    "categories": "Supplier's product categories",
+    "openedBy": "Opened by",
+    "openedByHint": "Whoever opened an assessment cannot review it; where they are a rule's reviewer, the fallback stands in",
+    "openedByRequired": "Choose who opened the assessment",
+    "answer": "{field}: {answer}",
+    "summary": "{screening} · {tier} tier · {payee} · categories {categories} · opened by {opener}",
+    "summaryInherent": "{screening} · {tier} tier (initially {inherent}) · {payee} · categories {categories} · opened by {opener}",
+    "noCategories": "none",
+    "noOpener": "not chosen",
+    "run": "Find the reviewers ({count, plural, one {# assessment} other {# assessments}})",
+    "resultTitle": "Result of assessment {n}",
+    "changed": "The draft's reviewers differ from the version in effect",
+    "same": "The draft's reviewers are the same as the version in effect",
+    "slot": "Rule {rules}: {names} · checks {domains}",
+    "noSlots": "No rule matches: the assessment completes at once without reviewers",
+    "sideErrors": {
+      "REVIEWER_NOT_FOUND": "Rule {rule}: no reviewer found: the reviewer and the fallback are vacant or opened the assessment; such an assessment cannot be sent",
+      "REVIEWER_NOT_FOUND_NO_RULE": "No reviewer found: the reviewer and the fallback are vacant or opened the assessment; such an assessment cannot be sent",
+      "OTHER": "The reviewers could not be worked out ({code})"
+    }
+  }
 }

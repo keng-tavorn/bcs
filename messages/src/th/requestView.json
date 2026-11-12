@@ -183,7 +183,8 @@
         "PAYMENT_RUN": "รอบจ่ายเงิน",
         "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
         "SUPPLIER_APPLICATION": "ใบสมัครผู้ขาย",
-        "AWARD_DECISION": "ผลการจัดหา"
+        "AWARD_DECISION": "ผลการจัดหา",
+        "RISK_OVERRIDE": "การอนุมัติข้ามด่านความเสี่ยง"
       },
       "basis": {
         "GROSS": "รวม VAT",

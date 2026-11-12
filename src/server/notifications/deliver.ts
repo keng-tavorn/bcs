@@ -1,4 +1,4 @@
-import { textNotice, type OutgoingLineMessage } from '@/channels/line/flex'
+import { riskReviewCard, textNotice, type CardLocale, type FlexMessage, type OutgoingLineMessage } from '@/channels/line/flex'
 import { goesByLine as routeGoesByLine, planDelivery, pushAnswerAction } from '@/core/notification-route'
 import { uatSubject } from '@/lib/uat'
 import { EmailSendError, getEmailProvider, type EmailMessage } from '@/integrations/email-provider'
@@ -129,6 +129,54 @@ async function taskStillWaits(organizationId: string, about: { readonly taskId: 
     select: { status: true, assigneeMemberId: true, step: { select: { route: { select: { status: true } } } } },
   })
   return task !== null && task.status === 'OPEN' && task.step.route.status === 'ACTIVE' && (!about.toAssignee || task.assigneeMemberId === recipientMemberId)
+}
+
+/**
+ * S11-06 (FR-NOTI-003 AC3 for a reviewer's task of a supplier risk assessment, BR-NOTI-12): the ReviewTask a notice is
+ * about, and whether it is addressed to the task's holder — the assignment, its reminder and its overdue notice are;
+ * the escalation to the rule's fallback is for its information. A ReviewTask is no ApprovalTask, so it is read here, on
+ * its own table, beside the approval path above (which it leaves as it is).
+ */
+function reviewTaskNoticeOf(templateKey: string, data: Data): { readonly taskId: string; readonly toAssignee: boolean } | null {
+  if (typeof data.taskId !== 'string') return null
+  switch (templateKey) {
+    case 'risk.review_assigned':
+    case 'risk.review_reminder':
+    case 'risk.review_overdue':
+      return { taskId: data.taskId, toAssignee: true }
+    case 'risk.review_escalated':
+      return { taskId: data.taskId, toAssignee: false }
+    default:
+      return null
+  }
+}
+
+/** The reviewer's task still waits — OPEN — and, for a notice to its holder, is still theirs. Read again at every try */
+async function reviewTaskStillWaits(organizationId: string, about: { readonly taskId: string; readonly toAssignee: boolean }, recipientMemberId: string): Promise<boolean> {
+  const task = await forTenant(organizationId).reviewTask.findFirst({ where: { id: about.taskId }, select: { status: true, assigneeMemberId: true } })
+  return task !== null && task.status === 'OPEN' && (!about.toAssignee || task.assigneeMemberId === recipientMemberId)
+}
+
+/**
+ * The card of risk.review_assigned (BR-NOTI-12): built from what the notice carries — the numbers, the tier, the parts and
+ * the due time, never an answer (BR-NOTI-01); the supplier's name only when the notice has one (a sole proprietor's
+ * notice has none). A notice of a task that moved (reassigned) carries less, and the card leaves out what it lacks.
+ */
+function riskReviewCardOf(data: Data, locale: CardLocale, reviewLink: string): FlexMessage | null {
+  if (typeof data.taskId !== 'string') return null
+  const dueAt = typeof data.dueAt === 'string' && !Number.isNaN(Date.parse(data.dueAt)) ? new Date(data.dueAt) : null
+  return riskReviewCard({
+    locale,
+    taskId: data.taskId,
+    number: typeof data.number === 'string' && data.number !== '' ? data.number : null,
+    supplierName: typeof data.supplierName === 'string' && data.supplierName.trim() !== '' ? data.supplierName : null,
+    tier: typeof data.tier === 'string' && data.tier !== '' ? data.tier : null,
+    riskDomains: Array.isArray(data.riskDomains) ? data.riskDomains.filter((d): d is string => typeof d === 'string') : [],
+    questionCount: typeof data.questionCount === 'number' ? data.questionCount : null,
+    dueAt,
+    reassigned: data.reassigned === true,
+    links: { review: reviewLink },
+  })
 }
 
 /** Nothing goes out: the notice stays in the bell (§4.7 rule 1), settled SENT on IN_APP with the reason */
@@ -292,6 +340,8 @@ async function lineMessageOf(organizationId: string, n: { templateKey: string; d
   const cards = await cardContextOf(organizationId, target.liffId)
   const taskId = assignedTaskOf(n.templateKey, data)
   if (taskId) return approvalCardMessage(organizationId, { taskId, memberId: n.recipientMemberId, fallbackLabel: typeof data.label === 'string' ? data.label : '' }, now, cards)
+  // S11-06 (BR-NOTI-12): a reviewer's task of a supplier risk assessment goes as its card; "ตีกลับ" opens its LIFF page
+  if (n.templateKey === 'risk.review_assigned' && typeof data.taskId === 'string') return riskReviewCardOf(data, cards.locale, documentLink(cards, `/risk/reviews/${data.taskId}`))
   const rendered = renderNotification(n, cards.locale)
   return textNotice({ title: rendered.title, body: rendered.body, url: documentLink(cards, rendered.href) })
 }
@@ -379,6 +429,9 @@ export async function deliverNotification(organizationId: string, notificationId
   // FR-NOTI-003 AC3: a notice about an approval task goes out only while the task still waits, checked at every try
   const about = taskNoticeOf(n.templateKey, data)
   if (about && !(await taskStillWaits(organizationId, about, n.recipientMemberId))) return settleTaskClosed(organizationId, n.id, now)
+  // S11-06: the same for a reviewer's task of a supplier risk assessment
+  const aboutReview = reviewTaskNoticeOf(n.templateKey, data)
+  if (aboutReview && !(await reviewTaskStillWaits(organizationId, aboutReview, n.recipientMemberId))) return settleTaskClosed(organizationId, n.id, now)
   const active = n.recipient.status === 'ACTIVE'
   // S6-21 (BR-UAT-01): a UAT sandbox never sends by LINE or push, and its e-mails say they come from the trial system
   const organization = await db.organization.findUnique({ where: { id: organizationId }, select: { kind: true, locale: true } })

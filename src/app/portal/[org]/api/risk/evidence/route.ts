@@ -4,7 +4,7 @@ import { isUuid } from '@/server/queries/requests'
 import { uploadRiskEvidence } from '@/server/services/risk/evidence'
 import { field, forbiddenCsrf, formOf, notFound, seeOther } from '../../../_lib/respond'
 
-// POST /portal/<org>/api/risk/evidence (S11-05 · BR-RSK-18 · BR-AI-33 · BR-PORTAL ข้อ 07 ข้อ 08): one file behind an
+// POST /portal/<org>/api/risk/evidence (S11-05 · BR-RSK-18 · BR-AI-34 · BR-PORTAL ข้อ 07 ข้อ 08): one file behind an
 // answer, as multipart form data with its CSRF token — assessmentId, questionCode, file, and aiReadable (the uploader's
 // tick that the AI may read the files of this answer; unticked = it may not). The bytes, the type, the size, the five
 // files a question, the upload bucket and the privacy notice are checked by the service; the answer is the page at the

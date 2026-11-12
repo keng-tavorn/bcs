@@ -89,6 +89,23 @@
       "title": "Payment run decided"
     }
   },
+  "risk": {
+    "review_assigned": {
+      "title": "A risk assessment waits for your review"
+    },
+    "review_reminder": {
+      "title": "Reminder: a risk assessment waits for your review"
+    },
+    "review_overdue": {
+      "title": "A risk assessment review is overdue"
+    },
+    "review_escalated": {
+      "title": "For your information: a risk assessment review is overdue"
+    },
+    "status_changed": {
+      "title": "A supplier needs its risk reassessed"
+    }
+  },
   "supplier": {
     "application_escalated": {
       "title": "A supplier application is overdue"

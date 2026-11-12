@@ -140,6 +140,8 @@
           "QUESTION": "Answered a question",
           "QUOTATION_READ": "Read a quotation",
           "RFX_DRAFT": "Drafted an RFx",
+          "RISK_ANSWER_DRAFT": "Proposed questionnaire answers",
+          "RISK_FILE_SUMMARY": "Summarized a risk file",
           "SAVINGS_NOTE": "Explained a saving",
           "SUPPLIER_DOC_READ": "Supplier document reading"
         },
@@ -162,7 +164,8 @@
           "INVOICE": "Invoice",
           "PURCHASE_ORDER": "PO",
           "REQUEST": "Request",
-          "RFX_EVENT": "RFx"
+          "RFX_EVENT": "RFx",
+          "RISK_ASSESSMENT": "Risk assessment"
         },
         "system": "The system",
         "title": "History of the work",
@@ -203,6 +206,10 @@
         "INTAKE": {
           "description": "Picks the request type and drafts the request from what the requester wrote or attached; the requester confirms before sending",
           "name": "Request helper"
+        },
+        "RISK": {
+          "description": "Proposes answers to a risk questionnaire from the documents the supplier lets it read, for the supplier or procurement to confirm one by one, and summarizes the file for each reviewer's own part; never sets a risk tier, decides a review or asks for an override",
+          "name": "Risk"
         },
         "SOURCING": {
           "description": "Drafts an RFx's title, description and English line descriptions for procurement to check field by field, and after the close summarizes the bids and points to negotiate from figures the system calculated; never scores, awards or messages a supplier",

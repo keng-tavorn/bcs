@@ -158,3 +158,42 @@ export function rfxDraftInputText(c: RfxDraftContext): string {
 export function sourcingFactsInputText(facts: Readonly<Record<string, string | number | boolean>>): string {
   return ['Facts of the RFx and its bids (key = value):', ...Object.entries(facts).map(([k, v]) => `${k} = ${String(v)}`)].join('\n')
 }
+
+// ---------- Risk Agent (S11-13 · FR-AI-306 · BR-AI-33 BR-AI-34): answers proposed, never points or a tier ----------
+
+/** One proposed answer: the file it comes from by its label (F1 …) and the words copied from it */
+export const RiskAnswerDraft = z.strictObject({
+  answers: z.array(z.strictObject({ questionCode: z.string(), optionCode: z.string(), sourceRef: z.string(), quote: z.string(), confidence: z.number().int() })),
+})
+export type RiskAnswerDraft = z.infer<typeof RiskAnswerDraft>
+
+export interface RiskDraftContext {
+  /** The questions of the assessment the agent may answer, with their option codes and words */
+  readonly questions: readonly { readonly code: string; readonly text: string; readonly options: readonly { readonly code: string; readonly label: string }[] }[]
+  /** The files given, in order, by label: what each is (a document type, or the question a file was sent for) */
+  readonly files: readonly { readonly label: string; readonly kind: string }[]
+}
+
+/** The data the Risk Agent reads beside the files: the questions it may answer and what each file is */
+export function riskDraftInputText(c: RiskDraftContext): string {
+  return [
+    'Questions you may answer (code: question — option codes):',
+    ...c.questions.map((q) => `${q.code}: ${q.text} — ${q.options.map((o) => `${o.code} = ${o.label}`).join(' · ')}`),
+    '',
+    'Files, in the order given:',
+    ...c.files.map((f) => `${f.label}: ${f.kind}`),
+  ].join('\n')
+}
+
+/** A reviewer's summary (BR-AI-27 placeholders) and the questions a file contradicts */
+export const RiskSummaryText = z.strictObject({ sentences: z.array(z.string()), inconsistentQuestionCodes: z.array(z.string()) })
+export type RiskSummaryText = z.infer<typeof RiskSummaryText>
+
+/** The facts of a reviewer's part of an assessment: the summary writes placeholders of these keys, never the values */
+export function riskSummaryInputText(facts: Readonly<Record<string, string | number | boolean>>, files: readonly { readonly label: string; readonly kind: string }[]): string {
+  return [
+    'Facts of the risk assessment for this reviewer (key = value):',
+    ...Object.entries(facts).map(([k, v]) => `${k} = ${String(v)}`),
+    ...(files.length ? ['', 'Files, in the order given:', ...files.map((f) => `${f.label}: ${f.kind}`)] : []),
+  ].join('\n')
+}

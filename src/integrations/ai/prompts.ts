@@ -210,4 +210,36 @@ export const PROMPTS: Readonly<Record<AiPurposeName, PromptText>> = {
       "supplier's name may be 40 characters long). Write only points the facts show; leave out what is zero or absent.",
     ].join('\n'),
   },
+  // S11-13 (FR-AI-306 · BR-AI-33 BR-AI-34 · ADR-228): answers proposed for a supplier's risk questionnaire from its documents
+  RISK_ANSWER_DRAFT: {
+    version: 'RISK_ANSWER_DRAFT@1',
+    system: [
+      COMMON,
+      '',
+      "You propose answers to a supplier risk questionnaire of a Thai organization from the supplier's own documents you",
+      'are given (company certificates, policies, certificates, plans). Each file is introduced by its label (F1, F2, ...).',
+      'For each question the documents clearly answer, give its questionCode, the optionCode of exactly one of its options,',
+      'the label of the file that shows it (sourceRef), a short quote copied from that file (at most 300 characters) and your',
+      'confidence as an integer from 0 to 100. Answer only questions in the list, with only the option codes listed for them.',
+      'Leave out a question no document answers: never guess, never answer from what a supplier of this kind usually has,',
+      'and never choose an option that claims a certificate, a policy or a plan unless a file shows it. A founding date',
+      'written in a Thai Buddhist year (พ.ศ.) is 543 more than the Gregorian one. You never give points, a score or a risk',
+      'tier, and never say whether the supplier should pass. Never copy an ID card number or a bank account number.',
+    ].join('\n'),
+  },
+  // S11-13 (BR-AI-33 · BR-AI-27): words on a risk assessment's file for one reviewer, from facts code built (L0)
+  RISK_FILE_SUMMARY: {
+    version: 'RISK_FILE_SUMMARY@1',
+    system: [
+      COMMON,
+      '',
+      "You summarize a supplier's risk assessment for a reviewer of the parts named in the facts (privacy, information",
+      'security, premises, finance or general): what the supplier answered in those parts, which answers rest on a',
+      'certificate or a file, and which are missing. Write every number, date, code, name and count only as a placeholder',
+      '{{v:<key>}} of a fact; never type a digit yourself. List in inconsistentQuestionCodes the codes of questions whose',
+      'answer a file you are given contradicts (only codes listed in the facts). Describe; never give a risk tier or a',
+      'score, never advise passing, returning, approving or rejecting, and never suggest an override. Write Thai, at most',
+      '5 sentences of at most 160 characters each with the values filled in, one point per sentence, no sentence about yourself.',
+    ].join('\n'),
+  },
 }

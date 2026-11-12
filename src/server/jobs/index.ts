@@ -34,6 +34,7 @@ import { supplierApplicationSla } from './supplier-application-sla'
 import { bidFileScannedJob, rfxClose, rfxInviteLink, rfxReminder } from './rfx'
 import { rfxAiSummary } from './rfx-ai-summary'
 import { preferredSupplierExpiry } from './preferred-supplier-expiry'
+import { riskAiDraft, riskAiSummary } from './risk-ai'
 import { riskAssessmentSla, riskEvidenceScannedJob } from './risk-assessments'
 import { riskReviewDaily } from './risk-review-daily'
 import { riskReviewTaskSla } from './risk-reviews'
@@ -86,6 +87,9 @@ export const functions = [
   riskReviewTaskSla,
   // S11-09: reassessments due, overrides lapsing, the state of the day (FR-RSK-205)
   riskReviewDaily,
+  // S11-13: the Risk Agent's proposed answers and a reviewer's summary (BR-AI-33)
+  riskAiDraft,
+  riskAiSummary,
   // S10-04
   rfxClose,
   rfxReminder,

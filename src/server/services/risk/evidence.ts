@@ -3,9 +3,9 @@ import { z } from 'zod'
 import type { AppError, Result } from '@/core/result'
 import { RISK_ASSESSMENT_MACHINE, transition } from '@/core/state-machines'
 import { deleteObject, presignDownload, putObject } from '@/integrations/storage'
-import { MS_PER_HOUR, RISK_EVIDENCE_FILES_PER_QUESTION, SUPPLIER_DOC_MAX_BYTES } from '@/lib/constants'
+import { MS_PER_DAY, MS_PER_HOUR, RISK_EVIDENCE_FILES_PER_QUESTION, SUPPLIER_DOC_MAX_BYTES } from '@/lib/constants'
 import { newId } from '@/lib/ids'
-import { riskSettingsOf } from '@/lib/org-settings'
+import { riskSettingsOf, supplierSettingsOf } from '@/lib/org-settings'
 import { PORTAL_PRIVACY_NOTICE_VERSION, PORTAL_UPLOADS_PER_HOUR } from '@/lib/portal-limits'
 import { authorize } from '@/server/authz'
 import { systemCtx, type Ctx } from '@/server/context'
@@ -261,4 +261,51 @@ export async function riskEvidenceScanned(organizationId: string, fileId: string
   if (result === 'CLEAN') return 'SKIPPED'
   const done = await runCommand(systemCtx(organizationId, now, 'risk-evidence-scanned'), scannedCommand, { fileId }, { idempotencyKey: `risk-evidence-scanned:${fileId}` })
   return done.ok ? done.data.outcome : 'SKIPPED'
+}
+
+// ---------- the files past their keeping (S11-10 · BR-RSK-18 · FR-RSK-204 AC4 · OQ-230) ----------
+
+/**
+ * When the files behind an assessment's answers may go: a COMPLETED or SUPERSEDED one risk.answerRetentionYears after it
+ * was completed, a CANCELLED one supplier.closedApplicationFileRetentionDays after it was closed (S7's keeping of the
+ * files of a closed application); never while it is open. The answers, the files' metadata and the events stay.
+ */
+export function evidenceKeptUntil(a: { readonly status: string; readonly completedAt: Date | null; readonly updatedAt: Date }, settings: unknown): Date | null {
+  if ((a.status === 'COMPLETED' || a.status === 'SUPERSEDED') && a.completedAt) {
+    const until = new Date(a.completedAt)
+    until.setUTCFullYear(until.getUTCFullYear() + riskSettingsOf(settings).answerRetentionYears)
+    return until
+  }
+  if (a.status === 'CANCELLED') return new Date(a.updatedAt.getTime() + supplierSettingsOf(settings).closedApplicationFileRetentionDays * MS_PER_DAY)
+  return null
+}
+
+const purgeCommand = defineCommand({
+  name: 'riskAssessment.evidence_purge',
+  capability: 'system.risk',
+  input: z.strictObject({ assessmentId: z.uuid() }),
+  async execute(tx: TenantTx, input, ctx): Promise<CommandOutcome<{ storageKeys: string[] }>> {
+    const a = await tx.riskAssessment.findFirst({ where: { id: input.assessmentId }, select: { id: true, status: true, completedAt: true, updatedAt: true } })
+    if (!a) return fail('NOT_FOUND', 'assessment not found')
+    const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
+    const until = evidenceKeptUntil(a, org.settings)
+    if (!until || until.getTime() > ctx.now.getTime()) return fail('INVALID_STATE_TRANSITION', 'the files are still kept', { keptUntil: until?.toISOString() ?? null })
+    const answers = await tx.riskAnswer.findMany({ where: { assessmentId: a.id }, select: { id: true } })
+    const links = await tx.fileLink.findMany({ where: { kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer', subjectId: { in: answers.map((x) => x.id) } }, select: { id: true, fileId: true, file: { select: { storageKey: true } } } })
+    if (links.length === 0) return fail('INVALID_STATE_TRANSITION', 'no file left to purge')
+    // the links go and the stored bytes after the commit; FileObject stays as the metadata the audit reads
+    await tx.fileLink.deleteMany({ where: { id: { in: links.map((l) => l.id) } } })
+    return {
+      ok: true,
+      result: { storageKeys: links.map((l) => l.file.storageKey) },
+      events: [{ type: 'risk_assessment.evidence_purged', aggregateType: 'RiskAssessment', aggregateId: a.id, data: { fileIds: links.map((l) => l.fileId), reason: a.status === 'CANCELLED' ? 'CANCELLED' : 'RETENTION' } }],
+    }
+  },
+})
+
+/** Purges one assessment's evidence files that are past their keeping (risk-review-daily); the bytes go once the links went */
+export async function purgeRiskEvidence(ctx: Ctx, input: { assessmentId: string }, options: RunOptions): Promise<Result<{ storageKeys: string[] }>> {
+  const r = await runCommand(ctx, purgeCommand, input, options)
+  if (r.ok) for (const key of r.data.storageKeys) await deleteObject(key).catch(() => undefined)
+  return r
 }

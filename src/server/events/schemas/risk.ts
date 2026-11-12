@@ -46,6 +46,8 @@ defineEvents('RiskAssessment', {
   'risk_assessment.answered': { schema: z.object({ questionCodes: z.array(z.string()), source: z.enum(['EXPLICIT', 'ON_BEHALF', 'EVIDENCE_REVOKED']), onBehalf: z.boolean() }) },
   'risk_assessment.evidence_uploaded': { schema: z.object({ questionCode: z.string(), fileId: z.uuid(), aiReadable: z.boolean().nullable(), by: z.enum(['CONTACT', 'MEMBER']) }) },
   'risk_assessment.evidence_rejected': { schema: z.object({ questionCode: z.string(), fileId: z.uuid() }) },
+  // S11-10 (BR-RSK-18 · OQ-230): the evidence files past their keeping lost their links and bytes; FileObject stays
+  'risk_assessment.evidence_purged': { schema: z.object({ fileIds: z.array(z.uuid()), reason: z.enum(['RETENTION', 'CANCELLED']) }) },
   'risk_assessment.submitted': { schema: z.object({ points: z.int(), tier, reviewRound: z.int() }) },
   'risk_assessment.completed': { schema: z.object({ tier, validUntil: z.string() }) },
   'risk_assessment.superseded': { schema: z.object({ byAssessmentId: z.uuid() }) },

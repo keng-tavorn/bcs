@@ -200,7 +200,7 @@ describe('[FR-RSK-205/AC2] risk-review-daily: the reassessment at remindOn, OVER
     await riskOrg(off, { module: false })
     const s = await supplierWithContact('RR-OFF', off)
     await prisma.riskOverride.create({ data: { organizationId: off.organizationId, number: 'RO-OFF', supplierId: s.supplierId, reason: 'x', capGrossSatang: 1n, expiresOn: new Date('2026-01-01'), requestedById: off.member.proc_officer!, submittedAt: COMPLETED_AT, decidedAt: COMPLETED_AT, status: 'APPROVED' } })
-    expect(await daily('2026-11-20', off)).toEqual({ questionnairesSuperseded: 0, overridesExpiring: 0, overridesExpired: 0, reviewsScheduled: 0, reviewsCancelled: 0, suppliersRefreshed: 0 })
+    expect(await daily('2026-11-20', off)).toEqual({ questionnairesSuperseded: 0, overridesExpiring: 0, overridesExpired: 0, reviewsScheduled: 0, reviewsCancelled: 0, suppliersRefreshed: 0, evidencePurged: 0 })
     expect(await applyRiskRegistryFlag(off.organizationId, s.supplierId, 'CEASED', morning('2026-11-20'), { sender: null })).toMatchObject({ ok: false, error: { code: 'MODULE_DISABLED' } })
     expect(await prisma.riskReview.count({ where: { supplierId: s.supplierId } })).toBe(0)
   })

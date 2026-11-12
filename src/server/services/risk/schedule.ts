@@ -15,6 +15,7 @@ import { defineCommand, runCommand, type CommandDefinition, type CommandOutcome,
 import { requireModule } from '../modules'
 import { contextOf, createAssessment, inviteToAnswer, openAssessmentOf, refreshSupplierRisk, RISK_TIMEZONE } from './assessments'
 import { questionnaireInEffect, supersedeDueQuestionnaires } from './questionnaire'
+import { evidenceKeptUntil, purgeRiskEvidence } from './evidence'
 import { riskPolicyInEffect, riskTiersInEffect } from './tiers'
 
 // Reassessment and the registry's flags (S11-09 · FR-RSK-205 · BR-RSK-12 BR-RSK-13 BR-RSK-14 · ADR-227):
@@ -410,6 +411,8 @@ export interface RiskReviewDailyResult {
   readonly reviewsScheduled: number
   readonly reviewsCancelled: number
   readonly suppliersRefreshed: number
+  /** S11-10: assessments whose evidence files went past their keeping (BR-RSK-18 · OQ-230) */
+  readonly evidencePurged: number
 }
 
 /**
@@ -466,7 +469,20 @@ export async function runRiskReviewDaily(organizationId: string, now: Date, opti
     if (riskStatusAt({ validUntil: iso(c.validUntil), remindOn: iso(c.remindOn), today }) === s.riskStatus) continue
     if ((await run(refreshCommand, { supplierId: s.id }, `refresh:${today}:${s.id}`)).ok) suppliersRefreshed++
   }
-  return { questionnairesSuperseded, overridesExpiring, overridesExpired, reviewsScheduled, reviewsCancelled, suppliersRefreshed }
+  // S11-10 (BR-RSK-18 · OQ-230): the evidence files of closed assessments past their keeping lose their links and bytes
+  let evidencePurged = 0
+  const linked = await db.fileLink.findMany({ where: { kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer' }, select: { subjectId: true }, distinct: ['subjectId'] })
+  if (linked.length > 0) {
+    const answers = await db.riskAnswer.findMany({ where: { id: { in: linked.map((l) => l.subjectId) } }, select: { assessmentId: true }, distinct: ['assessmentId'] })
+    const closed = await db.riskAssessment.findMany({ where: { id: { in: answers.map((a) => a.assessmentId) }, status: { in: ['COMPLETED', 'SUPERSEDED', 'CANCELLED'] } }, select: { id: true, status: true, completedAt: true, updatedAt: true }, orderBy: { id: 'asc' } })
+    const org = await db.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { settings: true } })
+    for (const a of closed) {
+      const until = evidenceKeptUntil(a, org.settings)
+      if (!until || until.getTime() > now.getTime()) continue
+      if ((await purgeRiskEvidence(ctx, { assessmentId: a.id }, { idempotencyKey: `risk-review-daily:purge:${today}:${a.id}`, ...options })).ok) evidencePurged++
+    }
+  }
+  return { questionnairesSuperseded, overridesExpiring, overridesExpired, reviewsScheduled, reviewsCancelled, suppliersRefreshed, evidencePurged }
 }
 
 /** The organizations risk-review-daily runs for (RISK on): one step each in the job */

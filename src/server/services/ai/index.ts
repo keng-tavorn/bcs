@@ -59,4 +59,4 @@ export {
 } from './agents/sourcing'
 export { sourcingFacts, sourcingFactsText, type SourcingFacts } from './agents/sourcing-facts'
 // S11-13 (FR-AI-306): the Risk Agent
-export { closeRiskDrafts, draftRiskAnswers, riskFacts, riskSummaryOf, writeRiskSummary, type RiskDraftRun, type RiskFacts, type RiskSummaryDto, type RiskSummaryRun } from './agents/risk'
+export { closeRiskDrafts, draftRiskAnswers, writeRiskSummary, type RiskDraftRun, type RiskSummaryRun } from './agents/risk'

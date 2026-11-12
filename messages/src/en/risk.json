@@ -393,6 +393,21 @@
         "RETURNED": "Returned",
         "CANCELLED": "Cancelled"
       }
+    },
+    "ai": {
+      "title": "Filled in by AI — please check",
+      "intro": "AI proposed some answers from the supplier's documents. Tick each one to confirm it, or choose another answer yourself.",
+      "proposed": "AI proposes: {option}",
+      "quote": "In the document: “{quote}”",
+      "sourceDocument": "From the document {name}",
+      "sourceFile": "From the file {name}",
+      "confidence": "AI confidence {percent}%",
+      "checks": {
+        "EVIDENCE_MISSING": "No certificate in the system confirms this answer yet. Check it before you confirm."
+      },
+      "confirm": "Checked: use the answer AI proposed for this question",
+      "confirmed": "The answer AI proposed is confirmed",
+      "pending": "Waiting: the answer AI proposed for this question is not confirmed, so the assessment cannot be sent"
     }
   },
   "override": {

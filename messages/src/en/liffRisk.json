@@ -96,6 +96,11 @@
       "moduleOff": "Supplier risk is switched off for this organization, so this review cannot be decided.",
       "signedOut": "Your sign-in has ended and nothing was sent. Load this page again and try once more.",
       "other": "The decision was not saved. Try again; if it still fails, tell your administrator."
+    },
+    "ai": {
+      "title": "Summary by AI",
+      "hint": "An assistant wrote this from the answers of the parts you review. Every number and code comes from the system. It helps you read; the decision is yours.",
+      "inconsistent": "Questions a document may contradict: {codes}"
     }
   }
 }

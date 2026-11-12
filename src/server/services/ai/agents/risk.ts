@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { checkAiText, checkRiskDraft, renderValue, type TextValue } from '@/core/ai-checks'
+import { checkAiText, checkRiskDraft, renderValue } from '@/core/ai-checks'
 import { AI_FILE_MEDIA_TYPES, getAiClient, type AiFileMediaType } from '@/integrations/ai'
 import { readObject } from '@/integrations/storage'
 import { AI_LIMITS, DECISION_ADVICE_WORDS, modelForPurpose, RISK_PROFILE } from '@/lib/ai-config'
@@ -8,8 +8,7 @@ import { MS_PER_MINUTE } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { systemCtx, type Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
-import { riskAiOn, riskAnswerPath, riskAssessmentOpen, riskDraftSource, riskSummarySource, RISK_ASSIST_TYPE, type RiskAiFile, type RiskSummarySource } from '../../risk/ai-assist'
-import { riskReviewTask } from '../../risk/reviews'
+import { riskAnswerPath, riskAssessmentOpen, riskDraftSource, riskFacts, riskSummarySource, RISK_ASSIST_TYPE, type RiskAiFile, type RiskFacts } from '../../risk/ai-assist'
 import { completeAgentAction, expireAgentAction, requestAgentAction } from '../actions'
 import { asDataValues } from '../data'
 import { aiRuntime, checkCallGates } from '../gate'
@@ -149,28 +148,6 @@ export async function closeRiskDrafts(organizationId: string, assessmentId: stri
 
 // ---------- RISK_FILE_SUMMARY (L0 · AC3) ----------
 
-export type RiskFacts = Readonly<Record<string, TextValue>>
-
-/** The facts of a reviewer's part, from code (BR-AI-03): codes, counts and the words of the options chosen */
-export function riskFacts(s: RiskSummarySource): RiskFacts {
-  const integer = (value: number): TextValue => ({ kind: 'integer', value })
-  const out: Record<string, TextValue> = {
-    assessment: { kind: 'ref', value: s.number },
-    supplier: { kind: 'ref', value: s.supplierCode },
-    questionCount: integer(s.questions.length),
-    answeredCount: integer(s.questions.filter((q) => q.answer !== null).length),
-    missingCount: integer(s.questions.filter((q) => q.answer === null).length),
-    evidenceCount: integer(s.questions.filter((q) => q.source === 'EVIDENCE').length),
-    fileCount: integer(s.questions.reduce((n, q) => n + q.files, 0)),
-  }
-  for (const q of s.questions) {
-    out[`${q.code}.code`] = { kind: 'ref', value: q.code }
-    out[`${q.code}.answer`] = { kind: 'text', value: q.answer ?? '-' }
-    if (q.source) out[`${q.code}.source`] = { kind: 'enum', value: q.source }
-  }
-  return out
-}
-
 const factsText = (facts: RiskFacts, files: readonly RiskAiFile[]) =>
   riskSummaryInputText(asDataValues(Object.fromEntries(Object.entries(facts).map(([k, v]) => [k, renderValue(v)]))), files.map((f) => ({ label: f.label, kind: f.about })))
 
@@ -213,37 +190,4 @@ export async function writeRiskSummary(organizationId: string, taskId: string, n
   const done = await finish({ outcome: 'DRAFT', model: answer.model, output: { sentences: answer.output.sentences, factKeys: Object.keys(facts).sort(), inconsistentQuestionCodes: inconsistent }, usage: answer.usage, latencyMs: answer.latencyMs })
   if (!done.ok) return `SKIPPED_${done.error.code}`
   return done.data.status === 'DRAFT' ? 'WRITTEN' : 'FAILED'
-}
-
-export interface RiskSummaryDto {
-  readonly agentActionId: string
-  readonly sentences: readonly string[]
-  /** Codes of the slot's questions whose answer a file contradicts */
-  readonly inconsistentQuestionCodes: readonly string[]
-}
-
-/**
- * The box "สรุปโดย AI" of a reviewer's task, for whoever reads the task (riskReviewTask checks it), while AI is on: the
- * summary of the task, filled in again from today's facts and checked again (BR-AI-27); null otherwise (EG-1 · AC6)
- */
-export async function riskSummaryOf(ctx: Ctx, taskId: string): Promise<RiskSummaryDto | null> {
-  const page = await riskReviewTask(ctx, taskId)
-  if (!page.ok) return null
-  const db = forTenant(ctx.organizationId)
-  return db.$transaction(async (tx) => {
-    if (!(await riskAiOn(tx, ctx))) return null
-    const row = await tx.agentAction.findFirst({ where: { idempotencyKey: `risk_summary:${taskId}`, purpose: SUMMARY, status: 'DRAFT', contentPurgedAt: null }, select: { id: true, output: true } })
-    if (!row) return null
-    const o = (row.output ?? {}) as { sentences?: string[]; factKeys?: string[]; inconsistentQuestionCodes?: string[] }
-    if (!o.sentences) return null
-    const source = await riskSummarySource(tx, systemCtx(ctx.organizationId, ctx.now, 'risk-ai-summary'), taskId)
-    // the task closed or the assessment moved on: the words were for the file as it was
-    if (!source.ok) return null
-    const facts = riskFacts(source.data)
-    if (!(o.factKeys ?? []).every((k) => Object.hasOwn(facts, k))) return null
-    const checked = checkAiText(o.sentences, facts, RISK_PROFILE, DECISION_ADVICE_WORDS)
-    if (!checked.ok) return null
-    const seen = new Set(page.data.questions.map((q) => q.code))
-    return { agentActionId: row.id, sentences: checked.rendered, inconsistentQuestionCodes: (o.inconsistentQuestionCodes ?? []).filter((c) => seen.has(c)) }
-  })
 }

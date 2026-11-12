@@ -6,6 +6,7 @@ import { RISK_EVIDENCE_FILES_PER_QUESTION } from '@/lib/constants'
 import { portalRiskAssessment, type PortalRiskAnswer, type PortalRiskQuestion } from '@/server/portal/queries-risk'
 import { portalQuestionSet } from '@/server/portal/risk-set'
 import { isUuid } from '@/server/queries/requests'
+import { portalRiskAiDraft, type RiskAiSuggestion } from '@/server/services/risk/ai-assist'
 import { checkboxClass, textareaClass } from '@/ui/liff/requests/classes'
 import { PortalButton, PortalFrame, PortalNotice } from '@/ui/portal/frame'
 import { one, pageOrg, pageSession, Unavailable, type SearchParams } from '../../_lib/page'
@@ -17,6 +18,10 @@ import { one, pageOrg, pageSession, Unavailable, type SearchParams } from '../..
 // questions still missing come back in ?missing=); each answered question takes files (PDF, JPEG, PNG, WebP) with the
 // uploader's choice whether the AI may read them (default not ticked). Forms only while DRAFT or RETURNED; the message
 // procurement forwarded is shown when RETURNED. Never the points, a tier before completion or a reviewer's reasons.
+// S11-13 (FR-AI-306 AC2 · BR-AI-33): an answer the Risk Agent proposed shows beside its question in a box "เติมโดย AI
+// โปรดตรวจ" with the words it read and the document they came from; a question not answered yet starts from it, and the
+// contact ticks each one to confirm it (confirm-ai-<code> with the draft's agentActionId) — never all at once. With AI
+// off no box shows, except an answer saved from the AI and not yet confirmed, which holds the send back.
 
 type PortalT = Awaited<ReturnType<typeof getTranslations<'portal'>>>
 
@@ -58,7 +63,13 @@ export default async function PortalRiskAssessmentPage({ params, searchParams }:
   if (!org) return <Unavailable />
   const session = await pageSession(org)
   if (!session) redirect(`/portal/${org.code}/login`)
-  const [t, locale, q, a] = await Promise.all([getTranslations('portal'), getLocale(), searchParams, isUuid(id) ? portalRiskAssessment(session.state.ctx, id) : Promise.resolve(null)])
+  const [t, locale, q, a, ai] = await Promise.all([
+    getTranslations('portal'),
+    getLocale(),
+    searchParams,
+    isUuid(id) ? portalRiskAssessment(session.state.ctx, id) : Promise.resolve(null),
+    isUuid(id) ? portalRiskAiDraft(session.state.ctx, id) : Promise.resolve(null),
+  ])
   const back = (
     <a href={`/portal/${org.code}/risk`} className={linkClass}>
       {t('risk.assessment.back')}
@@ -76,6 +87,7 @@ export default async function PortalRiskAssessmentPage({ params, searchParams }:
   const editable = EDITABLE.has(a.status)
   const set = portalQuestionSet(a)
   const answers = new Map(a.answers.filter((x) => x.optionCode !== null).map((x) => [x.questionCode, x]))
+  const suggestions = new Map(editable && ai ? ai.suggestions.map((x) => [x.questionCode, x]) : [])
   const groups = [...DOMAINS, 'OTHER' as const]
     .map((domain) => ({ domain, questions: set.filter((x) => (domain === 'OTHER' ? !(DOMAINS as readonly string[]).includes(x.domain) : x.domain === domain)) }))
     .filter((g) => g.questions.length > 0)
@@ -142,6 +154,7 @@ export default async function PortalRiskAssessmentPage({ params, searchParams }:
         <div className="flex flex-col gap-2 text-ink-muted">
           <p>{t('risk.assessment.intro')}</p>
           <p>{t('risk.evidence.uploadHint')}</p>
+          {suggestions.size ? <p>{t('risk.ai.intro')}</p> : null}
         </div>
       ) : (
         <PortalNotice tone="info">{t('risk.assessment.readOnly')}</PortalNotice>
@@ -158,6 +171,7 @@ export default async function PortalRiskAssessmentPage({ params, searchParams }:
               en={en}
               question={question}
               answer={answers.get(question.code)}
+              suggestion={suggestions.get(question.code)}
               editable={editable}
               missing={missing.includes(question.code)}
               notice={at === question.code ? notice : null}
@@ -172,6 +186,7 @@ export default async function PortalRiskAssessmentPage({ params, searchParams }:
             {hidden}
             <input type="hidden" name="key" value={randomUUID()} />
             <input type="hidden" name="version" value={a.version} />
+            {ai && suggestions.size ? <input type="hidden" name="agentActionId" value={ai.agentActionId} /> : null}
             <p className="text-ink-muted">{t('risk.assessment.saveHint')}</p>
             <PortalButton type="submit" className="w-full">
               {t('risk.assessment.save')}
@@ -203,6 +218,7 @@ function Question({
   en,
   question: q,
   answer,
+  suggestion,
   editable,
   missing,
   notice,
@@ -212,6 +228,7 @@ function Question({
   readonly en: boolean
   readonly question: PortalRiskQuestion
   readonly answer: PortalRiskAnswer | undefined
+  readonly suggestion: RiskAiSuggestion | undefined
   readonly editable: boolean
   readonly missing: boolean
   readonly notice: ReactNode
@@ -246,7 +263,16 @@ function Question({
             {marks}
             {q.options.map((o) => (
               <label key={o.code} className="flex min-h-11 items-start gap-3 py-2">
-                <input type="radio" form={ANSWERS_FORM} name={`answer-${q.code}`} value={o.code} defaultChecked={answer?.optionCode === o.code} disabled={locked} className={choiceClass} />
+                <input
+                  type="radio"
+                  form={ANSWERS_FORM}
+                  name={`answer-${q.code}`}
+                  value={o.code}
+                  // a question not answered yet starts from what the AI proposed; saving it unconfirmed holds the send back
+                  defaultChecked={answer ? answer.optionCode === o.code : suggestion?.optionCode === o.code}
+                  disabled={locked}
+                  className={choiceClass}
+                />
                 <span>{label(o)}</span>
               </label>
             ))}
@@ -257,6 +283,7 @@ function Question({
               </label>
             ) : null}
           </fieldset>
+          {suggestion && !locked ? <AiSuggestion t={t} en={en} question={q} suggestion={suggestion} /> : null}
           {/* a note goes with an answer the person gives: a certificate's answer takes one once it is confirmed */}
           {locked ? (
             answer?.note ? <p className="whitespace-pre-line text-ink-muted">{t('risk.assessment.noteValue', { note: answer.note })}</p> : null
@@ -319,6 +346,34 @@ function Question({
       ) : editable ? (
         <p className="text-sm text-ink-muted">{t('risk.evidence.answerFirst')}</p>
       ) : null}
+    </div>
+  )
+}
+
+/** The box of an answer the AI proposed (BR-AI-33): what, from where, how sure, the check, and the tick that confirms it */
+function AiSuggestion({ t, en, question: q, suggestion: s }: { readonly t: PortalT; readonly en: boolean; readonly question: PortalRiskQuestion; readonly suggestion: RiskAiSuggestion }) {
+  const option = q.options.find((o) => o.code === s.optionCode)
+  return (
+    <div className="flex flex-col gap-1 border-l-4 border-info bg-surface py-2 pl-3" role="group" aria-labelledby={`ai-title-${q.code}`}>
+      <p id={`ai-title-${q.code}`} className="font-medium">
+        {t('risk.ai.title')}
+      </p>
+      <p>{t('risk.ai.proposed', { option: option ? (en ? option.labelEn : option.labelTh) : s.optionCode })}</p>
+      {s.quote ? <p className="break-words text-ink-muted">{t('risk.ai.quote', { quote: s.quote })}</p> : null}
+      {s.source ? <p className="break-all text-ink-muted">{s.source.kind === 'DOCUMENT' ? t('risk.ai.sourceDocument', { name: s.source.name }) : t('risk.ai.sourceFile', { name: s.source.name })}</p> : null}
+      <p className="text-sm text-ink-muted">{t('risk.ai.confidence', { percent: Math.floor(s.confidenceBp / 100) })}</p>
+      {s.check?.code === 'EVIDENCE_MISSING' ? <p className="font-medium text-warn-ink">{t('risk.ai.checks.EVIDENCE_MISSING')}</p> : null}
+      {s.confirmed ? (
+        <p className="text-ink-muted">{t('risk.ai.confirmed')}</p>
+      ) : (
+        <>
+          {s.pending ? <p className="font-medium text-warn-ink">{t('risk.ai.pending')}</p> : null}
+          <label className="flex min-h-11 items-start gap-3 py-2">
+            <input type="checkbox" form={ANSWERS_FORM} name={`confirm-ai-${q.code}`} value="1" className={choiceClass} />
+            <span className="font-medium">{t('risk.ai.confirm')}</span>
+          </label>
+        </>
+      )}
     </div>
   )
 }

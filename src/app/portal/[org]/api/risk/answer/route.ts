@@ -3,6 +3,7 @@ import { portalRequest, postSession } from '@/server/portal/http'
 import { portalRiskAssessment, type PortalRiskAssessment } from '@/server/portal/queries-risk'
 import { portalQuestionSet } from '@/server/portal/risk-set'
 import { isUuid } from '@/server/queries/requests'
+import { portalRiskAiDraft, riskAnswerPath, type RiskAiDraftView } from '@/server/services/risk/ai-assist'
 import { answerRiskAssessment } from '@/server/services/risk/assessments'
 import { field, forbiddenCsrf, formOf, notFound, seeOther } from '../../../_lib/respond'
 
@@ -12,12 +13,15 @@ import { field, forbiddenCsrf, formOf, notFound, seeOther } from '../../../_lib/
 // only what changed: an answer from evidence goes only when confirmed (it is never changed by hand), a question with no
 // option chosen and no answer is skipped, and an answer left as it was is not sent again (procurement's ON_BEHALF answers
 // stay theirs). The service checks who, the state and every answer; the answer is the page with ?saved= or ?error=.
+// S11-13 (BR-AI-33): with the Risk Agent's draft open on the page (agentActionId), confirm-ai-<code> confirms that one
+// answer the AI proposed (it is sent again even when unchanged); the draft goes with the answers as aiAssist whenever an
+// answer it proposed is among them, so one saved from the AI and not ticked waits (AI_REVIEW_PENDING at the send).
 
 type AnswerItem = Parameters<typeof answerRiskAssessment>[1]['answers'][number]
 
 const versionOf = (v: string): number => (/^\d{1,9}$/.test(v) ? Number(v) : -1)
 
-function answersOf(form: FormData, a: PortalRiskAssessment): AnswerItem[] {
+function answersOf(form: FormData, a: PortalRiskAssessment, aiConfirmed: ReadonlySet<string>): AnswerItem[] {
   const out: AnswerItem[] = []
   for (const q of portalQuestionSet(a)) {
     const names = { answer: `answer-${q.code}`, note: `note-${q.code}`, confirm: `confirm-${q.code}` }
@@ -31,7 +35,7 @@ function answersOf(form: FormData, a: PortalRiskAssessment): AnswerItem[] {
     }
     const optionCode = field(form, names.answer)
     if (optionCode === '') continue
-    if (existing && existing.optionCode === optionCode && (note === undefined || note === (existing.note ?? ''))) continue
+    if (existing && existing.optionCode === optionCode && (note === undefined || note === (existing.note ?? '')) && !aiConfirmed.has(q.code)) continue
     out.push({ questionCode: q.code, optionCode, ...withNote })
   }
   return out
@@ -48,9 +52,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
   const assessment = isUuid(id) ? await portalRiskAssessment(state.ctx, id) : null
   if (!assessment) return seeOther(req.org, '/risk', { error: 'NOT_FOUND' })
   const page = `/risk/${assessment.id}`
-  const answers = answersOf(form, assessment)
+  const draft = field(form, 'agentActionId') ? await portalRiskAiDraft(state.ctx, assessment.id) : null
+  const ai: RiskAiDraftView | null = draft && draft.agentActionId === field(form, 'agentActionId') ? draft : null
+  // only a tick of an answer the AI proposed and the contact keeps as proposed counts as its confirmation
+  const aiConfirmed = new Set(ai ? ai.suggestions.filter((x) => field(form, `confirm-ai-${x.questionCode}`) !== '' && field(form, `answer-${x.questionCode}`) === x.optionCode).map((x) => x.questionCode) : [])
+  const answers = answersOf(form, assessment, aiConfirmed)
   if (answers.length === 0) return seeOther(req.org, page, { unchanged: 1 })
-  const r = await answerRiskAssessment(state.ctx, { assessmentId: assessment.id, expectedVersion: versionOf(field(form, 'version')), answers }, { idempotencyKey: field(form, 'key') || randomUUID() })
+  const proposed = new Set(ai?.suggestions.map((x) => x.questionCode) ?? [])
+  const aiAssist = ai && answers.some((x) => proposed.has(x.questionCode)) ? { agentActionId: ai.agentActionId, confirmedPaths: [...aiConfirmed].map(riskAnswerPath) } : undefined
+  const r = await answerRiskAssessment(
+    state.ctx,
+    { assessmentId: assessment.id, expectedVersion: versionOf(field(form, 'version')), answers, ...(aiAssist ? { aiAssist } : {}) },
+    { idempotencyKey: field(form, 'key') || randomUUID() },
+  )
   if (r.ok) return seeOther(req.org, page, { saved: 1 })
   const details: Readonly<Record<string, unknown>> = r.error.details ?? {}
   const reason = typeof details.reason === 'string' ? details.reason : undefined

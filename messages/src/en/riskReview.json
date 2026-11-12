@@ -64,7 +64,12 @@
     "slots": "Every part of this round",
     "slotsHint": "You see the state of the other parts only, not their answers or reasons.",
     "slot": "Part {no}: {domains}",
-    "slotMine": "Part {no} (yours): {domains}"
+    "slotMine": "Part {no} (yours): {domains}",
+    "ai": {
+      "title": "Summary by AI",
+      "hint": "An assistant wrote this from the answers of the parts you review. Every number and code comes from the system. It helps you read; the decision is yours.",
+      "inconsistent": "Questions a document may contradict: {codes}"
+    }
   },
   "decide": {
     "title": "Your decision",

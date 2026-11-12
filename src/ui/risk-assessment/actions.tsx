@@ -17,6 +17,7 @@ import {
   AlertDialogTrigger,
 } from '../shadcn/alert-dialog'
 import { Button } from '../shadcn/button'
+import { Checkbox } from '../shadcn/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../shadcn/dialog'
 import { Label } from '../shadcn/label'
 import { RadioGroup, RadioGroupItem } from '../shadcn/radio-group'
@@ -25,6 +26,9 @@ import { Textarea } from '../shadcn/textarea'
 // The buttons of /risk/assessments/[id] for PROCUREMENT (S11-05 · FR-RSK-201 AC5 · BR-RSK-01): fill in for the supplier
 // (a Dialog of the questions of the set, one choice each; an answer from a certificate is shown and kept), send, and
 // cancel with a reason (AlertDialog). The commands check risk.assessment.manage and the state again.
+// S11-13 (FR-AI-306 AC2 · BR-AI-33): an answer the Risk Agent proposed shows under its question in the Dialog — what, the
+// words it read and from where, how sure, a warning when no certificate backs it — and a question not answered yet starts
+// from it; procurement ticks each one to confirm it (never all at once). The draft goes with the answers as aiAssist.
 
 export interface FillQuestion {
   readonly code: string
@@ -33,15 +37,32 @@ export interface FillQuestion {
   readonly chosen: string | null
   /** An answer from a certificate: shown, not changed here */
   readonly locked: boolean
+  /** The answer the AI proposed, with its words already in the page's language */
+  readonly ai?: {
+    readonly optionCode: string
+    readonly proposed: string
+    readonly details: readonly string[]
+    readonly warning: string | null
+    readonly confirmed: boolean
+    readonly pending: boolean
+  }
 }
 
+/** The AI's draft the Dialog takes in (agentActionId), and the words of its box */
+export interface FillAi {
+  readonly agentActionId: string
+  readonly words: { readonly title: string; readonly intro: string; readonly confirm: string; readonly confirmed: string; readonly pending: string }
+}
+
+export type FillAiAssist = { readonly agentActionId: string; readonly confirmedPaths: string[] }
+
 export interface AssessmentActions {
-  readonly fill: (answers: { questionCode: string; optionCode: string }[], expectedVersion: number, key: string) => Promise<RiskAdminOutcome>
+  readonly fill: (answers: { questionCode: string; optionCode: string }[], expectedVersion: number, key: string, aiAssist?: FillAiAssist) => Promise<RiskAdminOutcome>
   readonly submit: (expectedVersion: number, key: string) => Promise<RiskAdminOutcome>
   readonly cancel: (reason: string, expectedVersion: number, key: string) => Promise<RiskAdminOutcome>
 }
 
-export function AssessmentButtons({ version, questions, actions }: { version: number; questions: readonly FillQuestion[]; actions: AssessmentActions }) {
+export function AssessmentButtons({ version, questions, actions, ai }: { version: number; questions: readonly FillQuestion[]; actions: AssessmentActions; ai?: FillAi | null }) {
   const t = useSay('risk.assessment')
   const failureText = useFailureText()
   const working = useRun()
@@ -96,8 +117,9 @@ export function AssessmentButtons({ version, questions, actions }: { version: nu
       {filling ? (
         <FillDialog
           questions={questions}
+          ai={ai ?? null}
           onClose={() => setFilling(false)}
-          fill={(answers, key) => actions.fill(answers, version, key)}
+          fill={(answers, key, aiAssist) => actions.fill(answers, version, key, aiAssist)}
           onSaved={() => {
             setFilling(false)
             setMessage({ tone: 'success', text: t('filled') })
@@ -131,21 +153,41 @@ export function OpenFileButton({ label, open }: { label: string; open: (key: str
   )
 }
 
-function FillDialog({ questions, fill, onClose, onSaved }: { questions: readonly FillQuestion[]; fill: (answers: { questionCode: string; optionCode: string }[], key: string) => Promise<RiskAdminOutcome>; onClose: () => void; onSaved: () => void }) {
+function FillDialog({
+  questions,
+  ai,
+  fill,
+  onClose,
+  onSaved,
+}: {
+  questions: readonly FillQuestion[]
+  ai: FillAi | null
+  fill: (answers: { questionCode: string; optionCode: string }[], key: string, aiAssist?: FillAiAssist) => Promise<RiskAdminOutcome>
+  onClose: () => void
+  onSaved: () => void
+}) {
   const t = useSay('risk.assessment')
   const failureText = useFailureText()
   const saving = useRun()
   const id = useId()
-  const [chosen, setChosen] = useState<Record<string, string>>(() => Object.fromEntries(questions.filter((q) => q.chosen).map((q) => [q.code, q.chosen!])))
+  // a question not answered yet starts from what the AI proposed (saving it unconfirmed holds the send back · BR-AI-17)
+  const [chosen, setChosen] = useState<Record<string, string>>(() =>
+    Object.fromEntries(questions.flatMap((q) => (q.chosen ? [[q.code, q.chosen]] : q.ai && !q.locked ? [[q.code, q.ai.optionCode]] : []))),
+  )
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set())
   const [failure, setFailure] = useState<string | null>(null)
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setFailure(null)
+    // a tick counts for an answer kept as the AI proposed it; it is sent again even when unchanged
+    const confirmed = questions.filter((q) => q.ai && !q.ai.confirmed && ticked.has(q.code) && chosen[q.code] === q.ai.optionCode).map((q) => q.code)
     // only what procurement chose or changed, never the answers from a certificate
-    const answers = questions.filter((q) => !q.locked && chosen[q.code] && chosen[q.code] !== q.chosen).map((q) => ({ questionCode: q.code, optionCode: chosen[q.code]! }))
+    const answers = questions.filter((q) => !q.locked && chosen[q.code] && (chosen[q.code] !== q.chosen || confirmed.includes(q.code))).map((q) => ({ questionCode: q.code, optionCode: chosen[q.code]! }))
     if (answers.length === 0) return onClose()
-    const outcome = await saving.run((key) => fill(answers, key))
+    const proposed = new Set(questions.filter((q) => q.ai).map((q) => q.code))
+    const aiAssist = ai && answers.some((x) => proposed.has(x.questionCode)) ? { agentActionId: ai.agentActionId, confirmedPaths: confirmed.map((c) => `answers.${c}`) } : undefined
+    const outcome = await saving.run((key) => fill(answers, key, aiAssist))
     if (outcome.ok) onSaved()
     else setFailure(failureText(outcome))
   }
@@ -156,6 +198,7 @@ function FillDialog({ questions, fill, onClose, onSaved }: { questions: readonly
         <DialogHeader>
           <DialogTitle>{t('fillTitle')}</DialogTitle>
           <DialogDescription>{t('fillBody')}</DialogDescription>
+          {ai && questions.some((q) => q.ai) ? <p className="text-ink-muted">{ai.words.intro}</p> : null}
         </DialogHeader>
         <form id={`${id}-form`} onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-4">
           {questions.map((q) => (
@@ -172,6 +215,44 @@ function FillDialog({ questions, fill, onClose, onSaved }: { questions: readonly
                   </div>
                 ))}
               </RadioGroup>
+              {q.ai && ai && !q.locked ? (
+                <div role="group" aria-labelledby={`${id}-${q.code}-ai`} className="flex flex-col gap-1 border-l-4 border-info bg-surface py-2 pl-3">
+                  <p id={`${id}-${q.code}-ai`} className="font-medium">
+                    {ai.words.title}
+                  </p>
+                  <p>{q.ai.proposed}</p>
+                  {q.ai.details.map((d) => (
+                    <p key={d} className="break-words text-ink-muted">
+                      {d}
+                    </p>
+                  ))}
+                  {q.ai.warning ? <p className="font-medium text-warn-ink">{q.ai.warning}</p> : null}
+                  {q.ai.confirmed ? (
+                    <p className="text-ink-muted">{ai.words.confirmed}</p>
+                  ) : (
+                    <>
+                      {q.ai.pending ? <p className="font-medium text-warn-ink">{ai.words.pending}</p> : null}
+                      <div className="flex min-h-11 items-center gap-3">
+                        <Checkbox
+                          id={`${id}-${q.code}-confirm`}
+                          checked={ticked.has(q.code)}
+                          onCheckedChange={(v) =>
+                            setTicked((old) => {
+                              const next = new Set(old)
+                              if (v === true) next.add(q.code)
+                              else next.delete(q.code)
+                              return next
+                            })
+                          }
+                        />
+                        <Label htmlFor={`${id}-${q.code}-confirm`} className="text-base">
+                          {ai.words.confirm}
+                        </Label>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : null}
             </fieldset>
           ))}
           {failure ? <Notice tone="danger">{failure}</Notice> : null}

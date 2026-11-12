@@ -1,16 +1,18 @@
-import { aiReadableEvidence, shouldDraftFor, type RiskCheckCode, type RiskDraftQuestion } from '@/core/ai-checks'
+import { aiReadableEvidence, checkAiText, shouldDraftFor, type RiskCheckCode, type RiskDraftQuestion, type TextValue } from '@/core/ai-checks'
 import { shouldReadDocument } from '@/core/ai-checks/supplier'
 import { questionsInSet } from '@/core/risk'
 import { dateIn } from '@/core/supplier-docs'
+import { DECISION_ADVICE_WORDS, RISK_PROFILE } from '@/lib/ai-config'
 import { riskSettingsOf } from '@/lib/org-settings'
 import { authorize } from '@/server/authz'
-import type { Ctx } from '@/server/context'
+import { systemCtx, type Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { openAssists, registerAssistSubject } from '../ai/assist-contract'
 import { agentSwitchedOn } from '../ai/gate'
 import { requireModule } from '../modules'
 import { contextOf, questionDefOf, questionsOf, RISK_TIMEZONE, type AssessmentRow } from './assessments'
 import { storedOptions } from './questionnaire'
+import { riskReviewTask } from './reviews'
 
 // A risk assessment as the Risk Agent sees it (S11-13 · FR-AI-306 · BR-AI-33 BR-AI-34 · ADR-228). This file never calls
 // the AI (INV-AI-05: src/server/services/risk does not import src/integrations/ai); the agent of the AI module asks it.
@@ -34,7 +36,8 @@ export const riskAnswerPath = (questionCode: string): string => `answers.${quest
 const PATH = /^answers\.(RQ-[A-Z]{2,4}-\d{2})$/
 export const questionOfPath = (path: string): string | null => PATH.exec(path)?.[1] ?? null
 
-const OPEN = new Set(['DRAFT', 'RETURNED'])
+const OPEN_STATES = ['DRAFT', 'RETURNED'] as const
+const OPEN: ReadonlySet<string> = new Set(OPEN_STATES)
 
 /** The answers of an assessment by path, as the form holds them: an answer with an option chosen */
 async function readAssessmentForAssist(tx: TenantTx, id: string): Promise<Readonly<Record<string, string>> | null> {
@@ -164,7 +167,7 @@ export async function riskAssessmentOpen(tx: TenantTx, assessmentId: string): Pr
 
 /** The open assessment of a supplier the agent may draft for again after one of its documents is verified (job risk-ai-draft) */
 export async function openRiskAssessmentIdOf(organizationId: string, supplierId: string): Promise<string | null> {
-  const a = await forTenant(organizationId).riskAssessment.findFirst({ where: { supplierId, status: { in: [...OPEN] } }, select: { id: true } })
+  const a = await forTenant(organizationId).riskAssessment.findFirst({ where: { supplierId, status: { in: [...OPEN_STATES] } }, select: { id: true } })
   return a?.id ?? null
 }
 
@@ -352,4 +355,61 @@ export async function portalRiskAiDraft(ctx: Ctx, assessmentId: string): Promise
 /** A path of the form answered, as the commands take it in aiAssist.confirmedPaths */
 export function confirmedPathsOf(codes: readonly string[]): string[] {
   return [...new Set(codes)].map(riskAnswerPath)
+}
+
+// ---------- the summary a reviewer reads (written by the agent's job; read here without the AI) ----------
+
+export type RiskFacts = Readonly<Record<string, TextValue>>
+
+/** The facts of a reviewer's part, from code (BR-AI-03): codes, counts and the words of the options chosen */
+export function riskFacts(s: RiskSummarySource): RiskFacts {
+  const integer = (value: number): TextValue => ({ kind: 'integer', value })
+  const out: Record<string, TextValue> = {
+    assessment: { kind: 'ref', value: s.number },
+    supplier: { kind: 'ref', value: s.supplierCode },
+    questionCount: integer(s.questions.length),
+    answeredCount: integer(s.questions.filter((q) => q.answer !== null).length),
+    missingCount: integer(s.questions.filter((q) => q.answer === null).length),
+    evidenceCount: integer(s.questions.filter((q) => q.source === 'EVIDENCE').length),
+    fileCount: integer(s.questions.reduce((n, q) => n + q.files, 0)),
+  }
+  for (const q of s.questions) {
+    out[`${q.code}.code`] = { kind: 'ref', value: q.code }
+    out[`${q.code}.answer`] = { kind: 'text', value: q.answer ?? '-' }
+    if (q.source) out[`${q.code}.source`] = { kind: 'enum', value: q.source }
+  }
+  return out
+}
+
+export interface RiskSummaryDto {
+  readonly agentActionId: string
+  readonly sentences: readonly string[]
+  /** Codes of the slot's questions whose answer a file contradicts */
+  readonly inconsistentQuestionCodes: readonly string[]
+}
+
+/**
+ * The box "สรุปโดย AI" of a reviewer's task, for whoever reads the task (riskReviewTask checks it), while AI is on: the
+ * summary of the task, filled in again from today's facts and checked again (BR-AI-27); null otherwise (EG-1 · AC6)
+ */
+export async function riskSummaryOf(ctx: Ctx, taskId: string): Promise<RiskSummaryDto | null> {
+  const page = await riskReviewTask(ctx, taskId)
+  if (!page.ok) return null
+  const db = forTenant(ctx.organizationId)
+  return db.$transaction(async (tx) => {
+    if (!(await riskAiOn(tx, ctx))) return null
+    const row = await tx.agentAction.findFirst({ where: { idempotencyKey: `risk_summary:${taskId}`, purpose: 'RISK_FILE_SUMMARY', status: 'DRAFT', contentPurgedAt: null }, select: { id: true, output: true } })
+    if (!row) return null
+    const o = (row.output ?? {}) as { sentences?: string[]; factKeys?: string[]; inconsistentQuestionCodes?: string[] }
+    if (!o.sentences) return null
+    const source = await riskSummarySource(tx, systemCtx(ctx.organizationId, ctx.now, 'risk-ai-summary'), taskId)
+    // the task closed or the assessment moved on: the words were for the file as it was
+    if (!source.ok) return null
+    const facts = riskFacts(source.data)
+    if (!(o.factKeys ?? []).every((k) => Object.hasOwn(facts, k))) return null
+    const checked = checkAiText(o.sentences, facts, RISK_PROFILE, DECISION_ADVICE_WORDS)
+    if (!checked.ok) return null
+    const seen = new Set(page.data.questions.map((q) => q.code))
+    return { agentActionId: row.id, sentences: checked.rendered, inconsistentQuestionCodes: (o.inconsistentQuestionCodes ?? []).filter((c) => seen.has(c)) }
+  })
 }

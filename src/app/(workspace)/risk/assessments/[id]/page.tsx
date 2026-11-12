@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
-import { riskAssessmentView } from '@/server/services/risk'
+import { riskAiDraftOf, riskAssessmentView } from '@/server/services/risk'
 import { NoAccess } from '@/ui/admin-settings/no-access'
 import { StatusBadge } from '@/ui/document/badges'
 import type { BadgeLook } from '@/ui/document/badge-looks'
@@ -22,6 +22,8 @@ export async function generateMetadata() {
 // the work is (screening, categories, work scopes, the tier from screening), every question of its set with its answer
 // and where the answer came from (the supplier, procurement for it, a certificate), the files behind them, and once sent
 // its points and tier. risk.assessment.view reads it; PROCUREMENT fills in, sends or cancels while it is open.
+// S11-13 (FR-AI-306 AC2): the answers the Risk Agent proposed show in the fill-in Dialog, to confirm one by one; a question
+// whose answer came from the AI and waits is marked in the list too, since the send waits for it (AI_REVIEW_PENDING).
 
 const STATUSES = ['DRAFT', 'IN_REVIEW', 'RETURNED', 'COMPLETED', 'SUPERSEDED', 'CANCELLED'] as const
 type Status = (typeof STATUSES)[number]
@@ -50,7 +52,7 @@ export default async function RiskAssessmentPage({ params }: { params: Promise<{
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null
   const [t, tAdmin, tCommon, locale] = await Promise.all([getTranslations('risk.assessment'), getTranslations('risk.admin'), getTranslations('adminSettings'), getLocale().then(localeOf)])
-  const view = await riskAssessmentView(ctx, id)
+  const [view, ai] = await Promise.all([riskAssessmentView(ctx, id), riskAiDraftOf(ctx, id)])
   if (!view.ok) {
     if (view.error.code === 'NOT_FOUND') notFound()
     return <NoAccess title={t('title')} message={view.error.code === 'MODULE_DISABLED' ? tAdmin('moduleOff') : tCommon('forbidden')} homeLabel={tCommon('homeLink')} />
@@ -60,13 +62,34 @@ export default async function RiskAssessmentPage({ params }: { params: Promise<{
   const status = (STATUSES as readonly string[]).includes(a.status) ? (a.status as Status) : 'DRAFT'
   const tierWord = (code: (typeof RISK_TIERS)[number]) => tAdmin(`tierName.${code}`)
   const open = status === 'DRAFT' || status === 'RETURNED'
-  const fillQuestions: FillQuestion[] = a.questions.map((q) => ({
-    code: q.code,
-    text: en ? q.textEn : q.textTh,
-    options: q.options.map((o) => ({ code: o.code, label: en ? o.labelEn : o.labelTh })),
-    chosen: q.answer?.optionCode ?? null,
-    locked: q.answer?.source === 'EVIDENCE',
-  }))
+  const suggestions = new Map(ai?.suggestions.map((s) => [s.questionCode, s]) ?? [])
+  const fillQuestions: FillQuestion[] = a.questions.map((q) => {
+    const s = suggestions.get(q.code)
+    const option = s ? q.options.find((o) => o.code === s.optionCode) : undefined
+    return {
+      code: q.code,
+      text: en ? q.textEn : q.textTh,
+      options: q.options.map((o) => ({ code: o.code, label: en ? o.labelEn : o.labelTh })),
+      chosen: q.answer?.optionCode ?? null,
+      locked: q.answer?.source === 'EVIDENCE',
+      ...(s
+        ? {
+            ai: {
+              optionCode: s.optionCode,
+              proposed: t('ai.proposed', { option: option ? (en ? option.labelEn : option.labelTh) : s.optionCode }),
+              details: [
+                ...(s.quote ? [t('ai.quote', { quote: s.quote })] : []),
+                ...(s.source ? [s.source.kind === 'DOCUMENT' ? t('ai.sourceDocument', { name: s.source.name }) : t('ai.sourceFile', { name: s.source.name })] : []),
+                t('ai.confidence', { percent: Math.floor(s.confidenceBp / 100) }),
+              ],
+              warning: s.check?.code === 'EVIDENCE_MISSING' ? t('ai.checks.EVIDENCE_MISSING') : null,
+              confirmed: s.confirmed,
+              pending: s.pending,
+            },
+          }
+        : {}),
+    }
+  })
   const byDomain = RISK_DOMAINS_UI.map((d) => ({ domain: d, questions: a.questions.filter((q) => q.domain === d) })).filter((g) => g.questions.length > 0)
 
   return (
@@ -92,6 +115,7 @@ export default async function RiskAssessmentPage({ params }: { params: Promise<{
                       return (
                         <li key={q.code} className="flex flex-col gap-1 py-3">
                           <span className="font-medium">{`${q.code} · ${en ? q.textEn : q.textTh}`}</span>
+                          {suggestions.get(q.code)?.pending ? <span className="font-medium text-warn-ink">{t('ai.pending')}</span> : null}
                           {q.answer ? (
                             <>
                               <span>{t('answer', { option: option ? (en ? option.labelEn : option.labelTh) : q.answer.optionCode, points: q.answer.points })}</span>
@@ -183,6 +207,7 @@ export default async function RiskAssessmentPage({ params }: { params: Promise<{
                 <AssessmentButtons
                   version={a.version}
                   questions={fillQuestions}
+                  ai={ai ? { agentActionId: ai.agentActionId, words: { title: t('ai.title'), intro: t('ai.intro'), confirm: t('ai.confirm'), confirmed: t('ai.confirmed'), pending: t('ai.pending') } } : null}
                   actions={{ fill: fillOnBehalfAction.bind(null, a.id), submit: submitAssessmentAction.bind(null, a.id), cancel: cancelAssessmentAction.bind(null, a.id) }}
                 />
               </Panel>

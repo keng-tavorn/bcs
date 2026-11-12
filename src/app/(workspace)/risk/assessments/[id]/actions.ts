@@ -8,8 +8,15 @@ import { openRiskFile, runRiskCommand } from '../../_outcome'
 
 const page = (id: string) => `/risk/assessments/${id}`
 
-export async function fillOnBehalfAction(assessmentId: string, answers: { questionCode: string; optionCode: string }[], expectedVersion: number, key: string) {
-  return runRiskCommand(key, (ctx) => fillRiskAssessmentOnBehalf(ctx, { assessmentId, expectedVersion, answers }, { idempotencyKey: key }), page(assessmentId))
+/** S11-13 (BR-AI-33): with the Risk Agent's draft, the answers it proposed that procurement confirmed one by one */
+export async function fillOnBehalfAction(
+  assessmentId: string,
+  answers: { questionCode: string; optionCode: string }[],
+  expectedVersion: number,
+  key: string,
+  aiAssist?: { agentActionId: string; confirmedPaths: string[] },
+) {
+  return runRiskCommand(key, (ctx) => fillRiskAssessmentOnBehalf(ctx, { assessmentId, expectedVersion, answers, ...(aiAssist ? { aiAssist } : {}) }, { idempotencyKey: key }), page(assessmentId))
 }
 
 export async function submitAssessmentAction(assessmentId: string, expectedVersion: number, key: string) {

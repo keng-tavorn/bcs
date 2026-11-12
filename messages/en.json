@@ -7869,6 +7869,11 @@
   },
   "liffRisk": {
     "review": {
+      "ai": {
+        "hint": "An assistant wrote this from the answers of the parts you review. Every number and code comes from the system. It helps you read; the decision is yours.",
+        "inconsistent": "Questions a document may contradict: {codes}",
+        "title": "Summary by AI"
+      },
       "back": "Home",
       "decide": {
         "backToChat": "Back to the chat",
@@ -9837,6 +9842,21 @@
       }
     },
     "risk": {
+      "ai": {
+        "checks": {
+          "EVIDENCE_MISSING": "No certificate in the system confirms this answer yet. Check it before you confirm."
+        },
+        "confidence": "AI confidence {percent}%",
+        "confirm": "I checked it: use the answer AI proposed for this question",
+        "confirmed": "The answer AI proposed is confirmed",
+        "intro": "AI proposed some answers from the documents you sent and let it read. You can always choose another answer, and you must tick each answer AI proposed before you send the assessment.",
+        "pending": "The answer AI proposed is saved but not confirmed: tick it before you send",
+        "proposed": "AI proposes: {option}",
+        "quote": "In the document: “{quote}”",
+        "sourceDocument": "From the document {name}",
+        "sourceFile": "From the file {name}",
+        "title": "Filled in by AI — please check"
+      },
       "assessment": {
         "answer": "Answer: {option}",
         "back": "Back to the assessments",
@@ -12598,6 +12618,21 @@
       }
     },
     "assessment": {
+      "ai": {
+        "checks": {
+          "EVIDENCE_MISSING": "No certificate in the system confirms this answer yet. Check it before you confirm."
+        },
+        "confidence": "AI confidence {percent}%",
+        "confirm": "Checked: use the answer AI proposed for this question",
+        "confirmed": "The answer AI proposed is confirmed",
+        "intro": "AI proposed some answers from the supplier's documents. Tick each one to confirm it, or choose another answer yourself.",
+        "pending": "Waiting: the answer AI proposed for this question is not confirmed, so the assessment cannot be sent",
+        "proposed": "AI proposes: {option}",
+        "quote": "In the document: “{quote}”",
+        "sourceDocument": "From the document {name}",
+        "sourceFile": "From the file {name}",
+        "title": "Filled in by AI — please check"
+      },
       "answer": "Answer: {option} ({points} points)",
       "cancel": "Cancel the assessment",
       "cancelBody": "A cancelled assessment cannot be reopened; open a new one. Open reviewer tasks are cancelled too.",
@@ -12826,6 +12861,11 @@
       "working": "Saving…"
     },
     "detail": {
+      "ai": {
+        "hint": "An assistant wrote this from the answers of the parts you review. Every number and code comes from the system. It helps you read; the decision is yours.",
+        "inconsistent": "Questions a document may contradict: {codes}",
+        "title": "Summary by AI"
+      },
       "answer": "Answer: {option}",
       "assessment": "This assessment",
       "assessmentStatus": "Assessment status",

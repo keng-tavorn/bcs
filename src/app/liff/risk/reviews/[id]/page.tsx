@@ -2,7 +2,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import type { ReactNode } from 'react'
 import { formatEnglishBeDate, formatThaiDate } from '@/core/thai/date'
 import type { RiskReviewTaskPage } from '@/server/queries/risk-review'
-import { riskReviewTask } from '@/server/services/risk'
+import { riskReviewTask, riskSummaryOf, type RiskSummaryDto } from '@/server/services/risk'
 import { STEP_BADGES } from '@/ui/document/badge-looks'
 import { formatDateTime } from '@/ui/format'
 import { LIFF_START_PATH } from '@/ui/liff/bootstrap'
@@ -139,6 +139,23 @@ function Questions({ view, t, locale }: { readonly view: RiskReviewTaskPage; rea
   )
 }
 
+/** S11-13 (FR-AI-306 AC3): the Risk Agent's summary of the member's parts, in a section of its own; never in the card */
+function AiSummary({ summary, t }: { readonly summary: RiskSummaryDto; readonly t: ReviewT }) {
+  return (
+    <LiffSection id="risk-review-ai" title={t('ai.title')}>
+      <ul className="flex list-disc flex-col gap-1 pl-5">
+        {summary.sentences.map((line) => (
+          <li key={line} className="break-words">
+            {line}
+          </li>
+        ))}
+      </ul>
+      {summary.inconsistentQuestionCodes.length ? <p className="font-medium text-warn-ink">{t('ai.inconsistent', { codes: summary.inconsistentQuestionCodes.join(', ') })}</p> : null}
+      <p className="text-ink-muted">{t('ai.hint')}</p>
+    </LiffSection>
+  )
+}
+
 /** Every slot of the round: its parts and its state only (BR-RSK-08) */
 function Slots({ view, t }: { readonly view: RiskReviewTaskPage; readonly t: ReviewT }) {
   return (
@@ -172,7 +189,7 @@ export default async function LiffRiskReviewPage({ params }: { params: Promise<{
     )
   }
 
-  const found = await riskReviewTask(page.ctx, id)
+  const [found, summary] = await Promise.all([riskReviewTask(page.ctx, id), riskSummaryOf(page.ctx, id)])
   if (!found.ok) {
     // Not theirs, moved or gone: nothing of the task is said (NOT_FOUND for anyone who may not read it)
     return (
@@ -211,6 +228,7 @@ export default async function LiffRiskReviewPage({ params }: { params: Promise<{
           { label: t('due'), value: overdue ? `${formatDateTime(locale, view.dueAt)} · ${t('overdue')}` : formatDateTime(locale, view.dueAt) },
         ]}
       />
+      {summary ? <AiSummary summary={summary} t={t} /> : null}
       <Questions view={view} t={t} locale={locale} />
       <Slots view={view} t={t} />
     </>

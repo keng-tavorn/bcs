@@ -13,6 +13,8 @@ import { p2Expected, p2SceneOf, p2Sheet, portalSessionOn, s10 } from './support'
 // Thai baht, and bids in THB: the bid is in baht with VAT 0 (not registered for Thai VAT).
 
 test('@p2demo [FR-INT-201/AC2] [FR-INT-201/AC3] [FR-INT-201/AC4] scene 13: a foreign supplier needs an RFx in Thai and English, reads the portal in English and bids in baht', async ({ browser }) => {
+  // a desk scene of several steps (two scene scripts, the setup, the print) and a bid on a phone
+  test.setTimeout(240_000)
   const [sheet, p1] = await Promise.all([p2Sheet(), p1Sheet()])
   const scene = p2SceneOf(sheet, 13)
   expect(p2Expected<string>(scene, 'locale')).toBe('TH_EN')
@@ -45,7 +47,9 @@ test('@p2demo [FR-INT-201/AC2] [FR-INT-201/AC3] [FR-INT-201/AC4] scene 13: a for
   // the RFx does not open while a line lacks its English
   await edit('schedule')
   await desk.getByRole('button', { name: 'ถัดไป: ตรวจและเปิด' }).click()
-  await expect(desk.getByText(/^ภาษาอังกฤษยังไม่ครบ: .*หน่วยบรรทัด 1/)).toBeVisible()
+  // the checks before opening (each item read with its state first: "ยังไม่ครบ: …")
+  const checks = desk.getByRole('list', { name: 'สิ่งที่ตรวจก่อนเปิด' }).getByRole('listitem')
+  await expect(checks.filter({ hasText: /ภาษาอังกฤษยังไม่ครบ: .*หน่วยบรรทัด 1/ })).toBeVisible()
   await expect(desk.getByRole('button', { name: 'เปิด RFx' })).toBeDisabled()
 
   // every line's English, then it opens
@@ -64,14 +68,14 @@ test('@p2demo [FR-INT-201/AC2] [FR-INT-201/AC3] [FR-INT-201/AC4] scene 13: a for
   }
   await edit('schedule')
   await desk.getByRole('button', { name: 'ถัดไป: ตรวจและเปิด' }).click()
-  await expect(desk.getByText('ภาษาอังกฤษครบ')).toBeVisible()
+  await expect(checks.filter({ hasText: /^ครบ: ภาษาอังกฤษครบ$/ })).toBeVisible()
   const reason = desk.getByLabel('เหตุผลที่เชิญน้อยกว่าขั้นต่ำ')
   if (await reason.isVisible()) await reason.fill('รอบสองสำหรับผู้ขายต่างชาติรายเดียว เทียบกับผลรอบแรก')
   await desk.getByRole('button', { name: 'เปิด RFx' }).click()
   await desk.getByRole('alertdialog').getByRole('button', { name: 'เปิด RFx' }).click()
   await desk.waitForURL(new RegExp(`/sourcing/${rfxEventId}(\\?|$)`))
   await desk.goto(`/sourcing/${rfxEventId}/print`)
-  await expect(desk.getByRole('columnheader', { name: 'ภาษาอังกฤษ' })).toBeVisible()
+  await expect(desk.getByRole('columnheader', { name: 'English' }).first()).toBeVisible()
   await expect(desk.getByText('ราคาเป็นบาทไทย / Prices in Thai Baht')).toBeVisible()
   await desk.context().close()
 

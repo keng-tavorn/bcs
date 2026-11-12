@@ -19,6 +19,9 @@ import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { loadBusinessCalendar } from '@/server/doa/policy'
 import type { EventDraft } from '@/server/events/append'
 import { SOURCING_SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-templates-sourcing'
+import { AiAssistInput, applyAiAssist, assertNoPendingAiReview } from '../ai/assist-contract'
+// the RFx's own registration with the assist contract (RFX_EVENT · S10-16), loaded with the commands that use it
+import './ai-assist'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { enabledModules, requireModule } from '../modules'
 import { issueDocumentNumber } from '../numbering'
@@ -403,17 +406,18 @@ const UpdateInput = z.strictObject({
   locale: z.enum(['TH', 'TH_EN']).optional(),
   /** Baht only (CURRENCY · NG-9) */
   currency: z.string().trim().max(3).optional(),
-  /** The English of the lines (BR-FORM-11): null clears it */
-  lines: z
-    .array(z.strictObject({ rfxLineId: z.uuid(), descriptionEn: TEXT.nullable().optional(), uomEn: z.string().trim().min(1).max(40).nullable().optional() }))
-    .max(200)
-    .optional(),
   allowPartialBids: z.boolean().optional(),
   allowVatInclusiveBids: z.boolean().optional(),
   bidValidityDays: z.int().min(1).max(365).optional(),
   /** BR-RFX-06: an RFx whose prices are seen before it closes needs a reason, kept as a comment (UNSEAL_REASON) */
   sealed: z.boolean().optional(),
   unsealReason: REASON.optional(),
+  /** S10-16 (BR-AI-31): RFQ ↔ RFP while a draft (an RFI stays one: it has no prices or scorecard) */
+  kind: z.enum(['RFQ', 'RFP']).optional(),
+  /** S10-16: each line's English, by its id (FR-INT-201 · the Sourcing Agent's draft) */
+  lines: z.array(z.strictObject({ rfxLineId: z.uuid(), descriptionEn: TEXT.nullable(), uomEn: z.string().trim().min(1).max(40).nullable() })).max(200).optional(),
+  /** What procurement confirmed of a Sourcing Agent's draft (RFX_DRAFT · BR-AI-17 · BR-AI-31) */
+  aiAssist: AiAssistInput.optional(),
 })
 
 export const updateRfxCommand = defineCommand({
@@ -431,30 +435,35 @@ export const updateRfxCommand = defineCommand({
     const unsealing = input.sealed === false && rfx.sealed
     if (unsealing && !input.unsealReason) return reasonOf('unsealReason', 'UNSEAL_REASON', 'prices seen before the close need a reason (BR-RFX-06)')
     if (rfx.kind === 'RFI' && input.sealed === false) return reasonOf('sealed', 'RFI_HAS_NO_PRICE', 'an RFI has no prices to unseal')
+    if (input.kind && rfx.kind === 'RFI') return reasonOf('kind', 'RFI_KIND_FIXED', 'an RFI stays an RFI')
     const badCurrency = currencyRefusal(input.currency)
     if (badCurrency) return badCurrency
-    const { rfxEventId: _id, expectedVersion: _v, unsealReason, currency: _c, lines: lineTexts, ...fields } = input
+    const { rfxEventId: _id, expectedVersion: _v, unsealReason, currency: _c, lines: lineTexts, aiAssist, ...fields } = input
     const changed = Object.entries(fields).filter(([k, v]) => v !== undefined && (rfx as unknown as Record<string, unknown>)[k] !== v).map(([k]) => k)
-    // the English of the lines (BR-FORM-11): lines of this RFx only, each changed one counted as lines.<n>
-    const lineRows = lineTexts?.length ? await tx.rfxLine.findMany({ where: { rfxEventId: rfx.id }, select: { id: true, lineNo: true, descriptionEn: true, uomEn: true } }) : []
-    const lineById = new Map(lineRows.map((l) => [l.id, l]))
-    if (lineTexts?.some((l) => !lineById.has(l.rfxLineId))) return reasonOf('lines', 'LINE', 'a line of another RFx')
-    const lineChanges = (lineTexts ?? []).filter((l) => {
-      const row = lineById.get(l.rfxLineId)!
-      return (l.descriptionEn !== undefined && l.descriptionEn !== row.descriptionEn) || (l.uomEn !== undefined && l.uomEn !== row.uomEn)
-    })
-    for (const l of lineChanges) changed.push(`lines.${lineById.get(l.rfxLineId)!.lineNo}`)
-    if (changed.length === 0) return reasonOf('rfxEventId', 'NO_CHANGE', 'nothing to change')
-    // a draft takes its English while it is typed: only an English reader invited to a Thai-only RFx is refused here
-    const locale = fields.locale ?? rfx.locale
-    const refusedLocale = await localeRefusal(tx, { id: rfx.id, locale, titleEn: rfx.titleEn, descriptionEn: rfx.descriptionEn }, { complete: false })
-    if (refusedLocale) return refusedLocale
-    for (const l of lineChanges) {
-      await tx.rfxLine.update({ where: { id: l.rfxLineId }, data: { ...(l.descriptionEn !== undefined ? { descriptionEn: l.descriptionEn } : {}), ...(l.uomEn !== undefined ? { uomEn: l.uomEn } : {}) } })
+    // the lines' English (S10-16): only lines of this RFx, and only what differs
+    const lineChanges: { id: string; lineNo: number; descriptionEn: string | null; uomEn: string | null }[] = []
+    if (lineTexts?.length) {
+      const own = new Map((await tx.rfxLine.findMany({ where: { rfxEventId: rfx.id, id: { in: lineTexts.map((l) => l.rfxLineId) } }, select: { id: true, lineNo: true, descriptionEn: true, uomEn: true } })).map((l) => [l.id, l]))
+      const strange = lineTexts.filter((l) => !own.has(l.rfxLineId)).map((l) => l.rfxLineId)
+      if (strange.length) return fail('NOT_FOUND', 'a line is not of this RFx', { field: 'lines', rfxLineIds: strange })
+      for (const l of lineTexts) {
+        const row = own.get(l.rfxLineId)!
+        if (row.descriptionEn !== l.descriptionEn || row.uomEn !== l.uomEn) lineChanges.push({ id: row.id, lineNo: row.lineNo, descriptionEn: l.descriptionEn, uomEn: l.uomEn })
+      }
     }
-    const updated = await tx.rfxEvent.update({ where: { id: rfx.id }, data: { ...fields, version: { increment: 1 } }, select: { version: true } })
-    const events: EventDraft[] = [{ type: 'rfx.updated', aggregateType: 'RfxEvent', aggregateId: rfx.id, data: { fields: changed } }]
+    // confirming what the AI filled in without changing anything is a change of its own (BR-AI-17)
+    if (changed.length === 0 && lineChanges.length === 0 && !aiAssist) return reasonOf('rfxEventId', 'NO_CHANGE', 'nothing to change')
+    // a draft takes its English while it is typed: only an English reader invited to a Thai-only RFx is refused here (BR-FORM-11)
+    const refusedLocale = await localeRefusal(tx, { id: rfx.id, locale: fields.locale ?? rfx.locale, titleEn: rfx.titleEn, descriptionEn: rfx.descriptionEn }, { complete: false })
+    if (refusedLocale) return refusedLocale
+    for (const l of lineChanges) await tx.rfxLine.update({ where: { id: l.id }, data: { descriptionEn: l.descriptionEn, uomEn: l.uomEn } })
+    const touched = changed.length > 0 || lineChanges.length > 0
+    const updated = await tx.rfxEvent.update({ where: { id: rfx.id }, data: { ...fields, ...(touched ? { version: { increment: 1 } } : {}) }, select: { version: true } })
+    const events: EventDraft[] = touched ? [{ type: 'rfx.updated', aggregateType: 'RfxEvent', aggregateId: rfx.id, data: { fields: changed, ...(lineChanges.length ? { lineNos: lineChanges.map((l) => l.lineNo) } : {}) } }] : []
     if (unsealing) events.push({ type: 'rfx.unsealed', aggregateType: 'RfxEvent', aggregateId: rfx.id, data: { reasonCommentId: await comment(tx, ctx, rfx.id, unsealReason!) } })
+    const assisted = await applyAiAssist(tx, ctx, { type: 'RFX_EVENT', id: rfx.id }, aiAssist)
+    if (!assisted.ok) return { ok: false, error: assisted.error }
+    events.push(...assisted.data)
     return { ok: true, result: { rfxEventId: rfx.id, version: updated.version }, events }
   },
 })
@@ -732,6 +741,9 @@ export const openRfxCommand = defineCommand({
     const next = step(rfx, 'rfx.open', input.expectedVersion)
     if (isFail(next)) return next
     if ((await tx.rfxLine.count({ where: { rfxEventId: rfx.id } })) === 0) return reasonOf('rfxEventId', 'NO_LINES', 'an RFx opens with one line at least')
+    // S10-16 (BR-AI-31 · BR-AI-17): values the Sourcing Agent put in wait for procurement before suppliers see them
+    const reviewed = await assertNoPendingAiReview(tx, ctx, { type: 'RFX_EVENT', id: rfx.id })
+    if (!reviewed.ok) return { ok: false, error: reviewed.error }
     const invites = await tx.rfxInvite.findMany({ where: { rfxEventId: rfx.id, status: 'INVITED' }, orderBy: [{ invitedAt: 'asc' }, { id: 'asc' }], select: { id: true, contactId: true, supplierId: true, applicationId: true } })
     if (invites.length === 0) return reasonOf('rfxEventId', 'NO_INVITES', 'an RFx opens with one invite at least')
     if (invites.length < rfx.minInvites && !input.fewerInvitesReason) {

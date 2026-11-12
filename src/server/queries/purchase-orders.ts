@@ -954,6 +954,42 @@ export interface PoViewDto {
   readonly waiting: PoWaitingDto
   readonly next: PoNextDto
   readonly track: readonly DocTrackEntryDto[]
+  /** S11-07: the risk gate it passed last (BR-RSK-09); null before any, or in an organization without RISK */
+  readonly riskGate: PoRiskGateDto | null
+}
+
+/** PurchaseOrder.riskGate for the PO's facts (FR-RSK-203 AC6): what its approvers see of the supplier's risk */
+export interface PoRiskGateDto {
+  readonly tier: 'LOW' | 'MEDIUM' | 'HIGH'
+  readonly source: 'NOT_REQUIRED' | 'ASSESSMENT' | 'OVERRIDE'
+  readonly trigger: 'SUBMIT' | 'SEND' | 'PO_CHANGE'
+  readonly at: Date
+  readonly warnings: readonly ('REGISTRY_FLAGGED' | 'REASSESSMENT_OVERDUE' | 'OVERRIDE_USED')[]
+  readonly assessment: { readonly id: string; readonly number: string | null } | null
+  readonly override: { readonly id: string; readonly number: string | null } | null
+  /** A reason was given for the warnings that need one */
+  readonly reasoned: boolean
+}
+
+/** The stored gate in the PO's words, with the numbers of what it rests on */
+async function riskGateOf(db: TenantDb, value: unknown): Promise<PoRiskGateDto | null> {
+  const g = value && typeof value === 'object' ? (value as Record<string, unknown>) : null
+  if (!g || typeof g.tier !== 'string' || typeof g.source !== 'string') return null
+  const id = (v: unknown) => (typeof v === 'string' && isUuid(v) ? v : null)
+  const [assessment, override] = await Promise.all([
+    id(g.assessmentId) ? db.riskAssessment.findFirst({ where: { id: id(g.assessmentId)! }, select: { id: true, number: true } }) : null,
+    id(g.overrideId) ? db.riskOverride.findFirst({ where: { id: id(g.overrideId)! }, select: { id: true, number: true } }) : null,
+  ])
+  return {
+    tier: g.tier as PoRiskGateDto['tier'],
+    source: g.source as PoRiskGateDto['source'],
+    trigger: (typeof g.trigger === 'string' ? g.trigger : 'SUBMIT') as PoRiskGateDto['trigger'],
+    at: new Date(typeof g.at === 'string' ? g.at : 0),
+    warnings: Array.isArray(g.warnings) ? (g.warnings.filter((w) => typeof w === 'string') as PoRiskGateDto['warnings'][number][]) : [],
+    assessment,
+    override,
+    reasoned: Boolean(id(g.reasonCommentId) || id(g.reasonPoChangeId)),
+  }
 }
 
 export async function getPurchaseOrderView(ctx: Ctx, poId: string): Promise<PoViewDto | null> {
@@ -1204,6 +1240,7 @@ export async function getPurchaseOrderView(ctx: Ctx, poId: string): Promise<PoVi
     waiting: waitingOf(po, w, waited),
     next,
     track: [...history, ...live],
+    riskGate: await riskGateOf(db, po.riskGate),
   }
 }
 

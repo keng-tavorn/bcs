@@ -805,8 +805,11 @@ export const REVIEW_TASK_COMMANDS = [
   // the two outcomes of riskReview.decide
   'riskReview.pass',
   'riskReview.return',
-  // the step decided by another slot, the assessment cancelled, or the task moved after an org change (ADR-108)
+  // the step decided by another slot, or the assessment cancelled
   'reviewTask.cancel',
+  // an org change moved the slot to its new holder (ADR-108 · S11-06): the task keeps its slot and its row, since a round
+  // has one task per slot (the unique key of ReviewTask), so it stays OPEN with another assignee
+  'reviewTask.reassign',
   // job risk-review-task-sla: the state stays
   'reviewTask.remind',
   'reviewTask.overdue',
@@ -820,6 +823,7 @@ export const REVIEW_TASK_MACHINE = machine<ReviewTaskState, ReviewTaskCommand>('
   { from: ['OPEN'], command: 'riskReview.pass', to: 'PASSED' },
   { from: ['OPEN'], command: 'riskReview.return', to: 'RETURNED' },
   { from: ['OPEN'], command: 'reviewTask.cancel', to: 'CANCELLED' },
+  { from: ['OPEN'], command: 'reviewTask.reassign', to: 'OPEN' },
   { from: ['OPEN'], command: 'reviewTask.remind', to: 'OPEN' },
   { from: ['OPEN'], command: 'reviewTask.overdue', to: 'OPEN' },
   { from: ['OPEN'], command: 'reviewTask.escalate', to: 'OPEN' },

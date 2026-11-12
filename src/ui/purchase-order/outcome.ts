@@ -80,6 +80,17 @@ export const PO_ERROR_KEYS = [
   'NO_ANSWER_LINE',
   'NO_ANSWER_REMOVE',
   'NO_ANSWER_TERMS',
+  // S11-07 (BR-RSK-09 · BR-RSK-12): the supplier's risk gate refused, by its reason, and the reason a warning needs
+  'RISK_NOT_ASSESSED',
+  'RISK_IN_PROGRESS',
+  'RISK_SCOPE_EXPANDED',
+  'RISK_VALIDITY_LAPSED',
+  'RISK_REGISTRY_CEASED',
+  'RISK_REGISTRY_FLAGGED',
+  'RISK_OVERRIDE_EXPIRED',
+  'RISK_OVERRIDE_CAP_EXCEEDED',
+  'RISK_REASON',
+  'RISK_OPEN_FAILED',
 ] as const
 export type PoErrorKey = (typeof PO_ERROR_KEYS)[number]
 
@@ -111,6 +122,7 @@ const NO_ANSWER_KEYS = {
 } as const satisfies Record<PoAction, PoErrorKey>
 
 const VALIDATION_REASONS: readonly PoErrorKey[] = ['NO_CHANGE', 'QUANTITY_OVER_REQUEST', 'QUANTITY', 'MERGED_LINE', 'NO_LINES', 'LINE', 'SUPPLIER_INACTIVE', 'NO_SOURCE_REQUEST']
+const RISK_REASONS = ['NOT_ASSESSED', 'IN_PROGRESS', 'SCOPE_EXPANDED', 'VALIDITY_LAPSED', 'REGISTRY_CEASED', 'REGISTRY_FLAGGED', 'OVERRIDE_EXPIRED', 'OVERRIDE_CAP_EXCEEDED'] as const
 
 /** Message key under purchaseOrder.errors */
 export function poErrorKey(failure: PoFailure): PoErrorKey {
@@ -124,6 +136,7 @@ export function poErrorKey(failure: PoFailure): PoErrorKey {
       // The field the input was refused for says what to fix
       if (field === 'supplierEmail') return 'EMAIL_MISSING'
       if (field === 'reason') return 'REASON'
+      if (field === 'riskReason') return 'RISK_REASON'
       if (field === 'paymentTermDays') return 'PAYMENT_DAYS'
       if (field === 'notesToSupplier') return 'NOTE'
       if (field === 'disposition') return 'DISPOSITION'
@@ -148,6 +161,13 @@ export function poErrorKey(failure: PoFailure): PoErrorKey {
       return code
     case 'TAX_RATE_NOT_CONFIGURED':
       return 'TAX_RATE'
+    // S11-07: the risk gate says why, in the words of its reason
+    case 'RISK_ASSESSMENT_REQUIRED':
+    case 'RISK_REASSESSMENT_REQUIRED':
+    case 'RISK_BLOCKED': {
+      const why = RISK_REASONS.find((r) => r === reason)
+      return why ? `RISK_${why}` : 'FAILED'
+    }
     case 'EXTERNAL_SERVICE_ERROR':
       return 'EMAIL_SERVICE'
     case 'RATE_LIMITED':

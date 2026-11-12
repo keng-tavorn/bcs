@@ -52,20 +52,18 @@ test('@p2demo [FR-INT-201/AC2] [FR-INT-201/AC3] [FR-INT-201/AC4] scene 13: a for
   await expect(checks.filter({ hasText: /ภาษาอังกฤษยังไม่ครบ: .*หน่วยบรรทัด 1/ })).toBeVisible()
   await expect(desk.getByRole('button', { name: 'เปิด RFx' })).toBeDisabled()
 
-  // every line's English, then it opens
-  await edit('lines')
-  const englishForms = desk.getByRole('form', { name: /^ภาษาอังกฤษของ / })
-  const count = await englishForms.count()
+  // every line's English on the step "ทั่วไป" (the lines in English, S10-16), then it opens
+  await edit('general')
+  const descriptions = desk.getByLabel(/^คำอธิบายภาษาอังกฤษ บรรทัด \d+$/)
+  const units = desk.getByLabel(/^หน่วยภาษาอังกฤษ บรรทัด \d+$/)
+  const count = await units.count()
   expect(count).toBeGreaterThan(0)
   for (let i = 0; i < count; i++) {
-    const form = englishForms.nth(i)
-    const item = form.getByLabel('รายการ (อังกฤษ)')
-    if (!(await item.inputValue())) await item.fill(`Item ${i + 1}`)
-    await form.getByLabel('หน่วย (อังกฤษ)').fill(i === 0 ? 'set' : 'job')
-    await form.getByRole('button', { name: 'บันทึกภาษาอังกฤษ' }).click()
-    await expect(desk.getByText('บันทึกภาษาอังกฤษของบรรทัดแล้ว')).toBeVisible()
-    await desk.reload()
+    if (!(await descriptions.nth(i).inputValue())) await descriptions.nth(i).fill(`Item ${i + 1}`)
+    await units.nth(i).fill(i === 0 ? 'set' : 'job')
   }
+  await desk.getByRole('button', { name: 'บันทึกข้อมูลทั่วไป' }).click()
+  await expect(desk.getByText('บันทึกข้อมูลทั่วไปแล้ว')).toBeVisible()
   await edit('schedule')
   await desk.getByRole('button', { name: 'ถัดไป: ตรวจและเปิด' }).click()
   await expect(checks.filter({ hasText: /^ครบ: ภาษาอังกฤษครบ$/ })).toBeVisible()

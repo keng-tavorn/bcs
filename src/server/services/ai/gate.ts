@@ -8,6 +8,7 @@ import {
   EVAL_GATES,
   isGated,
   LEVEL_OF_AGENT,
+  LEVEL_OF_PURPOSE,
   modelForPurpose,
   PROMPT_VERSIONS,
   requiredGateTier,
@@ -53,6 +54,7 @@ export function aiRuntime(): AiRuntime {
       AI_MODEL_INSIGHT: env.AI_MODEL_INSIGHT,
       AI_MODEL_DOA_DRAFTER: env.AI_MODEL_DOA_DRAFTER,
       AI_MODEL_SUPPLIER_ONBOARDING: env.AI_MODEL_SUPPLIER_ONBOARDING,
+      AI_MODEL_SOURCING: env.AI_MODEL_SOURCING,
     },
     gates: EVAL_GATES,
   }
@@ -119,7 +121,7 @@ export async function checkCallGates(tx: TenantTx, ctx: Ctx, purpose: AiPurposeN
     const recent = await tx.agentAction.count({ where: { requestedById: memberId, createdAt: { gt: since } } })
     if (recent >= AI_LIMITS.callsPerMinutePerMember) return err('RATE_LIMITED', 'too many AI calls this minute', { reason: 'AI', retryAfterSeconds: 60 })
   }
-  return ok({ agent, purpose, level: setting.level ?? LEVEL_OF_AGENT[agent], minConfidenceBp: setting.minConfidenceBp ?? DEFAULT_MIN_CONFIDENCE_BP, model, promptVersion })
+  return ok({ agent, purpose, level: LEVEL_OF_PURPOSE[purpose] ?? setting.level ?? LEVEL_OF_AGENT[agent], minConfidenceBp: setting.minConfidenceBp ?? DEFAULT_MIN_CONFIDENCE_BP, model, promptVersion })
 }
 
 export interface AgentAvailability {

@@ -34,6 +34,7 @@
     "BANK_ACCOUNT_CHANGE": "Bank account change",
     "SUPPLIER_APPLICATION": "Supplier application",
     "AWARD_DECISION": "Sourcing award",
+    "RISK_OVERRIDE": "Supplier risk override",
     "BUDGET_LINE": "Budget line {label}",
     "MEMBER": "Member {label}",
     "SUPPLIER": "Supplier {label}"
@@ -165,6 +166,7 @@
     "risk_assessment": "Supplier risk assessments",
     "review_task": "Risk reviewer tasks",
     "risk_review": "Reassessments",
+    "risk_override": "Risk overrides",
     "score": "Scoring",
     "award": "Sourcing award",
     "preferred_supplier": "Preferred suppliers"
@@ -241,6 +243,7 @@
     "RiskAssessment": "Risk assessment",
     "ReviewTask": "Risk reviewer task",
     "RiskReview": "Reassessment",
+    "RiskOverride": "Risk override",
     "PreferredSupplier": "Preferred supplier"
   },
   "events": {
@@ -447,6 +450,7 @@
       "retention_set": "Purchase order retention set",
       "revised": "Purchase order revised",
       "revision_sent": "Revised purchase order sent to the supplier",
+      "risk_gate_passed": "Passed the supplier risk gate",
       "acknowledged": "Supplier acknowledged the PO",
       "delivery_date_changed": "Supplier changed the delivery date",
       "ack_reset": "Revised PO waits for the supplier again"
@@ -752,13 +756,38 @@
       "completed": "Risk assessment completed",
       "superseded": "Risk assessment replaced by a newer one",
       "cancelled": "Risk assessment cancelled",
-      "reminded": "Supplier reminded to answer"
+      "reminded": "Supplier reminded to answer",
+      "reviewers_assigned": "Questionnaire sent to the risk reviewers",
+      "returned": "Questionnaire returned by a reviewer",
+      "reviewer_gap_reported": "Questionnaire not sent: no reviewer, administrators told"
     },
     "review_task": {
-      "cancelled": "Risk reviewer task cancelled"
+      "cancelled": "Risk reviewer task cancelled",
+      "assigned": "Risk reviewer task assigned",
+      "decided": "Risk reviewer decided",
+      "reassigned": "Risk reviewer task moved after an org change",
+      "reminded": "Risk reviewer reminded",
+      "overdue": "Risk reviewer task overdue",
+      "escalated": "Fallback told a risk reviewer task is overdue"
     },
     "risk_review": {
-      "completed": "Reassessment done"
+      "completed": "Reassessment done",
+      "scheduled": "Risk reassessment due",
+      "overdue": "Risk reassessment overdue",
+      "cancelled": "Risk reassessment cancelled"
+    },
+    "risk_override": {
+      "used": "Override used by a purchase order",
+      "released": "Purchase order no longer draws on the override",
+      "drafted": "Risk override asked for (draft)",
+      "updated": "Override request changed",
+      "submitted": "Override request sent to its approvers",
+      "approved": "Override approved",
+      "rejected": "Override rejected",
+      "returned": "Override returned for changes",
+      "cancelled": "Override request cancelled",
+      "expiring": "Risk override about to lapse",
+      "expired": "Risk override lapsed"
     },
     "score": {
       "saved": "Scores saved as a draft",

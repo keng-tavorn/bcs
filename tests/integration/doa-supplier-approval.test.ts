@@ -173,7 +173,9 @@ describe('[FR-PLT-011/AC2] [BR-SUP-16] SUPPLIER is switched off only when nothin
     const orgId = org.organizationId
     const platform = await platformCtxFor(orgId)
     for (const dependent of ['SOURCING', 'RISK'] as const) {
-      expect(await setModule(platform, change(dependent, true), key())).toMatchObject({ ok: true })
+      // switching RISK on also needs its tiers, policy and questionnaire (BR-RSK-16 · S11-02): its row stands for it here
+      if (dependent === 'RISK') await prisma.orgModule.create({ data: { organizationId: orgId, module: 'RISK', enabled: true, enabledAt: NOW, contractRef: 'TEST-P2', reason: 'เปิดความเสี่ยงในเทสต์' } })
+      else expect(await setModule(platform, change(dependent, true), key())).toMatchObject({ ok: true })
       expect(await setModule(platform, change('SUPPLIER', false), key())).toMatchObject({ ok: false, error: { code: 'MODULE_IN_USE', details: { reason: 'REQUIRED_BY', modules: [dependent] } } })
       expect(await setModule(platform, change(dependent, false), key())).toMatchObject({ ok: true })
     }

@@ -3,14 +3,16 @@ import { awardDecisionSodExtra, checkSod, paymentRunSodExtra, type ApprovalSubje
 import { loadYaml, pick } from './doa-fixtures'
 
 // tests/golden/sod.yaml (spec §7.5): GC-SOD-01 to GC-SOD-16 (GC-SOD-10 on: the payment run and the bank account change of S9),
-// GC-SOD-17 and GC-SOD-18 (S7), GC-SOD-19 (the people of an award · BR-SOD-13) and GC-SOD-20 (SCORE_RFX · BR-SOD-14) of S10-10.
-// Both S10 rules are also checked directly below with every kind of person they stop.
+// GC-SOD-17 and GC-SOD-18 (S7), GC-SOD-19 (the people of an award · BR-SOD-13) and GC-SOD-20 (SCORE_RFX · BR-SOD-14) of S10-10,
+// GC-SOD-21 (the requester of a risk override approves it · BR-SOD-15) of S11-08 and GC-SOD-22 (who filled an assessment in
+// for the supplier decides its review task · DECIDE_RISK_REVIEW · BR-SOD-16) of S11-06.
+// The S10 and S11 rules are also checked directly below with every kind of person they stop.
 
 interface SodCase {
   id: string
   title?: string
   input: {
-    action: 'DECIDE_APPROVAL' | 'POST_GR' | 'PROPOSE_ORG_AUTHORITY_CHANGE' | 'PREPARE_PAYMENT' | 'SCORE_RFX'
+    action: 'DECIDE_APPROVAL' | 'POST_GR' | 'PROPOSE_ORG_AUTHORITY_CHANGE' | 'PREPARE_PAYMENT' | 'DECIDE_RISK_REVIEW' | 'SCORE_RFX'
     actor: string
     requester?: string
     source?: 'INTERNAL' | 'PORTAL'
@@ -26,6 +28,11 @@ interface SodCase {
     payDate?: string
     recentBankChangeDays?: number
     bankChanges?: Array<{ proposer: string; effectiveOn: string }>
+    /** DECIDE_APPROVAL of RISK_OVERRIDE (S11-08 · BR-SOD-15): the PO's creator and the assessment's filler-in besides the requester */
+    alsoConflicting?: string[]
+    /** DECIDE_RISK_REVIEW (S11-06 · BR-SOD-16) */
+    assessmentOpenedBy?: string
+    filledOnBehalfBy?: string
     rfxCreator?: string
     sourceRequesters?: string[]
     evaluators?: string[]
@@ -38,6 +45,7 @@ const suite = loadYaml<{ sodPolicy: { approverMayReceive: boolean; requesterMayR
 
 function action(i: SodCase['input']): SodAction {
   const recentBankChanges = i.bankChanges ? { payDate: i.payDate!, recentBankChangeDays: i.recentBankChangeDays!, changes: i.bankChanges.map((b) => ({ proposerMemberId: b.proposer, effectiveOn: b.effectiveOn })) } : undefined
+  if (i.action === 'DECIDE_RISK_REVIEW') return { kind: 'DECIDE_RISK_REVIEW', actorMemberId: i.actor, assessmentPreparerMemberIds: [i.assessmentOpenedBy, i.filledOnBehalfBy].filter((m): m is string => Boolean(m)) }
   if (i.action === 'SCORE_RFX') return { kind: 'SCORE_RFX', actorMemberId: i.actor, rfxCreatorMemberIds: i.rfxCreator ? [i.rfxCreator] : [], sourceRequesterMemberIds: i.sourceRequesters ?? [] }
   if (i.action === 'PREPARE_PAYMENT') return { kind: 'PREPARE_PAYMENT', actorMemberId: i.actor, recentBankChanges: recentBankChanges! }
   if (i.action === 'POST_GR') return { kind: 'POST_GR', actorMemberId: i.actor, requesterMemberIds: i.requester ? [i.requester] : [], approverMemberIds: i.approvers ?? [] }
@@ -46,7 +54,7 @@ function action(i: SodCase['input']): SodAction {
     kind: 'DECIDE_APPROVAL',
     subject: i.subject ?? 'REQUEST',
     actorMemberId: i.actor,
-    requesterMemberIds: i.requester ? [i.requester] : [],
+    requesterMemberIds: [...(i.requester ? [i.requester] : []), ...(i.alsoConflicting ?? [])],
     poCreatorMemberId: i.poCreator ?? null,
     ...(i.invoiceRecorders ? { invoiceRecorderMemberIds: i.invoiceRecorders } : {}),
     ...(recentBankChanges ? { recentBankChanges } : {}),
@@ -114,6 +122,16 @@ describe('[FR-DOA-007/AC1] separation of duties beyond the golden cases', () => 
       error: 'SOD_VIOLATION',
       rule: 'BR-SOD-08',
     })
+  })
+})
+
+describe('[FR-RSK-203/AC2] [BR-SOD-15] the override of a risk gate (S11-08 · ADR-226)', () => {
+  const policy = { approverMayReceive: false, requesterMayReceive: true }
+  const override = (actor: string, conflicting: string[]) => checkSod({ kind: 'DECIDE_APPROVAL', subject: 'RISK_OVERRIDE', actorMemberId: actor, requesterMemberIds: conflicting }, policy)
+  it('refuses the requester, the PO creator and the filler-in of the assessment by BR-SOD-15, and lets the COO approve', () => {
+    const people = ['proc_officer', 'proc_mat1', 'dm_it']
+    for (const actor of people) expect(override(actor, people)).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-15' })
+    expect(override('coo', people)).toEqual({ ok: true })
   })
 })
 

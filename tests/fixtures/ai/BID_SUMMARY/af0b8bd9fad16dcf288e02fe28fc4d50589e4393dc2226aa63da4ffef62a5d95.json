@@ -1,0 +1,20 @@
+{
+  "promptVersion": "BID_SUMMARY@1",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "ข้อเสนอ {{v:bidCount}} ราย รวม VAT {{v:vatInclusiveCount}} ราย ไม่จด VAT {{v:notVatRegisteredCount}} ราย ต่างประเทศ {{v:foreignCount}} ราย ตัดรายการ {{v:partialCount}} ราย",
+      "ราคาต่ำสุด {{v:lowest.net}} บาท ของ {{v:lowest.supplierName}} สูงสุด {{v:highest.net}} บาท ห่างกัน {{v:spreadBp}} bp",
+      "ผู้เสนอราคาปัจจุบัน {{v:incumbent.supplierName}} ห่างจากราคาต่ำสุด {{v:incumbent.gap}} บาท คิดเป็น {{v:gapBp}} bp",
+      "พบธง {{v:flagCount}} รายการ ที่ {{v:flags.1.supplierName}} บรรทัด {{v:flags.1.lineNo}} ประเภท {{v:flags.1.flag}}",
+      "เบี่ยงเบน {{v:flags.1.deviationBp}} bp จากราคาอ้างอิง {{v:flags.1.reference}} บาท แหล่ง {{v:flags.1.referenceSource}}"
+    ]
+  },
+  "usage": {
+    "input": 698,
+    "output": 3374,
+    "cacheRead": 643,
+    "cacheWrite": 0
+  }
+}

@@ -183,7 +183,8 @@
         "PAYMENT_RUN": "payment run",
         "BANK_ACCOUNT_CHANGE": "bank account change",
         "SUPPLIER_APPLICATION": "supplier application",
-        "AWARD_DECISION": "sourcing award"
+        "AWARD_DECISION": "sourcing award",
+        "RISK_OVERRIDE": "supplier risk override"
       },
       "basis": {
         "GROSS": "incl. VAT",

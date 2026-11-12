@@ -1,0 +1,29 @@
+{
+  "promptVersion": "RFX_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "title": "ขอใบเสนอราคาไม้อัดยางแบบหล่อคอนกรีตและตะปูตอกไม้",
+    "titleEn": "RFQ: Rubberized concrete formwork plywood and wood nails",
+    "description": "ขอเชิญเสนอราคาสินค้าสำหรับงานแบบหล่อคอนกรีต ได้แก่ ไม้อัดยางแบบหล่อคอนกรีต หนา 20 มม. ขนาด 4x8 ฟุต และตะปูตอกไม้ 3 นิ้ว. ผู้เสนอราคาโปรดระบุราคาต่อหน่วยของแต่ละรายการเป็นเงินบาท.",
+    "descriptionEn": "Quotation requested for formwork materials: 20 mm rubberized concrete formwork plywood, 4x8 ft, and 3 inch wood nails. Suppliers are asked to quote a price per line in Thai baht.",
+    "lines": [
+      {
+        "lineNo": 1,
+        "descriptionEn": "Rubberized plywood for concrete formwork, 20 mm thick, 4x8 ft",
+        "uomEn": "sheet"
+      },
+      {
+        "lineNo": 2,
+        "descriptionEn": "Wood nails, 3 inch",
+        "uomEn": "kg"
+      }
+    ]
+  },
+  "usage": {
+    "input": 148,
+    "output": 1133,
+    "cacheRead": 1091,
+    "cacheWrite": 0
+  }
+}

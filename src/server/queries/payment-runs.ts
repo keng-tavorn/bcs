@@ -4,6 +4,7 @@ import { taxDateOf } from '@/core/vat'
 import { paymentSettingsOf } from '@/lib/org-settings'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
+import { riskOverridesForPayment } from './risk-overrides'
 
 // Payment runs as they stand now (S9-05, S9-06, BR-PAY-06, BR-PAY-07): the facts of the suppliers a run pays — their
 // ACTIVE account, when it came into force and whose change made it — and the flags of each item worked out again from
@@ -55,10 +56,20 @@ export async function supplierFacts(tx: TenantTx, supplierIds: readonly string[]
   )
 }
 
-/** BR-PAY-06: the flags of one item now, from its supplier, its documents and the run's pay date */
+/**
+ * BR-PAY-06: the flags of one item now, from its supplier, its documents and the run's pay date. `riskOverrides`: the
+ * supplier's risk override of riskOverridesForPayment (S11-08 · FR-PAY-101 AC13), which every caller reads for the same
+ * pay date — empty with RISK off or once the supplier is assessed.
+ */
 export async function itemFlagsNow(
   tx: TenantTx,
-  input: { readonly payDate: string; readonly recentBankChangeDays: number; readonly supplier: SupplierFacts; readonly docIds: readonly string[] },
+  input: {
+    readonly payDate: string
+    readonly recentBankChangeDays: number
+    readonly supplier: SupplierFacts
+    readonly docIds: readonly string[]
+    readonly riskOverrides: readonly { readonly expiresOn: string }[]
+  },
 ): Promise<{ readonly flags: PaymentFlag[]; readonly requiresReason: boolean }> {
   const { supplier } = input
   // one query at a time: they share the transaction's connection
@@ -75,8 +86,8 @@ export async function itemFlagsNow(
       supplier: { registryFlag: supplier.registryFlag, status: supplier.status, taxId: supplier.taxId },
       // without an account in force no account flag is due; sending refuses it (BANK_ACCOUNT_NOT_APPROVED)
       account: supplier.account ? { activatedOn: supplier.account.activatedOn, fromSeed: supplier.account.fromSeed } : { activatedOn: '0000-01-01', fromSeed: true },
-      // FR-PAY-101 AC6: the approvals past a risk come with S11 (phase 2); none in phase 1, so RISK_OVERRIDE_EXPIRED never arises
-      riskOverrides: [],
+      // FR-PAY-101 AC6 AC13: the supplier's risk override (S11-08), RISK_OVERRIDE_EXPIRED when it ran out before the pay date
+      riskOverrides: input.riskOverrides,
       previouslyExported: exported > 0,
       pendingChange: pending > 0,
       sameAccountTaxIds: sameAccount.map((o) => o.supplier?.taxId ?? null),
@@ -114,11 +125,16 @@ export async function runFlagsNow(tx: TenantTx, organizationId: string, paymentR
     tx,
     items.map((i) => i.supplierId),
   )
+  const overrides = await riskOverridesForPayment(
+    tx,
+    items.map((i) => i.supplierId),
+    payDate,
+  )
   const out = []
   for (const item of items) {
     const supplier = facts.get(item.supplierId)!
     const docIds = links.filter((l) => l.paymentRunItemId === item.id).map((l) => l.invoiceId ?? l.retentionId!)
-    const now = await itemFlagsNow(tx, { payDate, recentBankChangeDays, supplier, docIds })
+    const now = await itemFlagsNow(tx, { payDate, recentBankChangeDays, supplier, docIds, riskOverrides: overrides.get(item.supplierId) ?? [] })
     out.push({ itemId: item.id, supplier, storedFlags: item.flags as PaymentFlag[], flags: now.flags, requiresReason: now.requiresReason, flagReason: item.flagReason })
   }
   out.sort((a, b) => (a.supplier.code < b.supplier.code ? -1 : 1))

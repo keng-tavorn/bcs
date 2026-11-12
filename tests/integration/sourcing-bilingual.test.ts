@@ -93,19 +93,19 @@ describe('[FR-INT-201/AC2] an RFx that invites a foreign supplier or an English-
     const line = await prisma.rfxLine.findFirstOrThrow({ where: { rfxEventId: rfx } })
     ok(await updateRfx(proc(), { rfxEventId: rfx, expectedVersion: await version(rfx), descriptionEn: 'Firewalls for two sites', lines: [{ rfxLineId: line.id, descriptionEn: 'Firewall with installation', uomEn: 'set' }] }, key()))
     expect(await prisma.rfxLine.findUniqueOrThrow({ where: { id: line.id } })).toMatchObject({ descriptionEn: 'Firewall with installation', uomEn: 'set', description: 'ไฟร์วอลล์พร้อมติดตั้ง', uom: 'ชุด' })
-    expect((await prisma.event.findFirstOrThrow({ where: { aggregateId: rfx, type: 'rfx.updated' }, orderBy: { id: 'desc' } })).data).toMatchObject({ fields: ['descriptionEn', 'lines.1'] })
+    expect((await prisma.event.findFirstOrThrow({ where: { aggregateId: rfx, type: 'rfx.updated' }, orderBy: { id: 'desc' } })).data).toMatchObject({ fields: ['descriptionEn'], lineNos: [1] })
     ok(await open(rfx))
     // an open TH_EN RFx keeps its English: an amendment that clears it is refused
     expect(await amendRfx(proc(), { rfxEventId: rfx, expectedVersion: await version(rfx), summary: 'ลบชื่ออังกฤษ', titleEn: null }, key())).toMatchObject({ ok: false, error: { details: { reason: 'LOCALE_REQUIRED', missing: ['titleEn'] } } })
   })
 
-  it('a line of a catalogue item starts with the item’s English name (BR-FORM-10 · nothing translated); a line of another RFx is refused', async () => {
+  it('a line of a catalogue item starts with the item’s English name (BR-FORM-10 · nothing translated); a line of another RFx is not found', async () => {
     const item = await prisma.catalogItem.create({ data: { organizationId: org.organizationId, code: `FW-${randomUUID().slice(0, 6)}`, nameTh: 'ไฟร์วอลล์รุ่น A', nameEn: 'Firewall model A', uom: 'ชุด', categoryCode: 'IT', refUnitPriceSatang: 15_000_000n } })
     const rfx = await draft({ catalogItemId: item.id })
     expect(await prisma.rfxLine.findFirstOrThrow({ where: { rfxEventId: rfx } })).toMatchObject({ descriptionEn: 'Firewall model A', uomEn: null })
     const other = await draft()
     const otherLine = await prisma.rfxLine.findFirstOrThrow({ where: { rfxEventId: other } })
-    expect(await updateRfx(proc(), { rfxEventId: rfx, expectedVersion: await version(rfx), lines: [{ rfxLineId: otherLine.id, uomEn: 'set' }] }, key())).toMatchObject({ ok: false, error: { details: { reason: 'LINE' } } })
+    expect(await updateRfx(proc(), { rfxEventId: rfx, expectedVersion: await version(rfx), lines: [{ rfxLineId: otherLine.id, descriptionEn: 'Firewall', uomEn: 'set' }] }, key())).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
   })
 
   it('inviting a foreign supplier after the open needs the English complete already (a Thai-only open RFx refuses it)', async () => {

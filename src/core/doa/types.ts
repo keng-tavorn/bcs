@@ -3,7 +3,7 @@
 
 import type { ApprovalSubject } from '../sod'
 
-/** The order lint reports in (BR-DOA-23); the first five are the tier-1 types, then phase 1 (P1-07), then phase 2 (S7 S10). */
+/** The order lint reports in (BR-DOA-23); the first five are the tier-1 types, then phase 1 (P1-07), then phase 2 (S7 S10 S11). */
 export const DOA_DOCUMENT_TYPES = [
   'PURCHASE_REQUEST',
   'PURCHASE_ORDER',
@@ -20,6 +20,8 @@ export const DOA_DOCUMENT_TYPES = [
   'SUPPLIER_APPROVAL',
   // S10 (BR-DOA-27 · ADR-202): before S11's RISK_OVERRIDE
   'RFX_AWARD',
+  // S11 (BR-DOA-28 · ADR-226): after S10's RFX_AWARD, the order S7 declared
+  'RISK_OVERRIDE',
 ] as const
 export type DoaDocumentType = (typeof DOA_DOCUMENT_TYPES)[number]
 
@@ -57,6 +59,9 @@ export const DOC_TYPE_TRAITS: Readonly<Record<DoaDocumentType, DocTypeTraits>> =
   SUPPLIER_APPROVAL: { amount: 'NONE', vat: false, governance: false, requiredWithModules: ['SUPPLIER'], subjects: ['SUPPLIER_APPLICATION'] },
   // the amount awarded, before VAT and its VAT, on the DOA's basis like a PO (BR-DOA-27)
   RFX_AWARD: { amount: 'REQUIRED', vat: true, governance: false, requiredWithModules: ['SOURCING'], subjects: ['AWARD_DECISION'] },
+  // the cap with VAT on every PO the override lets through, sent as { netSatang: cap, vatSatang: 0 } so every basis
+  // gives the same band (BR-DOA-28 · BR-DOA-21); step-up goes by the amount, never always (BR-RSK-11)
+  RISK_OVERRIDE: { amount: 'REQUIRED', vat: false, governance: false, requiredWithModules: ['RISK'], subjects: ['RISK_OVERRIDE'] },
 }
 
 /** Policy changes every version must be able to approve (BR-DOA-08 (จ)). */

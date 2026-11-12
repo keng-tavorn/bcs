@@ -1,0 +1,18 @@
+{
+  "promptVersion": "NEGOTIATION_POINTS@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "ผู้เสนอราคาปัจจุบันสูงกว่าราคาต่ำสุด {{v:gapBp}} bp ควรขอให้ยืนยันราคาเดิมไว้",
+      "รายการที่ {{v:flags.1.lineNo}} ราคาสูงกว่าราคาอ้างอิงแคตตาล็อก {{v:flags.1.deviationBp}} bp ควรขอคำอธิบายรายการนี้",
+      "มีใบเสนอราคารวม VAT แล้ว {{v:vatInclusiveCount}} ราย ควรขอให้ยื่นราคาที่ไม่รวม VAT"
+    ]
+  },
+  "usage": {
+    "input": 465,
+    "output": 1000,
+    "cacheRead": 711,
+    "cacheWrite": 0
+  }
+}

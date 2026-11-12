@@ -37,6 +37,8 @@ export const APPROVAL_SUBJECTS = [
   'SUPPLIER_APPLICATION',
   // S10 (BR-DOA-27 · ADR-202): the award of an RFx, approved through RFX_AWARD
   'AWARD_DECISION',
+  // S11 (BR-DOA-28 · ADR-226): approval to issue POs to a supplier past its risk gate, approved through RISK_OVERRIDE
+  'RISK_OVERRIDE',
 ] as const
 export type ApprovalSubject = (typeof APPROVAL_SUBJECTS)[number]
 export type OrgAuthorityChangeKind = 'POSITION_ASSIGN' | 'POSITION_END' | 'DEPARTMENT_REPARENT' | 'DELEGATION_ON_BEHALF' | 'IDENTITY_RESET'
@@ -91,6 +93,13 @@ export type SodAction =
       /** The requesters of the RFx's source request lines */
       readonly sourceRequesterMemberIds: readonly string[]
     }
+  | {
+      /** BR-SOD-16 (S11 · ADR-222): the holder of a reviewer's slot of a risk assessment, at riskReview.decide */
+      readonly kind: 'DECIDE_RISK_REVIEW'
+      readonly actorMemberId: string
+      /** Who opened the assessment and every member who filled it in for the supplier */
+      readonly assessmentPreparerMemberIds: readonly string[]
+    }
 
 /** A bank account change as BR-SOD-12 reads it: its source, and the members who claimed it and recorded the call */
 export interface BankChangeSod {
@@ -123,6 +132,9 @@ export type SodRule =
   // S10
   | 'BR-SOD-13'
   | 'BR-SOD-14'
+  // S11
+  | 'BR-SOD-15'
+  | 'BR-SOD-16'
 export type SodResult = { readonly ok: true } | { readonly ok: false; readonly error: 'SOD_VIOLATION'; readonly rule: SodRule }
 
 const allowed: SodResult = { ok: true }
@@ -206,6 +218,9 @@ export function checkSod(action: SodAction, policy: SodPolicy): SodResult {
         if (action.bankChange?.source === 'PORTAL' && bankChangePortalConflicts(action.bankChange).includes(action.actorMemberId)) return violation('BR-SOD-12')
         return own ? violation('BR-SOD-05') : allowed
       }
+      // S11 (ADR-226): who asked for a risk override, who made the PO it names and who filled in the supplier's open
+      // assessment never approve it (BR-SOD-15) — one list, before the general rule, so the refusal names the right rule
+      if (action.subject === 'RISK_OVERRIDE') return own ? violation('BR-SOD-15') : allowed
       // S10: the submitter of an award never approves it (BR-SOD-01), nor who created the RFx, scored its bids,
       // requested its lines or recorded a bid on a supplier's behalf (BR-SOD-13) — the one list of awardDecisionSodExtra,
       // which the adapter of S10-10 hands to decide.ts as `extra`, so golden and runtime refuse the same people
@@ -234,5 +249,7 @@ export function checkSod(action: SodAction, policy: SodPolicy): SodResult {
       return SELF_BENEFIT_KINDS.includes(action.changeKind) && action.beneficiaryMemberId === action.actorMemberId ? violation('BR-SOD-08') : allowed
     case 'SCORE_RFX':
       return action.rfxCreatorMemberIds.includes(action.actorMemberId) || action.sourceRequesterMemberIds.includes(action.actorMemberId) ? violation('BR-SOD-14') : allowed
+    case 'DECIDE_RISK_REVIEW':
+      return action.assessmentPreparerMemberIds.includes(action.actorMemberId) ? violation('BR-SOD-16') : allowed
   }
 }

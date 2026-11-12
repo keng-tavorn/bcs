@@ -62,6 +62,8 @@ export function ModuleSwitch({
       return t('errors.OPEN_DOCUMENTS', { documents: documents.join(', ') })
     }
     if (f.code === 'MODULE_IN_USE') return t('errors.REQUIRED_BY', { modules: listed })
+    // S11 (BR-RSK-16): what the customer's admins set up before RISK is switched on
+    if (f.code === 'RISK_TIER_NOT_CONFIGURED' || f.code === 'RISK_POLICY_NOT_CONFIGURED' || f.code === 'RISK_QUESTIONNAIRE_NOT_PUBLISHED') return t(`errors.${f.code}`)
     if (f.code === 'VALIDATION_FAILED' && f.reason === 'NO_CHANGE') return t('errors.NO_CHANGE')
     if (f.code === 'VALIDATION_FAILED' && f.reason === 'CORE_ALWAYS_ON') return t('errors.CORE_ALWAYS_ON')
     if (f.code === 'VALIDATION_FAILED') return t('errors.INPUT')

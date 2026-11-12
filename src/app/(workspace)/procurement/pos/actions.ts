@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
+import { z } from 'zod'
+import { openRiskAssessmentForPo } from '@/server/services/risk'
 import type { PoOutcome } from '@/ui/purchase-order/outcome'
+import type { RiskBandOutcome } from '@/ui/purchase-order/risk-band'
 import { getSession } from '../../../_lib/session'
 import { cancelPo, closePo, editDraft, sendToSupplier, submitDraft } from './commands'
 
@@ -33,13 +36,13 @@ export async function editDraftAction(
   return refreshed(await editDraft(ctx, input, idempotencyKey))
 }
 
-export async function submitPoAction(poId: string, idempotencyKey: string): Promise<PoOutcome> {
+export async function submitPoAction(poId: string, idempotencyKey: string, riskReason?: string): Promise<PoOutcome> {
   const ctx = await currentCtx()
   if (!ctx) return NO_SESSION
-  return refreshed(await submitDraft(ctx, poId, idempotencyKey))
+  return refreshed(await submitDraft(ctx, poId, idempotencyKey, riskReason))
 }
 
-export async function sendPoAction(input: { poId: string; reason?: string }, idempotencyKey: string): Promise<PoOutcome> {
+export async function sendPoAction(input: { poId: string; reason?: string; riskReason?: string }, idempotencyKey: string): Promise<PoOutcome> {
   const ctx = await currentCtx()
   if (!ctx) return NO_SESSION
   return refreshed(await sendToSupplier(ctx, input, idempotencyKey))
@@ -49,6 +52,17 @@ export async function cancelPoAction(input: { poId: string; disposition: 'RETURN
   const ctx = await currentCtx()
   if (!ctx) return NO_SESSION
   return refreshed(await cancelPo(ctx, input, idempotencyKey))
+}
+
+/** S11-07: "เปิดแบบประเมินความเสี่ยง" on the PO's risk band; the service checks risk.assessment.manage and RISK */
+export async function openRiskAssessmentAction(poId: string, idempotencyKey: string): Promise<RiskBandOutcome> {
+  const ctx = await currentCtx()
+  if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
+  if (!z.uuid().safeParse(poId).success || !z.uuid().safeParse(idempotencyKey).success) return { ok: false, code: 'VALIDATION_FAILED' }
+  const r = await openRiskAssessmentForPo(ctx, poId, { idempotencyKey })
+  if (!r.ok) return { ok: false, code: r.error.code }
+  revalidatePath('/', 'layout')
+  return { ok: true, href: `/risk/assessments/${r.data.assessmentId}` }
 }
 
 export async function closePoAction(poId: string, idempotencyKey: string): Promise<PoOutcome> {

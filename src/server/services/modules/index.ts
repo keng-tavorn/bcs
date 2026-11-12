@@ -12,6 +12,7 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { openInvoiceNumbers } from '../ap/track'
 import { openPaymentDocuments } from '../payments/runs'
+import { openRiskDocuments, riskNotConfigured } from '../risk/usage'
 import { openSourcingDocuments } from '../sourcing/usage'
 import { openSupplierDocuments } from '../suppliers/usage'
 
@@ -83,6 +84,8 @@ usageChecks.set('PAY', async (tx) => [...(await openInvoiceNumbers(tx)), ...(awa
 usageChecks.set('SUPPLIER', openSupplierDocuments)
 // S10: SOURCING stays on while an RFx or an award is open
 usageChecks.set('SOURCING', openSourcingDocuments)
+// S11 (BR-RSK-16): RISK stays on while an assessment is with its reviewers or an override waits for its approvers
+usageChecks.set('RISK', openRiskDocuments)
 
 /** Each optional module registers its check when it is built (S7 onwards); tier 1 has none. */
 export function registerModuleUsageCheck(module: Module, check: ModuleUsageCheck): void {
@@ -133,6 +136,11 @@ export const setModuleCommand = defineCommand({
           ok: false,
           error: { code: 'DOA_NOT_CONFIGURED', message: 'the DOA lacks rules the module needs', details: { reason: 'MODULE_RULES_MISSING', module: input.module, ...missing } },
         }
+      }
+      // S11 (BR-RSK-16): the tiers, the gate policy and a questionnaire the moment RISK is on; never a default in code
+      if (input.module === 'RISK') {
+        const notReady = await riskNotConfigured(tx, ctx.now)
+        if (notReady) return { ok: false, error: { ...notReady, details: { ...notReady.details, module: input.module } } }
       }
     }
     if (!input.enabled) {

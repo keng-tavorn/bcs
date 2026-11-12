@@ -94,6 +94,9 @@ describe('[FR-WF-103/AC1] the list of workflow versions', () => {
     expect(view.rules).toEqual([
       {
         code: 'RV-1',
+        // S11-06: a REQUEST rule shows its scope and no domain
+        scope: 'REQUEST',
+        riskDomains: [],
         requestTypeCodes: ['BUY_GOODS'],
         when: { field: '$lineCategories', op: 'anyIn', value: ['SAFETY'] },
         reviewers: [POS('DM', 'QSE')],
@@ -147,7 +150,7 @@ describe('[FR-WF-103/AC1] the list of workflow versions', () => {
   })
 
   it('a removed rule and a changed condition, reviewer and mode are named in the diff', () => {
-    const base: WorkflowRuleView = { code: 'RV-1', requestTypeCodes: ['BUY_GOODS'], when: {}, reviewers: [POS('DM', 'QSE')], fallback: null, mode: 'ALL', quorumCount: null, slaMinutes: 480, descriptionTh: null }
+    const base: WorkflowRuleView = { code: 'RV-1', scope: 'REQUEST', riskDomains: [], requestTypeCodes: ['BUY_GOODS'], when: {}, reviewers: [POS('DM', 'QSE')], fallback: null, mode: 'ALL', quorumCount: null, slaMinutes: 480, descriptionTh: null }
     const changed: WorkflowRuleView = { ...base, when: { field: '$amountGross', op: 'gt', value: '500000.00' }, reviewers: [POS('DM', 'QSE'), POS('DM', 'FIN')], mode: 'COUNT', quorumCount: 1 }
     expect(diffWorkflowRules([base, { ...base, code: 'RV-9' }], [changed])).toEqual({ added: [], removed: ['RV-9'], changed: [{ code: 'RV-1', fields: ['when', 'reviewers', 'mode'] }] })
   })

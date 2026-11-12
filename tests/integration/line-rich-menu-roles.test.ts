@@ -188,3 +188,21 @@ describe('[FR-LINE-303/AC6] unlinked or deactivated: UNLINKED as before (FR-LINE
     expect(handed('member.role_granted', org.member.receiver_con!)).toBeDefined()
   })
 })
+
+describe('[FR-RSK-202] a reviewer of risk assessments is no approver of the menu (xhigh review of S11-06)', () => {
+  it('a version whose only reviewer is a RISK_ASSESSMENT rule’s gives its member no approver flag', async () => {
+    await seedWorkflow(
+      org.organizationId,
+      {
+        code: `WF-R${randomUUID().slice(0, 5)}`,
+        rules: [
+          { code: 'RR-X1', requestTypeCodes: [], when: { field: 'accessesSystems', op: 'eq', value: 'Y' }, reviewers: [{ kind: 'MEMBER', memberId: org.member.receiver_con! }], fallback: null, mode: 'ALL', quorumCount: null, slaBusinessMinutes: 480, sortOrder: 1, descriptionTh: null, scope: 'RISK_ASSESSMENT', riskDomains: ['INFOSEC'] },
+        ],
+      },
+      new Date(),
+    )
+    const inputs = await forTenant(org.organizationId).$transaction((tx) => richMenuInputsOf(tx, [org.member.receiver_con!], new Date()))
+    const i = inputs.get(org.member.receiver_con!)!
+    expect(i.linked ? i.workflowReviewer : null).toBe(false)
+  })
+})

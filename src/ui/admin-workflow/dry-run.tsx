@@ -9,14 +9,16 @@ import { errorValues, useAction } from '../admin-org/use-action'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { DocumentFields } from './document-fields'
-import { canonical, documentDraftOf, documentOf, type DocumentDraft, type DocumentField, type DocumentValue } from './model'
+import { canonical, documentDraftOf, documentOf, type DocumentDraft, type DocumentField, type DocumentValue, type RiskCaseValue } from './model'
 import { WORKFLOW_REASONS } from './outcome'
 import type { WorkflowContext, WorkflowWords } from './words'
 
 // The dry-run (FR-WF-103 AC2): one document — type, amount, categories, budget lines, form answers, requester and the
 // department charged — through the real engine, the whole route (reviewers, then the DOA) of the version in effect
 // beside the draft's, and what differs marked in words and an icon, never colour alone. Running it on a draft records
-// that the dry-run ran on the latest save, which the send needs; it changes nothing else.
+// that the dry-run ran on the latest save, which the send needs; it changes nothing else. S11-06: the same action tries
+// supplier risk assessments on the RISK_ASSESSMENT rules (riskCases → riskRows), from the risk reviewers' tab
+// (risk-dry-run.tsx); this tab sends documents only.
 
 export interface DryRunSideView {
   readonly ok: boolean
@@ -31,8 +33,26 @@ export interface DryRunRowView {
   readonly changed: boolean
 }
 
-export type DryRunResult = { readonly ok: true; readonly rows: readonly DryRunRowView[] } | ActionFailure
-export type DryRunAction = (input: { versionId: string; documents: ReadonlyArray<DocumentValue & { requesterMemberId: string; chargedDepartmentId: string }> }, idempotencyKey: string) => Promise<DryRunResult>
+/** S11-06: the reviewers of one risk assessment under one version (the service's DryRunRiskSide) */
+export interface DryRunRiskSideView {
+  readonly ok: boolean
+  /** One slot per reviewer: its rules, the member, the parts they see; [] = no rule matches, it completes at once */
+  readonly slots: ReadonlyArray<{ readonly ruleCodes: readonly string[]; readonly memberIds: readonly string[]; readonly riskDomains: readonly string[] }>
+  readonly error: { readonly code: string; readonly details?: Readonly<Record<string, unknown>> } | null
+}
+
+export interface DryRunRiskRowView {
+  readonly current: DryRunRiskSideView
+  readonly draft: DryRunRiskSideView
+  readonly changed: boolean
+}
+
+/** rows answer the documents in their order, riskRows the risk assessments in theirs */
+export type DryRunResult = { readonly ok: true; readonly rows: readonly DryRunRowView[]; readonly riskRows: readonly DryRunRiskRowView[] } | ActionFailure
+export type DryRunAction = (
+  input: { versionId: string; documents: ReadonlyArray<DocumentValue & { requesterMemberId: string; chargedDepartmentId: string }>; riskCases?: readonly RiskCaseValue[] },
+  idempotencyKey: string,
+) => Promise<DryRunResult>
 
 export interface DryRunProps {
   readonly versionId: string

@@ -1,0 +1,29 @@
+{
+  "promptVersion": "RFX_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "title": "จ้างเจาะสำรวจดินพร้อมทดสอบ SPT และรายงานผลทดสอบดินและข้อเสนอแนะฐานราก",
+    "titleEn": "Soil boring survey with SPT test and soil test report with foundation recommendations",
+    "description": "ขอเชิญเสนอราคางานเจาะสำรวจดินพร้อมทดสอบ SPT ลึก 30 ม. และรายงานผลทดสอบดินพร้อมข้อเสนอแนะฐานราก ผู้เสนอราคาโปรดเสนอราคาแยกตามรายการเป็นเงินบาท",
+    "descriptionEn": "Request for proposal for a soil boring survey with SPT test to 30 m depth and a soil test report with foundation recommendations. Suppliers are to quote per line in Thai baht.",
+    "lines": [
+      {
+        "lineNo": 1,
+        "descriptionEn": "Soil boring survey with SPT test to 30 m depth",
+        "uomEn": "borehole"
+      },
+      {
+        "lineNo": 2,
+        "descriptionEn": "Soil test report and foundation recommendations",
+        "uomEn": "set"
+      }
+    ]
+  },
+  "usage": {
+    "input": 149,
+    "output": 863,
+    "cacheRead": 1091,
+    "cacheWrite": 0
+  }
+}

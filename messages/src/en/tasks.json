@@ -196,6 +196,18 @@
       "returned": "Returned to the requester.",
       "rejected": "Rejected."
     },
+    "override": {
+      "confirmText": "Approve {label} with a cap with VAT of {amount} THB. The decision cannot be changed later",
+      "otherLink": "Return or reject",
+      "returnOption": "Return to the requester for changes",
+      "returnHint": "The request goes back to the requester to change and send again; the supplier's purchase orders stay held until it is approved",
+      "rejectHint": "The request is closed; the supplier's purchase orders stay held until its assessment is done",
+      "reasonHint": "The requester will see this. Say clearly what to change or why it is not approved",
+      "submitReturn": "Return to the requester",
+      "submitReject": "Reject this request",
+      "returned": "Returned to the requester",
+      "rejected": "Request rejected"
+    },
     "supplierApplication": {
       "confirmText": "Approve application {label}: this supplier is added to the supplier register. The decision cannot be changed later.",
       "otherLink": "Send back or reject",
@@ -322,7 +334,8 @@
       "PAYMENT_RUN": "Payment run",
       "BANK_ACCOUNT_CHANGE": "Bank account change",
       "SUPPLIER_APPROVAL": "New supplier approval",
-      "RFX_AWARD": "Sourcing award approval"
+      "RFX_AWARD": "Sourcing award approval",
+      "RISK_OVERRIDE": "Supplier risk override approval"
     },
     "doaBand": {
       "range": "above {from} up to {to} baht",
@@ -380,7 +393,8 @@
     "PAYMENT_FLAGS_CHANGED": "The payment run's flags changed since this page was opened. Reload it and check the flagged items again.",
     "PAYMENT_FLAG_REASON_REQUIRED": "A flag has no reason from the preparer yet. Return the run for the preparer to give one.",
     "PAYMENT_DATE_INVALID": "The run's pay date can no longer be used. Return it for the preparer to choose another day, or reject it.",
-    "PASSKEY": "The passkey did not confirm this decision. Try again, or enter your PIN instead"
+    "PASSKEY": "The passkey did not confirm this decision. Try again, or enter your PIN instead",
+    "RISK_GATE": "It cannot be approved now: the supplier risk gate does not let this purchase order out at its new amount. Return it so procurement settles the supplier's risk first"
   },
   "varianceType": {
     "SHORT": "Shortfall",

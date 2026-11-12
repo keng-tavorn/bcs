@@ -4,11 +4,17 @@ import {
   evidenceSource,
   maxTier,
   normalizeScope,
+  overrideApplies,
+  overrideExpiryCheck,
+  overrideWindow,
+  poGate,
   riskConditionHolds,
   riskStatusAt,
   scoreAssessment,
+  screeningCovers,
   selectQuestions,
   tierByPoints,
+  type PoGateInput,
   type RiskContext,
   type RiskPolicyDef,
   type RiskQuestionDef,
@@ -133,5 +139,85 @@ describe('[BR-RSK-13] status on a day', () => {
   it('CURRENT before the reminder, EXPIRING from the reminder to the last valid day, OVERDUE after', () => {
     const at = (today: string) => riskStatusAt({ validUntil: '2026-12-15', remindOn: '2026-11-15', today })
     expect([at('2026-11-14'), at('2026-11-15'), at('2026-12-15'), at('2026-12-16')]).toEqual(['CURRENT', 'EXPIRING', 'EXPIRING', 'OVERDUE'])
+  })
+})
+
+// ---------- S11-07 · poGate (BR-RSK-09 BR-RSK-12): what golden risk-gate.yaml leaves out ----------
+
+const GATE_TIERS = [
+  { code: 'LOW', blocksPo: false },
+  { code: 'MEDIUM', blocksPo: false },
+  { code: 'HIGH', blocksPo: true },
+] as const
+const gateInput = (over: Partial<PoGateInput> = {}): PoGateInput => ({
+  tier: 'HIGH',
+  tiers: GATE_TIERS,
+  policy: { registryFlagBlocks: true, mediumOverdueBlocks: false },
+  registryFlag: 'NONE',
+  assessedAfterFlag: false,
+  assessment: 'NONE',
+  screeningCovered: true,
+  override: null,
+  poId: 'PO-1',
+  poDate: '2026-10-16',
+  grossSatang: 12_000_000n,
+  countedGrossSatang: 0n,
+  trigger: 'SUBMIT',
+  ...over,
+})
+const approved = { status: 'APPROVED', poId: null, expiresOn: '2026-10-16', capGrossSatang: 15_000_000n, usedGrossSatang: 0n }
+
+describe('poGate (S11-07 · BR-RSK-09)', () => {
+  it('[FR-RSK-203/AC1] a MEDIUM whose assessment is overdue blocks when the policy says so', () => {
+    expect(poGate(gateInput({ tier: 'MEDIUM', assessment: 'OVERDUE', policy: { registryFlagBlocks: true, mediumOverdueBlocks: true } }))).toEqual({ allowed: false, error: 'RISK_REASSESSMENT_REQUIRED', reason: 'VALIDITY_LAPSED' })
+    expect(poGate(gateInput({ tier: 'MEDIUM', assessment: 'OVERDUE', policy: { registryFlagBlocks: true, mediumOverdueBlocks: true }, override: approved }))).toMatchObject({ allowed: true, source: 'OVERRIDE' })
+    // LOW stays a warning: the policy names MEDIUM only
+    expect(poGate(gateInput({ tier: 'LOW', assessment: 'OVERDUE', policy: { registryFlagBlocks: true, mediumOverdueBlocks: true } }))).toEqual({ allowed: true, source: 'NOT_REQUIRED', warnings: ['REASSESSMENT_OVERDUE'], requiresReason: true })
+  })
+
+  it('[FR-RSK-203/AC1] a tier the organization does not list does not block', () => {
+    expect(poGate(gateInput({ tiers: [] }))).toEqual({ allowed: true, source: 'NOT_REQUIRED', warnings: [], requiresReason: false })
+  })
+
+  it('[FR-RSK-203/AC4] a flag the policy lets through stays a warning with a reason on a HIGH that passes', () => {
+    const policy = { registryFlagBlocks: false, mediumOverdueBlocks: false }
+    expect(poGate(gateInput({ registryFlag: 'VAT_CANCELLED', assessment: 'CURRENT', policy }))).toEqual({ allowed: true, source: 'ASSESSMENT', warnings: ['REGISTRY_FLAGGED'], requiresReason: true })
+    expect(poGate(gateInput({ registryFlag: 'NOT_FOUND', policy, override: approved }))).toEqual({ allowed: true, source: 'OVERRIDE', warnings: ['REGISTRY_FLAGGED', 'OVERRIDE_USED'], requiresReason: true })
+    // a reassessment after a VAT flag clears it; CEASED never clears
+    expect(poGate(gateInput({ registryFlag: 'VAT_CANCELLED', assessedAfterFlag: true, assessment: 'CURRENT', policy }))).toMatchObject({ warnings: [] })
+    expect(poGate(gateInput({ registryFlag: 'CEASED', assessedAfterFlag: true, assessment: 'CURRENT' }))).toEqual({ allowed: false, error: 'RISK_BLOCKED', reason: 'REGISTRY_CEASED' })
+  })
+
+  it('[FR-RSK-203/AC1] an override closed EXPIRED by the job still says OVERRIDE_EXPIRED', () => {
+    expect(poGate(gateInput({ override: { ...approved, status: 'EXPIRED', expiresOn: '2026-10-15' } }))).toEqual({ allowed: false, error: 'RISK_BLOCKED', reason: 'OVERRIDE_EXPIRED' })
+    expect(overrideApplies({ ...approved, status: 'REJECTED' }, 'PO-1')).toBe(false)
+    expect(overrideApplies({ ...approved, poId: 'PO-1' }, 'PO-1')).toBe(true)
+    expect(overrideApplies(null, 'PO-1')).toBe(false)
+  })
+
+  it('[FR-RSK-203/AC1] a send of a PO the override already holds does not count it twice', () => {
+    const held = { ...approved, usedGrossSatang: 12_000_000n }
+    expect(poGate(gateInput({ trigger: 'SEND', override: held, countedGrossSatang: 12_000_000n }))).toMatchObject({ allowed: true, source: 'OVERRIDE' })
+    expect(poGate(gateInput({ trigger: 'SEND', override: held, countedGrossSatang: 0n }))).toMatchObject({ allowed: false, reason: 'OVERRIDE_CAP_EXCEEDED' })
+    // a PO change that lowers the amount fits again
+    expect(poGate(gateInput({ trigger: 'PO_CHANGE', grossSatang: 10_000_000n, override: held, countedGrossSatang: 12_000_000n }))).toMatchObject({ allowed: true })
+  })
+
+  it('[FR-RSK-203/AC1] screeningCovers: the Y answers and the high-risk categories of the PO are the assessment’s', () => {
+    const assessment = { screening: { processesPersonalData: 'N', accessesSystems: 'Y', accessesPremises: 'N' } as const, categoryCodes: ['PROF'] }
+    expect(screeningCovers(assessment, { screening: { accessesSystems: 'Y' }, categoryCodes: ['PROF', 'MAT'] }, ['PROF'])).toBe(true)
+    expect(screeningCovers(assessment, { screening: { processesPersonalData: 'Y' }, categoryCodes: [] }, ['PROF'])).toBe(false)
+    expect(screeningCovers(assessment, { screening: { accessesPremises: 'N' }, categoryCodes: ['SUBCON'] }, ['PROF', 'SUBCON'])).toBe(false)
+    expect(screeningCovers(assessment, { screening: { processesPersonalData: undefined }, categoryCodes: [] }, [])).toBe(true)
+  })
+})
+
+describe('[FR-RSK-203/AC3] [BR-RSK-10] the last day of an override (S11-08 · the values of GC-RSK-73 to 76)', () => {
+  it('runs from the send day to the send day + overrideMaxDays, both days included', () => {
+    expect(overrideWindow({ submittedOn: '2026-10-16', overrideMaxDays: 90 })).toEqual({ lastAllowed: '2027-01-14' })
+    expect(overrideExpiryCheck({ submittedOn: '2026-10-16', expiresOn: '2026-10-16', overrideMaxDays: 90 })).toEqual({ ok: true })
+    expect(overrideExpiryCheck({ submittedOn: '2026-10-16', expiresOn: '2027-01-14', overrideMaxDays: 90 })).toEqual({ ok: true })
+    expect(overrideExpiryCheck({ submittedOn: '2026-10-16', expiresOn: '2026-10-15', overrideMaxDays: 90 })).toEqual({ ok: false, error: 'VALIDATION_FAILED', reason: 'OVERRIDE_EXPIRY_PAST' })
+    expect(overrideExpiryCheck({ submittedOn: '2026-10-16', expiresOn: '2027-01-15', overrideMaxDays: 90 })).toEqual({ ok: false, error: 'VALIDATION_FAILED', reason: 'OVERRIDE_EXPIRY_TOO_FAR' })
   })
 })

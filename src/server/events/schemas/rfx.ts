@@ -13,7 +13,12 @@ defineEvents('RfxEvent', {
   'rfx.created': {
     schema: z.object({ kind: z.enum(['RFQ', 'RFP', 'RFI']), sourceKind: z.enum(['REQUEST_LINES', 'NEED']), categoryCode: z.string(), requestLineIds: z.array(z.uuid()), sealed: z.boolean(), minInvites: z.int().min(1) }),
   },
-  'rfx.updated': { schema: z.object({ fields: fields.min(1), reasonCommentId: z.uuid().optional() }) },
+  // the fields changed, and the numbers of the lines whose English changed (S10-16 · BR-FORM-11): one of the two at least
+  'rfx.updated': {
+    schema: z
+      .object({ fields, lineNos: z.array(z.int().min(1)).optional(), reasonCommentId: z.uuid().optional() })
+      .refine((d) => d.fields.length > 0 || (d.lineNos?.length ?? 0) > 0, { message: 'a change of a field or a line' }),
+  },
   // BR-RFX-06: prices seen before the close, with the reason as a comment
   'rfx.unsealed': { schema: z.object({ reasonCommentId: z.uuid() }) },
   'rfx.lines_changed': { schema: z.object({ added: z.int().min(0), removed: z.int().min(0), requestLineIds: z.array(z.uuid()), minInvites: z.int().min(1) }) },

@@ -57,6 +57,21 @@ export interface RiskAssessmentView {
   readonly canManage: boolean
   /** risk.evidence.view: may open the files and the certificates behind the answers */
   readonly canViewEvidence: boolean
+  /**
+   * S11-06 (BR-RSK-08): the reviewers' slots of every round, latest first — their state for every reader of the file, the
+   * reason of a return only for PROCUREMENT (risk.assessment.manage) and AUDITOR
+   */
+  readonly reviews: readonly RiskReviewSlotView[]
+}
+
+export interface RiskReviewSlotView {
+  readonly reviewRound: number
+  readonly slotNo: number
+  readonly riskDomains: readonly RiskDomain[]
+  readonly status: 'OPEN' | 'PASSED' | 'RETURNED' | 'CANCELLED'
+  readonly reviewerName: string
+  readonly decidedAt: Date | null
+  readonly reason: string | null
 }
 
 export async function riskAssessmentView(ctx: Ctx, assessmentId: string): Promise<Result<RiskAssessmentView>> {
@@ -67,7 +82,24 @@ export async function riskAssessmentView(ctx: Ctx, assessmentId: string): Promis
     if (!may.ok) return may
     const a = await loadAssessment(tx, assessmentId)
     if (!a) return fail('NOT_FOUND', 'assessment not found')
-    const [manage, evidence] = await Promise.all([authorize(tx, ctx, 'risk.assessment.manage'), authorize(tx, ctx, 'risk.evidence.view')])
+    const [manage, evidence] = await Promise.all([authorize(tx, ctx, 'risk.assessment.manage'), authorize(tx, ctx, 'risk.evidence.view', { assigneeMemberIds: [] })])
+    // BR-RSK-08: a return's reason is read by PROCUREMENT and AUDITOR (and the slot's own reviewer, on its own page)
+    const readsReasons = manage.ok || (may.data.kind === 'member' && may.data.roles.has('AUDITOR'))
+    const tasks = await tx.reviewTask.findMany({ where: { assessmentId: a.id }, orderBy: [{ reviewRound: 'desc' }, { slotNo: 'asc' }] })
+    const [reviewers, reasons] = await Promise.all([
+      tx.member.findMany({ where: { id: { in: [...new Set(tasks.flatMap((x) => [x.assigneeMemberId, x.decidedById].filter((m): m is string => m !== null)))] } }, select: { id: true, displayNameTh: true } }),
+      readsReasons ? tx.comment.findMany({ where: { id: { in: tasks.map((x) => x.reasonCommentId).filter((c): c is string => c !== null) }, retractedAt: null }, select: { id: true, body: true } }) : Promise.resolve([]),
+    ])
+    const nameOf = (memberId: string) => reviewers.find((m) => m.id === memberId)?.displayNameTh ?? ''
+    const reviews: RiskReviewSlotView[] = tasks.map((x) => ({
+      reviewRound: x.reviewRound,
+      slotNo: x.slotNo,
+      riskDomains: x.riskDomains as RiskDomain[],
+      status: x.status,
+      reviewerName: nameOf(x.decidedById ?? x.assigneeMemberId),
+      decidedAt: x.decidedAt,
+      reason: x.reasonCommentId ? (reasons.find((c) => c.id === x.reasonCommentId)?.body ?? null) : null,
+    }))
     const [supplier, openedBy] = await Promise.all([
       tx.supplier.findUniqueOrThrow({ where: { id: a.supplierId }, select: { id: true, code: true, nameTh: true, nameEn: true } }),
       tx.member.findUniqueOrThrow({ where: { id: a.openedById }, select: { displayNameTh: true } }),
@@ -133,6 +165,7 @@ export async function riskAssessmentView(ctx: Ctx, assessmentId: string): Promis
         questions,
         canManage: manage.ok,
         canViewEvidence: evidence.ok,
+        reviews,
       },
     }
   })

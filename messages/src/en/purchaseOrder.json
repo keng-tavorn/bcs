@@ -117,7 +117,8 @@
     "notSet": "Not set",
     "note": "Note to the supplier",
     "title": "Purchase order details",
-    "submittedBy": "Sent for approval by"
+    "submittedBy": "Sent for approval by",
+    "risk": "Supplier risk"
   },
   "amounts": {
     "title": "Amounts",
@@ -351,7 +352,17 @@
     "DISPOSITION": "Choose what happens to the request lines of this PO, then cancel it again.",
     "BUDGET_SHORTFALL": "The budget line does not have enough for what the PO costs above its requests ({shortfall} baht short). Lower the price or quantity, or ask the budget administrator for more budget.",
     "CANCEL_BUDGET_INSUFFICIENT": "The budget line does not have enough to reserve for the requests again, so the lines cannot go back to the pool. Choose to cancel this quantity on the requests instead, or contact the budget administrator.",
-    "CANCEL_BUDGET_SHORTFALL": "The budget line does not have enough to reserve for the requests again ({shortfall} baht short), so the lines cannot go back to the pool. Choose to cancel this quantity on the requests instead, or contact the budget administrator."
+    "CANCEL_BUDGET_SHORTFALL": "The budget line does not have enough to reserve for the requests again ({shortfall} baht short), so the lines cannot go back to the pool. Choose to cancel this quantity on the requests instead, or contact the budget administrator.",
+    "RISK_NOT_ASSESSED": "This supplier is high risk and has never been assessed: have the supplier answer the risk questionnaire until it passes review, or ask for an override under the DOA",
+    "RISK_IN_PROGRESS": "This supplier's risk assessment is not finished: wait for the supplier's answers and every reviewer, or ask for an override under the DOA",
+    "RISK_SCOPE_EXPANDED": "The work of this purchase order carries a risk the supplier's assessment did not cover: reassess, or ask for an override under the DOA",
+    "RISK_VALIDITY_LAPSED": "This supplier's risk assessment is past its review date: reassess, or ask for an override under the DOA",
+    "RISK_REGISTRY_CEASED": "This supplier has ceased trading according to the registry: no new purchase order and no override",
+    "RISK_REGISTRY_FLAGGED": "This supplier's registry status changed (out of the VAT register, or not found): finish a new risk assessment first",
+    "RISK_OVERRIDE_EXPIRED": "This supplier's override has expired: finish the risk assessment, or ask for a new override",
+    "RISK_OVERRIDE_CAP_EXCEEDED": "This purchase order with the earlier ones goes over the override's cap: finish the risk assessment, or ask for a new override",
+    "RISK_REASON": "Give the reason this purchase order still goes to this supplier, at least 3 characters",
+    "RISK_OPEN_FAILED": "The assessment could not be opened: reload the page, or see the supplier's open assessment"
   },
   "budget": {
     "title": "Budget",
@@ -383,5 +394,61 @@
     "requester": "Requested by {name}",
     "noFiles": "This request has no attachments",
     "closed": "You may not open this request, so its attachments are not shown"
+  },
+  "risk": {
+    "tier": {
+      "LOW": "low",
+      "MEDIUM": "medium",
+      "HIGH": "high"
+    },
+    "fact": "{tier} risk · {source} · {trigger}",
+    "source": {
+      "NOT_REQUIRED": "no assessment needed",
+      "ASSESSMENT": "passed on assessment {number}",
+      "OVERRIDE": "passed on override {number}"
+    },
+    "trigger": {
+      "SUBMIT": "checked when sent for approval",
+      "SEND": "checked when sent to the supplier",
+      "PO_CHANGE": "checked when the PO was changed"
+    },
+    "warning": {
+      "REGISTRY_FLAGGED": "the supplier's registry status changed",
+      "REASSESSMENT_OVERDUE": "the supplier's assessment is past its review date",
+      "OVERRIDE_USED": "an override was used"
+    },
+    "warnings": "Warnings: {list}",
+    "reasoned": "a reason was given",
+    "noNumber": "without a number yet",
+    "band": {
+      "title": "Supplier risk",
+      "blocked": "This purchase order cannot be sent for approval yet (supplier risk: {tier})",
+      "blockedSend": "This purchase order cannot go to the supplier yet (supplier risk: {tier})",
+      "reason": {
+        "NOT_ASSESSED": "This supplier is high risk and has never been assessed: have the supplier answer the risk questionnaire until it passes review, or ask for an override under the DOA",
+        "IN_PROGRESS": "This supplier's risk assessment is not finished: wait for the supplier's answers and every reviewer, or ask for an override under the DOA",
+        "SCOPE_EXPANDED": "The work of this purchase order carries a risk the supplier's assessment did not cover: reassess, or ask for an override under the DOA",
+        "VALIDITY_LAPSED": "This supplier's risk assessment is past its review date: reassess, or ask for an override under the DOA",
+        "REGISTRY_CEASED": "This supplier has ceased trading according to the registry: no new purchase order and no override",
+        "REGISTRY_FLAGGED": "This supplier's registry status changed (out of the VAT register, or not found): finish a new risk assessment first",
+        "OVERRIDE_EXPIRED": "This supplier's override has expired: finish the risk assessment, or ask for a new override",
+        "OVERRIDE_CAP_EXCEEDED": "This purchase order with the earlier ones goes over the override's cap: finish the risk assessment, or ask for a new override"
+      },
+      "override": "This purchase order will pass the risk gate on override {number}; the auditors are told",
+      "reasonNeeded": "This supplier has warnings: {warnings}. Give the reason to order from it anyway in the reason field when you {when}",
+      "when": {
+        "SUBMIT": "send it for approval",
+        "SEND": "send it to the supplier"
+      },
+      "open": "Open a risk assessment",
+      "opening": "Opening the assessment",
+      "viewOpen": "See the open assessment {number}",
+      "requestOverride": "Ask for an override",
+      "viewOverride": "See override {number}"
+    },
+    "reasonField": {
+      "label": "Why this purchase order still goes to this supplier",
+      "hint": "Its approvers and the auditors see this reason"
+    }
   }
 }

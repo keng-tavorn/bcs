@@ -1,0 +1,21 @@
+{
+  "promptVersion": "BID_SUMMARY@1",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "RFx {{v:rfx.number}} มีใบเสนอราคา {{v:bidCount}} ราย มีรายการไม่ครบ {{v:partialCount}} ราย และมีธงราคา {{v:flagCount}} รายการ",
+      "ราคาสุทธิก่อน VAT ต่ำสุดคือ {{v:lowest.net}} บาท ของ {{v:lowest.supplierName}} (รหัส {{v:lowest.supplierCode}})",
+      "ราคาสุทธิก่อน VAT สูงสุดคือ {{v:highest.net}} บาท ของ {{v:highest.supplierName}} (รหัส {{v:highest.supplierCode}})",
+      "ช่วงห่างระหว่างราคาต่ำสุดและสูงสุดเท่ากับ {{v:spreadBp}} bp เมื่อเทียบกับราคาต่ำสุด",
+      "มีใบเสนอราคาที่รวม VAT แล้ว {{v:vatInclusiveCount}} ราย และมาจากผู้ขายที่ไม่จดทะเบียน VAT {{v:notVatRegisteredCount}} ราย",
+      "มาจากต่างประเทศ {{v:foreignCount}} ราย"
+    ]
+  },
+  "usage": {
+    "input": 230,
+    "output": 1326,
+    "cacheRead": 643,
+    "cacheWrite": 0
+  }
+}

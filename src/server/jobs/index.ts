@@ -32,8 +32,11 @@ import { budgetBurnAlerts } from './budget-burn-alerts'
 import { fileScan, poAckReset, supplierDocumentExpiry, supplierDocumentScannedJob } from './supplier-documents'
 import { supplierApplicationSla } from './supplier-application-sla'
 import { bidFileScannedJob, rfxClose, rfxInviteLink, rfxReminder } from './rfx'
+import { rfxAiSummary } from './rfx-ai-summary'
 import { preferredSupplierExpiry } from './preferred-supplier-expiry'
 import { riskAssessmentSla, riskEvidenceScannedJob } from './risk-assessments'
+import { riskReviewDaily } from './risk-review-daily'
+import { riskReviewTaskSla } from './risk-reviews'
 import { supplierNoticeSend, supplierNoticeSweep } from './supplier-notice-send'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
@@ -80,11 +83,16 @@ export const functions = [
   // S11-05
   riskAssessmentSla,
   riskEvidenceScannedJob,
+  riskReviewTaskSla,
+  // S11-09: reassessments due, overrides lapsing, the state of the day (FR-RSK-205)
+  riskReviewDaily,
   // S10-04
   rfxClose,
   rfxReminder,
   rfxInviteLink,
   bidFileScannedJob,
+  // S10-16: the summary of an RFx's bids written ahead after the close and the reveal (BR-AI-32)
+  rfxAiSummary,
   // S10-13: the preferred suppliers that end within 30 days, warned once per row and end (BR-RFX-14)
   preferredSupplierExpiry,
   // S8-07: the invoice inbox (ADR-123)

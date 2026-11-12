@@ -1,3 +1,4 @@
+import { RISK_DOMAINS } from '@/core/risk'
 import { lintWorkflowVersion, type ReviewerSpec, type WorkflowCondition, type WorkflowRuleSnapshot } from '@/core/workflow'
 import { systemCtx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
@@ -10,9 +11,12 @@ import type { InputWorkbook } from './workbook'
 // The parallel reviewers of the phase-1 organization (S6-04, FR-WF-103 AC4): version 1 of its workflow from sheet
 // Workflow_Reviewers of docs/inputs/BCS_inputs_p1.xlsx, published from the start of its DOA version 1, as the seed
 // publishes that version (local and staging only; NG-12). The demo workbook has no such sheet and gets no workflow.
-// Whatever cannot be read exactly stops the seed with a Thai message naming the row.
+// Whatever cannot be read exactly stops the seed with a Thai message naming the row. S11-06 (BR-RSK-07 · OQ-223): the
+// sheet Risk_Reviewers, when the workbook has it (S11-12 adds it), gives the same version its rules of RISK_ASSESSMENT
+// scope after the request rules — no request type, the domains their reviewer sees, mode ALL.
 
 const SHEET = 'Workflow_Reviewers'
+const RISK_SHEET = 'Risk_Reviewers'
 const MINUTES_PER_HOUR = 60
 
 export interface WorkflowSeedInput {
@@ -54,7 +58,48 @@ export function parseWorkflowReviewers(workbook: InputWorkbook, orgCode: string)
       descriptionTh: values.descriptionTh ?? null,
     }
   })
-  return { code: `WF-${orgCode}`, rules }
+  return { code: `WF-${orgCode}`, rules: [...rules, ...parseRiskReviewers(workbook, rules.length)] }
+}
+
+/** The RISK_ASSESSMENT rules of sheet Risk_Reviewers, numbered after the request rules; none without the sheet */
+export function parseRiskReviewers(workbook: InputWorkbook, firstSortOrder: number): Array<WorkflowRuleSnapshot & { descriptionTh: string | null }> {
+  if (!workbook.hasSheet(RISK_SHEET)) return []
+  return workbook.table(RISK_SHEET).map(({ row, values }, i) => {
+    const at = `ชีต ${RISK_SHEET} แถว ${row}`
+    const need = (key: string) => {
+      const v = values[key]
+      if (!v) throw new Error(`${at}: ช่อง ${key} ว่าง`)
+      return v
+    }
+    let when: WorkflowCondition
+    try {
+      when = ConditionJson.parse(JSON.parse(values.whenJson ?? '{}'))
+    } catch (error) {
+      throw new Error(`${at}: whenJson อ่านเป็นเงื่อนไขไม่ได้ (${(error as Error).message.split('\n')[0]})`)
+    }
+    const domains = need('riskDomains')
+      .split(/[\s,]+/)
+      .filter(Boolean)
+    const unknown = domains.filter((d) => !(RISK_DOMAINS as readonly string[]).includes(d))
+    if (unknown.length) throw new Error(`${at}: riskDomains มีค่าที่ไม่รู้จัก ${unknown.join(', ')}`)
+    const hours = Number(need('slaBusinessHours'))
+    if (!Number.isInteger(hours) || hours <= 0) throw new Error(`${at}: slaBusinessHours ต้องเป็นจำนวนเต็มบวก`)
+    const fallback: ReviewerSpec | null = values.fallbackPosition && values.fallbackDepartment ? { kind: 'POSITION_AT', position: values.fallbackPosition, department: values.fallbackDepartment } : null
+    return {
+      code: need('ruleCode'),
+      requestTypeCodes: [],
+      when,
+      reviewers: [{ kind: 'POSITION_AT', position: need('reviewerPosition'), department: need('reviewerDepartment') }],
+      fallback,
+      mode: 'ALL' as const,
+      quorumCount: null,
+      slaBusinessMinutes: hours * MINUTES_PER_HOUR,
+      sortOrder: firstSortOrder + i,
+      scope: 'RISK_ASSESSMENT' as const,
+      riskDomains: [...new Set(domains)],
+      descriptionTh: values.descriptionTh ?? values.conditionTh ?? null,
+    }
+  })
 }
 
 /**
@@ -94,6 +139,8 @@ export async function seedWorkflow(organizationId: string, input: WorkflowSeedIn
           slaBusinessMinutes: rule.slaBusinessMinutes,
           descriptionTh: rule.descriptionTh,
           sortOrder: rule.sortOrder,
+          scope: rule.scope ?? 'REQUEST',
+          riskDomains: [...(rule.riskDomains ?? [])],
         },
       })
     }

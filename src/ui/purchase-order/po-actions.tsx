@@ -80,9 +80,14 @@ export interface PoActionsProps {
   readonly receivingHref?: string | null
   /** What to say when nothing can be done now (the PO waits for its approver, or it is over) */
   readonly nothing?: string
+  /**
+   * S11-07 (BR-RSK-09): the supplier's risk gate at the next step — `blocked` says why it would refuse (the submit or the
+   * first sending waits); `reasonNeeded` asks the reason a warning needs (BR-SUP-04) with that step
+   */
+  readonly risk?: { readonly blocked: string | null; readonly reasonNeeded: boolean } | null
   readonly actions: {
-    readonly submit: (poId: string, idempotencyKey: string) => Promise<PoOutcome>
-    readonly send: (input: { poId: string; reason?: string }, idempotencyKey: string) => Promise<PoOutcome>
+    readonly submit: (poId: string, idempotencyKey: string, riskReason?: string) => Promise<PoOutcome>
+    readonly send: (input: { poId: string; reason?: string; riskReason?: string }, idempotencyKey: string) => Promise<PoOutcome>
     readonly cancel: (input: { poId: string; disposition: 'RETURN_TO_POOL' | 'CANCEL_REQUEST_LINES'; reason: string }, idempotencyKey: string) => Promise<PoOutcome>
     readonly close: (poId: string, idempotencyKey: string) => Promise<PoOutcome>
   }
@@ -101,15 +106,26 @@ export function usePoFailureText() {
 
 const failureOf = (outcome: PoOutcome | null): PoFailure | null => (outcome && !outcome.ok ? outcome : null)
 
+type RiskOfPart = PoActionsProps['risk']
+
+/** S11-07: the reason a warning of the risk gate needs, typed with the step it goes with (BR-SUP-04 · at least 3 characters) */
+function RiskReasonField({ id, value, error, onChange }: { id: string; value: string; error: string | undefined; onChange: (value: string) => void }) {
+  const t = useTranslations('purchaseOrder.risk.reasonField')
+  return <TextArea id={id} label={t('label')} hint={t('hint')} value={value} onChange={(event) => onChange(event.currentTarget.value)} error={error} maxLength={REASON_MAX_LENGTH} required />
+}
+
 /** No answer came: the action may have been done, and the same press sends the same submission again */
 const unanswered = (outcome: PoOutcome): boolean => !outcome.ok && outcome.code === PO_NO_ANSWER.code
 
-function SubmitPart({ poId, preview, run, onDone }: { poId: string; preview: SubmitPreviewView; run: PoActionsProps['actions']['submit']; onDone: (text: string, tone: 'success') => void }) {
+function SubmitPart({ poId, preview, risk, run, onDone }: { poId: string; preview: SubmitPreviewView; risk: RiskOfPart; run: PoActionsProps['actions']['submit']; onDone: (text: string, tone: 'success') => void }) {
   const t = useTranslations('purchaseOrder.actions')
+  const te = useTranslations('purchaseOrder.errors')
   const failureText = usePoFailureText()
   const id = useId()
   const action = useOutcomeAction<PoOutcome>(PO_NO_ANSWER)
   const failure = failureOf(action.outcome)
+  const [riskReason, setRiskReason] = useState('')
+  const [riskError, setRiskError] = useState<string>()
   return (
     <section aria-labelledby={`${id}-title`} className="flex flex-col gap-3">
       <h3 id={`${id}-title`} className="font-semibold text-ink">
@@ -134,14 +150,27 @@ function SubmitPart({ poId, preview, run, onDone }: { poId: string; preview: Sub
       ) : null}
       {preview.blocked ? <Notice tone="danger">{preview.blocked}</Notice> : null}
       <p className="text-ink">{preview.budget}</p>
+      {risk?.blocked ? <Notice tone="danger">{risk.blocked}</Notice> : null}
+      {risk?.reasonNeeded ? (
+        <RiskReasonField
+          id={`${id}-risk-reason`}
+          value={riskReason}
+          error={riskError}
+          onChange={(value) => {
+            setRiskReason(value)
+            setRiskError(undefined)
+          }}
+        />
+      ) : null}
       <p className="text-ink-muted">{t('submit.hint')}</p>
       {failure ? <Notice tone="danger">{failureText(failure, 'submit')}</Notice> : null}
       <Button
         onClick={async () => {
-          const outcome = await action.run((key) => run(poId, key))
+          if (risk?.reasonNeeded && riskReason.trim().length < REASON_MIN) return setRiskError(te('RISK_REASON'))
+          const outcome = await action.run((key) => run(poId, key, risk?.reasonNeeded ? riskReason.trim() : undefined))
           if (outcome.ok) onDone(t('submit.done'), 'success')
         }}
-        disabled={action.pending || preview.blocked !== null}
+        disabled={action.pending || preview.blocked !== null || Boolean(risk?.blocked)}
         className="w-full sm:w-auto sm:self-start"
       >
         {action.pending ? t('submit.working') : t('submit.button')}
@@ -178,6 +207,7 @@ function SendPart({
   label,
   email,
   again,
+  risk = null,
   run,
   onDone,
 }: {
@@ -185,6 +215,8 @@ function SendPart({
   label: string
   email: string | null
   again: boolean
+  /** A sending of an APPROVED PO (the first, or again after a bounce): the risk gate weighs it again; a copy of a PO already out is not weighed */
+  risk?: RiskOfPart
   run: PoActionsProps['actions']['send']
   onDone: (text: string, tone: 'success' | 'warning') => void
 }) {
@@ -195,10 +227,13 @@ function SendPart({
   const [confirming, setConfirming] = useState(false)
   const [reason, setReason] = useState('')
   const [reasonError, setReasonError] = useState<string>()
+  const [riskReason, setRiskReason] = useState('')
+  const [riskError, setRiskError] = useState<string>()
+  const te = useTranslations('purchaseOrder.errors')
   const failure = failureOf(action.outcome)
 
   async function send() {
-    const outcome = await action.run((key) => run({ poId, ...(again ? { reason: reason.trim() } : {}) }, key))
+    const outcome = await action.run((key) => run({ poId, ...(again ? { reason: reason.trim() } : {}), ...(risk?.reasonNeeded ? { riskReason: riskReason.trim() } : {}) }, key))
     // No answer: the second press stays, so "ยืนยันส่ง PO" is pressed again as it is — the same submission, which
     // e-mails the supplier once (spec §4.3); its words say so above the form
     if (unanswered(outcome)) return
@@ -212,6 +247,7 @@ function SendPart({
   function ask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (again && reason.trim().length < REASON_MIN) return setReasonError(t('reasonMissing'))
+    if (risk?.reasonNeeded && riskReason.trim().length < REASON_MIN) return setRiskError(te('RISK_REASON'))
     setReasonError(undefined)
     action.clear()
     setConfirming(true)
@@ -224,9 +260,22 @@ function SendPart({
       </h3>
       {email ? <p className="text-ink">{t('send.to', { email })}</p> : <Notice tone="warning">{t('send.noEmail')}</Notice>}
       {again ? <p className="text-ink-muted">{t('resend.hint')}</p> : null}
+      {risk?.blocked ? <Notice tone="danger">{risk.blocked}</Notice> : null}
       {failure ? <Notice tone="danger">{failureText(failure, again ? 'resend' : 'send')}</Notice> : null}
-      {email ? (
+      {email && !risk?.blocked ? (
         <form onSubmit={ask} noValidate className="flex flex-col gap-3">
+          {risk?.reasonNeeded ? (
+            <RiskReasonField
+              id={`${id}-risk-reason`}
+              value={riskReason}
+              error={riskError}
+              onChange={(value) => {
+                setRiskReason(value)
+                setRiskError(undefined)
+                setConfirming(false)
+              }}
+            />
+          ) : null}
           {again ? (
             <TextArea
               id={`${id}-reason`}
@@ -396,7 +445,7 @@ function ClosePart({
   )
 }
 
-export function PoActions({ poId, label, submit, send, resend, cancel, close, closeWaits, receivingHref = null, nothing: nothingText, actions }: PoActionsProps) {
+export function PoActions({ poId, label, submit, send, resend, cancel, close, closeWaits, receivingHref = null, nothing: nothingText, risk = null, actions }: PoActionsProps) {
   const t = useTranslations('purchaseOrder.actions')
   const id = useId()
   const [done, setDone] = useState<{ text: string; tone: 'success' | 'warning' } | null>(null)
@@ -411,9 +460,9 @@ export function PoActions({ poId, label, submit, send, resend, cancel, close, cl
       </h2>
       {done ? <Notice tone={done.tone}>{done.text}</Notice> : null}
       {nothing ? <p className="text-ink-muted">{nothingText ?? t('nothing')}</p> : null}
-      {submit ? <SubmitPart poId={poId} preview={submit} run={actions.submit} onDone={onDone} /> : null}
-      {send ? <SendPart poId={poId} label={label} email={send.email} again={false} run={actions.send} onDone={onDone} /> : null}
-      {resend ? <SendPart poId={poId} label={label} email={resend.email} again run={actions.send} onDone={onDone} /> : null}
+      {submit ? <SubmitPart poId={poId} preview={submit} risk={risk} run={actions.submit} onDone={onDone} /> : null}
+      {send ? <SendPart poId={poId} label={label} email={send.email} again={false} risk={risk} run={actions.send} onDone={onDone} /> : null}
+      {resend ? <SendPart poId={poId} label={label} email={resend.email} again risk={risk} run={actions.send} onDone={onDone} /> : null}
       {close ? <ClosePart poId={poId} receiving={receiving} run={actions.close} onDone={onDone} /> : null}
       {closeWaits ? (
         <div className="flex flex-col gap-1 border-t border-line pt-4">

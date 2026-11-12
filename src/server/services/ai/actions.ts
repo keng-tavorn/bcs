@@ -12,6 +12,7 @@ import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from 
 import { checkCreditUsage } from './credits'
 import { agentSwitchedOn, checkCallGates, type CallPlan } from './gate'
 import { listOrganizationsForPlatform } from '@/server/db/lookups'
+import { rfxReading } from '../sourcing/access'
 
 // AgentAction (spec §12.2, docs/sub-specs/S13.md "Entity และ migration" "State machine" BR-AI-04 BR-AI-11 BR-AI-18
 // BR-AI-23). An agent service asks for a call (agent_action.request: every gate of BR-AI-11 in the same transaction as
@@ -19,7 +20,7 @@ import { listOrganizationsForPlatform } from '@/server/db/lookups'
 // AI_AGENT): DRAFT with the result or FAILED with the reason, and one USE row of credits when tokens were used. The
 // result never writes a document: a person's own command takes it in with aiAssist (assist-contract.ts, S13-03).
 
-export const SUBJECT_TYPES = ['REQUEST', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'INVOICE', 'APPROVAL_TASK', 'DOA_VERSION', 'CHAT_INTAKE', 'SUPPLIER_APPLICATION'] as const
+export const SUBJECT_TYPES = ['REQUEST', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'INVOICE', 'APPROVAL_TASK', 'DOA_VERSION', 'CHAT_INTAKE', 'SUPPLIER_APPLICATION', 'RFX_EVENT'] as const
 
 /** The capability a member needs to start a call of each purpose (§2.4); the Brief is started by the system only */
 const CAPABILITY_OF_PURPOSE: Readonly<Record<AiPurposeName, Capability | null>> = {
@@ -34,17 +35,22 @@ const CAPABILITY_OF_PURPOSE: Readonly<Record<AiPurposeName, Capability | null>> 
   SAVINGS_NOTE: 'ai.ask',
   // S7-14 (BR-AI-29): started by the system once a document of an application is scanned clean (job supplier-document-ai)
   SUPPLIER_DOC_READ: null,
+  // S10-16 (BR-AI-31 BR-AI-32): procurement drafts an RFx; a reader of its prices asks for words on its bids (the agent's
+  // service checks the RFx itself: sourcing.manage on it, or rfxReading PRICES after the close)
+  RFX_DRAFT: 'sourcing.manage',
+  BID_SUMMARY: 'sourcing.view',
+  NEGOTIATION_POINTS: 'sourcing.view',
 }
 
 /** The purposes the system starts by itself (BR-AI-11 still gates them): the Brief, and a supplier's document (S7-14) */
-const SYSTEM_PURPOSES: readonly AiPurposeName[] = ['BRIEF', 'SUPPLIER_DOC_READ']
+const SYSTEM_PURPOSES: readonly AiPurposeName[] = ['BRIEF', 'SUPPLIER_DOC_READ', 'BID_SUMMARY']
 
 const fail = (code: 'FORBIDDEN' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITION' | 'VALIDATION_FAILED', message: string, details?: Record<string, unknown>) =>
   ({ ok: false, error: { code, message, ...(details ? { details } : {}) } }) as const
 
 /** Who may start a call of this purpose, before the gates (PLATFORM_ADMIN never: NG-12, §2.4) */
 async function mayRequest(tx: TenantTx, ctx: Ctx, purpose: AiPurposeName): Promise<CommandOutcome<never> | null> {
-  if (ctx.actor.type === 'SYSTEM') return SYSTEM_PURPOSES.includes(purpose) ? null : fail('FORBIDDEN', 'the system starts only the Approval Brief and the reading of a supplier document')
+  if (ctx.actor.type === 'SYSTEM') return SYSTEM_PURPOSES.includes(purpose) ? null : fail('FORBIDDEN', 'the system starts only the Approval Brief, the reading of a supplier document and the summary of the bids of an RFx')
   if (ctx.actor.type !== 'USER') return fail('FORBIDDEN', 'only a member of the organization uses AI')
   const capability = CAPABILITY_OF_PURPOSE[purpose]
   if (!capability) return fail('FORBIDDEN', `${purpose} is started by the system`)
@@ -308,6 +314,13 @@ async function loadForFeedback(tx: TenantTx, ctx: Ctx, id: string) {
   if (row.requestedById === me) return { row }
   const brief = row.purpose === 'BRIEF' && row.subjectType === 'APPROVAL_TASK' && row.subjectId !== null
   const reads = brief && (await tx.approvalTask.count({ where: { id: row.subjectId!, OR: [{ assigneeMemberId: me }, { principalMemberId: me }] } })) > 0
+  // S10-16 (BR-AI-32): words on an RFx's bids are for every reader of its prices, while the Sourcing Agent is on
+  if (row.subjectType === 'RFX_EVENT' && row.subjectId !== null && row.level === 'L0') {
+    const reading = await rfxReading(tx, ctx, row.subjectId)
+    if (!reading.ok || reading.data !== 'PRICES') return { error: fail('FORBIDDEN', 'only a reader of the prices of the RFx says whether its summary helped') }
+    const on = await agentSwitchedOn(ctx, AGENT_OF_PURPOSE.BID_SUMMARY, tx)
+    return on.ok ? { row } : { error: fail('FORBIDDEN', 'the summary is not shown while its agent is off') }
+  }
   if (!reads) return { error: fail('FORBIDDEN', 'only the member who asked, or the reader of the Brief, says whether it helped') }
   const on = await agentSwitchedOn(ctx, AGENT_OF_PURPOSE.BRIEF, tx)
   return on.ok ? { row } : { error: fail('FORBIDDEN', 'the Brief is not shown while its agent is off') }

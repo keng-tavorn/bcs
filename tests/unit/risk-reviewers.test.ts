@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { DelegationSnapshot, OrgSnapshot } from '@/core/doa/types'
 import { delegationCoversReview, riskReviewers, riskReviewOutcome } from '@/core/risk'
-import { lintWorkflowVersion, type WorkflowRuleSnapshot, type WorkflowVersionSnapshot } from '@/core/workflow'
+import { checkSod } from '@/core/sod'
+import { lintWorkflowVersion, requestScopeOnly, type WorkflowRuleSnapshot, type WorkflowVersionSnapshot } from '@/core/workflow'
+import { workflowRuleFromRow } from '@/server/workflow/snapshot'
 
 // S11-06 (BR-RSK-07 · ADR-222): the edges of the reviewer adapter the golden file does not reach — the outcome of a round,
 // the delegations that count for a reviewer's task, a RISK rule without domains — and the lint of RISK_ASSESSMENT rules
@@ -102,5 +104,34 @@ describe('[BR-RSK-07] lint of RISK_ASSESSMENT rules (WF_LINT_RISK_*)', () => {
       { code: 'WF_LINT_DUPLICATE_CODE', rule: 'RV-01' },
     ])
     expect(r.warnings.filter((w) => w.code === 'WF_LINT_NO_FALLBACK')).toHaveLength(9)
+  })
+})
+
+describe('[FR-RSK-202/AC2] a RISK_ASSESSMENT rule never routes a request, whatever its row holds', () => {
+  it('requestScopeOnly drops the RISK rules and keeps a version of REQUEST rules as it is', () => {
+    const request = rule({ code: 'RV-01', scope: undefined, riskDomains: undefined, requestTypeCodes: ['IT_PURCHASE'], when: {} })
+    // a damaged RISK row that names a request type is still never a reviewer of a request
+    const risk = rule({ code: 'RR-01', requestTypeCodes: ['IT_PURCHASE'], when: {} })
+    const mixed = version([request, risk])
+    expect(requestScopeOnly([mixed])[0]!.rules.map((r) => r.code)).toEqual(['RV-01'])
+    const plain = version([request])
+    expect(requestScopeOnly([plain])[0]).toBe(plain)
+  })
+
+  it('the stored scope and domains reach the engine for a RISK rule only (REQUEST rows keep their old shape · GC-WF unchanged)', () => {
+    const base = { code: 'R', requestTypeCodes: [], when: {}, reviewers: [{ kind: 'POSITION_AT', position: 'DM', department: 'IT' }], fallback: null, mode: 'ALL', quorumCount: null, slaBusinessMinutes: 60, sortOrder: 1 }
+    expect(workflowRuleFromRow({ ...base, scope: 'RISK_ASSESSMENT', riskDomains: ['INFOSEC'] })).toMatchObject({ scope: 'RISK_ASSESSMENT', riskDomains: ['INFOSEC'] })
+    const request = workflowRuleFromRow({ ...base, requestTypeCodes: ['IT_PURCHASE'], scope: 'REQUEST', riskDomains: [] })
+    expect('scope' in request || 'riskDomains' in request).toBe(false)
+  })
+})
+
+describe('[FR-RSK-202/AC5] [BR-SOD-16] who prepared an assessment never reviews it', () => {
+  const policy = { approverMayReceive: false, requesterMayReceive: true }
+  it('the opener and whoever filled it in are refused; another member is not', () => {
+    const action = (actor: string) => checkSod({ kind: 'DECIDE_RISK_REVIEW', actorMemberId: actor, assessmentPreparerMemberIds: ['proc', 'filler'] }, policy)
+    expect(action('proc')).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-16' })
+    expect(action('filler')).toEqual({ ok: false, error: 'SOD_VIOLATION', rule: 'BR-SOD-16' })
+    expect(action('dm_it')).toEqual({ ok: true })
   })
 })

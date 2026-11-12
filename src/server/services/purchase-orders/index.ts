@@ -23,6 +23,7 @@ import { unmergeableLine } from '../budget/overrun-use'
 import { issueDocumentVerification } from '../documents/verification'
 import { completeFinishedRequests, unorderSourceLines } from './requests'
 import { hasOpenChange } from './close'
+import { assertSupplierClearForPo } from '../risk/gate'
 
 export { closePurchaseOrder } from './close'
 export { previewPoSubmit, type PoRoutePreviewDto, type PoSubmitPreviewDto } from './preview'
@@ -179,7 +180,11 @@ export function editDraftPo(ctx: Ctx, input: z.input<typeof EditInput>, options:
 
 // ---------- send for approval (FR-P2P-004, BR-BUD-05) ----------
 
-const SubmitInput = z.strictObject({ poId: z.uuid() })
+const SubmitInput = z.strictObject({
+  poId: z.uuid(),
+  /** S11-07 (BR-SUP-04 · BR-RSK-09): why the PO goes out despite a warning of the risk gate that needs a reason */
+  riskReason: z.string().trim().min(MIN_REASON_LENGTH).max(REASON_MAX_LENGTH).optional(),
+})
 
 export const submitPoCommand = defineCommand({
   name: 'po.submit',
@@ -212,6 +217,9 @@ export const submitPoCommand = defineCommand({
       po.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
       rateBp,
     )
+    // S11-07 (BR-RSK-09 · FR-RSK-203): the supplier's risk gate at the PO's new gross, RISK on; nothing with RISK off
+    const risk = await assertSupplierClearForPo(tx, ctx, { poId: po.id, trigger: 'SUBMIT', grossSatang: totals.gross, reason: input.riskReason })
+    if (!risk.ok) return risk
 
     // The drafter of a consolidation round is the system: whoever sends it owns it, for BR-SOD-03
     const creator = po.createdById ?? actor
@@ -287,8 +295,9 @@ export const submitPoCommand = defineCommand({
       },
       ...budget.events,
       ...route.data.events,
+      ...risk.events,
     ]
-    return { ok: true, result: { number, routeId: route.data.routeId, assigneeMemberId: route.data.firstTask.assigneeMemberId }, events, notifications: route.data.notifications }
+    return { ok: true, result: { number, routeId: route.data.routeId, assigneeMemberId: route.data.firstTask.assigneeMemberId }, events, notifications: [...route.data.notifications, ...risk.notifications] }
   },
 })
 

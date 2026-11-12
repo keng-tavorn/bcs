@@ -1,0 +1,19 @@
+{
+  "promptVersion": "NEGOTIATION_POINTS@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "จำนวนผู้เสนอราคาทั้งหมด {{v:bidCount}} ราย ช่วงราคาสูงสุดและต่ำสุดห่างกัน {{v:spreadBp}} bp",
+      "มีใบเสนอราคา {{v:vatInclusiveCount}} ฉบับรวมภาษีมูลค่าเพิ่มแล้ว ขอให้ยืนยันราคาที่ไม่รวม VAT",
+      "มีผู้เสนอราคา {{v:notVatRegisteredCount}} รายที่ไม่ได้จดทะเบียนภาษีมูลค่าเพิ่ม ขอให้ยืนยันสถานะภาษีของราคาที่เสนอ",
+      "ขอให้ {{v:lowest.supplierName}} ยืนยันราคาเสนอให้ครบทุกรายการ"
+    ]
+  },
+  "usage": {
+    "input": 230,
+    "output": 1256,
+    "cacheRead": 711,
+    "cacheWrite": 0
+  }
+}

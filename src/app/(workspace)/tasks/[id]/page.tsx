@@ -48,6 +48,8 @@ import { getInvoiceTaskView } from '@/server/queries/ap-invoices'
 import { InvoiceVarianceBody } from '@/ui/tasks/subjects/invoice'
 import { getPoChangeTaskView } from '@/server/queries/po-changes'
 import { PoChangeBody } from '@/ui/tasks/subjects/po-change'
+import { riskOverrideView } from '@/server/services/risk'
+import { RiskOverrideFacts } from '@/ui/risk-override/facts'
 import { getAwardTaskView } from '@/server/services/sourcing'
 import { AwardFacts } from '@/ui/sourcing/award-facts'
 import { getSupplierApplicationTaskView } from '@/server/services/suppliers/application-view'
@@ -176,6 +178,10 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const invoice = task.subjectType === 'INVOICE' ? await getInvoiceTaskView(ctx, task.subjectId) : null
   // S8-13: a change of a sent PO (subject PO_CHANGE)
   const poChange = task.subjectType === 'PO_CHANGE' ? await getPoChangeTaskView(ctx, task.subjectId) : null
+  // S11-08: an override of the risk gate (subject RISK_OVERRIDE · FR-RSK-203 AC2); read by who has a task on it
+  const riskOverrideRead = task.subjectType === 'RISK_OVERRIDE' ? await riskOverrideView(ctx, task.subjectId) : null
+  const riskOverride = riskOverrideRead?.ok ? riskOverrideRead.data : null
+  const tro = riskOverride ? await getTranslations('risk.override') : null
   // S7-09: a supplier application (subject SUPPLIER_APPLICATION · FR-SUP-104 AC5): its approvers read it
   // (supplier.application.view ASSIGNED); questions go back as a return, so no "ask the requester" (allowsRequestInfo false)
   const isSupplierApp = task.subjectType === 'SUPPLIER_APPLICATION'
@@ -253,11 +259,13 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               ? (invoice.number ?? '-')
               : poChange
                 ? t('poChangeTask.label', { number: poChange.po.number ?? '-', changeNo: poChange.changeNo })
-                : supplierApp
-                  ? supplierApp.label
-                  : award
-                    ? (award.number ?? '-')
-                    : task.policy
+                : riskOverride && tro
+                  ? (riskOverride.number ?? tro('list.draft'))
+                  : supplierApp
+                    ? supplierApp.label
+                    : award
+                      ? (award.number ?? '-')
+                      : task.policy
                   ? policyHeadline(t, locale, task.policy)
                   : task.workflow
                     ? t(task.workflow.withdrawal ? 'item.workflowWithdrawal' : 'item.workflow', { code: task.workflow.code, version: task.workflow.versionNo })
@@ -274,8 +282,10 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
             ? t('invoice.heading')
             : poChange
               ? poChange.supplier.nameTh
-              : award
-                ? award.rfx.title
+              : riskOverride && tro
+                ? tro('detail.heading', { number: riskOverride.number ?? '-' })
+                : award
+                  ? award.rfx.title
                 : (varianceTitle ?? label)
   // On phones the decision bar is fixed to the bottom: the page ends above it, with room as tall as the bar is now — its
   // height comes from the bar itself (useBarSpace of src/ui/tasks/bar-space.ts) as it grows with the PIN, a refusal or
@@ -379,6 +389,13 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 <InvoiceVarianceBody invoice={invoice} />
               ) : poChange ? (
                 <PoChangeBody change={poChange} />
+              ) : riskOverride && tro ? (
+                <>
+                  <RiskOverrideFacts view={riskOverride} />
+                  <Link href={`/risk/overrides/${riskOverride.id}`} className={linkClass}>
+                    {tro('detail.title')}
+                  </Link>
+                </>
               ) : isSupplierApp ? (
                 supplierApp ? <SupplierApplicationBody application={supplierApp} /> : null
               ) : award ? (
@@ -413,12 +430,12 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   open={open}
                   locale={locale}
                   label={label}
-                  amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : transfer ? moneyText(transfer.amount) : overrun ? moneyText(overrun.shortfall) : invoice?.variance ? money(invoice.variance.netSatang + invoice.variance.vatSatang) : poChange ? money(poChange.new.grossSatang) : award ? moneyText({ amount: award.gross }) : '-'}
-                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : isOverrun ? 'BUDGET_OVERRUN' : isSupplierApp ? 'SUPPLIER_APPLICATION' : task.review ? 'REVIEW' : 'REQUEST'}
+                  amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : transfer ? moneyText(transfer.amount) : overrun ? moneyText(overrun.shortfall) : invoice?.variance ? money(invoice.variance.netSatang + invoice.variance.vatSatang) : poChange ? money(poChange.new.grossSatang) : riskOverride ? money(riskOverride.capGrossSatang) : award ? moneyText({ amount: award.gross }) : '-'}
+                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : isOverrun ? 'BUDGET_OVERRUN' : riskOverride ? 'RISK_OVERRIDE' : isSupplierApp ? 'SUPPLIER_APPLICATION' : task.review ? 'REVIEW' : 'REQUEST'}
                   stepUp={task.stepUp}
                   hasPasskey={hasPasskey}
                   {...(variance ? { disposition: variance.disposition } : {})}
-                  actions={po || variance || isTransfer || isOverrun || isSupplierApp || award ? { decide: decideTaskAction, passkeyOptions: passkeyOptionsAction } : { decide: decideTaskAction, ask: askForInformationAction, passkeyOptions: passkeyOptionsAction }}
+                  actions={po || variance || isTransfer || isOverrun || riskOverride || isSupplierApp || award ? { decide: decideTaskAction, passkeyOptions: passkeyOptionsAction } : { decide: decideTaskAction, ask: askForInformationAction, passkeyOptions: passkeyOptionsAction }}
                 />
               )}
             </Panel>

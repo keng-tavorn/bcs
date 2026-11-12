@@ -16,6 +16,7 @@ export const LINK_SUBJECTS = [
   'BANK_ACCOUNT_CHANGE',
   'SUPPLIER_APPLICATION',
   'AWARD_DECISION',
+  'RISK_OVERRIDE',
 ] as const
 
 export type LinkSubject = (typeof LINK_SUBJECTS)[number]

@@ -1,0 +1,29 @@
+{
+  "promptVersion": "RFX_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "title": "ขอใบเสนอราคาคอมพิวเตอร์โน้ตบุ๊กสำหรับงานออกแบบ CAD และจอภาพ 27 นิ้ว",
+    "titleEn": "RFQ: Notebook computer for CAD design work and 27-inch monitor",
+    "description": "ขอใบเสนอราคาคอมพิวเตอร์โน้ตบุ๊กสำหรับงานออกแบบ CAD ที่มีแรม 32GB และจอภาพขนาด 27 นิ้ว ผู้ขายโปรดเสนอราคาแยกตามรายการในหน่วยเงินบาท",
+    "descriptionEn": "Request for quotation for a notebook computer for CAD design work with 32GB RAM and a 27-inch monitor. Suppliers quote per line in Thai baht.",
+    "lines": [
+      {
+        "lineNo": 1,
+        "descriptionEn": "Notebook computer for CAD design work, 32GB RAM",
+        "uomEn": "unit"
+      },
+      {
+        "lineNo": 2,
+        "descriptionEn": "27-inch monitor",
+        "uomEn": "screen"
+      }
+    ]
+  },
+  "usage": {
+    "input": 142,
+    "output": 1030,
+    "cacheRead": 1091,
+    "cacheWrite": 0
+  }
+}

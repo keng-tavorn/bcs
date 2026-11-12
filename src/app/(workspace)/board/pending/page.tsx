@@ -36,10 +36,10 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
   const result = await boardView(ctx, filter)
   if (!result.ok) return <Refused title={t('title')} message={t('forbidden')} href="/" linkLabel={t('home')} />
 
-  const { rows, scope, asOf } = result.data
+  const { rows, scope, asOf, riskFilter } = result.data
   const [departments, awaitingAck, ta] = await Promise.all([listDepartments(ctx), listPosAwaitingAck(ctx), getTranslations('supplierPoAck')])
   const query = filterQuery(filter)
-  const filtered = Boolean(filter.departmentId || filter.subjectType)
+  const filtered = Boolean(filter.departmentId || filter.subjectType || (riskFilter && filter.riskGated))
   const departmentName = (d: { nameTh: string; nameEn: string | null }) => (locale === 'en' && d.nameEn ? d.nameEn : d.nameTh)
 
   return (
@@ -88,6 +88,9 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
             defaultValue={filter.subjectType ?? ''}
             options={BOARD_SUBJECTS.map((s) => ({ value: s, label: t(`subject.${s}`) }))}
           />
+          {riskFilter ? (
+            <FilterSelect id="board-risk" name="risk" label={t('filters.risk')} all={t('filters.allRisk')} defaultValue={filter.riskGated ? 'gated' : ''} options={[{ value: 'gated', label: t('filters.riskGated') }]} />
+          ) : null}
         </FilterBar>
 
         <Panel id="board-people" title={t('table.title', { count: rows.length })}>

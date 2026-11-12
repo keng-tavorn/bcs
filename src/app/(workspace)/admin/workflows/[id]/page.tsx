@@ -4,6 +4,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import type { RouteView } from '@/server/services/doa/view'
+import { requireModule } from '@/server/services/modules'
 import { getWorkflowEditor } from '@/server/services/workflow/view'
 import { VersionStatus, versionLook } from '@/ui/admin-doa/version-status'
 import { nameIn } from '@/ui/admin-org/names'
@@ -33,13 +34,14 @@ const linkClass = 'inline-flex min-h-11 items-center font-medium text-primary un
 // (FR-WF-103 AC3): the service refuses anyone else and this page then says whose page it is. S6-07: the 90-day
 // backtest of a draft, a version waiting for approval or one approved for later (BR-WF-13), for whoever may try it out
 // — its approver too; a version approved for later may be withdrawn by who may send versions (FR-DOA-104 AC1), and a
-// withdrawal asked or done is stated with who asked, when and why.
+// withdrawal asked or done is stated with who asked, when and why. S11-06: the risk reviewers' tab of the workbench
+// (RISK_ASSESSMENT rules, BR-RSK-07) adds rules only while the organization has the RISK module on (§9.9).
 export default async function WorkflowVersionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   const [t, tWithdrawal, locale] = await Promise.all([getTranslations('adminWorkflow'), getTranslations('policyWithdrawal'), getLocale()])
   if (!ctx) return null
-  const result = await getWorkflowEditor(ctx, id)
+  const [result, riskModule] = await Promise.all([getWorkflowEditor(ctx, id), requireModule(ctx, 'RISK')])
   if (!result.ok && result.error.code === 'NOT_FOUND') notFound()
   if (!result.ok) return <NoAccess title={t('title')} message={t('forbidden')} homeLabel={t('homeLink')} />
   const view = result.data
@@ -163,6 +165,7 @@ export default async function WorkflowVersionPage({ params }: { params: Promise<
             slaMaxHours={view.slaMaxHours}
             canSimulate={view.canSimulate}
             dryRunDefaults={view.dryRunDefaults}
+            riskEnabled={riskModule.ok}
             submit={
               submit
                 ? {

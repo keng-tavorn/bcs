@@ -185,10 +185,19 @@ export const PERMISSIONS = {
   // and confirmed or published by another; ORG_ADMIN loses them once the DOA administrators are separated (below)
   'admin.riskTiers': DOA_ADMINS,
   // S11-05 (FR-RSK-201 · FR-RSK-204 · BR-RSK-14): reading a risk file; PROCUREMENT opens, fills in, cancels; the evidence is
-  // downloaded by fewer. The holder of a reviewer's slot (ASSIGNED, own domain) and the REVIEWER_* roles come with S11-06
+  // downloaded by fewer. S11-06 (FR-RSK-202 AC2 · ADR-222): no role decides a reviewer's task (the REVIEWER_* roles of §2.2
+  // are not stored roles yet · S11-23); the holder of a reviewer's slot reads its own part only (risk.review.view ·
+  // BR-RSK-08) and opens the evidence of its domains (ASSIGNED: the service names the holders whose slot sees the answer)
   'risk.assessment.view': roles(['PROCUREMENT', 'FINANCE', 'EXECUTIVE', 'AUDITOR'], 'ORG'),
   'risk.assessment.manage': PROCUREMENT_ONLY,
-  'risk.evidence.view': roles(['PROCUREMENT', 'FINANCE', 'AUDITOR'], 'ORG'),
+  'risk.evidence.view': [...roles(['PROCUREMENT', 'FINANCE', 'AUDITOR'], 'ORG'), anyMember('ASSIGNED')],
+  // S11-06 (BR-RSK-07 · OQ-101): only who the workflow version in effect named in the task, with whoever acts for them now;
+  // no role gives it. Their task page shows GENERAL and the slot's domains (risk.review.view, the task's holders)
+  'risk.review.decide': [doaAssignee()],
+  'risk.review.view': [anyMember('ASSIGNED')],
+  // S11-08 (BR-RSK-10 · ADR-226): PROCUREMENT asks for an override of the risk gate; only who asked edits, sends or
+  // cancels it (the service checks); its approvers decide it through the DOA route (approval.decide)
+  'risk.override.request': PROCUREMENT_ONLY,
   'admin.riskQuestionnaire': DOA_ADMINS,
   // S6-10 (FR-INT-102, BR-PRC-06 · OQ-114): every member searches the catalogue; PROCUREMENT keeps it and its agreed prices
   'catalog.view': [anyMember('ORG')],

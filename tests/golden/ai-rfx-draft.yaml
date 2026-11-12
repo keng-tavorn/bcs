@@ -1,0 +1,5 @@
+# tests/golden/ai-rfx-draft.yaml
+suite: ai-rfx-draft
+note: BR-AI-31 · ส่วนของร่าง RFx ที่โค้ดตัดสิน ไม่ใช่ AI · แยกร่างต่อหมวดตามลำดับที่พบ · RFQ เมื่อทุกบรรทัดเป็นสินค้าที่มีราคาอ้างอิง ไม่เช่นนั้น RFP · ยอดประมาณ = Σ จำนวน × ราคาอ้างอิง · minInvites ตาม BR-RFX-01
+cases:
+  - { id: GC-AI-99, title: บรรทัดสองหมวดได้ร่างสองใบ ชนิดและจำนวนผู้เชิญขั้นต่ำจากโค้ด, fn: rfxDraftFromLines, input: { vatRateBp: 700, minInvitesThresholdGross: "100000.00", minInvitesAboveThreshold: 3, lines: [{ ref: H187, category: STEEL, isService: false, quantity: "8", refUnitPrice: "23800.00" }, { ref: H217, category: STEEL, isService: false, quantity: "5", refUnitPrice: "23800.00" }, { ref: H240, category: SERV, isService: true, quantity: "1", refUnitPrice: "45000.00" }] }, expect: { drafts: [{ category: STEEL, kind: RFQ, lines: [H187, H217], estimatedNet: "309400.00", estimatedGross: "331058.00", minInvites: 3 }, { category: SERV, kind: RFP, lines: [H240], estimatedNet: "45000.00", estimatedGross: "48150.00", minInvites: 1 }] } }

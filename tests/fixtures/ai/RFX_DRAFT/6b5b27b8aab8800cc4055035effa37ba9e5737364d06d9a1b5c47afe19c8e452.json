@@ -1,0 +1,29 @@
+{
+  "promptVersion": "RFX_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "title": "จ้างบริการพนักงานรักษาความปลอดภัย ไซต์ลาดกระบัง",
+    "titleEn": "Security guard services, Lat Krabang site",
+    "description": "ขอเชิญเสนอราคาบริการพนักงานรักษาความปลอดภัย ไซต์ลาดกระบัง ได้แก่ กะกลางวัน 12 ชั่วโมง และกะกลางคืน 12 ชั่วโมง ผู้เสนอราคาต้องเสนอราคาแยกตามรายการเป็นเงินบาท",
+    "descriptionEn": "Request for proposal for security guard services at the Lat Krabang site, covering the day shift (12 hours) and the night shift (12 hours). Suppliers are to quote per line in Thai baht.",
+    "lines": [
+      {
+        "lineNo": 1,
+        "descriptionEn": "Security guard, day shift, 12 hours, Lat Krabang site",
+        "uomEn": "person-month"
+      },
+      {
+        "lineNo": 2,
+        "descriptionEn": "Security guard, night shift, 12 hours, Lat Krabang site",
+        "uomEn": "person-month"
+      }
+    ]
+  },
+  "usage": {
+    "input": 181,
+    "output": 811,
+    "cacheRead": 1091,
+    "cacheWrite": 0
+  }
+}

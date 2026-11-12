@@ -1,0 +1,101 @@
+{
+  "review": {
+    "metaTitle": "Risk assessment review",
+    "back": "Home",
+    "heading": "Assessment {number}",
+    "notYours": "This review cannot be opened",
+    "notYoursHint": "This review was not sent to you, moved to someone else, or no longer exists. Reviews sent to you arrive as cards in the LINE chat.",
+    "moduleOff": "Supplier risk is switched off for this organization, so this review cannot be opened.",
+    "toHome": "Go to the home page",
+    "onBehalfOf": "You review on behalf of {name}",
+    "summary": "Summary of this review",
+    "tier": "Risk tier",
+    "tierInherent": "{tier} (starting tier from the screening)",
+    "parts": "Your part",
+    "due": "Due",
+    "overdue": "past due",
+    "waiting": "Waiting for your review",
+    "tierName": {
+      "LOW": "Low",
+      "MEDIUM": "Medium",
+      "HIGH": "High"
+    },
+    "domain": {
+      "GENERAL": "General",
+      "PRIVACY": "Privacy",
+      "INFOSEC": "Information security",
+      "PREMISES": "Premises safety",
+      "FINANCE": "Finance"
+    },
+    "state": {
+      "PASSED": "This part was passed on {time}",
+      "RETURNED": "This part was returned for changes on {time}",
+      "CANCELLED": "This review was cancelled because another reviewer returned the assessment. There is nothing more to do.",
+      "reason": "Reason for the return: {reason}",
+      "cannotDecide": "You can read this review but cannot decide it now: the assessment may no longer wait for review, or you opened or filled it in."
+    },
+    "questions": {
+      "title": "Questions and answers of your part",
+      "hint": "Only the general part and the parts you review are shown",
+      "empty": "This assessment asked no question in your part",
+      "noAnswer": "No answer yet",
+      "source": {
+        "EXPLICIT": "Answered by the supplier",
+        "EVIDENCE": "Answered with a supporting document",
+        "ON_BEHALF": "Filled in by procurement for the supplier"
+      },
+      "note": "Note: {note}",
+      "evidence": "Document {type}, expires {date}",
+      "evidenceScope": "Document scope: {scope}",
+      "files": "{count} attached file(s)",
+      "openOnWeb": "Open the files on the web"
+    },
+    "slots": {
+      "title": "Every reviewer's part",
+      "hint": "Only the state of the other parts is shown, never their answers or reasons",
+      "slot": "Part {no}: {parts}",
+      "mine": "Your part",
+      "status": {
+        "OPEN": "Waiting",
+        "PASSED": "Passed",
+        "RETURNED": "Returned",
+        "CANCELLED": "Cancelled"
+      }
+    },
+    "decide": {
+      "barLabel": "Decide this review",
+      "pass": "Pass this part",
+      "confirmText": "Confirm passing assessment {number} for the part you review. This cannot be changed once confirmed.",
+      "confirm": "Confirm pass",
+      "checkFirst": "Check first",
+      "passed": "Passed",
+      "returnLink": "Return for changes",
+      "returnTitle": "Return for changes",
+      "returnHint": "The assessment goes back for changes, and the other reviews still waiting are cancelled.",
+      "reason": "Reason for the return",
+      "reasonHint": "Say which answers are missing or wrong. Procurement and the auditors read this.",
+      "share": "This message may go to the supplier",
+      "shareHint": "Unticked, the supplier does not see this message and only learns that the assessment was returned",
+      "confirmReturn": "I have checked the reason and understand a return cannot be undone",
+      "submitReturn": "Return for changes",
+      "returned": "Returned for changes",
+      "working": "Sending…",
+      "reasonError": "Write the reason for the return, at least 3 characters",
+      "confirmError": "Tick the confirmation before returning",
+      "signedOut": "Your sign-in in LINE has ended and nothing was sent. Load this page again and try once more.",
+      "failed": "We could not tell whether this reached BCS because the connection failed. Try again; if it was sent, this page shows it after loading again.",
+      "reload": "Load this page again",
+      "backToChat": "Back to the chat"
+    },
+    "errors": {
+      "done": "This review was already done by {name} on {time}",
+      "closed": "This review is closed: there is nothing more to do.",
+      "sod": "You cannot review this assessment: you opened or filled it in (separation of duties).",
+      "notYours": "This review is no longer yours. The page now shows where it stands.",
+      "reason": "Write the reason for the return, at least 3 characters",
+      "moduleOff": "Supplier risk is switched off for this organization, so this review cannot be decided.",
+      "signedOut": "Your sign-in has ended and nothing was sent. Load this page again and try once more.",
+      "other": "The decision was not saved. Try again; if it still fails, tell your administrator."
+    }
+  }
+}

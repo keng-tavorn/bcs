@@ -202,6 +202,10 @@
       "SUPPLIER_ONBOARDING": {
         "name": "Supplier Onboarding",
         "description": "Reads the company certificate and VAT registration a supplier uploads with its application and fills them in for the supplier or procurement to check field by field; never reads an account number, verifies a document or approves a supplier"
+      },
+      "SOURCING": {
+        "name": "Sourcing",
+        "description": "Drafts an RFx's title, description and English line descriptions for procurement to check field by field, and after the close summarizes the bids and points to negotiate from figures the system calculated; never scores, awards or messages a supplier"
       }
     },
     "readOnly": "You can read this page only. Switching assistants and changing their notebook is for the organization admin.",
@@ -347,7 +351,8 @@
         "INVOICE": "Invoice",
         "APPROVAL_TASK": "Approval task",
         "DOA_VERSION": "DOA version",
-        "CHAT_INTAKE": "LINE chat request"
+        "CHAT_INTAKE": "LINE chat request",
+        "RFX_EVENT": "RFx"
       },
       "purposes": {
         "QUOTATION_READ": "Read a quotation",
@@ -358,7 +363,10 @@
         "QUESTION": "Answered a question",
         "DOA_DRAFT": "Drafted a DOA from the rules",
         "SAVINGS_NOTE": "Explained a saving",
-        "SUPPLIER_DOC_READ": "Supplier document reading"
+        "SUPPLIER_DOC_READ": "Supplier document reading",
+        "RFX_DRAFT": "Drafted an RFx",
+        "BID_SUMMARY": "Summarized the bids",
+        "NEGOTIATION_POINTS": "Points to negotiate"
       },
       "statuses": {
         "PENDING": "Working",

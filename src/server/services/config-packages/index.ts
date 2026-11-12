@@ -46,7 +46,12 @@ const PortableReviewer = z.union([
 ])
 const WorkflowRuleJson = z.strictObject({
   code: Code,
-  requestTypeCodes: z.array(Code).min(1),
+  // S11-06 (BR-RSK-07): a RISK_ASSESSMENT rule travels with its scope and domains and no request type; a REQUEST rule
+  // carries neither key, so its package (and checksum) stays as before the scope existed (the editor's RuleInput checks
+  // the pair again on import). No default here: the checksum is of the content as read.
+  scope: z.enum(['REQUEST', 'RISK_ASSESSMENT']).optional(),
+  riskDomains: z.array(z.enum(['GENERAL', 'PRIVACY', 'INFOSEC', 'PREMISES', 'FINANCE'])).optional(),
+  requestTypeCodes: z.array(Code),
   when: z.unknown(),
   reviewers: z.array(PortableReviewer).min(1),
   fallback: PortableReviewer.nullable(),
@@ -146,6 +151,7 @@ async function buildPackage(tx: TenantTx, ctx: Ctx, sections: readonly ConfigPac
         const json = workflowRuleJson(r) as { when: unknown; reviewers: Array<Parameters<typeof portable>[0]>; fallback: Parameters<typeof portable>[0] | null }
         return {
           code: r.code,
+          ...(r.scope === 'RISK_ASSESSMENT' ? { scope: r.scope, riskDomains: [...(r.riskDomains ?? [])] as Array<'GENERAL' | 'PRIVACY' | 'INFOSEC' | 'PREMISES' | 'FINANCE'> } : {}),
           requestTypeCodes: [...r.requestTypeCodes],
           when: json.when,
           reviewers: json.reviewers.map(portable),
@@ -343,7 +349,7 @@ export const importConfigCommand = defineCommand({
             version: row.version,
             effectiveDate: input.effectiveDate,
             changeReason: input.changeReason,
-            rules: w.rules.map((r) => ({ ...r, when: r.when as never, reviewers: r.reviewers.map(local), fallback: r.fallback ? local(r.fallback) : null })),
+            rules: w.rules.map((r) => ({ ...r, scope: r.scope ?? 'REQUEST', riskDomains: r.riskDomains ?? [], when: r.when as never, reviewers: r.reviewers.map(local), fallback: r.fallback ? local(r.fallback) : null })),
             testCases: [],
           },
           ctx,

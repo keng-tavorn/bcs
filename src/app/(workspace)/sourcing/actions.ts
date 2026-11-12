@@ -6,6 +6,7 @@ import type { AppError } from '@/core/result'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import type { Ctx } from '@/server/context'
+import { draftRfx } from '@/server/services/ai'
 import { addRfxLines, createRfx, inviteToRfx, openRfx, removeRfxLine, setScorecard, uninviteFromRfx, updateRfx } from '@/server/services/sourcing'
 import type { RfxOutcome } from '@/ui/sourcing/setup-model'
 import { getSession } from '../../_lib/session'
@@ -109,10 +110,16 @@ export interface GeneralInput {
   readonly allowVatInclusiveBids: boolean
   readonly sealed: boolean
   readonly unsealReason: string
+  /** S10-16: RFQ ↔ RFP while a draft (sent only when the person changed it or the AI proposed it) */
+  readonly kind?: 'RFQ' | 'RFP'
+  /** S10-16: each line's English */
+  readonly lines?: ReadonlyArray<{ readonly rfxLineId: string; readonly descriptionEn: string; readonly uomEn: string }>
+  /** S10-16: what the person confirmed of the Sourcing Agent's draft (BR-AI-17) */
+  readonly aiAssist?: { readonly agentActionId: string; readonly confirmedPaths: readonly string[] }
 }
 
 export async function updateRfxAction(rfxEventId: string, version: number, input: GeneralInput, key: string): Promise<RfxOutcome> {
-  return run(key, [rfxEventId], (ctx) =>
+  return run(key, [rfxEventId, ...(input.lines ?? []).map((l) => l.rfxLineId), ...(input.aiAssist ? [input.aiAssist.agentActionId] : [])], (ctx) =>
     updateRfx(
       ctx,
       {
@@ -127,6 +134,9 @@ export async function updateRfxAction(rfxEventId: string, version: number, input
         allowVatInclusiveBids: input.allowVatInclusiveBids,
         sealed: input.sealed,
         ...(!input.sealed && text(input.unsealReason) ? { unsealReason: text(input.unsealReason)! } : {}),
+        ...(input.kind ? { kind: input.kind } : {}),
+        ...(input.lines?.length ? { lines: input.lines.map((l) => ({ rfxLineId: l.rfxLineId, descriptionEn: text(l.descriptionEn), uomEn: text(l.uomEn) })) } : {}),
+        ...(input.aiAssist ? { aiAssist: { agentActionId: input.aiAssist.agentActionId, confirmedPaths: [...input.aiAssist.confirmedPaths] } } : {}),
       },
       { idempotencyKey: key },
     ),
@@ -136,13 +146,6 @@ export async function updateRfxAction(rfxEventId: string, version: number, input
 export async function addNeedLineAction(rfxEventId: string, version: number, categoryCode: string, line: NeedLineInput, key: string): Promise<RfxOutcome> {
   return run(key, [rfxEventId, ...(line.catalogItemId ? [line.catalogItemId] : [])], (ctx) =>
     addRfxLines(ctx, { rfxEventId, expectedVersion: version, source: { kind: 'NEED', categoryCode, lines: [needLine(line)] } }, { idempotencyKey: key }),
-  )
-}
-
-/** The English of one line (BR-FORM-11): an empty box clears it */
-export async function lineEnglishAction(rfxEventId: string, version: number, rfxLineId: string, english: { readonly descriptionEn: string; readonly uomEn: string }, key: string): Promise<RfxOutcome> {
-  return run(key, [rfxEventId, rfxLineId], (ctx) =>
-    updateRfx(ctx, { rfxEventId, expectedVersion: version, lines: [{ rfxLineId, descriptionEn: text(english.descriptionEn), uomEn: text(english.uomEn) }] }, { idempotencyKey: key }),
   )
 }
 
@@ -185,4 +188,14 @@ export async function openRfxAction(rfxEventId: string, version: number, closesA
   return run(key, [rfxEventId], (ctx) =>
     openRfx(ctx, { rfxEventId, expectedVersion: version, closesAt, ...(text(fewerInvitesReason) ? { fewerInvitesReason: text(fewerInvitesReason)! } : {}) }, { idempotencyKey: `rfx.open:${rfxEventId}:${version}` }),
   )
+}
+
+/** "ร่าง RFx ด้วย AI" on a draft RFx (S10-16 · BR-AI-31): the Sourcing Agent's words wait in the form for the person */
+export async function draftRfxAction(rfxEventId: string, key: string): Promise<RfxOutcome> {
+  return run(key, [rfxEventId], async (ctx) => {
+    const r = await draftRfx(ctx, { rfxEventId }, { idempotencyKey: key })
+    // a draft taken in whose fields still wait is confirmed before another is asked (the words differ from rfx.open's)
+    if (!r.ok) return r.error.code === 'AI_REVIEW_PENDING' ? { ok: false, error: { ...r.error, details: { ...r.error.details, reason: 'AI_DRAFT_WAITING' } } } : r
+    return r.data.status === 'READY' ? { ok: true } : { ok: false, error: { code: 'EXTERNAL_SERVICE_ERROR', message: 'the AI could not draft the RFx', details: { reason: 'AI_FAILED' } } }
+  })
 }

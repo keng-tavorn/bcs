@@ -281,7 +281,14 @@
       "ENGLISH_MISSING": "A Thai and English document needs its English title and description",
       "LOCALE_REQUIRED": "An RFx that invites a foreign supplier or a contact who reads English must be in Thai and English, with the English of the title, the description and every line (item and unit) typed before it opens",
       "CURRENCY": "An RFx and its bids are in Thai baht only; nothing is converted",
-      "LINE": "This line is not one of this RFx"
+      "AI_REVIEW_PENDING": "Values the AI filled in still wait for you. Go to the step \"General\" and confirm the kind and the lines' English before opening the RFx",
+      "RFI_KIND_FIXED": "An RFI cannot become another kind",
+      "AI_FAILED": "The assistant could not draft it. Fill it in yourself as usual",
+      "AI_DRAFT_WAITING": "The earlier draft still has fields waiting for you. Confirm the kind and the lines' English and save, then draft again",
+      "AI_AGENT_DISABLED": "The Sourcing assistant is off. Fill it in yourself as usual",
+      "AI_CREDITS_EXHAUSTED": "This month's AI credits are used up. Fill it in yourself as usual",
+      "AI_NOT_EVALUATED": "The Sourcing assistant has not passed its evaluation yet",
+      "RATE_LIMITED": "Too many assistant calls. Wait a moment and try again"
     },
     "stepsLabel": "Steps of setting up the RFx",
     "stepDone": "done",
@@ -349,9 +356,7 @@
       "sealedHint": "The organization's default. While sealed, procurement sees only how many bid until the close.",
       "unsealReason": "Why prices are shown before the close",
       "bilingual": "Thai and English document",
-      "bilingualHint": "Needed to invite a foreign supplier or a contact who reads English. The title, the description and every line need their English before the RFx opens. Nothing is translated for you.",
-      "lineDescriptionEn": "Item (English)",
-      "uomEn": "Unit (English)"
+      "bilingualHint": "Needed to invite a foreign supplier or a contact who reads English. The title, the description and every line need their English before the RFx opens. Nothing is translated for you."
     },
     "new": {
       "title": "Open a new RFx",
@@ -404,10 +409,7 @@
       "addTitle": "Add a line",
       "add": "Add this line",
       "added": "Line added",
-      "fromPoolHint": "This RFx was made from the procurement pool. Lines are added by ticking them in the pool and opening a new RFx.",
-      "englishSave": "Save English",
-      "englishSaved": "The line's English is saved",
-      "englishLabel": "English of {line}"
+      "fromPoolHint": "This RFx was made from the procurement pool. Lines are added by ticking them in the pool and opening a new RFx."
     },
     "suppliers": {
       "label": "Invited suppliers",
@@ -501,6 +503,16 @@
       "englishDescription": "description",
       "englishLineItem": "item of line {no}",
       "englishLineUnit": "unit of line {no}"
+    },
+    "ai": {
+      "draft": "Draft the RFx with AI",
+      "hint": "The assistant drafts the title, description and the lines' English for you to check; never a price, quantity or supplier · uses the organization's AI credits",
+      "drafted": "The assistant drafted it. Check the values marked \"Filled by AI, please check\" and save",
+      "boxTitle": "What the Sourcing assistant drafted",
+      "linesTitle": "The lines in English",
+      "lineDescriptionEn": "English description, line {no}",
+      "lineUomEn": "English unit, line {no}",
+      "savedWaiting": "Saved. {count} fields still need confirming one by one before the RFx opens"
     }
   },
   "detail": {
@@ -951,6 +963,24 @@
         "RFP": "Request for proposal (RFP)",
         "RFI": "Request for information (RFI)"
       }
+    },
+    "ai": {
+      "title": "Summary by AI",
+      "heading": {
+        "BID_SUMMARY": "Bid summary",
+        "NEGOTIATION_POINTS": "Points to negotiate"
+      },
+      "ask": {
+        "BID_SUMMARY": "Summarize the bids",
+        "NEGOTIATION_POINTS": "Suggest points to negotiate"
+      },
+      "again": {
+        "BID_SUMMARY": "Summarize again",
+        "NEGOTIATION_POINTS": "Suggest points again"
+      },
+      "failed": "The assistant could not write it. The comparison, flags and scores below work as usual",
+      "writing": "The assistant is writing…",
+      "note": "The Sourcing assistant writes only from figures the system calculated; it never scores, awards or messages a supplier. Points to negotiate are for you to raise yourself · each press may use AI credits"
     }
   }
 }

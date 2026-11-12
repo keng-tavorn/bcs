@@ -6,17 +6,18 @@ import { checkAiText, creditsForCall, fieldScore, matchField, normalizeAnswer, n
 import { amountToSatang } from '../src/core/money/dto'
 import { createFixtureClient, createLiveClient, fixtureKey, type AiCallResult, type AiClient, type AiFile, type AiRequest, type FixtureAnswer } from '../src/integrations/ai'
 import { AGENT_OF_PURPOSE, BRIEF_PROFILE, DECISION_ADVICE_WORDS, EVAL_THRESHOLDS_BP, modelFor, priceOf, PROMPT_VERSIONS, type AiAgentName, type AiPurposeName } from '../src/lib/ai-config'
-import { BriefText, DoaDraft, IntakeDraft, QuestionPlan } from '../src/lib/ai-schemas/agents'
+import { BriefText, DoaDraft, IntakeDraft, QuestionPlan, RfxDraftText } from '../src/lib/ai-schemas/agents'
 import { DocumentReading, isCriticalField } from '../src/lib/ai-schemas/document'
 import { SupplierDocumentReading } from '../src/lib/ai-schemas/supplier-document'
 import { companyNameKey } from '../src/core/thai/company-name'
 import { loadAgentCases, type AgentCases } from './lib/ai-eval-agents'
 import { AI_ANSWERS_DIR, AI_DOCS_DIR, loadEvalDocuments, ROOT, truthReading, type EvalDocument } from './lib/ai-eval-cases'
 import { loadSavingsCases, type SavingsCase } from './ai-eval-savings'
+import { draftHeadFilled, englishDescriptionCorrect, englishUnitCorrect, inventedNumbers, loadSourcingCases, scoreSummary, SOURCING_FLOORS, truthDraft, truthSummary, type SourcingCase } from './ai-eval-sourcing'
 import { loadSupplierCases, SUPPLIER_DOCS_DIR, SUPPLIER_EVAL_FIELDS, supplierConfidenceOf, supplierFieldCorrect, supplierTruthReading, type SupplierCase } from './lib/ai-eval-supplier'
 
 // `pnpm ai:eval` — the evaluation set of §12.4, demo tier (S13-05, BR-AI-26, OQ-141, ADR-143 ADR-146):
-//   pnpm ai:eval [--agent document|intake|brief|insight|doa|supplier] [--purpose <purpose>] [--live] [--model <id>] [--record]
+//   pnpm ai:eval [--agent document|intake|brief|insight|doa|supplier|sourcing] [--purpose <purpose>] [--live] [--model <id>] [--record]
 //                [--limit <n>] [--only <id,id>] [--save-answers] [--show-wrong]
 // Without --live it plays the recorded answers of tests/fixtures/ai (no key, no cost) to test the scoring; --live calls
 // Claude with ANTHROPIC_API_KEY from .env and costs money (S13-13 S13-14). --record writes the report under
@@ -25,7 +26,7 @@ import { loadSupplierCases, SUPPLIER_DOCS_DIR, SUPPLIER_EVAL_FIELDS, supplierCon
 // --live) keeps what Claude really answered as the recorded answers instead (S13-13 S13-14). --limit <n> runs only the
 // first n cases of each group, to try a key or a prompt cheaply; a limited run never passes.
 
-const AGENT_FLAG: Readonly<Record<string, AiAgentName>> = { document: 'DOCUMENT', intake: 'INTAKE', brief: 'APPROVAL_BRIEF', insight: 'INSIGHT', doa: 'DOA_DRAFTER', supplier: 'SUPPLIER_ONBOARDING' }
+const AGENT_FLAG: Readonly<Record<string, AiAgentName>> = { document: 'DOCUMENT', intake: 'INTAKE', brief: 'APPROVAL_BRIEF', insight: 'INSIGHT', doa: 'DOA_DRAFTER', supplier: 'SUPPLIER_ONBOARDING', sourcing: 'SOURCING' }
 
 interface Args {
   agents: AiAgentName[]
@@ -265,6 +266,58 @@ async function evalSupplier(run: Run, client: AiClient, model: (a: AiAgentName, 
   }
 }
 
+/**
+ * S10-19 (FR-AI-305 AC5 · OQ-209): each synthetic RFx drafted (RFX_DRAFT) and, closed, summarized (BID_SUMMARY) and
+ * given its points (NEGOTIATION_POINTS) through the texts the app sends (scripts/ai-eval-sourcing.ts), one group of
+ * 10: the kind (code's rfxDraftFromLines) and each line's English against the answer a person checked, the texts
+ * through the checker writeSummary uses (BR-AI-27 profile SOURCING), no advice to decide, every price flag pointed out
+ */
+async function evalSourcing(run: Run, client: AiClient, model: (a: AiAgentName, p?: AiPurposeName) => string, cases: readonly SourcingCase[], args: Args) {
+  const wants = (p: AiPurposeName) => !args.purpose || args.purpose === p
+  const tally = (purpose: AiPurposeName, field: keyof typeof SOURCING_FLOORS, ok: boolean) =>
+    run.tally.add('SOURCING', purpose, 'RFX', field, ok, { threshold: SOURCING_FLOORS[field], critical: SOURCING_FLOORS[field] === 10_000 })
+  for (const c of first(cases, args.limit)) {
+    if (wants('RFX_DRAFT')) {
+      // the kind is code's (BR-AI-31): measured against the answer whatever the AI writes
+      tally('RFX_DRAFT', 'kind', c.plannedKind === c.expect.kind)
+      if (args.showWrong && c.plannedKind !== c.expect.kind) console.error(`wrong ${c.id} kind: expected ${c.expect.kind} planned ${c.plannedKind}`)
+      const r = await client.write({ purpose: 'RFX_DRAFT', model: model('SOURCING', 'RFX_DRAFT'), schema: RfxDraftText, text: c.draftText })
+      if (!r.ok) run.failures.push(`${c.id} RFX_DRAFT ${r.errorCode}`)
+      else {
+        const head = draftHeadFilled(r.output)
+        if (args.showWrong && !head) console.error(`wrong ${c.id} head: ${JSON.stringify({ title: r.output.title, titleEn: r.output.titleEn, description: r.output.description, descriptionEn: r.output.descriptionEn })}`)
+        tally('RFX_DRAFT', 'head', head)
+        const invented = inventedNumbers(c, r.output)
+        if (args.showWrong && invented.length) console.error(`wrong ${c.id} numbers not in the lines: ${invented.join(' ')}`)
+        tally('RFX_DRAFT', 'noInventedNumber', invented.length === 0)
+        for (const line of c.lines) {
+          const got = r.output.lines.find((l) => l.lineNo === line.lineNo)
+          const description = englishDescriptionCorrect(line, got?.descriptionEn)
+          const unit = englishUnitCorrect(line, got?.uomEn)
+          if (args.showWrong && (!description || !unit)) console.error(`wrong ${c.id} line ${line.lineNo}: "${line.description} · ${line.uom}" → ${JSON.stringify(got ?? null)}`)
+          tally('RFX_DRAFT', 'descriptionEn', description)
+          tally('RFX_DRAFT', 'uomEn', unit)
+        }
+      }
+    }
+    for (const purpose of ['BID_SUMMARY', 'NEGOTIATION_POINTS'] as const) {
+      if (!wants(purpose)) continue
+      const r = await client.write({ purpose, model: model('SOURCING', purpose), schema: BriefText, text: c.factsText })
+      if (!r.ok) {
+        run.failures.push(`${c.id} ${purpose} ${r.errorCode}`)
+        continue
+      }
+      const s = scoreSummary(c, r.output.sentences)
+      const missedFlags = purpose === 'BID_SUMMARY' && s.flags.some((x) => !x)
+      if (args.showWrong && (!s.text || !s.noAdvice || missedFlags)) console.error(`wrong ${c.id} ${purpose}${s.reason ? ` (${s.reason})` : ''}${missedFlags ? ` flags ${s.flags.join(',')}` : ''}: ${JSON.stringify(r.output.sentences)}`)
+      tally(purpose, 'text', s.text)
+      tally(purpose, 'noDecisionAdvice', s.noAdvice)
+      // the summary lists what the bids show, every flag among it (OQ-209); the points pick what to raise
+      if (purpose === 'BID_SUMMARY') for (const f of s.flags) tally(purpose, 'flags', f)
+    }
+  }
+}
+
 /** The supplier's name as the Intake Agent matches it to the register (intake.ts: its legal form, case and spaces aside) */
 const sameName = (a: string | null, b: string) => a !== null && companyNameKey(a) === companyNameKey(b)
 
@@ -410,7 +463,7 @@ function report(metrics: readonly Metric[], run: Run, args: Args, models: Record
   return `${lines.join('\n')}\n`
 }
 
-async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, savings: readonly SavingsCase[], manifest: Map<string, { file: string; mediaType: string }>, supplier: { cases: readonly SupplierCase[]; manifest: SupplierManifest }) {
+async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, savings: readonly SavingsCase[], manifest: Map<string, { file: string; mediaType: string }>, supplier: { cases: readonly SupplierCase[]; manifest: SupplierManifest }, sourcing: readonly SourcingCase[]) {
   const save = (purpose: AiPurposeName, key: string, output: unknown, model: string) => {
     const answer: FixtureAnswer & { recorded: string } = { promptVersion: PROMPT_VERSIONS[purpose], model, recorded: 'TRUTH', output, usage: { input: 1800, output: 420 } }
     const file = path.join(AI_ANSWERS_DIR, `${key}.json`)
@@ -443,6 +496,10 @@ async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, sa
     save('SAVINGS_NOTE', fixtureKey({ purpose: 'SAVINGS_NOTE', text: c.text }), { sentences }, model('INSIGHT'))
   }
   for (const c of supplier.cases) save('SUPPLIER_DOC_READ', fixtureKey({ purpose: 'SUPPLIER_DOC_READ', files: [supplierFile(c, supplier.manifest)] }), supplierTruthReading(c), model('SUPPLIER_ONBOARDING', 'SUPPLIER_DOC_READ'))
+  for (const c of sourcing) {
+    save('RFX_DRAFT', fixtureKey({ purpose: 'RFX_DRAFT', text: c.draftText }), truthDraft(c), model('SOURCING', 'RFX_DRAFT'))
+    for (const p of ['BID_SUMMARY', 'NEGOTIATION_POINTS'] as const) save(p, fixtureKey({ purpose: p, text: c.factsText }), { sentences: truthSummary(c) }, model('SOURCING', p))
+  }
   for (const c of cases.doa) {
     save('DOA_DRAFT', fixtureKey({ purpose: 'DOA_DRAFT', text: c.text, files: [docFile({ id: c.id }, manifest)] }), { rules: c.rules }, model('DOA_DRAFTER'))
   }
@@ -462,8 +519,9 @@ async function main() {
   const supplierManifest: SupplierManifest = new Map(
     (JSON.parse(readFileSync(path.join(SUPPLIER_DOCS_DIR, 'manifest.json'), 'utf8')) as { files: Array<{ id: string; file: string; mediaType: string }> }).files.map((f) => [f.id, f]),
   )
+  const sourcingCases = loadSourcingCases()
   if (args.writeAnswers) {
-    await writeAnswers(docs, cases, savings, manifest, { cases: supplierCases, manifest: supplierManifest })
+    await writeAnswers(docs, cases, savings, manifest, { cases: supplierCases, manifest: supplierManifest }, sourcingCases)
     console.log('ai:eval wrote the recorded answers of fixture mode from the truth of every case')
     return
   }
@@ -480,6 +538,7 @@ async function main() {
   if (args.agents.includes('DOCUMENT')) await evalDocuments(run, client, model, docs, args, manifest)
   await evalAgents(run, client, model, cases, savings, args, manifest)
   if (args.agents.includes('SUPPLIER_ONBOARDING')) await evalSupplier(run, client, model, supplierCases, args, supplierManifest)
+  if (args.agents.includes('SOURCING')) await evalSourcing(run, client, model, sourcingCases, args)
   const metrics = run.tally.metrics()
   const purposes = (Object.keys(PROMPT_VERSIONS) as AiPurposeName[]).filter((p) => args.agents.includes(AGENT_OF_PURPOSE[p]) && (!args.purpose || p === args.purpose))
   const models = Object.fromEntries(purposes.map((p) => [p, model(AGENT_OF_PURPOSE[p], p)]))

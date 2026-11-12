@@ -43,6 +43,8 @@ import { getInvoiceTaskView } from '@/server/queries/ap-invoices'
 import { LiffInvoiceSummary } from '@/ui/liff/tasks/subjects/invoice'
 import { getPoChangeTaskView } from '@/server/queries/po-changes'
 import { LiffPoChangeSummary } from '@/ui/liff/tasks/subjects/po-change'
+import { LiffRiskOverrideSummary } from '@/ui/liff/tasks/subjects/risk-override'
+import { riskOverrideView } from '@/server/services/risk'
 import { getAwardTaskView } from '@/server/services/sourcing'
 import { LiffAwardSummary } from '@/ui/liff/tasks/subjects/award'
 import { getPaymentRunTaskView } from '@/server/queries/payment-runs'
@@ -216,6 +218,11 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
   const bankChange = task.subjectType === 'BANK_ACCOUNT_CHANGE' ? await getBankAccountChange(ctx, { changeId: task.subjectId }).then((r) => (r.ok ? r.data : null)) : null
   const supplierApp = task.subjectType === 'SUPPLIER_APPLICATION' ? await getSupplierApplicationTaskView(ctx, task.subjectId).then((r) => (r.ok ? r.data : null)) : null
   const tPay = paymentRun ? await getTranslations('payRun.task') : null
+  // S11-08: an override of the risk gate (FR-RSK-203 AC2 · BR-RSK-11), read by who has a task on it; no answer of the assessment
+  const riskOverrideRead = task.subjectType === 'RISK_OVERRIDE' ? await riskOverrideView(ctx, task.subjectId) : null
+  const riskOverride = riskOverrideRead?.ok ? riskOverrideRead.data : null
+  const tro = riskOverride ? await getTranslations('risk.override.facts') : null
+  const tDecideOverride = riskOverride ? await getTranslations('tasks.decide.override') : null
   // What the reader of a PO sees beside it, with the member's roles: the approver decides on the prices paid before too
   // (FR-P2P-003 AC1), as on the web decision page; the supplier's address and the source requests' files per §2.4
   const reader = po ? poReader(memberPrincipal(page.member.id, (await liffSignedIn(page.member.id))?.roles ?? []), null, po, { prices: true }) : null
@@ -278,10 +285,12 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
               ? (paymentRun.number ?? '-')
               : bankChange
                 ? (bankChange.number ?? '-')
-                : supplierApp
-                  ? supplierApp.label
-                  : award
-                    ? (award.number ?? '-')
+                : riskOverride
+                  ? (riskOverride.number ?? '-')
+                  : supplierApp
+                    ? supplierApp.label
+                    : award
+                      ? (award.number ?? '-')
                     : task.policy
               ? policyHeadline(t, locale, task.policy)
               : t('item.untitled')
@@ -296,6 +305,7 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
     ...(po ? [{ label: tv('amounts.gross'), value: money(po.totals.grossSatang) }] : []),
     ...(variance ? [{ label: tLiff('detail.varianceAmount'), value: money(variance.amountSatang) }] : []),
     ...(left ? [{ label: tLiff('detail.budgetLeft'), value: left }] : []),
+    ...(riskOverride && tro ? [{ label: tro('cap'), value: money(riskOverride.capGrossSatang) }] : []),
   ]
   const summaryFacts: Fact[] = [
     ...(po ? [{ label: tLiff('detail.supplier'), value: po.supplier.nameTh }] : []),
@@ -365,6 +375,8 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
         <LiffPaymentRunSummary run={paymentRun} />
       ) : task.subjectType === 'BANK_ACCOUNT_CHANGE' ? (
         <LiffBankAccountChangeSummary change={bankChange} openFile={openFile} />
+      ) : task.subjectType === 'RISK_OVERRIDE' ? (
+        <LiffRiskOverrideSummary override={riskOverride} />
       ) : task.subjectType === 'SUPPLIER_APPLICATION' ? (
         <LiffSupplierApplicationSummary application={supplierApp} />
       ) : task.subjectType === 'AWARD_DECISION' ? (
@@ -404,12 +416,28 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
           {...common}
           kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : task.review ? 'REVIEW' : 'REQUEST'}
           label={label}
-          amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : paymentRun ? money(paymentRun.totalTransferSatang) : '-'}
+          amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : paymentRun ? money(paymentRun.totalTransferSatang) : riskOverride ? money(riskOverride.capGrossSatang) : '-'}
           stepUp={task.stepUp}
           {...(variance ? { disposition: variance.disposition } : {})}
           decide={decideLiffTaskAction}
           {...(request ? { ask: askLiffRequesterAction } : {})}
           {...(paymentRun ? { subjectInput: { flagsKey: paymentRun.flagsKey } } : {})}
+          {...(riskOverride && tDecideOverride
+            ? {
+                // S11-08: the override's own words and its cap, as on the web (tasks.decide.override)
+                words: {
+                  confirmText: tDecideOverride('confirmText', { label, amount: money(riskOverride.capGrossSatang) }),
+                  returnOption: tDecideOverride('returnOption'),
+                  returnHint: tDecideOverride('returnHint'),
+                  rejectHint: tDecideOverride('rejectHint'),
+                  reasonHint: tDecideOverride('reasonHint'),
+                  submitReturn: tDecideOverride('submitReturn'),
+                  submitReject: tDecideOverride('submitReject'),
+                  returned: tDecideOverride('returned'),
+                  rejected: tDecideOverride('rejected'),
+                },
+              }
+            : {})}
           {...(supplierApp
             ? {
                 // S7-18: a supplier application in its own words, as on the web (tasks.decide.supplierApplication)

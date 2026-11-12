@@ -1,0 +1,21 @@
+{
+  "promptVersion": "NEGOTIATION_POINTS@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "{{v:incumbent.supplierName}} ราคาสูงกว่าราคาต่ำสุด {{v:gapBp}} bp ควรขอให้ยืนยันราคาเสนอ",
+      "รายการที่ {{v:flags.1.lineNo}} ราคาสูงกว่าราคาอ้างอิง {{v:flags.1.deviationBp}} bp ควรขอคำชี้แจงรายการนี้",
+      "ราคาอ้างอิงจากประวัติคือ {{v:flags.1.reference}} ควรขอคำอธิบายราคาของรายการนี้",
+      "ใบเสนอราคาไม่ครบ {{v:partialCount}} ราย ควรขอให้เสนอรายการที่ขาดให้ครบ",
+      "ผู้เสนอ {{v:notVatRegisteredCount}} ราย ไม่ได้จดทะเบียนภาษีมูลค่าเพิ่ม ควรขอเอกสารยืนยันสถานะภาษี",
+      "ผู้เสนอต่างประเทศ {{v:foreignCount}} ราย ควรขอเอกสารยืนยันเงื่อนไขการเสนอราคา"
+    ]
+  },
+  "usage": {
+    "input": 446,
+    "output": 1451,
+    "cacheRead": 711,
+    "cacheWrite": 0
+  }
+}

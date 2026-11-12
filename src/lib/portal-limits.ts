@@ -18,7 +18,7 @@ export const PORTAL_SESSION_TOUCH_MS = MS_PER_MINUTE
 export const PORTAL_NEW_DEVICE_DAYS = 90
 /**
  * The privacy notice the portal shows now (BR-PORTAL ข้อ 08): its words per version are in messages portal.json.
- * 2026-11-08 (S11-05 · BR-RSK-18 · BR-AI-33) adds that evidence files a contact marks readable by the AI go to an outside
+ * 2026-11-08 (S11-05 · BR-RSK-18 · BR-AI-34) adds that evidence files a contact marks readable by the AI go to an outside
  * processor; a contact who accepted 2026-11-01 sees the new one before their next upload.
  */
 export const PORTAL_PRIVACY_NOTICE_VERSION = '2026-11-08'

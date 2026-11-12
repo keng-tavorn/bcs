@@ -75,6 +75,8 @@ export const TASK_ERROR_KEYS = [
   'PAYMENT_FLAGS_CHANGED',
   'PAYMENT_FLAG_REASON_REQUIRED',
   'PAYMENT_DATE_INVALID',
+  // S11-07: the last approval of a PO change met the supplier's risk gate
+  'RISK_GATE',
   'LATER_VERSION',
   'SUBJECT',
   'CHANNEL',
@@ -125,6 +127,7 @@ export function taskErrorKey(failure: ActionFailure): TaskErrorKey {
   if (code === 'BUDGET_LINE_CLOSED') return 'BUDGET_LINE_CLOSED'
   // S9: the approval of a payment run checks its flags and its pay date again (BR-PAY-02, BR-PAY-07)
   if (code === 'PAYMENT_FLAGS_CHANGED' || code === 'PAYMENT_FLAG_REASON_REQUIRED' || code === 'PAYMENT_DATE_INVALID') return code
+  if (code === 'RISK_ASSESSMENT_REQUIRED' || code === 'RISK_REASSESSMENT_REQUIRED' || code === 'RISK_BLOCKED') return 'RISK_GATE'
   if (code === 'NOT_FOUND') return 'NOT_FOUND'
   if (code === 'RATE_LIMITED') return 'BUSY'
   if (code === 'IDEMPOTENCY_CONFLICT') return 'CONFLICT'

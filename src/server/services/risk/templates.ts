@@ -9,6 +9,9 @@ export const RISK_SUPPLIER_TEMPLATES = {
   questionnaire: 'supplier.risk_questionnaire',
   reminder: 'supplier.risk_reminder',
   evidenceRejected: 'supplier.risk_evidence_rejected',
+  // S11-06 (BR-NOTI-12): the outcome of the reviewers
+  returned: 'supplier.risk_returned',
+  completed: 'supplier.risk_completed',
 } as const
 
 const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '')
@@ -45,5 +48,35 @@ registerSupplierTemplate(RISK_SUPPLIER_TEMPLATES.evidenceRejected, (d, c) =>
     `ไฟล์หลักฐานของแบบประเมิน ${str(d.number)} ไม่ผ่านการตรวจความปลอดภัย / An evidence file failed the security check`,
     [`เรียน ${c.supplierName}`, `ไฟล์หลักฐานที่ท่านแนบในคำถาม ${str(d.questionCode)} ของแบบประเมินเลขที่ ${str(d.number)} ไม่ผ่านการตรวจความปลอดภัยและถูกนำออกแล้ว`, 'คำตอบของท่านยังอยู่ โปรดแนบไฟล์ใหม่ในพอร์ทัลผู้ขาย'],
     [`The evidence file you attached to question ${str(d.questionCode)} of questionnaire ${str(d.number)} failed the security check and was removed.`, 'Your answer stays; please attach a new file in the supplier portal.'],
+  ),
+)
+
+// S11-06 (BR-RSK-08): a return carries only the words the reviewer allowed to reach the supplier, and a new link when the
+// portal answers for it; nothing else of the review (who reviewed, the other parts) leaves BCS
+registerSupplierTemplate(
+  RISK_SUPPLIER_TEMPLATES.returned,
+  (d, c) =>
+    supplierMail(
+      `แบบประเมินความเสี่ยงคู่ค้า ${str(d.number)} ของ ${c.organizationName} ขอให้แก้ไข / Risk questionnaire returned for changes`,
+      [
+        `เรียน ${c.supplierName}`,
+        `${c.organizationName} ขอให้ท่านแก้ไขหรือเพิ่มเติมคำตอบในแบบประเมินความเสี่ยงคู่ค้าเลขที่ ${str(d.number)}`,
+        ...(d.reason ? [`ข้อความจากผู้ตรวจ: ${str(d.reason)}`] : ['โปรดติดต่อฝ่ายจัดซื้อเพื่อทราบรายละเอียด']),
+        ...(d.url ? [`กดลิงก์นี้เพื่อเข้าแก้ไข (ใช้ได้ครั้งเดียว ภายใน ${at(d.expiresAt)}):`, str(d.url)] : []),
+      ],
+      [
+        `${c.organizationName} asks you to change or add to your answers in risk questionnaire ${str(d.number)}.`,
+        ...(d.reason ? [`From the reviewer: ${str(d.reason)}`] : ['Please contact the procurement team for the details.']),
+        ...(d.url ? [`Open this link to change them (once, until ${atEn(d.expiresAt)}):`, str(d.url)] : []),
+      ],
+    ),
+  { redactAfterSend: ['url'] },
+)
+
+registerSupplierTemplate(RISK_SUPPLIER_TEMPLATES.completed, (d, c) =>
+  supplierMail(
+    `แบบประเมินความเสี่ยงคู่ค้า ${str(d.number)} ของ ${c.organizationName} เสร็จแล้ว / Risk questionnaire completed`,
+    [`เรียน ${c.supplierName}`, `${c.organizationName} ตรวจแบบประเมินความเสี่ยงคู่ค้าเลขที่ ${str(d.number)} ครบแล้ว ขอบคุณที่ให้ข้อมูล`],
+    [`${c.organizationName} has finished reviewing risk questionnaire ${str(d.number)}. Thank you for your answers.`],
   ),
 )

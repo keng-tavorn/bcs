@@ -1,12 +1,13 @@
 'use client'
 
 import { CircleMinus, CirclePlus, PenLine } from 'lucide-react'
-import type { RulePart, RuleValue } from './model'
+import { scopeOf, type RulePart, type RuleValue } from './model'
 import type { WorkflowWords } from './words'
 
 // What changed rule by rule against the version this one is read beside (FR-WF-103 AC1): rules added, removed, and
 // changed with each part before and after, in words with an icon, never colour alone (NFR-A11Y-03). The order of the
-// rules is not a change.
+// rules is not a change. S11-06: a risk reviewers' rule is said as one (its scope, the parts its reviewer sees and its
+// condition on the assessment), and its scope and parts are parts that change like any other.
 
 export interface WorkflowDiff {
   readonly added: readonly string[]
@@ -19,9 +20,9 @@ export function DiffList({ diff, before, after, words }: { diff: WorkflowDiff; b
   const part = (r: RuleValue, p: RulePart): string => {
     switch (p) {
       case 'requestTypes':
-        return r.requestTypeCodes.map(words.requestType).join(', ')
+        return r.requestTypeCodes.length ? r.requestTypeCodes.map(words.requestType).join(', ') : t('noRequestTypes')
       case 'when':
-        return words.condition(r.when)
+        return words.condition(r.when, scopeOf(r))
       case 'reviewers':
         return r.reviewers.map(words.reviewer).join(', ')
       case 'fallback':
@@ -32,9 +33,16 @@ export function DiffList({ diff, before, after, words }: { diff: WorkflowDiff; b
         return words.sla(r.slaMinutes)
       case 'description':
         return r.descriptionTh ?? t('noDescription')
+      case 'scope':
+        return words.scope(scopeOf(r))
+      case 'riskDomains':
+        return words.domains(r.riskDomains ?? [])
     }
   }
-  const summary = (r: RuleValue) => t('diff.ruleLine', { types: r.requestTypeCodes.map(words.requestType).join(', '), condition: words.condition(r.when), reviewers: r.reviewers.map(words.reviewer).join(', ') })
+  const summary = (r: RuleValue) =>
+    scopeOf(r) === 'RISK_ASSESSMENT'
+      ? t('diff.riskRuleLine', { domains: words.domains(r.riskDomains ?? []), condition: words.condition(r.when, 'RISK_ASSESSMENT'), reviewers: r.reviewers.map(words.reviewer).join(', ') })
+      : t('diff.ruleLine', { types: r.requestTypeCodes.map(words.requestType).join(', '), condition: words.condition(r.when), reviewers: r.reviewers.map(words.reviewer).join(', ') })
   return (
     <ul className="flex flex-col divide-y divide-line border-y border-line">
       {diff.changed.map((c) => {

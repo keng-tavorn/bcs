@@ -163,6 +163,17 @@ export async function poLineViews(po: PoViewDto, locale: Locale, reader: PoReade
   })
 }
 
+/** The risk gate in words: tier · how it passed · when it was weighed, and its warnings with whether a reason was given */
+function riskGateText(t: PoT, g: NonNullable<PoViewDto['riskGate']>): string {
+  const number = (d: { number: string | null } | null) => d?.number ?? t('risk.noNumber')
+  const source = g.source === 'ASSESSMENT' ? t('risk.source.ASSESSMENT', { number: number(g.assessment) }) : g.source === 'OVERRIDE' ? t('risk.source.OVERRIDE', { number: number(g.override) }) : t('risk.source.NOT_REQUIRED')
+  const line = t('risk.fact', { tier: t(`risk.tier.${g.tier}`), source, trigger: t(`risk.trigger.${g.trigger}`) })
+  const warned = g.warnings.filter((w) => w !== 'OVERRIDE_USED')
+  if (warned.length === 0) return line
+  const list = warned.map((w) => t(`risk.warning.${w}`)).join(', ')
+  return `${line} · ${t('risk.warnings', { list })}${g.reasoned ? ` (${t('risk.reasoned')})` : ''}`
+}
+
 /** Supplier, site, kind, who made it and who sent it, when, payment terms and the note to the supplier — one label each */
 export async function PoFacts({ po, locale, reader }: { po: PoViewDto; locale: Locale; reader: PoReader }) {
   const t = await getTranslations('purchaseOrder')
@@ -186,6 +197,8 @@ export async function PoFacts({ po, locale, reader }: { po: PoViewDto; locale: L
       value: po.paymentTermDays === null ? t('facts.notSet') : po.paymentTermDays === 0 ? t('facts.paymentCash') : t('facts.paymentDays', { days: po.paymentTermDays }),
     },
     { label: t('facts.note'), value: po.notesToSupplier ? <span className="whitespace-pre-line">{po.notesToSupplier}</span> : t('facts.notSet') },
+    // S11-07 (FR-RSK-203 AC6): the risk gate it passed — its approvers see when an override let it through
+    ...(po.riskGate ? [{ label: t('facts.risk'), value: riskGateText(t, po.riskGate) }] : []),
   ]
   // In columns by the list's own width, never the screen's: two in the workspace's document column, one on a phone and
   // in the one column of the LIFF decision page at every screen width (§9.9 "LIFF เป็นคอลัมน์เดียว")

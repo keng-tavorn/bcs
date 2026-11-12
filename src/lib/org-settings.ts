@@ -99,7 +99,7 @@ const SourcingSettingsSchema = z
   })
   .strict()
 
-// S11 (docs/sub-specs/S11.md "Entity และ migration" · BR-RSK-10 · BR-AI-33 · BR-RSK-20): only the keys that do not decide
+// S11 (docs/sub-specs/S11.md "Entity และ migration" · BR-RSK-10 · BR-AI-34 · BR-RSK-20): only the keys that do not decide
 // the PO gate. The screening map, the high-risk categories, the registry and medium-overdue blocks and the chat button are
 // the organization's RiskPolicy row, and the thresholds its RiskTier rows (BR-RSK-02), with 4-eyes and events; the
 // defaults of these keys are those of the open questions, in riskSettingsOf

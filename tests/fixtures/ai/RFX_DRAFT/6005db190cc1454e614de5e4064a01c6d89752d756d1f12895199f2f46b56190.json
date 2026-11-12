@@ -1,0 +1,29 @@
+{
+  "promptVersion": "RFX_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "title": "เสนอราคาเช่านั่งร้านเหล็กพร้อมติดตั้งและรื้อถอน อาคาร B",
+    "titleEn": "Request for quotation: rental of steel scaffolding with installation and dismantling, Building B",
+    "description": "ขอเชิญเสนอราคาสำหรับการเช่านั่งร้านเหล็กพร้อมการติดตั้งและรื้อถอน อาคาร B และค่าขนส่งนั่งร้านไป-กลับหน้างาน ผู้เสนอราคาโปรดระบุราคาต่อรายการเป็นเงินบาท",
+    "descriptionEn": "Quotations are requested for rental of steel scaffolding with installation and dismantling for Building B, and for transport of the scaffolding to and from the site. Suppliers are to quote each line in Thai baht.",
+    "lines": [
+      {
+        "lineNo": 1,
+        "descriptionEn": "Rental of steel scaffolding with installation and dismantling, Building B",
+        "uomEn": "set"
+      },
+      {
+        "lineNo": 2,
+        "descriptionEn": "Transport of scaffolding to and from the site",
+        "uomEn": "trip"
+      }
+    ]
+  },
+  "usage": {
+    "input": 157,
+    "output": 974,
+    "cacheRead": 1091,
+    "cacheWrite": 0
+  }
+}

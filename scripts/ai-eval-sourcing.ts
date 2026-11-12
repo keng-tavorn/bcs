@@ -233,8 +233,12 @@ export function draftHeadFilled(o: Pick<RfxDraftText, 'title' | 'titleEn' | 'des
   return fits(o.title, 200) && fits(o.titleEn, 200) && fits(o.description, RFX_LONG_TEXT_MAX) && fits(o.descriptionEn, RFX_LONG_TEXT_MAX)
 }
 
-/** Number words a draft may use to state a count (a person reads "หนึ่งเครื่อง" or "one monitor" as a quantity) */
-const COUNT_WORDS = ['one', 'two', 'three', 'four', 'five', 'ten', 'single', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'สิบ'] as const
+/**
+ * Number words a draft may use to state a count (a person reads "หนึ่งเครื่อง" or "one monitor" as a quantity). Thai
+ * has no spaces between words, so only หนึ่ง stands alone here: สาม สี่ ห้า sit inside common words (สามารถ สี่เหลี่ยม
+ * ห้าง); a Thai count after จำนวน is caught below whatever its number.
+ */
+const COUNT_WORDS = ['one', 'two', 'three', 'four', 'five', 'ten', 'single', 'หนึ่ง'] as const
 const numbersOf = (s: string) => new Set([...s.normalize('NFKC').replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50)).matchAll(/\d+(?:\.\d+)?/g)].map((m) => m[0]))
 
 /**

@@ -141,6 +141,9 @@ describe('[FR-AI-305/AC5] the evaluation set of the Sourcing Agent, demo tier', 
     expect(inventedNumbers(steel, { ...truth, description: 'เหล็กข้ออ้อย DB16 ยาว 10 ม. จำนวน 1 รายการ' })).toContain('จำนวน 1')
     expect(inventedNumbers(steel, { ...truth, descriptionEn: 'One lot of rebar, delivered within 7 days' })).toEqual(expect.arrayContaining(['7', 'one']))
     expect(inventedNumbers(steel, { ...truth, descriptionEn: 'Line 3 is tie wire No. 18' })).toEqual([])
+    // Thai words that hold a number word inside them are not counts
+    expect(inventedNumbers(steel, { ...truth, description: 'ผู้เสนอราคาสามารถเสนอราคาต่อรายการ เหล็กสี่เหลี่ยม จากห้างร้าน' })).toEqual([])
+    expect(inventedNumbers(steel, { ...truth, description: 'เหล็กข้ออ้อยจำนวนสามเส้น' })).toEqual(['จำนวนสามเส้น'])
 
     const ok = scoreSummary(steel, truthSummary(steel))
     expect(ok).toEqual({ text: true, reason: null, noAdvice: true, flags: [true] })

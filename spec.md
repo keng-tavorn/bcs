@@ -6121,6 +6121,25 @@ cases:
 
 วิธีคำนวณ (ai): GC-AI-96 `bidCount 3` `lowest.net 300950.00` → "300,950.00" · `spreadBp 151` = (305,500 − 300,950) × 10000 ÷ 300,950 = 151.19 → 151 ประกาศเป็น kind `integer` จึง render "151" ไม่ใช่ "1.51%" · `vatInclusiveCount 1` · GC-AI-97 มีเลข 4,550 นอก placeholder → `DIGIT_OUTSIDE_PLACEHOLDER` · GC-AI-98 ตก `DECISION_ADVICE` เพราะคำ "ควรมอบงาน" อยู่ในรายการที่ S10-16 เพิ่ม · GC-AI-99: 13 × 23,800 = 309,400 + VAT 21,658 = 331,058 > 100,000 → 3 ราย · 45,000 + 3,150 = 48,150 ≤ 100,000 → 1 ราย · บริการ → RFP
 
+### 12.9 S11 · golden ของ Risk Agent (ระยะ 2 · S11-13)
+
+คำตอบที่ agent `RISK` (purpose `RISK_ANSWER_DRAFT`) เสนอต่อใบประเมินตรวจทีละคำตอบด้วย `checkRiskDraft` ใน `src/core/ai-checks/risk.ts` เทียบชุดคำถามของใบและคำถามที่ระบบตอบด้วยหลักฐานได้ (BR-RSK-05) · ความมั่นใจตาม BR-AI-16 · ทุกคำตอบของ AI ยืนยันทีละข้อ (BR-AI-33) · ขอบเขตข้อมูล `shouldDraftFor` และ `aiReadableEvidence` (BR-AI-34) รวมเป็นเคสเดียว fn `aiScope` · ตัวคำนวณอิสระ `run_ai_risk_verify` ใน `scripts/spec_check.py`
+
+```yaml
+# tests/golden/ai-risk-verify.yaml
+suite: ai-risk-verify
+note: คำตอบที่ Risk Agent เสนอ (BR-AI-33) เทียบชุดคำถามของใบและหลักฐานของระบบ (BR-RSK-05) · ความมั่นใจตาม BR-AI-16 (FAIL → 0 · WARN → 5000 · PASS → ค่า × 100) · ทุกคำตอบของ AI ยืนยันทีละข้อ · ขอบเขตข้อมูลตาม BR-AI-34 (GC-AI-103)
+# questions = ตัวเลือกของคำถามตาม risk-tier.yaml (evidenceOption คือตัวเลือกที่หลักฐานเลือก) · questionSet = ชุดคำถามของใบ · evidenceAvailable = รหัสคำถามที่ตอบด้วยหลักฐานได้ตาม BR-RSK-05 · confidence จากโมเดล 0–100 ต่อคำตอบ
+questions: { RQ-GEN-01: { options: [A, B, C] }, RQ-GEN-02: { options: [A, B, C] }, RQ-GEN-03: { options: [Y, N] }, RQ-IS-01: { options: [Y, N], evidenceOption: Y }, RQ-IS-02: { options: [Y, N] }, RQ-IS-03: { options: [Y, N] }, RQ-PRM-01: { options: [Y, N] } }
+assessment: { payeeType: JURISTIC, questionSet: [RQ-GEN-01, RQ-GEN-02, RQ-GEN-03, RQ-IS-01, RQ-IS-02, RQ-IS-03], evidenceAvailable: [] }
+cases:
+  - { id: GC-AI-100, title: ตัวเลือกที่ไม่มีในคำถาม, input: { answers: [{ questionCode: RQ-GEN-01, optionCode: D, confidence: 90 }] }, expect: { checks: [{ questionCode: RQ-GEN-01, code: OPTION_UNKNOWN, result: FAIL }], confidenceBp: { RQ-GEN-01: 0 }, mustConfirm: [RQ-GEN-01] } }
+  - { id: GC-AI-101, title: เสนอว่ามีใบรับรองโดยไม่มีเอกสารที่ใช้ตอบด้วยหลักฐานได้, input: { answers: [{ questionCode: RQ-IS-01, optionCode: Y, confidence: 87 }, { questionCode: RQ-GEN-01, optionCode: A, confidence: 96 }] }, expect: { checks: [{ questionCode: RQ-IS-01, code: EVIDENCE_MISSING, result: WARN }], confidenceBp: { RQ-IS-01: 5000, RQ-GEN-01: 9600 }, mustConfirm: [RQ-IS-01, RQ-GEN-01] } }
+  - { id: GC-AI-102, title: คำถามนอกชุดและคำตอบขัดกับหลักฐานของระบบ, input: { assessment: { evidenceAvailable: [RQ-IS-01] }, answers: [{ questionCode: RQ-PRM-01, optionCode: Y, confidence: 80 }, { questionCode: RQ-IS-01, optionCode: N, confidence: 70 }] }, expect: { checks: [{ questionCode: RQ-PRM-01, code: QUESTION_NOT_IN_SET, result: FAIL }, { questionCode: RQ-IS-01, code: EVIDENCE_CONFLICT, result: FAIL }], confidenceBp: { RQ-PRM-01: 0, RQ-IS-01: 0 }, mustConfirm: [RQ-PRM-01, RQ-IS-01] } }
+  - { id: GC-AI-103, title: ขอบเขตข้อมูล ไม่อ่านใบของผู้ขายบุคคลธรรมดา ไม่อ่านเมื่อปิดค่าตั้ง และไฟล์หลักฐานต้องผ่านทั้งคำถามและคำยินยอมของผู้อัปโหลด, fn: aiScope, input: { shouldDraftFor: [{ payeeType: INDIVIDUAL, aiAssist: true }, { payeeType: JURISTIC, aiAssist: false }, { payeeType: JURISTIC, aiAssist: true }], aiReadableEvidence: [{ question: RQ-PRV-02, questionAiReadable: true, evidenceAiReadable: true }, { question: RQ-PRV-02, questionAiReadable: true, evidenceAiReadable: false }, { question: RQ-GEN-03, questionAiReadable: false, evidenceAiReadable: true }] }, expect: { shouldDraftFor: [{ draft: false, reason: PAYEE_TYPE_EXCLUDED }, { draft: false, reason: SETTING_OFF }, { draft: true }], aiReadableEvidence: [{ send: true }, { send: false, reason: UPLOADER_NOT_CONSENTED }, { send: false, reason: QUESTION_NOT_AI_READABLE }] } }
+```
+
+วิธีคำนวณ (ai-risk-verify): `input.assessment` ของเคส merge ทับ `assessment` ระดับ suite ทีละฟิลด์ (GC-AI-102 จึงยังมี questionSet 6 ข้อ และ RQ-IS-01 เป็น EVIDENCE_CONFLICT ไม่ใช่ QUESTION_NOT_IN_SET) · ตรวจทีละคำตอบตามลำดับ ได้ผลไม่เกินหนึ่งข้อต่อคำตอบ: คำถามไม่อยู่ใน `questionSet` → QUESTION_NOT_IN_SET FAIL · ตัวเลือกไม่อยู่ใน `options` → OPTION_UNKNOWN FAIL · เลือก `evidenceOption` ของคำถามที่ไม่อยู่ใน `evidenceAvailable` → EVIDENCE_MISSING WARN · เลือกตัวเลือกอื่นของคำถามที่อยู่ใน `evidenceAvailable` → EVIDENCE_CONFLICT FAIL · `checks` มีเฉพาะคำตอบที่ไม่ผ่าน · ความมั่นใจ = min(confidence × 100, เพดาน) (GC-AI-101: 87 → 8700 แต่ WARN → 5000 · 96 → 9600 · FAIL → 0) · `mustConfirm` = ทุกคำถามที่ AI ตอบ เรียงตามคำตอบ · GC-AI-103 ตรวจ payeeType ก่อนค่าตั้ง และคำยินยอมของผู้อัปโหลดก่อน `aiReadable` ของคำถาม · suite มี 4 เคส
 
 ## 13. Non-functional requirements
 
@@ -6337,7 +6356,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       62 ไฟล์ · 837 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       63 ไฟล์ · 841 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

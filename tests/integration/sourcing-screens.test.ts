@@ -8,6 +8,7 @@ import { newRfxContext, rfxList, rfxSetup } from '@/server/services/sourcing/rfx
 import { bidFileUrl, rfxDetail } from '@/server/services/sourcing/rfx-view'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
+import { thaiTaxId } from '../support/tax-id'
 
 // S10-12 (FR-SRC-201 AC1 · BR-RFX-06 · BR-RFX-16 · BR-SOD-14 · BR-AUTH-05): what the internal sourcing screens read, on
 // real Postgres — the list of RFx by who reads which (every RFx for sourcing.view at ORG; the RFx a member evaluates or
@@ -38,7 +39,7 @@ const proc = () => org.ctxOf('proc_officer', MON)
 const version = async (id: string) => (await prisma.rfxEvent.findUniqueOrThrow({ where: { id } })).version
 
 async function supplier(name: string) {
-  const s = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `S12-${randomUUID().slice(0, 6)}`, nameTh: name, taxId: null, isForeign: true, branchCode: '00000', portalEnabled: true, category: 'STEEL' } })
+  const s = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `S12-${randomUUID().slice(0, 6)}`, nameTh: name, taxId: thaiTaxId(), branchCode: '00000', portalEnabled: true, category: 'STEEL' } })
   const contact = await prisma.supplierContact.create({ data: { organizationId: org.organizationId, supplierId: s.id, nameTh: `ผู้ติดต่อ ${name}`, email: `c-${randomUUID().slice(0, 8)}@supplier.test`, isPrimary: true } })
   return { supplier: s, contact }
 }

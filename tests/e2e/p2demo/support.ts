@@ -132,6 +132,14 @@ export function s7<T>(...args: string[]): T {
   return JSON.parse(r.stdout.trim().split('\n').at(-1)!) as T
 }
 
+/** Runs ./scripts/s10.ts (the scenes of S10) against the run's database, as s7 does */
+export function s10<T>(...args: string[]): T {
+  for (const arg of args) if (!SAFE_ARG.test(arg)) throw new Error(`not an argument for a scene script: ${arg}`)
+  const r = spawnSync(`pnpm exec tsx tests/e2e/p2demo/scripts/s10.ts ${args.join(' ')}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv(), E2E_P2DEMO: '1' }, maxBuffer: 64 * 1024 * 1024 })
+  if (r.status !== 0) throw new Error(`scene script s10 ${args[0] ?? ''} failed:\n${r.stderr}`)
+  return JSON.parse(r.stdout.trim().split('\n').at(-1)!) as T
+}
+
 /** A session of the portal the scene script opened for a contact, set on the browser as the sign-in would set it */
 export async function portalSessionOn(context: BrowserContext, org: string, email: string): Promise<void> {
   const { sid, csrf } = s7<{ sid: string; csrf: string }>('session', email)

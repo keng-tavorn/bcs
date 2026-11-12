@@ -76,7 +76,7 @@ P1_ONLY = {'Budget': ['fiscalYear','code','budgetKey','department','costCenter',
  # S10-14: sourcing of phase 2
  'RFx_Suppliers': ['ref','nameEn','nameTh','country','payeeType','taxId','category','contactName','contactEmail','contactLocale','invitedBy','routedBy','verifiedBy',
                    'invitedDaysAgo','expectedApprover','expectedG7Days'],
- 'RFx_Scenarios': ['ref','expectedNumber','kind','title','titleEn','description','categoryCode','sourceKind','historyRefs','needLines','creator','evaluators','weightsJson',
+ 'RFx_Scenarios': ['ref','expectedNumber','kind','title','titleEn','description','descriptionEn','categoryCode','sourceKind','historyRefs','needLines','linesEn','creator','evaluators','weightsJson',
                    'invitedSuppliers','openBusinessDaysAgo','openTime','closeAfterBusinessDays','closeTime','questionsJson','awardAfterBusinessDays','awardTime',
                    'decideAfterBusinessDays','decideTime','awardReason','conclusionNote','allowVatInclusiveBids','demoLive','expectedStatus','expectedWinner',
                    'expectedAwardNet','expectedAwardGross','expectedRule','expectedApprover','expectedBaseline','expectedSavings','expectedCycleDays'],
@@ -1429,7 +1429,7 @@ if PROFILE == 'p1':
     PAYEE = {s_(d['supplierCode']): s_(d['payeeType']) for r, d in table('SupplierPayment')}
     PROC = {c for c, u in USR.items() if 'PROCUREMENT' in u['roles']}
     # Supplier_Contacts: every supplier has a contact who may sign in, one primary each, e-mails unique and in lower case
-    cp, CEMAIL, prim, enabled = [], {}, {}, set()
+    cp, CEMAIL, prim, enabled, READS_EN = [], {}, {}, set(), set()
     for r, d in table('Supplier_Contacts'):
         sc, em = s_(d['supplierCode']), s_(d['email'])
         if sc not in SUP: cp.append(f'{at("Supplier_Contacts", "supplierCode", r)} ไม่มี {sc} ในชีต Suppliers')
@@ -1438,6 +1438,7 @@ if PROFILE == 'p1':
         CEMAIL[em] = sc
         if s_(d['isPrimary']) not in ('Y', 'N') or s_(d['portalEnabled']) not in ('Y', 'N'): cp.append(f'แถว {r} isPrimary และ portalEnabled ต้องเป็น Y หรือ N')
         if s_(d['isPrimary']) == 'Y': prim[sc] = prim.get(sc, 0) + 1
+        if s_(d['isPrimary']) == 'Y' and s_(d['locale']) == 'en': READS_EN.add(sc)
         if s_(d['portalEnabled']) == 'Y': enabled.add(sc)
         if s_(d['locale']) not in ('th', 'en'): cp.append(f'{at("Supplier_Contacts", "locale", r)} ต้องเป็น th หรือ en')
     cp += [f'{c} ไม่มีผู้ติดต่อที่เข้าพอร์ทัลได้' for c in sorted(set(SUP) - enabled)][:5]
@@ -1665,12 +1666,21 @@ if PROFILE == 'p1':
                 ref_unit = money(l.get('refUnitPrice')) or (money(it['refUnitPrice']) if it else None) or 0
                 lines.append({'qty': l.get('quantity'), 'ref': ref_unit, 'base': _lines_net(l.get('quantity'), ref_unit)})
         else: e(f'sourceKind {src} ต้องเป็น REQUEST_LINES หรือ NEED')
+        # S10-17 (BR-FORM-11): an RFx with an English title is in Thai and English, and opens with all its English
+        if s_(d['titleEn']):
+            if not s_(d['descriptionEn']): e('มี titleEn แต่ไม่มี descriptionEn (RFx สองภาษาต้องมีอังกฤษครบ · BR-FORM-11)')
+            english = (_js(d['needLines']) or []) if src == 'NEED' else (_js(d['linesEn']) or [])
+            if len(english) != len(lines) or any(not (l.get('descriptionEn') and l.get('uomEn')) for l in english):
+                e('RFx สองภาษาต้องมี descriptionEn และ uomEn ทุกบรรทัด (needLines หรือ linesEn ตามลำดับ historyRefs · BR-FORM-11)')
         estimate = sum(_lines_net(l['qty'], l['ref']) for l in lines)
         min_inv = ABOVE if estimate + rhu(estimate * RATE_BP, 10000) > THRESH else 1
         invited = [x.strip() for x in s_(d['invitedSuppliers']).split(';') if x.strip()]
         for s in invited:
             if s not in SUP and s not in FOREIGN: e(f'ผู้ขาย {s} ไม่มีในชีต Suppliers หรือ RFx_Suppliers')
             elif s in SUP and s not in CEMAIL.values(): e(f'ผู้ขาย {s} ไม่มีผู้ติดต่อในชีต Supplier_Contacts')
+        # S10-17 (BR-FORM-11): a foreign supplier, or one whose primary contact reads English, needs an RFx in Thai and English
+        readers = [s for s in invited if s in FOREIGN or s in READS_EN]
+        if readers and not s_(d['titleEn']): e(f'เชิญ {" ".join(readers)} ที่อ่านภาษาอังกฤษ RFx ต้องเป็นสองภาษา (titleEn descriptionEn และอังกฤษทุกบรรทัด · BR-FORM-11)')
         if len(invited) < min_inv: e(f'เชิญ {len(invited)} ราย ยอดประมาณรวม VAT {baht(estimate + rhu(estimate * RATE_BP, 10000))} ต้องเชิญอย่างน้อย {min_inv} ราย (BR-RFX-01)')
         weights = _js(d['weightsJson']) if kind != 'RFI' else None
         evaluators = [x.strip() for x in s_(d['evaluators']).split(';') if x.strip()]

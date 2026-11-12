@@ -7,7 +7,7 @@ import { portalRfx } from '@/server/portal/queries-rfx'
 import { isUuid } from '@/server/queries/requests'
 import { PortalButton, PortalFrame, PortalNotice, portalInputClass } from '@/ui/portal/frame'
 import { one, pageOrg, pageSession, Unavailable, type SearchParams } from '../../../_lib/page'
-import { contactLocale, rfxErrorText } from '../../_lib/words'
+import { contactLocale, rfxErrorText, textIn } from '../../_lib/words'
 
 // /portal/[org]/rfx/[id]/result (S10-07 · FR-SRC-204 · BR-RFX-12): the contact's own result — the lines an approved award
 // gives its supplier with the price awarded before VAT (the purchase order comes on its own · S10-11), or a thank-you
@@ -26,7 +26,6 @@ export default async function PortalRfxResultPage({ params, searchParams }: { pa
   const locale = contactLocale(session.state.contact)
   const [t, q, rfx] = await Promise.all([getTranslations({ locale, namespace: 'portal' }), searchParams, portalRfx(session.state.ctx, id)])
   if (!rfx) redirect(`/portal/${org.code}/rfx?error=NOT_FOUND`)
-  const en = locale === 'en'
   const number = rfx.number ?? t('rfx.list.noNumber')
   const total = rfx.awardedLines.reduce((sum, l) => sum + amountToSatang(l.lineNet), 0n)
   const s = rfx.portalStatus
@@ -52,18 +51,18 @@ export default async function PortalRfxResultPage({ params, searchParams }: { pa
                 : t('rfx.result.open')
   return (
     <PortalFrame organization={org.nameTh} title={t('rfx.result.title', { number })}>
-      <p>{en && rfx.titleEn ? rfx.titleEn : rfx.title}</p>
+      <p>{textIn(locale, rfx.title, rfx.titleEn)}</p>
       <PortalNotice tone={s === 'AWARDED' ? 'success' : 'info'}>{message}</PortalNotice>
       {rfx.awardedLines.length ? (
         <>
           <ul className="flex flex-col divide-y divide-line border-y border-line">
             {rfx.awardedLines.map((l) => (
               <li key={l.lineNo} className="flex flex-col gap-1 py-3">
-                <span className="font-medium">{t('rfx.result.line', { lineNo: l.lineNo, description: en && l.descriptionEn ? l.descriptionEn : l.description })}</span>
+                <span className="font-medium">{t('rfx.result.line', { lineNo: l.lineNo, description: textIn(locale, l.description, l.descriptionEn) })}</span>
                 <span className="tabular">
                   {l.unitPrice === null
-                    ? t('rfx.result.lineAmountPending', { quantity: l.quantity, uom: en && l.uomEn ? l.uomEn : l.uom, amount: formatSatang(amountToSatang(l.lineNet)) })
-                    : t('rfx.result.lineAmount', { quantity: l.quantity, uom: en && l.uomEn ? l.uomEn : l.uom, price: formatSatang(amountToSatang(l.unitPrice)), amount: formatSatang(amountToSatang(l.lineNet)) })}
+                    ? t('rfx.result.lineAmountPending', { quantity: l.quantity, uom: textIn(locale, l.uom, l.uomEn), amount: formatSatang(amountToSatang(l.lineNet)) })
+                    : t('rfx.result.lineAmount', { quantity: l.quantity, uom: textIn(locale, l.uom, l.uomEn), price: formatSatang(amountToSatang(l.unitPrice)), amount: formatSatang(amountToSatang(l.lineNet)) })}
                 </span>
               </li>
             ))}
@@ -91,7 +90,7 @@ export default async function PortalRfxResultPage({ params, searchParams }: { pa
               return (
                 <div key={l.rfxLineId} className="flex flex-col gap-1">
                   <label htmlFor={inputId} className="font-medium">
-                    {t('rfx.result.line', { lineNo: l.lineNo, description: line ? (en && line.descriptionEn ? line.descriptionEn : line.description) : '' })}
+                    {t('rfx.result.line', { lineNo: l.lineNo, description: line ? (textIn(locale, line.description, line.descriptionEn)) : '' })}
                   </label>
                   <p id={`${inputId}-hint`} className="tabular text-sm text-ink-muted">
                     {t('rfx.result.confirmLineHint', { quoted: formatSatang(amountToSatang(l.quotedUnitPrice)), max: formatSatang(amountToSatang(l.maxNetUnitPrice)) })}

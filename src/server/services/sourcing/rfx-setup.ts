@@ -1,6 +1,6 @@
 import { satangToAmount } from '@/core/money/dto'
 import type { Result } from '@/core/result'
-import { earliestCloseAt, questionCutoffAt, type RfxKind } from '@/core/sourcing'
+import { earliestCloseAt, missingEnglish, questionCutoffAt, type RfxKind } from '@/core/sourcing'
 import { formatQuantity } from '@/core/receiving'
 import { SOURCING_CATALOG_MAX, SOURCING_CHOICES_MAX } from '@/lib/constants'
 import { sourcingSettingsOf } from '@/lib/org-settings'
@@ -227,6 +227,8 @@ export interface RfxSetupDto {
     readonly titleEn: string | null
     readonly description: string
     readonly descriptionEn: string | null
+    /** TH or TH_EN (BR-FORM-11) */
+    readonly locale: string
     readonly categoryCode: string
     readonly sourceKind: string
     readonly sealed: boolean
@@ -237,8 +239,10 @@ export interface RfxSetupDto {
     /** Σ quantity × reference price before VAT (baht text), or null */
     readonly estimatedNet: string | null
     readonly closesAt: string | null
+    /** BR-FORM-11 for the step "ตรวจและเปิด": the English a TH_EN RFx still lacks (field paths), null when Thai only */
+    readonly englishMissing: readonly string[] | null
   }
-  readonly lines: ReadonlyArray<{ readonly id: string; readonly lineNo: number; readonly description: string; readonly descriptionEn: string | null; readonly quantity: string; readonly uom: string; readonly site: string | null; readonly refUnitPrice: string | null; readonly refSource: string | null; readonly fromRequests: readonly string[] }>
+  readonly lines: ReadonlyArray<{ readonly id: string; readonly lineNo: number; readonly description: string; readonly descriptionEn: string | null; readonly quantity: string; readonly uom: string; readonly uomEn: string | null; readonly site: string | null; readonly refUnitPrice: string | null; readonly refSource: string | null; readonly fromRequests: readonly string[] }>
   readonly invites: readonly SetupInvite[]
   readonly supplierChoices: readonly SetupSupplierChoice[]
   readonly applicationChoices: ReadonlyArray<{ readonly id: string; readonly name: string; readonly status: string }>
@@ -283,7 +287,7 @@ export async function rfxSetup(ctx: Ctx, rfxEventId: string, options: { readonly
       tx.rfxLine.findMany({
         where: { rfxEventId },
         orderBy: { lineNo: 'asc' },
-        select: { id: true, lineNo: true, description: true, descriptionEn: true, quantity: true, uom: true, refUnitPriceSatang: true, refSource: true, deliverySiteId: true, sources: { where: { active: true }, select: { requestLine: { select: { request: { select: { number: true } } } } } } },
+        select: { id: true, lineNo: true, description: true, descriptionEn: true, quantity: true, uom: true, uomEn: true, refUnitPriceSatang: true, refSource: true, deliverySiteId: true, sources: { where: { active: true }, select: { requestLine: { select: { request: { select: { number: true } } } } } } },
       }),
       tx.rfxInvite.findMany({ where: { rfxEventId, status: { not: 'REMOVED' } }, orderBy: [{ invitedAt: 'asc' }, { id: 'asc' }], select: { id: true, supplierId: true, applicationId: true, status: true, supplierSnapshot: true } }),
       tx.scorecard.findFirst({ where: { rfxEventId }, select: { status: true, minEvaluators: true, criteria: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }], select: { code: true, nameTh: true, nameEn: true, weightBp: true, kind: true } }, evaluators: { where: { status: { not: 'RECUSED' } }, select: { memberId: true } } } }),
@@ -324,6 +328,7 @@ export async function rfxSetup(ctx: Ctx, rfxEventId: string, options: { readonly
           titleEn: rfx.titleEn,
           description: rfx.description,
           descriptionEn: rfx.descriptionEn,
+          locale: rfx.locale,
           categoryCode: rfx.categoryCode,
           sourceKind: rfx.sourceKind,
           sealed: rfx.sealed,
@@ -333,6 +338,7 @@ export async function rfxSetup(ctx: Ctx, rfxEventId: string, options: { readonly
           minInvites: rfx.minInvites,
           estimatedNet: rfx.estimatedNetSatang === null ? null : satangToAmount(rfx.estimatedNetSatang),
           closesAt: rfx.closesAt?.toISOString() ?? null,
+          englishMissing: rfx.locale === 'TH_EN' ? missingEnglish({ titleEn: rfx.titleEn, descriptionEn: rfx.descriptionEn, lines: lines.map((l) => ({ lineNo: l.lineNo, descriptionEn: l.descriptionEn, uomEn: l.uomEn })) }) : null,
         },
         lines: lines.map((l) => ({
           id: l.id,
@@ -341,6 +347,7 @@ export async function rfxSetup(ctx: Ctx, rfxEventId: string, options: { readonly
           descriptionEn: l.descriptionEn,
           quantity: l.quantity.toString(),
           uom: l.uom,
+          uomEn: l.uomEn,
           site: l.deliverySiteId ? (siteOf.get(l.deliverySiteId) ?? null) : null,
           refUnitPrice: l.refUnitPriceSatang === null ? null : satangToAmount(l.refUnitPriceSatang),
           refSource: l.refSource,

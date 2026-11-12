@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
@@ -89,7 +90,19 @@ export default async function RfxPage({ params, searchParams }: { params: Promis
 
   return (
     <Page>
-      <PageHeader title={t('title', { number: r.number ?? t('draftNumber'), title })} intro={t(`kindIntro.${r.kind === 'RFP' ? 'RFP' : r.kind === 'RFI' ? 'RFI' : 'RFQ'}`)} actions={<RfxStatusBadge status={r.status} />} />
+      <PageHeader
+        title={t('title', { number: r.number ?? t('draftNumber'), title })}
+        intro={t(`kindIntro.${r.kind === 'RFP' ? 'RFP' : r.kind === 'RFI' ? 'RFI' : 'RFQ'}`)}
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            <RfxStatusBadge status={r.status} />
+            {/* the RFx as a document to print (rfx.print · BR-FORM-11): Thai and English side by side when TH_EN */}
+            <Link href={`/sourcing/${id}/print`} className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline lg:min-h-0">
+              {t('print.link')}
+            </Link>
+          </div>
+        }
+      />
       <PageBody>
         {d.reading === 'STATE' ? <Notice tone="info">{t('stateOnly')}</Notice> : null}
         <DocTabs tabs={tabs} initial={tabFrom(query.tab, tabs.map((tab) => tab.value))} label={t('tabs.label')} param="tab" />

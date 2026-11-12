@@ -277,7 +277,11 @@
       "PAST_CLOSE": "The RFx has closed; suppliers can no longer be invited or withdrawn",
       "LAST_LINE": "An RFx keeps one line at least",
       "OTHER": "That did not work. Try again; if it still fails, tell your administrator.",
-      "CONFLICT_VERSION": "Someone changed this RFx first. Reload the page to see it now and try again."
+      "CONFLICT_VERSION": "Someone changed this RFx first. Reload the page to see it now and try again.",
+      "ENGLISH_MISSING": "A Thai and English document needs its English title and description",
+      "LOCALE_REQUIRED": "An RFx that invites a foreign supplier or a contact who reads English must be in Thai and English, with the English of the title, the description and every line (item and unit) typed before it opens",
+      "CURRENCY": "An RFx and its bids are in Thai baht only; nothing is converted",
+      "LINE": "This line is not one of this RFx"
     },
     "stepsLabel": "Steps of setting up the RFx",
     "stepDone": "done",
@@ -343,7 +347,11 @@
       "refUnitPrice": "Reference unit price before VAT (baht, optional)",
       "sealed": "Sealed: suppliers' prices stay hidden until the close",
       "sealedHint": "The organization's default. While sealed, procurement sees only how many bid until the close.",
-      "unsealReason": "Why prices are shown before the close"
+      "unsealReason": "Why prices are shown before the close",
+      "bilingual": "Thai and English document",
+      "bilingualHint": "Needed to invite a foreign supplier or a contact who reads English. The title, the description and every line need their English before the RFx opens. Nothing is translated for you.",
+      "lineDescriptionEn": "Item (English)",
+      "uomEn": "Unit (English)"
     },
     "new": {
       "title": "Open a new RFx",
@@ -396,7 +404,10 @@
       "addTitle": "Add a line",
       "add": "Add this line",
       "added": "Line added",
-      "fromPoolHint": "This RFx was made from the procurement pool. Lines are added by ticking them in the pool and opening a new RFx."
+      "fromPoolHint": "This RFx was made from the procurement pool. Lines are added by ticking them in the pool and opening a new RFx.",
+      "englishSave": "Save English",
+      "englishSaved": "The line's English is saved",
+      "englishLabel": "English of {line}"
     },
     "suppliers": {
       "label": "Invited suppliers",
@@ -482,7 +493,14 @@
       "opening": "Opening the RFx",
       "openTitle": "Open the RFx and send the invitations",
       "openBody": "The RFx gets its number, the scorecard is locked and every supplier gets an invitation e-mail with a portal link. It closes {closes}. Once open it cannot go back to draft.",
-      "openConfirm": "Open the RFx"
+      "openConfirm": "Open the RFx",
+      "english": "The English is complete",
+      "bilingualNeeded": "A foreign supplier is invited: choose \"Thai and English document\" under General and type all the English",
+      "englishMissing": "English still missing: {fields}",
+      "englishTitle": "title",
+      "englishDescription": "description",
+      "englishLineItem": "item of line {no}",
+      "englishLineUnit": "unit of line {no}"
     }
   },
   "detail": {
@@ -531,7 +549,8 @@
       "INVITES_WAITING": "Some suppliers have not answered yet (neither bid nor declined), so it cannot close early",
       "ASKER_ONLY_REASON": "An answer to the asker alone needs a reason of at least 3 characters",
       "SEALED": "The bids stay sealed until the close",
-      "OTHER": "This did not go through. Try again, and contact your administrator if it still fails"
+      "OTHER": "This did not go through. Try again, and contact your administrator if it still fails",
+      "LOCALE_REQUIRED": "An RFx in Thai and English keeps its English title and description: it invites suppliers who read English"
     },
     "commands": {
       "back": "Back",
@@ -770,6 +789,7 @@
       "needsReconfirm": "Must confirm against the revision",
       "noBids": "No supplier sent a bid",
       "compareIntro": "Every amount is before VAT (a bid quoted with VAT is brought to its amount before VAT) so they compare directly",
+      "foreignWarning": "Foreign supplier: VAT 0 in this table · the true cost adds the VAT the buyer remits itself (P.P.36); the withholding tax (P.N.D.54) and the payment are made outside BCS",
       "export": "Export the comparison to Excel",
       "exporting": "Making the Excel file",
       "exportOpenFailed": "The file was made but could not be opened. Press again",
@@ -905,6 +925,32 @@
       },
       "agreements": "{count} agreed prices made",
       "nothingMade": "No purchase order or agreed price made from this award yet"
+    },
+    "print": {
+      "link": "Print the RFx",
+      "metaTitle": "Print the RFx",
+      "button": "Print",
+      "back": "Back to the RFx",
+      "draft": "Draft",
+      "kind": "Kind",
+      "number": "Number",
+      "closesAt": "Bids close",
+      "revision": "Revision",
+      "field": "Field",
+      "thai": "Thai",
+      "english": "English",
+      "title": "Title",
+      "description": "Description",
+      "lines": "Items",
+      "lineNo": "No.",
+      "item": "Item",
+      "quantity": "Quantity",
+      "baht": "Prices in Thai Baht",
+      "kindName": {
+        "RFQ": "Request for quotation (RFQ)",
+        "RFP": "Request for proposal (RFP)",
+        "RFI": "Request for information (RFI)"
+      }
     }
   }
 }

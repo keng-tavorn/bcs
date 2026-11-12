@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { markMoneyFields, type AttachmentRule, type Condition, type VisibilityRule } from '@/core/forms'
-import { FieldDefSchema, type FieldDef } from '@/core/forms/fields'
+import { FieldDefSchema, FormTextSchema, type FieldDef } from '@/core/forms/fields'
 import { FORM_TEXT_MAX_LENGTH } from '@/core/money/constants'
 
 // FormVersion.schema as stored (spec §7.9): the field definitions, the conditions that show or hide fields and the
@@ -43,7 +43,7 @@ const FormStepJson = z.strictObject({
 export const FormSchemaJson = z.strictObject({
   fields: z.array(FieldDefSchema),
   visibility: z.array(z.strictObject({ field: z.string().min(1), when: ConditionJson })).default([]),
-  rules: z.array(z.strictObject({ id: z.string().min(1), when: ConditionJson, require: RequirementJson })).default([]),
+  rules: z.array(z.strictObject({ id: z.string().min(1), when: ConditionJson, require: RequirementJson, label: FormTextSchema.optional() })).default([]),
   /** What the lines carry besides the item: serviceEndDate is required when its condition holds (BR-FORM-05) */
   lines: z.strictObject({ serviceEndDate: z.strictObject({ when: ConditionJson }).optional() }).default({}),
   /**

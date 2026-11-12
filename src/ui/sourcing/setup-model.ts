@@ -59,6 +59,10 @@ export const SETUP_ERROR_KEYS = [
   'CLOSE_TOO_SOON',
   'PAST_CLOSE',
   'LAST_LINE',
+  // S10-17 (BR-FORM-11 · NG-9)
+  'LOCALE_REQUIRED',
+  'CURRENCY',
+  'LINE',
   'OTHER',
 ] as const
 export type SetupErrorKey = (typeof SETUP_ERROR_KEYS)[number]

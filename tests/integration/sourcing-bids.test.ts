@@ -57,7 +57,7 @@ const version = async (id: string) => (await prisma.rfxEvent.findUniqueOrThrow({
 async function party(name: string, opts: { vat?: boolean } = {}) {
   const vat = opts.vat ?? true
   const s = await prisma.supplier.create({
-    data: { organizationId: org.organizationId, code: `B-${randomUUID().slice(0, 6)}`, nameTh: name, taxId: vat ? taxId() : null, isForeign: !vat, isVatRegistered: vat, branchCode: '00000', portalEnabled: true },
+    data: { organizationId: org.organizationId, code: `B-${randomUUID().slice(0, 6)}`, nameTh: name, taxId: taxId(), isVatRegistered: vat, branchCode: '00000', portalEnabled: true },
   })
   const contact = await prisma.supplierContact.create({ data: { organizationId: org.organizationId, supplierId: s.id, nameTh: `ติดต่อ ${name}`, email: `b-${randomUUID().slice(0, 8)}@supplier.test`, isPrimary: true } })
   return { supplier: s, contact, ctx: (now = MON) => portalCtx(org.organizationId, contact, now) }

@@ -30,10 +30,43 @@ import { useRfxAct } from './use-rfx-act'
 export interface SetupLineView {
   readonly id: string
   readonly title: string
+  /** The line's English (BR-FORM-11), typed by procurement; from the catalogue item's English name when it has one */
+  readonly descriptionEn: string
+  readonly uomEn: string
   readonly quantity: string
   readonly site: string | null
   readonly reference: string | null
   readonly from: string | null
+}
+
+/** The English of one line: its description and unit, saved together */
+function LineEnglish({ line, pending, save }: { readonly line: SetupLineView; readonly pending: boolean; readonly save: (english: { readonly descriptionEn: string; readonly uomEn: string }) => Promise<unknown> }) {
+  const t = useTranslations('sourcing.setup')
+  const id = useId()
+  const [descriptionEn, setDescriptionEn] = useState(line.descriptionEn)
+  const [uomEn, setUomEn] = useState(line.uomEn)
+  return (
+    <form
+      className="mt-2 flex flex-col gap-2 md:flex-row md:items-end"
+      aria-label={t('lines.englishLabel', { line: line.title })}
+      onSubmit={(e) => {
+        e.preventDefault()
+        void save({ descriptionEn, uomEn })
+      }}
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <Label htmlFor={`${id}-desc-en`}>{t('field.lineDescriptionEn')}</Label>
+        <Input id={`${id}-desc-en`} className="min-h-11 lg:min-h-10" value={descriptionEn} maxLength={200} onChange={(e) => setDescriptionEn(e.target.value)} />
+      </div>
+      <div className="flex flex-col gap-1 md:w-32">
+        <Label htmlFor={`${id}-uom-en`}>{t('field.uomEn')}</Label>
+        <Input id={`${id}-uom-en`} className="min-h-11 lg:min-h-10" value={uomEn} maxLength={40} onChange={(e) => setUomEn(e.target.value)} />
+      </div>
+      <Button type="submit" variant="outline" className="min-h-11 shrink-0 lg:min-h-10" disabled={pending}>
+        {t('lines.englishSave')}
+      </Button>
+    </form>
+  )
 }
 
 const blank = (): NeedLineShape => ({ description: '', quantity: '', uom: '', catalogItemId: null, refUnitPrice: '' })
@@ -44,8 +77,13 @@ export function SetupLines({
   catalog,
   remove,
   add,
+  bilingual,
+  saveEnglish,
 }: {
   readonly lines: readonly SetupLineView[]
+  /** The RFx is in Thai and English: each line takes its English description and unit */
+  readonly bilingual: boolean
+  readonly saveEnglish: (rfxLineId: string, english: { readonly descriptionEn: string; readonly uomEn: string }, key: string) => Promise<RfxOutcome>
   /** An RFx of a need takes typed lines; null for an RFx of pool lines */
   readonly need: { readonly categoryCode: string } | null
   readonly catalog: readonly NewRfxCatalogItem[]
@@ -70,6 +108,7 @@ export function SetupLines({
               {l.site ? <span className="text-ink-muted">{t('lines.site', { site: l.site })}</span> : null}
               <span className="text-ink-muted">{l.reference ?? t('lines.noReference')}</span>
               {l.from ? <span className="text-ink-muted">{l.from}</span> : null}
+              {bilingual ? <LineEnglish line={l} pending={pending} save={(english) => act((key) => saveEnglish(l.id, english, key), t('lines.englishSaved'))} /> : null}
             </div>
             {lines.length > 1 ? (
               <AlertDialog>

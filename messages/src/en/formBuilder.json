@@ -12,6 +12,7 @@
   "noCurrent": "This type has no form yet. Create a draft and add questions.",
   "shownWhen": "Shown when {condition}",
   "ruleLine": "Applies when {when} · attach {require}",
+  "ruleNames": "Name requesters see: {th} · {en}",
   "startTitle": "Edit the form as a new version",
   "startIntro": "The draft starts from the form in use. Requesters keep using that form until the draft is published.",
   "create": "Create a new draft",
@@ -170,7 +171,10 @@
     "removeFileNamed": "Remove file {n}",
     "addFile": "Add a kind of file",
     "add": "Add the rule to the draft",
-    "apply": "Apply the changes to this rule"
+    "apply": "Apply the changes to this rule",
+    "labelTh": "Rule name in Thai",
+    "labelEn": "Rule name in English",
+    "labelHint": "Requesters see this name in their language instead of the rule id. Enter both languages or leave both empty; nothing is translated for you."
   },
   "ruleErrors": {
     "ID_REQUIRED": "Enter the rule id",
@@ -178,7 +182,8 @@
     "ID_TAKEN": "Another rule of the form has this id. Use another one.",
     "KIND": "Choose the kind of file",
     "MIN": "Enter the number of files as a whole number from 1",
-    "EMPTY": "Add at least 1 kind of file to attach"
+    "EMPTY": "Add at least 1 kind of file to attach",
+    "LABEL_BOTH": "Enter the rule name in both languages, or leave both empty"
   },
   "preview": {
     "title": "Form preview",
@@ -188,6 +193,10 @@
     "noFields": "No questions yet; requesters fill in the items or services only",
     "hidden": "{count, plural, one {# question is} other {# questions are}} hidden and show when the answers meet their condition",
     "rulesTitle": "Files to attach for the answers now",
-    "noRules": "The answers now need no files under the rules"
+    "noRules": "The answers now need no files under the rules",
+    "language": "Preview in",
+    "th": "Thai",
+    "en": "English",
+    "languageHint": "Switch to check the form's own text in each language; the system's buttons and hints stay in the language of this page"
   }
 }

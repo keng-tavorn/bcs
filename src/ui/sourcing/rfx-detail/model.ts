@@ -34,6 +34,8 @@ export const RFX_ERROR_KEYS = [
   'INVITES_WAITING',
   'ASKER_ONLY_REASON',
   'SEALED',
+  // an amendment that clears the English of an RFx in Thai and English (BR-FORM-11 · S10-17)
+  'LOCALE_REQUIRED',
   'OTHER',
 ] as const
 export type RfxErrorKey = (typeof RFX_ERROR_KEYS)[number]
@@ -136,6 +138,8 @@ export interface RfxDetailView {
     readonly titleEn: string | null
     readonly description: string
     readonly descriptionEn: string | null
+    /** TH or TH_EN (BR-FORM-11) */
+    readonly locale: string
     readonly categoryCode: string
     readonly sourceKind: string
     readonly sealed: boolean

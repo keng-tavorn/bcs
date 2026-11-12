@@ -338,16 +338,28 @@ export interface RuleDraft {
   readonly storedWhen: Condition | null
   readonly require: readonly RequirementRow[] | null
   readonly storedRequire: Requirement | null
+  /** The rule's words for requesters (FR-INT-201 AC1): Thai and English together, or neither */
+  readonly labelTh: string
+  readonly labelEn: string
 }
 
-export const emptyRuleDraft = (): RuleDraft => ({ id: '', when: [], storedWhen: null, require: [emptyRequirementRow()], storedRequire: null })
+export const emptyRuleDraft = (): RuleDraft => ({ id: '', when: [], storedWhen: null, require: [emptyRequirementRow()], storedRequire: null, labelTh: '', labelEn: '' })
 
 export function ruleDraftOf(rule: AttachmentRule): RuleDraft {
-  return { id: rule.id, when: rowsOf(rule.when), storedWhen: rule.when, require: requirementRowsOf(rule.require), storedRequire: rule.require }
+  return {
+    id: rule.id,
+    when: rowsOf(rule.when),
+    storedWhen: rule.when,
+    require: requirementRowsOf(rule.require),
+    storedRequire: rule.require,
+    labelTh: rule.label?.th ?? '',
+    labelEn: rule.label?.en ?? '',
+  }
 }
 
 export interface RuleDraftErrors {
   readonly id?: 'ID_REQUIRED' | 'ID_FORMAT' | 'ID_TAKEN'
+  readonly label?: 'LABEL_BOTH'
   readonly when?: Record<number, RowError>
   readonly require?: Record<number, RequirementError>
   readonly requireEmpty?: boolean
@@ -359,6 +371,8 @@ export function checkRuleDraft(draft: RuleDraft, takenIds: readonly string[], fi
   if (!id) errors.id = 'ID_REQUIRED'
   else if (id.length > RULE_ID_MAX || /\s/.test(id)) errors.id = 'ID_FORMAT'
   else if (takenIds.includes(id)) errors.id = 'ID_TAKEN'
+  const label = textPair(draft.labelTh, draft.labelEn)
+  if (label === 'HALF') errors.label = 'LABEL_BOTH'
   let when: Condition | null = draft.storedWhen
   if (draft.when) {
     const rows = checkRows(draft.when, fields)
@@ -373,7 +387,7 @@ export function checkRuleDraft(draft: RuleDraft, takenIds: readonly string[], fi
     else errors.require = rows.errors
   }
   if (Object.keys(errors).length || !when || !require) return { ok: false, errors }
-  return { ok: true, rule: { id, when, require } }
+  return { ok: true, rule: { id, when, require, ...(label && label !== 'HALF' ? { label } : {}) } }
 }
 
 // ---------- the lint of BR-FORM-09 ----------

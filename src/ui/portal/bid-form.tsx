@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { amountToSatang } from '@/core/money/dto'
 import { formatSatang } from '@/core/money/format'
 import { compareBids } from '@/core/sourcing/compare'
-import { RFX_QUESTION_MAX } from '@/lib/constants'
+import { RFX_CURRENCY, RFX_QUESTION_MAX } from '@/lib/constants'
 import { Button } from '../liff/button'
 import { LiffNotice } from '../liff/notice'
 import { checkboxClass, inputClass, textareaClass } from '../liff/requests/classes'
@@ -205,6 +205,8 @@ export function BidForm(props: BidFormProps) {
     <form method="post" action={props.action} className="flex flex-col gap-5" noValidate>
       <input type="hidden" name="csrf" value={props.csrf} />
       <input type="hidden" name="rfxEventId" value={props.rfxEventId} />
+      {/* the one currency (NG-9 · FR-INT-201 AC4): the service refuses any other (CURRENCY) */}
+      <input type="hidden" name="currency" value={RFX_CURRENCY} />
       {props.bidId ? <input type="hidden" name="bidId" value={props.bidId} /> : null}
       {props.version !== null ? <input type="hidden" name="version" value={props.version} /> : null}
       <p className="text-sm text-ink-muted" aria-live="polite">

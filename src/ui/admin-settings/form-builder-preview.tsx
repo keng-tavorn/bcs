@@ -8,14 +8,17 @@ import { Field } from '../form/field'
 import { FieldInput } from '../request-form/field-input'
 import { applicableRules, visibleFieldIds } from '../request-form/model'
 import { plainMoney } from '../request-form/money'
-import { RequirementList } from '../request-form/rule-text'
+import { RequirementList, ruleLabel } from '../request-form/rule-text'
 import type { FormDefinition, ScreenLocale } from '../request-form/types'
+import { ToggleGroup, ToggleGroupItem } from '../shadcn/toggle-group'
 import { useKindLabel } from './form-builder-dialogs'
 import type { BuilderForm } from './form-builder-model'
 
 // "ตัวอย่างฟอร์ม" (S6-14 · FR-INT-104 AC2): the draft as the requester will see it, drawn with the request form's own
 // field components and its own rules (core/forms), before anything is published. The admin may answer the questions and
 // try an amount to see the questions a condition shows and the files a rule then asks for; nothing here is saved.
+// The form's own words (labels, hints, options, rule names) are shown in the language chosen here, Thai or English,
+// whatever the screen's language, so the admin checks both before publishing (FR-INT-201 AC1); nothing is translated.
 
 /** The form as the request page reads it: comparisons on fields of type money marked, as the server marks them */
 function definitionOf(form: BuilderForm): FormDefinition {
@@ -31,7 +34,8 @@ function definitionOf(form: BuilderForm): FormDefinition {
 
 export function FormPreview({ form, requestTypeCode }: { form: BuilderForm; requestTypeCode: string }) {
   const t = useTranslations('formBuilder.preview')
-  const locale = useLocale() as ScreenLocale
+  const screenLocale = useLocale() as ScreenLocale
+  const [locale, setLocale] = useState<ScreenLocale>(screenLocale)
   const kindLabel = useKindLabel()
   const id = useId()
   const [values, setValues] = useState<Record<string, unknown>>({})
@@ -45,6 +49,21 @@ export function FormPreview({ form, requestTypeCode }: { form: BuilderForm; requ
   return (
     <div className="flex flex-col gap-5">
       <p className="text-ink-muted">{t('intro')}</p>
+      <div className="flex flex-col gap-2">
+        <p id={`${id}-language`} className="font-medium">
+          {t('language')}
+        </p>
+        <ToggleGroup type="single" value={locale} onValueChange={(value) => (value ? setLocale(value as ScreenLocale) : null)} aria-labelledby={`${id}-language`} aria-describedby={`${id}-language-hint`} variant="outline" className="self-start">
+          {(['th', 'en'] as const).map((l) => (
+            <ToggleGroupItem key={l} value={l} lang={l} className="min-h-11 px-4">
+              {t(l)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <p id={`${id}-language-hint`} className="text-base text-ink-muted md:text-sm">
+          {t('languageHint')}
+        </p>
+      </div>
       <Field id={`${id}-amount`} label={t('amount')} hint={t('amountHint')} inputMode="decimal" className="tabular text-right" value={amount} onChange={(e) => setAmount(e.currentTarget.value)} />
       <div className="flex flex-col gap-4 border-t border-line pt-4">
         {form.fields.length === 0 ? <p className="text-ink-muted">{t('noFields')}</p> : null}
@@ -63,7 +82,9 @@ export function FormPreview({ form, requestTypeCode }: { form: BuilderForm; requ
           <ul className="flex flex-col gap-3">
             {rules.map((rule) => (
               <li key={rule.id} className="flex flex-col gap-1">
-                <p className="font-medium">{rule.id}</p>
+                <p className="font-medium" lang={locale}>
+                  {ruleLabel(rule, locale) ?? rule.id}
+                </p>
                 <RequirementList requirement={rule.require} input={input} fields={form.fields} locale={locale} kindLabel={kindLabel} ruleMet={rule.met} />
               </li>
             ))}

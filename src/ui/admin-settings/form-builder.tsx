@@ -118,6 +118,7 @@ function FormSummary({ form }: { form: BuilderForm }) {
           {form.rules.map((r) => (
             <li key={r.id} className="flex flex-col gap-0.5 py-2.5">
               <p className="font-medium break-words">{r.id}</p>
+              {r.label ? <p className="text-base break-words text-ink-muted md:text-sm">{t('ruleNames', { th: r.label.th, en: r.label.en })}</p> : null}
               <p className="text-base break-words text-ink-muted md:text-sm">{t('ruleLine', { when: condition(r.when), require: requirementText(r.require, t, kindLabel, condition) })}</p>
             </li>
           ))}
@@ -349,6 +350,7 @@ function DraftEditor({
                 <li key={r.id} className="flex flex-col gap-2 py-3">
                   <div className="flex flex-col gap-0.5">
                     <p className="font-medium break-words">{r.id}</p>
+                    {r.label ? <p className="text-base break-words text-ink-muted md:text-sm">{t('ruleNames', { th: r.label.th, en: r.label.en })}</p> : null}
                     <p className="text-base break-words text-ink-muted md:text-sm">{t('ruleLine', { when: condition(r.when), require: requirementText(r.require, t, kindLabel, condition) })}</p>
                   </div>
                   {rowButtons(r.id, i, form.rules.length, {

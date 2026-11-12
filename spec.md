@@ -4916,7 +4916,7 @@ AC ของ FR ชั้น 2 ที่ขั้นของสายเขี�
 | `/procurement/pool` | PROCUREMENT | กองคำขอรอจัดซื้อ | S4 |
 | `/procurement/pos` · `/procurement/pos/[id]` | PROCUREMENT | ใบสั่งซื้อ | S4 |
 | `/procurement/savings` | `po.view` และ `request.view` ระดับองค์กร | ผู้ช่วยหาเงินประหยัด: โอกาสประหยัดพร้อมยอดและหลักฐาน (FR-VIS-008) | NEW-123 |
-| `/sourcing` · `/sourcing/new` · `/sourcing/[id]` · `/sourcing/[id]/edit` · `/sourcing/[id]/score` · `/sourcing/[id]/award` | `sourcing.view` (ราคาเมื่อพ้นซองปิด · ผู้ขอเห็นสถานะ) · สร้างและตั้งค่า `sourcing.manage` · ให้คะแนน `sourcing.score` · ผล `sourcing.award` | จัดหา (เมื่อเปิด `SOURCING`): รายการ RFx · เปิดจากกองหรือความต้องการ · ตั้งทีละขั้น (ทั่วไป บรรทัด ผู้ขาย Scorecard กำหนดเวลา ตรวจและเปิด) · หน้ารายละเอียดแบบแท็บ · ให้คะแนน · ผลมอบงาน | S10 |
+| `/sourcing` · `/sourcing/new` · `/sourcing/[id]` · `/sourcing/[id]/edit` · `/sourcing/[id]/score` · `/sourcing/[id]/award` · `/sourcing/[id]/print` | `sourcing.view` (ราคาเมื่อพ้นซองปิด · ผู้ขอเห็นสถานะ) · สร้างและตั้งค่า `sourcing.manage` · ให้คะแนน `sourcing.score` · ผล `sourcing.award` | จัดหา (เมื่อเปิด `SOURCING`): รายการ RFx · เปิดจากกองหรือความต้องการ · ตั้งทีละขั้น (ทั่วไป บรรทัด ผู้ขาย Scorecard กำหนดเวลา ตรวจและเปิด) · หน้ารายละเอียดแบบแท็บ · ให้คะแนน · ผลมอบงาน · หน้าพิมพ์ RFx (`rfx.print` · ไม่มีราคา · สองคอลัมน์ไทย/อังกฤษเมื่อ `TH_EN` · BR-FORM-11 · S10-17) | S10 |
 | `/receiving` · `/receiving/[poId]` | RECEIVER และผู้ขอที่ได้รับอนุญาต | ตรวจรับ | S4 |
 | `/finance/invoices` · `/finance/exports` | FINANCE | ยืนยันใบกำกับ ส่งออก Express | S4 |
 | `/budgets` · `/budgets/[lineId]` | ตามสิทธิ์ | dashboard งบ | S3 |

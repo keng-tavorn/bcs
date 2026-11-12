@@ -5,10 +5,10 @@ import type { AppError } from '@/core/result'
 import { formatQuantity } from '@/core/receiving'
 import { subtractBusinessMinutes } from '@/core/sla'
 import { checkSod } from '@/core/sod'
-import { earliestCloseAt, minInvites as minInvitesOf, questionCutoffAt, validateScorecard, type RfxKind } from '@/core/sourcing'
+import { checkRfxLocale, earliestCloseAt, minInvites as minInvitesOf, questionCutoffAt, validateScorecard, type RfxInvitee, type RfxKind, type RfxLocale } from '@/core/sourcing'
 import { RFX_EVENT_MACHINE, transition, type RfxEventCommand } from '@/core/state-machines'
 import { rateFor, taxDateOf } from '@/core/vat'
-import { BASIS_POINTS_WHOLE, RFX_LONG_TEXT_MAX, RFX_SUMMARY_MAX } from '@/lib/constants'
+import { BASIS_POINTS_WHOLE, RFX_CURRENCY, RFX_LONG_TEXT_MAX, RFX_SUMMARY_MAX } from '@/lib/constants'
 import { sourcingSettingsOf } from '@/lib/org-settings'
 import { authorize } from '@/server/authz'
 import type { Capability } from '@/server/authz/permissions'
@@ -75,6 +75,45 @@ export function step(rfx: Rfx, command: RfxEventCommand, expectedVersion: number
   return { to: t.to }
 }
 const isFail = (x: unknown): x is Fail => typeof x === 'object' && x !== null && (x as { ok?: unknown }).ok === false
+
+// ---------- the language and currency of an RFx (BR-FORM-11 · FR-INT-201 AC2 AC4 · ADR-208) ----------
+
+/** The invitees of the RFx still in it, with what BR-FORM-11 reads of them: foreign, and the language of the contact */
+async function inviteesOf(tx: TenantTx, rfxEventId: string): Promise<RfxInvitee[]> {
+  const rows = await tx.rfxInvite.findMany({
+    where: { rfxEventId, status: { notIn: ['REMOVED', 'EXPIRED'] } },
+    select: { supplier: { select: { isForeign: true } }, application: { select: { payeeType: true } }, contact: { select: { locale: true } } },
+  })
+  return rows.map((r) => ({ isForeign: r.supplier ? r.supplier.isForeign : r.application?.payeeType === 'FOREIGN', contactLocale: r.contact.locale }))
+}
+
+/**
+ * LOCALE_REQUIRED when the RFx, as it will be after the command, does not suit its invitees (plus `adding`): an English
+ * reader needs TH_EN, and with `complete` (opening, inviting or amending once open) a TH_EN RFx needs all its English text
+ */
+async function localeRefusal(
+  tx: TenantTx,
+  rfx: { readonly id: string; readonly locale: RfxLocale; readonly titleEn: string | null; readonly descriptionEn: string | null },
+  opts: { readonly adding?: RfxInvitee; readonly complete: boolean },
+): Promise<Fail | null> {
+  const invitees = [...(await inviteesOf(tx, rfx.id)), ...(opts.adding ? [opts.adding] : [])]
+  const lines = await tx.rfxLine.findMany({ where: { rfxEventId: rfx.id }, select: { lineNo: true, descriptionEn: true, uomEn: true } })
+  const check = checkRfxLocale(rfx.locale, invitees, { titleEn: rfx.titleEn, descriptionEn: rfx.descriptionEn, lines }, opts.complete)
+  if (check.ok) return null
+  return check.missing.length
+    ? reasonOf('locale', 'LOCALE_REQUIRED', 'an RFx in Thai and English needs its English text', { missing: check.missing })
+    : reasonOf('locale', 'LOCALE_REQUIRED', 'an RFx that invites a foreign supplier or an English-reading contact is in Thai and English', { required: check.required })
+}
+
+/** Baht only, never converted (NG-9 · FR-INT-201 AC4) */
+const currencyRefusal = (currency: string | undefined): Fail | null =>
+  currency !== undefined && currency !== RFX_CURRENCY ? reasonOf('currency', 'CURRENCY', 'an RFx is in Thai baht only') : null
+
+/** BR-FORM-10 (3): a line's English starts from its catalogue item's English name; procurement types the rest */
+async function englishNameOf(tx: TenantTx, catalogItemId: string | null): Promise<string | null> {
+  if (!catalogItemId) return null
+  return (await tx.catalogItem.findUnique({ where: { id: catalogItemId }, select: { nameEn: true } }))?.nameEn?.trim() || null
+}
 
 const mailFacts = (rfx: Pick<Rfx, 'id' | 'number' | 'title' | 'titleEn' | 'closesAt' | 'questionCutoffAt' | 'revisionNo'>): RfxMailFacts => ({
   id: rfx.id,
@@ -152,7 +191,7 @@ async function planLines(tx: TenantTx, ctx: Ctx, source: SourceInput, holdingRfx
       const ref = typed && typed > 0n ? { unitPriceSatang: typed, source: 'MANUAL' as const } : await referenceOf(tx, l.catalogItemId ?? null, dayOf(ctx.now))
       lines.push({
         description: l.description,
-        descriptionEn: l.descriptionEn ?? null,
+        descriptionEn: l.descriptionEn ?? (await englishNameOf(tx, l.catalogItemId ?? null)),
         categoryCode: source.categoryCode,
         catalogItemId: l.catalogItemId ?? null,
         quantity: l.quantity,
@@ -203,7 +242,7 @@ async function planLines(tx: TenantTx, ctx: Ctx, source: SourceInput, holdingRfx
     const quantity = formatQuantity(f.free)
     lines.push({
       description: f.description,
-      descriptionEn: null,
+      descriptionEn: await englishNameOf(tx, row.catalogItemId),
       categoryCode,
       catalogItemId: row.catalogItemId,
       quantity,
@@ -291,6 +330,8 @@ const CreateInput = z.strictObject({
   description: LONG_TEXT.min(1),
   descriptionEn: LONG_TEXT.nullable().optional(),
   locale: z.enum(['TH', 'TH_EN']).optional(),
+  /** Baht only (CURRENCY · NG-9) */
+  currency: z.string().trim().max(3).optional(),
   source: Source,
   allowPartialBids: z.boolean().optional(),
   allowVatInclusiveBids: z.boolean().optional(),
@@ -304,6 +345,8 @@ export const createRfxCommand = defineCommand({
     const refused = await gate(tx, ctx, 'sourcing.manage')
     if (refused) return refused
     const creator = memberOf(ctx)!
+    const badCurrency = currencyRefusal(input.currency)
+    if (badCurrency) return badCurrency
     const settings = await settingsOf(tx, ctx)
     // OQ-212: a bid with VAT included is taken only where the organization allows it
     if (input.allowVatInclusiveBids && !settings.allowVatInclusiveBids) return reasonOf('allowVatInclusiveBids', 'VAT_INCLUSIVE_NOT_ALLOWED', 'the organization takes bids before VAT only (OQ-212)')
@@ -358,6 +401,13 @@ const UpdateInput = z.strictObject({
   description: LONG_TEXT.min(1).optional(),
   descriptionEn: LONG_TEXT.nullable().optional(),
   locale: z.enum(['TH', 'TH_EN']).optional(),
+  /** Baht only (CURRENCY · NG-9) */
+  currency: z.string().trim().max(3).optional(),
+  /** The English of the lines (BR-FORM-11): null clears it */
+  lines: z
+    .array(z.strictObject({ rfxLineId: z.uuid(), descriptionEn: TEXT.nullable().optional(), uomEn: z.string().trim().min(1).max(40).nullable().optional() }))
+    .max(200)
+    .optional(),
   allowPartialBids: z.boolean().optional(),
   allowVatInclusiveBids: z.boolean().optional(),
   bidValidityDays: z.int().min(1).max(365).optional(),
@@ -381,9 +431,27 @@ export const updateRfxCommand = defineCommand({
     const unsealing = input.sealed === false && rfx.sealed
     if (unsealing && !input.unsealReason) return reasonOf('unsealReason', 'UNSEAL_REASON', 'prices seen before the close need a reason (BR-RFX-06)')
     if (rfx.kind === 'RFI' && input.sealed === false) return reasonOf('sealed', 'RFI_HAS_NO_PRICE', 'an RFI has no prices to unseal')
-    const { rfxEventId: _id, expectedVersion: _v, unsealReason, ...fields } = input
+    const badCurrency = currencyRefusal(input.currency)
+    if (badCurrency) return badCurrency
+    const { rfxEventId: _id, expectedVersion: _v, unsealReason, currency: _c, lines: lineTexts, ...fields } = input
     const changed = Object.entries(fields).filter(([k, v]) => v !== undefined && (rfx as unknown as Record<string, unknown>)[k] !== v).map(([k]) => k)
+    // the English of the lines (BR-FORM-11): lines of this RFx only, each changed one counted as lines.<n>
+    const lineRows = lineTexts?.length ? await tx.rfxLine.findMany({ where: { rfxEventId: rfx.id }, select: { id: true, lineNo: true, descriptionEn: true, uomEn: true } }) : []
+    const lineById = new Map(lineRows.map((l) => [l.id, l]))
+    if (lineTexts?.some((l) => !lineById.has(l.rfxLineId))) return reasonOf('lines', 'LINE', 'a line of another RFx')
+    const lineChanges = (lineTexts ?? []).filter((l) => {
+      const row = lineById.get(l.rfxLineId)!
+      return (l.descriptionEn !== undefined && l.descriptionEn !== row.descriptionEn) || (l.uomEn !== undefined && l.uomEn !== row.uomEn)
+    })
+    for (const l of lineChanges) changed.push(`lines.${lineById.get(l.rfxLineId)!.lineNo}`)
     if (changed.length === 0) return reasonOf('rfxEventId', 'NO_CHANGE', 'nothing to change')
+    // a draft takes its English while it is typed: only an English reader invited to a Thai-only RFx is refused here
+    const locale = fields.locale ?? rfx.locale
+    const refusedLocale = await localeRefusal(tx, { id: rfx.id, locale, titleEn: rfx.titleEn, descriptionEn: rfx.descriptionEn }, { complete: false })
+    if (refusedLocale) return refusedLocale
+    for (const l of lineChanges) {
+      await tx.rfxLine.update({ where: { id: l.rfxLineId }, data: { ...(l.descriptionEn !== undefined ? { descriptionEn: l.descriptionEn } : {}), ...(l.uomEn !== undefined ? { uomEn: l.uomEn } : {}) } })
+    }
     const updated = await tx.rfxEvent.update({ where: { id: rfx.id }, data: { ...fields, version: { increment: 1 } }, select: { version: true } })
     const events: EventDraft[] = [{ type: 'rfx.updated', aggregateType: 'RfxEvent', aggregateId: rfx.id, data: { fields: changed } }]
     if (unsealing) events.push({ type: 'rfx.unsealed', aggregateType: 'RfxEvent', aggregateId: rfx.id, data: { reasonCommentId: await comment(tx, ctx, rfx.id, unsealReason!) } })
@@ -578,6 +646,11 @@ export const inviteToRfxCommand = defineCommand({
     if (already) return fail('ALREADY_INVITED', 'invited to this RFx already', { inviteId: already.id })
     const contactId = await inviteContactOf(tx, { supplierId: input.supplierId ?? null, applicationId: input.applicationId ?? null })
     if (!contactId) return reasonOf('supplierId', 'NO_CONTACT', 'no active contact to send the invitation to')
+    // BR-FORM-11: a foreign supplier or an English-reading contact needs an RFx in Thai and English, complete once open
+    const contact = await tx.supplierContact.findUniqueOrThrow({ where: { id: contactId }, select: { locale: true } })
+    const adding = { isForeign: owner.supplier ? owner.supplier.isForeign : owner.application?.payeeType === 'FOREIGN', contactLocale: contact.locale }
+    const refusedLocale = await localeRefusal(tx, rfx, { adding, complete: rfx.status === 'OPEN' })
+    if (refusedLocale) return refusedLocale
     const snapshot = await supplierSnapshot(tx, ctx, owner, riskOn)
     const invite = await tx.rfxInvite.create({
       data: {
@@ -664,6 +737,9 @@ export const openRfxCommand = defineCommand({
     if (invites.length < rfx.minInvites && !input.fewerInvitesReason) {
       return reasonOf('fewerInvitesReason', 'FEWER_INVITES_REASON', `${invites.length} invites, at least ${rfx.minInvites} without a reason`, { invites: invites.length, minInvites: rfx.minInvites })
     }
+    // BR-FORM-11: an RFx in Thai and English opens with all its English (FR-INT-201 AC2)
+    const refusedLocale = await localeRefusal(tx, rfx, { complete: true })
+    if (refusedLocale) return refusedLocale
     const settings = await settingsOf(tx, ctx)
     const calendar = await loadBusinessCalendar(tx, ctx.organizationId)
     const closesAt = new Date(input.closesAt)
@@ -753,6 +829,9 @@ export const amendRfxCommand = defineCommand({
     if (isFail(next)) return next
     if (!beforeClose(rfx, ctx.now)) return fail('INVALID_STATE_TRANSITION', 'the RFx closes for bids already', { from: rfx.status, command: 'rfx.amend', reason: 'PAST_CLOSE' })
     const texts = { title: input.title, titleEn: input.titleEn, description: input.description, descriptionEn: input.descriptionEn }
+    // an open RFx in Thai and English keeps its English (BR-FORM-11)
+    const refusedLocale = await localeRefusal(tx, { id: rfx.id, locale: rfx.locale, titleEn: input.titleEn === undefined ? rfx.titleEn : input.titleEn, descriptionEn: input.descriptionEn === undefined ? rfx.descriptionEn : input.descriptionEn }, { complete: true })
+    if (refusedLocale) return refusedLocale
     const changedFields = Object.entries(texts).filter(([k, v]) => v !== undefined && (rfx as unknown as Record<string, unknown>)[k] !== v).map(([k]) => k)
     let moved: { readonly questionCutoffAt: Date } | null = null
     const closesAt = input.closesAt ? new Date(input.closesAt) : null

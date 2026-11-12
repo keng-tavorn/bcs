@@ -99,6 +99,8 @@ export async function createRfxAction(input: NewRfxInput, key: string): Promise<
 }
 
 export interface GeneralInput {
+  /** The RFx in Thai and English (TH_EN · BR-FORM-11) */
+  readonly bilingual: boolean
   readonly title: string
   readonly titleEn: string
   readonly description: string
@@ -120,6 +122,7 @@ export async function updateRfxAction(rfxEventId: string, version: number, input
         titleEn: text(input.titleEn),
         description: input.description.trim(),
         descriptionEn: text(input.descriptionEn),
+        locale: input.bilingual ? 'TH_EN' : 'TH',
         allowPartialBids: input.allowPartialBids,
         allowVatInclusiveBids: input.allowVatInclusiveBids,
         sealed: input.sealed,
@@ -133,6 +136,13 @@ export async function updateRfxAction(rfxEventId: string, version: number, input
 export async function addNeedLineAction(rfxEventId: string, version: number, categoryCode: string, line: NeedLineInput, key: string): Promise<RfxOutcome> {
   return run(key, [rfxEventId, ...(line.catalogItemId ? [line.catalogItemId] : [])], (ctx) =>
     addRfxLines(ctx, { rfxEventId, expectedVersion: version, source: { kind: 'NEED', categoryCode, lines: [needLine(line)] } }, { idempotencyKey: key }),
+  )
+}
+
+/** The English of one line (BR-FORM-11): an empty box clears it */
+export async function lineEnglishAction(rfxEventId: string, version: number, rfxLineId: string, english: { readonly descriptionEn: string; readonly uomEn: string }, key: string): Promise<RfxOutcome> {
+  return run(key, [rfxEventId, rfxLineId], (ctx) =>
+    updateRfx(ctx, { rfxEventId, expectedVersion: version, lines: [{ rfxLineId, descriptionEn: text(english.descriptionEn), uomEn: text(english.uomEn) }] }, { idempotencyKey: key }),
   )
 }
 

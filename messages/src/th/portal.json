@@ -556,6 +556,7 @@
     },
     "detail": {
       "kindAndStatus": "{kind} · {status}",
+      "pricesInBaht": "ราคาเป็นบาทไทย (THB) เท่านั้น ไม่รับและไม่แปลงสกุลเงินอื่น",
       "closesAt": "ปิดรับข้อเสนอ {date}",
       "remaining": "เหลือเวลา {days} วัน {hours} ชั่วโมง",
       "remainingHours": "เหลือเวลา {hours} ชั่วโมง {minutes} นาที",

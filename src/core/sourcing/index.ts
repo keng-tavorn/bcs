@@ -52,3 +52,4 @@ export {
   type PriceRefSource,
 } from './award'
 export { cycleDaysTenths, cycleMedianDays, formatTenths, quotationShare, savings, savingsTotal, type BaselineKind, type BaselinePart, type Saving } from './kpi'
+export { checkRfxLocale, missingEnglish, readsEnglish, requiredLocale, type BilingualRfx, type LocaleCheck, type RfxInvitee, type RfxLocale } from './locale'

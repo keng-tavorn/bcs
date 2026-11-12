@@ -39,9 +39,11 @@ RFX_SUPPLIERS = [
 RFX_SCENARIO_COLUMNS = [
     ('ref', 'รหัสอ้างอิงในชีต (เลขเอกสารจริงออกตอนเปิด)'), ('expectedNumber', 'เลขที่คาดเมื่อ seed เล่นเรียงตามวันเปิด (ปี พ.ศ. ตามวันเปิดจริง)'),
     ('kind', 'RFQ RFP RFI'), ('title', 'ชื่อเรื่อง'), ('titleEn', 'ชื่ออังกฤษ (ว่าง = ไทยอย่างเดียว)'), ('description', 'รายละเอียด'),
+    ('descriptionEn', 'รายละเอียดอังกฤษ (ต้องมีเมื่อมี titleEn · RFx สองภาษามีอังกฤษครบ BR-FORM-11)'),
     ('categoryCode', 'หมวดสินค้า (ชีต Items)'), ('sourceKind', 'REQUEST_LINES = บรรทัดคำขอในกอง · NEED = ความต้องการที่ยังไม่มีคำขอ'),
     ('historyRefs', 'คำขอใน Request_History คั่นด้วย ; (REQUEST_LINES)'),
     ('needLines', 'บรรทัดของ NEED (JSON: description descriptionEn catalogItemCode quantity uom uomEn refUnitPrice)'),
+    ('linesEn', 'อังกฤษของบรรทัดจากกองตามลำดับ historyRefs (JSON: descriptionEn uomEn · RFx สองภาษา BR-FORM-11)'),
     ('creator', 'ผู้สร้าง (PROCUREMENT)'), ('evaluators', 'ผู้ประเมิน คั่นด้วย ; (ว่าง = ราคาอย่างเดียว)'),
     ('weightsJson', 'เกณฑ์และน้ำหนัก (JSON: code nameTh weightBp · PRICE คิดจากราคา)'),
     ('invitedSuppliers', 'ผู้ขายที่เชิญ คั่นด้วย ; (ชีต Suppliers หรือ RFx_Suppliers)'),
@@ -77,6 +79,7 @@ RFX_SCENARIOS = [
     _scenario(ref='RFX-IT-FIREWALL', expectedNumber='RFX-2569-00001', kind='RFP', title='ไฟร์วอลล์สำนักงาน 2 ไซต์ พร้อมติดตั้ง',
               titleEn='Office firewall for two sites with installation',
               description='จัดหาไฟร์วอลล์สำนักงานใหญ่และไซต์โรงงานพร้อมติดตั้งและรับประกัน 3 ปี ฝ่ายไอทีจะขอซื้อเมื่อรู้ผู้ชนะ',
+              descriptionEn='Firewalls for the head office and the plant, installed, with a three-year warranty; IT will request the purchase once the winner is known',
               categoryCode='IT', sourceKind='NEED',
               needLines=[{'description': 'ไฟร์วอลล์สำนักงาน', 'descriptionEn': 'Office firewall appliance', 'catalogItemCode': 'ITM-006', 'quantity': '2', 'uom': 'ชุด', 'uomEn': 'set', 'refUnitPrice': None},
                          {'description': 'บริการติดตั้งและตั้งค่า 2 ไซต์', 'descriptionEn': 'Installation and set-up at two sites', 'catalogItemCode': None, 'quantity': '1', 'uom': 'งาน', 'uomEn': 'job', 'refUnitPrice': '25000.00'}],
@@ -114,8 +117,13 @@ RFX_SCENARIOS = [
               allowVatInclusiveBids='N', demoLive='N', expectedStatus='CONCLUDED', note='ไม่มีราคา ไม่มีผลมอบงาน ไม่มี PO'),
     # scene 9 (core): the two DB12 lines of H187 and H217 waiting in the pool without a supplier (P1-02), opened on the
     # seed's business day and left OPEN for the suppliers to bid live; its bids and scores below are what the demo types
+    # SP0023's contacts read the portal in English (Supplier_Contacts of S7), so the RFQ is in Thai and English (S10-17 ·
+    # BR-FORM-11): procurement typed the English of the title, the description and both pool lines
     _scenario(ref='RFX-STEEL-DB12', expectedNumber='RFX-2569-00004', kind='RFQ', title='เหล็กข้ออ้อย DB12 SD40 13 ตัน 2 ไซต์',
+              titleEn='Deformed steel bar DB12 SD40, 13 tonnes, two sites',
               description='เหล็กข้ออ้อย DB12 SD40 ส่ง SITE-P01 8 ตัน และ SITE-P09 5 ตัน ส่งภายใน 7 วันหลังได้ใบสั่งซื้อ',
+              descriptionEn='Deformed steel bar DB12 SD40: 8 tonnes to SITE-P01 and 5 tonnes to SITE-P09, delivered within 7 days of the purchase order',
+              linesEn=[{'descriptionEn': 'Deformed steel bar DB12 SD40', 'uomEn': 'tonne'}, {'descriptionEn': 'Deformed steel bar DB12 SD40', 'uomEn': 'tonne'}],
               categoryCode='STEEL', sourceKind='REQUEST_LINES', historyRefs='H187;H217',
               creator='proc_mat1', evaluators='proc_mat2;proc_officer', weightsJson=_WEIGHTS_RFQ, invitedSuppliers='SP0023;SP0024;SP0029',
               openBusinessDaysAgo=0, openTime='09:00', closeAfterBusinessDays=3, closeTime='17:00',

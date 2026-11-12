@@ -10,7 +10,7 @@ import { primaryLinkClass, textareaClass } from '@/ui/liff/requests/classes'
 import { PortalButton, PortalFrame, PortalNotice, portalInputClass } from '@/ui/portal/frame'
 import { MarkViewed } from '@/ui/portal/mark-viewed'
 import { one, pageOrg, pageSession, Unavailable, type SearchParams } from '../../_lib/page'
-import { contactLocale, dateTimeOf, dayOf, remainingText, rfxErrorText, rfxKindOf } from '../_lib/words'
+import { contactLocale, dateTimeOf, dayOf, remainingText, rfxErrorText, rfxKindOf, textIn } from '../_lib/words'
 
 // /portal/[org]/rfx/[id] (S10-07 · FR-SRC-202 AC1 · BR-RFX-04 · BR-FORM-11 · INV-RFX-01): one RFx the contact is invited to,
 // in the contact's language (the English text when the RFx has it) — its kind and the contact's state, the close with the
@@ -35,7 +35,6 @@ export default async function PortalRfxPage({ params, searchParams }: { params: 
   const locale = contactLocale(session.state.contact)
   const [t, q, rfx] = await Promise.all([getTranslations({ locale, namespace: 'portal' }), searchParams, portalRfx(ctx, id)])
   if (!rfx) redirect(`/portal/${org.code}/rfx?error=NOT_FOUND`)
-  const en = locale === 'en'
   const base = `/portal/${org.code}`
   const number = rfx.number ?? t('rfx.list.noNumber')
   const open = OPEN_STATES.has(rfx.portalStatus)
@@ -49,7 +48,7 @@ export default async function PortalRfxPage({ params, searchParams }: { params: 
   const bidLabel = rfi ? t('rfx.detail.answerRfi') : rfx.portalStatus === 'DRAFT' ? t('rfx.detail.continueBid') : sent ? t('rfx.detail.editBid') : t('rfx.detail.bid')
 
   return (
-    <PortalFrame organization={org.nameTh} title={`${number} ${en && rfx.titleEn ? rfx.titleEn : rfx.title}`}>
+    <PortalFrame organization={org.nameTh} title={`${number} ${textIn(locale, rfx.title, rfx.titleEn)}`}>
       {rfx.inviteStatus === 'INVITED' ? <MarkViewed action={`${base}/api/rfx/respond`} csrf={session.csrf} rfxEventId={rfx.id} /> : null}
       {notice ? <PortalNotice tone="success">{t(`rfx.notices.${notice}`)}</PortalNotice> : null}
       {error ? <PortalNotice tone="danger">{rfxErrorText(t, error, one(q.reason), one(q.lines))}</PortalNotice> : null}
@@ -68,7 +67,7 @@ export default async function PortalRfxPage({ params, searchParams }: { params: 
         <h2 id="description" className="text-lg font-semibold">
           {t('rfx.detail.description')}
         </h2>
-        <p className="whitespace-pre-line">{en && rfx.descriptionEn ? rfx.descriptionEn : rfx.description}</p>
+        <p className="whitespace-pre-line">{textIn(locale, rfx.description, rfx.descriptionEn)}</p>
       </section>
 
       {rfi ? null : (
@@ -76,13 +75,15 @@ export default async function PortalRfxPage({ params, searchParams }: { params: 
           <h2 id="lines" className="text-lg font-semibold">
             {t('rfx.detail.lines')}
           </h2>
+          {/* NG-9 · BR-FORM-11: baht only, never converted */}
+          <p className="text-ink-muted">{t('rfx.detail.pricesInBaht')}</p>
           <ol className="flex flex-col divide-y divide-line border-y border-line">
             {rfx.lines.map((l) => (
               <li key={l.id} className="flex flex-col gap-1 py-3">
                 <span className="font-medium">
-                  {l.lineNo}. {en && l.descriptionEn ? l.descriptionEn : l.description}
+                  {l.lineNo}. {textIn(locale, l.description, l.descriptionEn)}
                 </span>
-                <span className="tabular">{t('rfx.detail.line', { quantity: l.quantity, uom: en && l.uomEn ? l.uomEn : l.uom })}</span>
+                <span className="tabular">{t('rfx.detail.line', { quantity: l.quantity, uom: textIn(locale, l.uom, l.uomEn) })}</span>
                 {l.requiredDeliveryOn ? <span className="tabular text-ink-muted">{t('rfx.detail.requiredBy', { date: dayOf(locale, l.requiredDeliveryOn) })}</span> : null}
               </li>
             ))}
@@ -123,7 +124,7 @@ export default async function PortalRfxPage({ params, searchParams }: { params: 
           </h2>
           <ul className="flex flex-col gap-2">
             {rfx.amendments.map((a) => (
-              <li key={a.revisionNo}>{t('rfx.detail.amendment', { n: a.revisionNo, date: dayOf(locale, a.createdAt), summary: en && a.summaryEn ? a.summaryEn : a.summary })}</li>
+              <li key={a.revisionNo}>{t('rfx.detail.amendment', { n: a.revisionNo, date: dayOf(locale, a.createdAt), summary: textIn(locale, a.summary, a.summaryEn) })}</li>
             ))}
           </ul>
         </section>

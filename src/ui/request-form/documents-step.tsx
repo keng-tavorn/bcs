@@ -20,7 +20,7 @@ import { showSatang } from './money'
 import { MoneyInput } from './money-input'
 import type { QuotationAiProps } from './quotation-ai'
 import { SuggestedSupplierField } from './place-supplier'
-import { conditionText, RequirementList } from './rule-text'
+import { conditionText, RequirementList, ruleLabel } from './rule-text'
 import type { Attachment } from './types'
 import { UploadButton, type UploadActions } from './upload-button'
 
@@ -120,7 +120,7 @@ export function RulesSection(props: DocumentsProps) {
           {rules.map((rule) => (
             <li key={rule.id} className="flex flex-col gap-2 py-3" data-rule={rule.id}>
               <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="font-semibold">{t('documents.rule', { rule: rule.id })}</span>
+                <span className="font-semibold">{ruleLabel(rule, locale) ?? t('documents.rule', { rule: rule.id })}</span>
                 {rule.met ? (
                   // A rule met on a request not sent yet: supporting information — the info icon in --info beside
                   // words in ink — never the approved mark of --primary (§9.9 tokens)

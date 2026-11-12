@@ -14,7 +14,7 @@ import type { SourcingScenarioRow, SourcingSheets, SourcingSupplierRow } from '@
 import { addDays, dayIn } from '@/server/seed/supplier-portal'
 import { scopedIdempotencyKey, type RunOptions } from '../_pipeline'
 import { decideTask } from '../approvals/decide'
-import { answerQuestion, askQuestion, closeRfxAt, concludeRfx, createAward, createRfx, inviteToRfx, openRfx, rankingOf, setScorecard, submitAward, submitBid, submitScores } from '../sourcing'
+import { answerQuestion, askQuestion, closeRfxAt, concludeRfx, createAward, createRfx, inviteToRfx, openRfx, rankingOf, setScorecard, submitAward, submitBid, submitScores, updateRfx } from '../sourcing'
 import { playApplication, type ApplicationPlayRow } from './supplier-portal'
 
 // The sourcing of the phase-1 organization (S10-14 · docs/sub-specs/S10.md "การอ่านชีตของไฟล์ระยะ 1"), after the history
@@ -247,7 +247,14 @@ class RfxPlayer {
 
     // created, invited and scored by procurement before it opens
     const source = row.sourceKind === 'REQUEST_LINES' ? { kind: 'REQUEST_LINES' as const, requestLineIds: await this.requestLines(row, where) } : { kind: 'NEED' as const, categoryCode: row.categoryCode, lines: await this.needLines(row, where) }
-    const { rfxEventId } = this.must(where, 'create', await createRfx(creator(before(90)), { kind: row.kind, title: row.title, ...(row.titleEn ? { titleEn: row.titleEn } : {}), description: row.description, source, allowVatInclusiveBids: row.allowVatInclusiveBids }, opts(ref, 'create')))
+    const { rfxEventId } = this.must(where, 'create', await createRfx(creator(before(90)), { kind: row.kind, title: row.title, ...(row.titleEn ? { titleEn: row.titleEn } : {}), description: row.description, ...(row.descriptionEn ? { descriptionEn: row.descriptionEn } : {}), source, allowVatInclusiveBids: row.allowVatInclusiveBids }, opts(ref, 'create')))
+    // the English of the pool lines, as procurement types it on the step "บรรทัด" (BR-FORM-11 · S10-17)
+    if (row.linesEn?.length) {
+      const lines = await this.db.rfxLine.findMany({ where: { rfxEventId }, orderBy: { lineNo: 'asc' }, select: { id: true } })
+      if (lines.length !== row.linesEn.length) throw new Error(`${where}: linesEn ${row.linesEn.length} บรรทัด แต่ RFx มี ${lines.length}`)
+      const english = lines.map((l, i) => ({ rfxLineId: l.id, descriptionEn: row.linesEn![i]!.descriptionEn, uomEn: row.linesEn![i]!.uomEn }))
+      this.must(where, 'linesEn', await updateRfx(creator(before(80)), { rfxEventId, expectedVersion: await this.version(rfxEventId), lines: english }, opts(ref, 'lines-en')))
+    }
     const subjects = [rfxEventId]
     const invited = new Map<string, string>()
     for (const code of row.invitedSuppliers) {

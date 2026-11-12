@@ -17,6 +17,7 @@ import { showMoney, showSatang } from './money'
 import { duplicateRefusal, type DuplicateAsk } from './duplicate'
 import { adminsWereTold, failureKey, failureStep, failureTarget, type ClosedWhy, type FormFailure, type StepId } from './outcome'
 import { placeAndSupplierText } from './place-supplier'
+import { ruleLabel } from './rule-text'
 import { BudgetStatus, RoutePreview, TotalsList } from './summary'
 import type { RouteView } from './types'
 import type { SaveState } from './use-autosave'
@@ -265,7 +266,7 @@ export function ReviewStep(props: ReviewProps) {
           <ul className="flex flex-col gap-2">
             {rules.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center gap-x-3">
-                <span>{t('documents.rule', { rule: r.id })}</span>
+                <span>{ruleLabel(r, locale) ?? t('documents.rule', { rule: r.id })}</span>
                 {r.met ? (
                   // A rule met on a request not sent yet: supporting information, as the ready line below — never the
                   // approved mark of --primary (§9.9 tokens)

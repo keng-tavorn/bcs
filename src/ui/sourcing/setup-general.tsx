@@ -18,6 +18,8 @@ import { useRfxAct } from './use-rfx-act'
 // The kind and category are fixed when the draft is made. rfx.update checks everything again.
 
 export interface GeneralValues {
+  /** The RFx in Thai and English (TH_EN): needed to invite a foreign supplier or an English-reading contact (BR-FORM-11) */
+  readonly bilingual: boolean
   readonly title: string
   readonly titleEn: string
   readonly description: string
@@ -49,11 +51,23 @@ export function SetupGeneral({
       onSubmit={(e) => {
         e.preventDefault()
         if (!v.title.trim() || !v.description.trim()) return setMessage({ tone: 'danger', text: t('new.generalMissing') })
+        if (v.bilingual && (!v.titleEn.trim() || !v.descriptionEn.trim())) return setMessage({ tone: 'danger', text: t('errors.ENGLISH_MISSING') })
         if (!v.sealed && initial.sealed && v.unsealReason.trim().length < 3) return setMessage({ tone: 'danger', text: t('errors.UNSEAL_REASON') })
         void act((key) => save(v, key), t('general.saved'))
       }}
     >
       {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+      <div className="flex items-start gap-3">
+        <Checkbox id={`${id}-bilingual`} className="mt-1" checked={v.bilingual} onCheckedChange={(c) => set({ bilingual: c === true })} aria-describedby={`${id}-bilingual-hint`} />
+        <div className="flex flex-col gap-1">
+          <Label htmlFor={`${id}-bilingual`} className="font-normal">
+            {t('field.bilingual')}
+          </Label>
+          <p id={`${id}-bilingual-hint`} className="text-base text-ink-muted md:text-sm">
+            {t('field.bilingualHint')}
+          </p>
+        </div>
+      </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor={`${id}-title`}>{t('field.title')}</Label>
         <Input id={`${id}-title`} className="min-h-11 lg:min-h-10" value={v.title} maxLength={200} onChange={(e) => set({ title: e.target.value })} required />

@@ -24,7 +24,7 @@ import { SetupStepNav } from '@/ui/sourcing/setup-steps'
 import { SetupSuppliers } from '@/ui/sourcing/setup-suppliers'
 import { getSession } from '../../../../_lib/session'
 import { localeOf, when } from '../../../_tracking/present'
-import { addNeedLineAction, inviteAction, openRfxAction, removeRfxLineAction, setScorecardAction, uninviteAction, updateRfxAction } from '../../actions'
+import { addNeedLineAction, inviteAction, lineEnglishAction, openRfxAction, removeRfxLineAction, setScorecardAction, uninviteAction, updateRfxAction } from '../../actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('sourcing.setup')
@@ -121,6 +121,20 @@ export default async function EditRfxPage({ params, searchParams }: { params: Pr
   )
 }
 
+/** BR-FORM-11: a foreign invitee needs TH_EN, and TH_EN opens with all its English (rfx.open checks it again) */
+function englishChecks(t: T, s: RfxSetupDto): Array<{ ok: boolean; text: string }> {
+  const r = s.rfx
+  if (r.englishMissing === null) return s.invites.some((i) => i.foreign) ? [{ ok: false, text: t('review.bilingualNeeded') }] : []
+  const missing = r.englishMissing
+  if (!missing.length) return [{ ok: true, text: t('review.english') }]
+  const word = (path: string) => {
+    const m = /^lines\.(\d+)\.(descriptionEn|uomEn)$/.exec(path)
+    if (m) return t(m[2] === 'uomEn' ? 'review.englishLineUnit' : 'review.englishLineItem', { no: Number(m[1]) })
+    return t(path === 'titleEn' ? 'review.englishTitle' : 'review.englishDescription')
+  }
+  return [{ ok: false, text: t('review.englishMissing', { fields: missing.map(word).join(', ') }) }]
+}
+
 async function StepBody({ t, s, step, locale, id, closesAt, detailHref, hrefOf }: { t: T; s: RfxSetupDto; step: SetupStep; locale: 'th' | 'en'; id: string; closesAt: string | null; detailHref: string; hrefOf: (k: SetupStep) => string }) {
   const r = s.rfx
   const v = r.version
@@ -140,7 +154,7 @@ async function StepBody({ t, s, step, locale, id, closesAt, detailHref, hrefOf }
           </div>
         </dl>
         <SetupGeneral
-          initial={{ title: r.title, titleEn: r.titleEn ?? '', description: r.description, descriptionEn: r.descriptionEn ?? '', allowPartialBids: r.allowPartialBids, allowVatInclusiveBids: r.allowVatInclusiveBids, sealed: r.sealed, unsealReason: '' }}
+          initial={{ bilingual: r.locale === 'TH_EN', title: r.title, titleEn: r.titleEn ?? '', description: r.description, descriptionEn: r.descriptionEn ?? '', allowPartialBids: r.allowPartialBids, allowVatInclusiveBids: r.allowVatInclusiveBids, sealed: r.sealed, unsealReason: '' }}
           vatInclusiveAllowed={s.vatInclusiveAllowed}
           save={updateRfxAction.bind(null, id, v)}
         />
@@ -156,6 +170,8 @@ async function StepBody({ t, s, step, locale, id, closesAt, detailHref, hrefOf }
           lines={s.lines.map((l) => ({
             id: l.id,
             title: t('lines.title', { no: l.lineNo, description: l.description }),
+            descriptionEn: l.descriptionEn ?? '',
+            uomEn: l.uomEn ?? '',
             quantity: t('lines.quantity', { quantity: l.quantity, uom: l.uom }),
             site: l.site,
             reference: l.refUnitPrice ? t('lines.reference', { price: baht(l.refUnitPrice), source: t(`refSource.${(l.refSource ?? 'MANUAL') as 'MANUAL'}`) }) : null,
@@ -165,6 +181,8 @@ async function StepBody({ t, s, step, locale, id, closesAt, detailHref, hrefOf }
           catalog={s.catalog.map((i) => ({ id: i.id, label: `${i.code} · ${i.name}`, name: i.name, uom: i.uom, categoryCode: r.categoryCode, refUnitPrice: i.refUnitPrice }))}
           remove={removeRfxLineAction.bind(null, id, v)}
           add={addNeedLineAction.bind(null, id, v, r.categoryCode)}
+          bilingual={r.locale === 'TH_EN'}
+          saveEnglish={lineEnglishAction.bind(null, id, v)}
         />
       </div>
     )
@@ -252,6 +270,7 @@ async function StepBody({ t, s, step, locale, id, closesAt, detailHref, hrefOf }
     { ok: s.lines.length > 0, text: s.lines.length > 0 ? t('review.lines', { count: s.lines.length }) : t('errors.NO_LINES') },
     { ok: live > 0 && !short, text: live > 0 ? (short ? t('review.invitesShort', { count: live, min: r.minInvites }) : t('review.invites', { count: live, min: r.minInvites })) : t('errors.NO_INVITES') },
     ...(r.kind === 'RFI' ? [] : [{ ok: scorecardReady(s), text: scorecardReady(s) ? t('review.scorecard') : t('errors.SCORECARD_INCOMPLETE') }]),
+    ...englishChecks(t, s),
     {
       ok: s.schedule !== null && !s.schedule.tooSoon,
       text: s.schedule

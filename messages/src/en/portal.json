@@ -556,6 +556,7 @@
     },
     "detail": {
       "kindAndStatus": "{kind} · {status}",
+      "pricesInBaht": "Prices in Thai Baht (THB) only. No other currency is accepted or converted.",
       "closesAt": "Bids close {date}",
       "remaining": "{days} days {hours} hours left",
       "remainingHours": "{hours} hours {minutes} minutes left",

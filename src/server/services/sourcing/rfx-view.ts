@@ -39,6 +39,8 @@ export interface RfxDetailDto {
     readonly titleEn: string | null
     readonly description: string
     readonly descriptionEn: string | null
+    /** TH or TH_EN (BR-FORM-11) */
+    readonly locale: string
     readonly categoryCode: string
     readonly sourceKind: string
     readonly sealed: boolean
@@ -446,6 +448,7 @@ export async function rfxDetail(ctx: Ctx, rfxEventId: string): Promise<Result<Rf
           titleEn: rfx.titleEn,
           description: rfx.description,
           descriptionEn: rfx.descriptionEn,
+          locale: rfx.locale,
           categoryCode: rfx.categoryCode,
           sourceKind: rfx.sourceKind,
           sealed: rfx.sealed,

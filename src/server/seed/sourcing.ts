@@ -81,10 +81,14 @@ const ScenarioRow = z.object({
   title: text,
   titleEn: optional,
   description: text,
+  /** S10-17 (BR-FORM-11): with titleEn the RFx is in Thai and English and needs its English description too */
+  descriptionEn: optional,
   categoryCode: code,
   sourceKind: z.enum(['REQUEST_LINES', 'NEED']),
   historyRefs: list(';'),
   needLines: json(z.array(NeedLine).min(1)),
+  /** S10-17 (BR-FORM-11): the English of the pool lines of a TH_EN RFx, in the order of historyRefs */
+  linesEn: json(z.array(z.strictObject({ descriptionEn: text, uomEn: text })).min(1)),
   creator: text,
   evaluators: list(';'),
   weightsJson: json(z.array(Weight).min(1)),

@@ -9850,6 +9850,7 @@
         "confirm": "I checked it: use the answer AI proposed for this question",
         "confirmed": "The answer AI proposed is confirmed",
         "intro": "AI proposed some answers from the documents you sent and let it read. You can always choose another answer, and you must tick each answer AI proposed before you send the assessment.",
+        "leaveBlank": "Leave this question unanswered (do not use the AI's answer)",
         "pending": "The answer AI proposed is saved but not confirmed: tick it before you send",
         "proposed": "AI proposes: {option}",
         "quote": "In the document: “{quote}”",
@@ -9895,6 +9896,7 @@
         "PRIVACY": "Personal data"
       },
       "errors": {
+        "AI_DRAFT_CHANGED": "The answers the AI proposed changed while this page was open. Nothing was saved; check the answers again and save once more.",
         "AI_REVIEW_PENDING": "Some answers the AI assistant drafted have not been checked yet. Please check them before sending.",
         "CONFLICT_VERSION": "The assessment changed after you opened this page. The page now shows the latest version; please check the answers and try again.",
         "FAILED": "That did not work. Please try again.",
@@ -12626,6 +12628,7 @@
         "confirm": "Checked: use the answer AI proposed for this question",
         "confirmed": "The answer AI proposed is confirmed",
         "intro": "AI proposed some answers from the supplier's documents. Tick each one to confirm it, or choose another answer yourself.",
+        "leaveBlank": "Leave this question unanswered (do not use the AI's answer)",
         "pending": "Waiting: the answer AI proposed for this question is not confirmed, so the assessment cannot be sent",
         "proposed": "AI proposes: {option}",
         "quote": "In the document: “{quote}”",

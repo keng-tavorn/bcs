@@ -11,7 +11,7 @@ const page = (id: string) => `/risk/assessments/${id}`
 /** S11-13 (BR-AI-33): with the Risk Agent's draft, the answers it proposed that procurement confirmed one by one */
 export async function fillOnBehalfAction(
   assessmentId: string,
-  answers: { questionCode: string; optionCode: string }[],
+  answers: { questionCode: string; optionCode: string | null }[],
   expectedVersion: number,
   key: string,
   aiAssist?: { agentActionId: string; confirmedPaths: string[] },

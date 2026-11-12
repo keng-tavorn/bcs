@@ -11,7 +11,8 @@ import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { riskAiDraftRun, riskAiSummaryRun } from '@/server/jobs/risk-ai'
 import { portalCtx } from '@/server/portal/session'
 import { runMonthlyGrant, setAiRuntimeForTests, updateAgentSetting, type AiRuntime } from '@/server/services/ai'
-import { answerRiskAssessment, fillRiskAssessmentOnBehalf, openRiskAssessment, portalRiskAiDraft, riskAiDraftOf, riskSummaryOf, submitRiskAssessment, uploadRiskEvidence } from '@/server/services/risk'
+import { answerRiskAssessment, cancelRiskAssessment, fillRiskAssessmentOnBehalf, openRiskAssessment, portalRiskAiDraft, riskAiDraftOf, riskSummaryOf, submitRiskAssessment, uploadRiskEvidence } from '@/server/services/risk'
+import { draftForSave } from '@/server/services/risk/ai-assist'
 import type { DoaOrg } from '../support/doa-org'
 import { createP2Org } from '../support/p2-org'
 
@@ -145,12 +146,12 @@ afterEach(async () => {
   await prisma.organization.update({ where: { id: org.organizationId }, data: { settings: { ...settings, risk: { aiAssist: true } } } })
 })
 
-async function scene(options: { payeeType?: 'JURISTIC' | 'INDIVIDUAL' } = {}) {
+async function scene(options: { payeeType?: 'JURISTIC' | 'INDIVIDUAL'; workScopes?: string[] } = {}) {
   const s = await supplierWithContact(options.payeeType)
   const cert = await document(s.supplierId, 'COMPANY_CERT', 'company certificate founded 2012')
   await document(s.supplierId, 'ISO_CERT', 'iso 9001 certificate', 'ISO 9001')
   await document(s.supplierId, 'ID_CARD', 'id card of the director')
-  const a = ok(await openRiskAssessment(as('proc_officer'), { supplierId: s.supplierId, screening: SCREEN }, key()))
+  const a = ok(await openRiskAssessment(as('proc_officer'), { supplierId: s.supplierId, screening: SCREEN, ...(options.workScopes ? { workScopes: options.workScopes } : {}) }, key()))
   return { ...s, ...a, cert }
 }
 
@@ -387,5 +388,93 @@ describe('[FR-AI-306/AC6] [EG-1] with the AI off nothing of the agent shows, and
     )
     expect(await submitRiskAssessment(s.portal(), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId) }, key())).toMatchObject({ ok: true })
     expect(sent).toHaveLength(0)
+  })
+})
+
+// the review of S11-13 (/code-review high 6cd834dd...HEAD): what a save does with a draft that changed, leaving a proposed
+// question unanswered, a draft taken in when the assessment is cancelled, a certificate verified late, and the file limit
+describe('[FR-AI-306/AC2] [BR-AI-17] what the person saves is theirs or the AI\'s, never mixed up', () => {
+  it('a portal save whose draft was replaced or hidden since the page opened saves nothing; a page with no draft saves the contact\'s own', async () => {
+    const s = await scene()
+    reply = () => ANSWERS
+    expect(await riskAiDraftRun(opened(s.assessmentId), step)).toBe('DRAFTED')
+    const shown = (await portalRiskAiDraft(s.portal(), s.assessmentId))!
+    expect(draftForSave(shown.agentActionId, shown)).toEqual({ ok: true, draft: shown })
+    expect(draftForSave('', shown)).toEqual({ ok: true, draft: null })
+    // the contact answers another question by hand, then the assessment comes back: a newer draft replaces the one shown
+    ok(await answerRiskAssessment(s.portal(), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId), answers: [{ questionCode: 'RQ-GEN-03', optionCode: 'Y' }] }, key()))
+    expect(await riskAiDraftRun({ name: 'bcs/risk_assessment.returned', data: { organizationId: org.organizationId, aggregateId: s.assessmentId } }, step)).toBe('DRAFTED')
+    const now = await portalRiskAiDraft(s.portal(), s.assessmentId)
+    expect(now!.agentActionId).not.toBe(shown.agentActionId)
+    expect(draftForSave(shown.agentActionId, now)).toEqual({ ok: false })
+    // AI switched off while the page was open: the draft nobody took in is hidden, the save is refused the same way
+    setAiRuntimeForTests(OFF)
+    expect(draftForSave(now!.agentActionId, await portalRiskAiDraft(s.portal(), s.assessmentId))).toEqual({ ok: false })
+  })
+
+  it('"leave unanswered" clears an answer saved from the AI and not confirmed: nothing waits, the draft closes EDITED', async () => {
+    const s = await scene()
+    reply = () => ANSWERS
+    expect(await riskAiDraftRun(opened(s.assessmentId), step)).toBe('DRAFTED')
+    const [draft] = await draftsOf(s.assessmentId)
+    const both = [
+      { questionCode: 'RQ-GEN-01', optionCode: 'A' },
+      { questionCode: 'RQ-IS-01', optionCode: 'Y' },
+    ]
+    ok(await answerRiskAssessment(s.portal(), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId), answers: both, aiAssist: { agentActionId: draft!.id, confirmedPaths: ['answers.RQ-GEN-01'] } }, key()))
+    expect((await portalRiskAiDraft(s.portal(), s.assessmentId))!.suggestions.find((x) => x.questionCode === 'RQ-IS-01')).toMatchObject({ pending: true })
+    ok(await answerRiskAssessment(s.portal(), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId), answers: [{ questionCode: 'RQ-IS-01', optionCode: null }], aiAssist: { agentActionId: draft!.id, confirmedPaths: [] } }, key()))
+    expect(await prisma.riskAnswer.count({ where: { assessmentId: s.assessmentId, questionCode: 'RQ-IS-01', optionCode: { not: null } } })).toBe(0)
+    expect(await prisma.agentAction.findUniqueOrThrow({ where: { id: draft!.id } })).toMatchObject({ status: 'EDITED', diff: { 'answers.RQ-IS-01': { ai: 'Y', final: null } } })
+  })
+})
+
+describe('[FR-AI-306/AC4] [BR-AI-18] a draft taken in ends with the assessment too', () => {
+  it('cancelled while an answer from the AI still waits: the draft expires SUBJECT_CLOSED', async () => {
+    const s = await scene()
+    reply = () => ANSWERS
+    expect(await riskAiDraftRun(opened(s.assessmentId), step)).toBe('DRAFTED')
+    const [draft] = await draftsOf(s.assessmentId)
+    ok(await answerRiskAssessment(s.portal(), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId), answers: [{ questionCode: 'RQ-GEN-01', optionCode: 'A' }], aiAssist: { agentActionId: draft!.id, confirmedPaths: [] } }, key()))
+    expect(await prisma.agentAction.findUniqueOrThrow({ where: { id: draft!.id } })).toMatchObject({ status: 'DRAFT', appliedAt: expect.any(Date) })
+    ok(await cancelRiskAssessment(as('proc_officer'), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId), reason: 'ยกเลิกงาน' }, key()))
+    expect(await riskAiDraftRun({ name: 'bcs/risk_assessment.cancelled', data: { organizationId: org.organizationId, aggregateId: s.assessmentId } }, step)).toBe('CLOSED_1')
+    expect(await prisma.agentAction.findUniqueOrThrow({ where: { id: draft!.id } })).toMatchObject({ status: 'EXPIRED', expireReason: 'SUBJECT_CLOSED' })
+  })
+})
+
+describe('[FR-AI-306/AC1] [BR-AI-34] [BR-RSK-05] what the agent reads, and what counts as evidence', () => {
+  it('a certificate verified after the assessment opened counts as evidence: its option is no EVIDENCE_MISSING', async () => {
+    // the work reaches systems under ISO 27001 (BR-RSK-05: the scope of the certificate must be one of the work's)
+    const s = await scene({ workScopes: ['ISO 27001'] })
+    expect(await prisma.riskAnswer.count({ where: { assessmentId: s.assessmentId, source: 'EVIDENCE' } })).toBe(0)
+    await document(s.supplierId, 'ISO_CERT', 'iso 27001 certificate', 'ISO 27001')
+    reply = () => ANSWERS
+    expect(await riskAiDraftRun({ name: 'bcs/supplier_document.verified', data: { organizationId: org.organizationId, aggregateId: s.cert.id, data: { supplierId: s.supplierId, applicationId: null } } }, step)).toBe('DRAFTED')
+    const [draft] = await draftsOf(s.assessmentId)
+    expect(draft!.verification).toEqual({
+      checks: [
+        { questionCode: 'RQ-GEN-03', code: 'OPTION_UNKNOWN', result: 'FAIL' },
+        { questionCode: 'RQ-PRM-01', code: 'QUESTION_NOT_IN_SET', result: 'FAIL' },
+      ],
+    })
+    expect(draft!.fieldConfidence).toMatchObject({ 'answers.RQ-IS-01': 8700 })
+  })
+
+  it('a file the adapter cannot take never takes the place of one it can (the cut to 8 files comes after)', async () => {
+    const s = await scene()
+    const types = Array.from({ length: 8 }, (_, i) => `WORD_DOC_${i + 1}`)
+    await prisma.supplierDocumentType.createMany({ data: types.map((code) => ({ organizationId: org.organizationId, code, nameTh: code, nameEn: code, appliesTo: ['JURISTIC'], singleInstance: true, aiReadable: true, aiReadablePayeeTypes: ['JURISTIC'] })), skipDuplicates: true })
+    for (const code of types) {
+      const file = await prisma.fileObject.create({ data: { organizationId: org.organizationId, storageKey: `test/${randomUUID()}.doc`, fileName: `${code}.doc`, mimeType: 'application/msword', sizeBytes: 100, status: 'AVAILABLE', uploadedById: org.member.proc_officer!, scanStatus: 'CLEAN' } })
+      await prisma.supplierDocument.create({ data: { organizationId: org.organizationId, supplierId: s.supplierId, documentTypeCode: code, fileId: file.id, issuedOn: new Date('2026-01-01'), expiresOn: new Date('2027-06-30'), status: 'VERIFIED', verifiedById: org.member.proc_officer!, verifiedAt: NOW } })
+    }
+    ok(await answerRiskAssessment(s.portal(), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId), answers: [{ questionCode: 'RQ-IS-02', optionCode: 'Y' }] }, key()))
+    const f = ok(await uploadRiskEvidence(s.portal(), { assessmentId: s.assessmentId, questionCode: 'RQ-IS-02', fileName: 'policy.pdf', bytes: PDF('information security policy'), aiReadable: true }, key()))
+    await prisma.fileObject.update({ where: { id: f.fileId }, data: { scanStatus: 'CLEAN' } })
+    reply = () => ({ answers: [] })
+    expect(await riskAiDraftRun(opened(s.assessmentId), step)).toBe('DRAFTED')
+    expect(sent[0]!.files).toEqual([expect.stringContaining('company certificate'), expect.stringContaining('information security policy')])
+    expect((await draftsOf(s.assessmentId))[0]!.inputRefs).toMatchObject({ files: [{ label: 'F1', kind: 'DOCUMENT' }, { label: 'F2', kind: 'EVIDENCE', ref: f.fileId }] })
   })
 })

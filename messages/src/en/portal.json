@@ -510,6 +510,7 @@
       "VALIDATION_FAILED": "Please check the answers or the file.",
       "RISK_ANSWERS_INCOMPLETE": "It cannot be sent yet: some questions still need an answer or a confirmation.",
       "AI_REVIEW_PENDING": "Some answers the AI assistant drafted have not been checked yet. Please check them before sending.",
+      "AI_DRAFT_CHANGED": "The answers the AI proposed changed while this page was open. Nothing was saved; check the answers again and save once more.",
       "RATE_LIMITED": "Too many files at once. Please try again in a moment.",
       "PRIVACY_NOTICE_OUTDATED": "Please read and acknowledge the current privacy notice before attaching files.",
       "MODULE_DISABLED": "This organization does not use supplier risk assessments yet.",
@@ -541,7 +542,8 @@
       },
       "confirm": "I checked it: use the answer AI proposed for this question",
       "confirmed": "The answer AI proposed is confirmed",
-      "pending": "The answer AI proposed is saved but not confirmed: tick it before you send"
+      "pending": "The answer AI proposed is saved but not confirmed: tick it before you send",
+      "leaveBlank": "Leave this question unanswered (do not use the AI's answer)"
     }
   },
   "rfx": {

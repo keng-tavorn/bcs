@@ -207,7 +207,7 @@ export default async function RiskAssessmentPage({ params }: { params: Promise<{
                 <AssessmentButtons
                   version={a.version}
                   questions={fillQuestions}
-                  ai={ai ? { agentActionId: ai.agentActionId, words: { title: t('ai.title'), intro: t('ai.intro'), confirm: t('ai.confirm'), confirmed: t('ai.confirmed'), pending: t('ai.pending') } } : null}
+                  ai={ai ? { agentActionId: ai.agentActionId, words: { title: t('ai.title'), intro: t('ai.intro'), confirm: t('ai.confirm'), confirmed: t('ai.confirmed'), pending: t('ai.pending'), leaveBlank: t('ai.leaveBlank') } } : null}
                   actions={{ fill: fillOnBehalfAction.bind(null, a.id), submit: submitAssessmentAction.bind(null, a.id), cancel: cancelAssessmentAction.bind(null, a.id) }}
                 />
               </Panel>

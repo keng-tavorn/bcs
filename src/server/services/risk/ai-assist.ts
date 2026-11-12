@@ -10,7 +10,7 @@ import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { openAssists, registerAssistSubject } from '../ai/assist-contract'
 import { agentSwitchedOn } from '../ai/gate'
 import { requireModule } from '../modules'
-import { contextOf, questionDefOf, questionsOf, RISK_TIMEZONE, type AssessmentRow } from './assessments'
+import { contextOf, evidenceAnswerableCodes, questionDefOf, questionsOf, RISK_TIMEZONE, type AssessmentRow } from './assessments'
 import { storedOptions } from './questionnaire'
 import { riskReviewTask } from './reviews'
 
@@ -35,6 +35,11 @@ export const RISK_ASSIST_TYPE = 'RISK_ASSESSMENT'
 export const riskAnswerPath = (questionCode: string): string => `answers.${questionCode}`
 const PATH = /^answers\.(RQ-[A-Z]{2,4}-\d{2})$/
 export const questionOfPath = (path: string): string | null => PATH.exec(path)?.[1] ?? null
+/**
+ * The value of the choice "leave unanswered" beside an answer the AI proposed (the portal's radios and procurement's
+ * Dialog): never an option code (those are letters and digits), it sends no answer, or clears one saved before
+ */
+export const RISK_LEAVE_BLANK = '-'
 
 const OPEN_STATES = ['DRAFT', 'RETURNED'] as const
 const OPEN: ReadonlySet<string> = new Set(OPEN_STATES)
@@ -73,8 +78,23 @@ export interface RiskAiFile {
 
 const MAX_FILES = 8
 
+/** Whether the AI adapter takes a file (its type and size): the agent passes it in, as this module never imports the adapter */
+export type RiskFileFits = (file: { readonly mimeType: string; readonly sizeBytes: number }) => boolean
+
+export interface RiskFilesOptions {
+  /** Files the adapter cannot take are left out before the cut to MAX_FILES, so they never take a place of one it can */
+  readonly fits?: RiskFileFits
+}
+
 /** The files of the supplier the agent may read for the questions given (BR-AI-34), at most MAX_FILES, documents first */
-async function filesFor(tx: TenantTx, a: NonNullable<Awaited<ReturnType<typeof loadForAi>>>, questionCodes: ReadonlySet<string>, today: string, documentTypes?: ReadonlySet<string>): Promise<RiskAiFile[]> {
+async function filesFor(
+  tx: TenantTx,
+  a: NonNullable<Awaited<ReturnType<typeof loadForAi>>>,
+  questionCodes: ReadonlySet<string>,
+  today: string,
+  options: RiskFilesOptions & { readonly documentTypes?: ReadonlySet<string> } = {},
+): Promise<RiskAiFile[]> {
+  const { documentTypes, fits = () => true } = options
   const docs = await tx.supplierDocument.findMany({
     where: { supplierId: a.supplierId, status: 'VERIFIED', expiresOn: { gte: new Date(`${today}T00:00:00Z`) }, documentType: { aiReadable: true, sensitive: false }, file: { status: 'AVAILABLE', scanStatus: 'CLEAN' } },
     select: { id: true, documentTypeCode: true, documentType: { select: { aiReadable: true, aiReadablePayeeTypes: true } }, file: { select: { id: true, storageKey: true, mimeType: true, sizeBytes: true } } },
@@ -85,7 +105,7 @@ async function filesFor(tx: TenantTx, a: NonNullable<Awaited<ReturnType<typeof l
   for (const d of docs) {
     // one of each type, the newest; a type the AI may not read for this payee is never sent (S7's rule · GC-AI-95)
     if (seenTypes.has(d.documentTypeCode) || !shouldReadDocument(d.documentType, a.payeeType).read) continue
-    if (documentTypes && !documentTypes.has(d.documentTypeCode)) continue
+    if ((documentTypes && !documentTypes.has(d.documentTypeCode)) || !fits(d.file)) continue
     seenTypes.add(d.documentTypeCode)
     out.push({ kind: 'DOCUMENT', ref: d.id, fileId: d.file.id, storageKey: d.file.storageKey, mimeType: d.file.mimeType, sizeBytes: d.file.sizeBytes, about: d.documentTypeCode, questionCode: null })
   }
@@ -98,6 +118,7 @@ async function filesFor(tx: TenantTx, a: NonNullable<Awaited<ReturnType<typeof l
       orderBy: { createdAt: 'asc' },
     })
     for (const l of links) {
+      if (!fits(l.file)) continue
       const code = consented.find((x) => x.id === l.subjectId)!.questionCode
       out.push({ kind: 'EVIDENCE', ref: l.file.id, fileId: l.file.id, storageKey: l.file.storageKey, mimeType: l.file.mimeType, sizeBytes: l.file.sizeBytes, about: `evidence for ${code}`, questionCode: code })
     }
@@ -127,7 +148,7 @@ export type DraftSkip = 'NOT_FOUND' | 'CLOSED' | 'PAYEE_TYPE_EXCLUDED' | 'SETTIN
  * For the job risk-ai-draft (a SYSTEM ctx of the organization): what the agent reads of an open assessment, or why it
  * reads nothing (BR-AI-33 BR-AI-34). Never calls the AI.
  */
-export async function riskDraftSource(tx: TenantTx, ctx: Ctx, assessmentId: string): Promise<{ readonly ok: true; readonly data: RiskDraftSource } | { readonly ok: false; readonly skip: DraftSkip }> {
+export async function riskDraftSource(tx: TenantTx, ctx: Ctx, assessmentId: string, options: RiskFilesOptions = {}): Promise<{ readonly ok: true; readonly data: RiskDraftSource } | { readonly ok: false; readonly skip: DraftSkip }> {
   if (!(await requireModule(ctx, 'RISK', tx)).ok) return { ok: false, skip: 'MODULE_DISABLED' }
   const a = await loadForAi(tx, assessmentId)
   if (!a) return { ok: false, skip: 'NOT_FOUND' }
@@ -142,8 +163,11 @@ export async function riskDraftSource(tx: TenantTx, ctx: Ctx, assessmentId: stri
     .filter((q) => !chosen.has(q.code))
     .map((q) => ({ code: q.code, text: stored.get(q.code)!.textTh, options: storedOptions(stored.get(q.code)!.options).map((o) => ({ code: o.code, label: o.labelTh || o.code })) }))
   if (ask.length === 0) return { ok: false, skip: 'NOTHING_TO_ANSWER' }
-  const files = await filesFor(tx, a, new Set(set.map((q) => q.code)), dateIn(ctx.now, RISK_TIMEZONE))
+  const today = dateIn(ctx.now, RISK_TIMEZONE)
+  const files = await filesFor(tx, a, new Set(set.map((q) => q.code)), today, options)
   if (files.length === 0) return { ok: false, skip: 'NO_FILES' }
+  // a certificate verified after the assessment opened answers its question too, though no answer rests on it yet
+  const answerable = await evidenceAnswerableCodes(tx, a.supplierId, set, a.workScopes, today)
   const contact = await tx.supplierContact.findFirst({ where: { supplierId: a.supplierId, status: 'ACTIVE' }, orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }], select: { id: true } })
   return {
     ok: true,
@@ -152,7 +176,7 @@ export async function riskDraftSource(tx: TenantTx, ctx: Ctx, assessmentId: stri
       reviewRound: a.reviewRound,
       contactId: contact?.id ?? null,
       questionSet: draftQuestions(a),
-      evidenceAvailable: a.answers.filter((x) => x.source === 'EVIDENCE' && x.optionCode !== null).map((x) => x.questionCode),
+      evidenceAvailable: [...new Set([...a.answers.filter((x) => x.source === 'EVIDENCE' && x.optionCode !== null).map((x) => x.questionCode), ...answerable])],
       ask,
       files,
     },
@@ -196,7 +220,7 @@ export interface RiskSummarySource {
  * For the job risk-ai-summary (SYSTEM ctx): an OPEN reviewer's task of an assessment in review, and of its assessment only
  * what the slot's domains show (INV-RSK-05 · BR-RSK-08); files within BR-AI-34's scope. null skip codes as for the draft.
  */
-export async function riskSummarySource(tx: TenantTx, ctx: Ctx, taskId: string): Promise<{ readonly ok: true; readonly data: RiskSummarySource } | { readonly ok: false; readonly skip: DraftSkip }> {
+export async function riskSummarySource(tx: TenantTx, ctx: Ctx, taskId: string, options: RiskFilesOptions & { readonly files?: boolean } = {}): Promise<{ readonly ok: true; readonly data: RiskSummarySource } | { readonly ok: false; readonly skip: DraftSkip }> {
   if (!(await requireModule(ctx, 'RISK', tx)).ok) return { ok: false, skip: 'MODULE_DISABLED' }
   const task = await tx.reviewTask.findFirst({ where: { id: taskId }, select: { id: true, status: true, assessmentId: true, reviewRound: true, riskDomains: true } })
   if (!task) return { ok: false, skip: 'NOT_FOUND' }
@@ -223,11 +247,12 @@ export async function riskSummarySource(tx: TenantTx, ctx: Ctx, taskId: string):
       files: answer ? (links.find((l) => l.subjectId === answer.id)?._count._all ?? 0) : 0,
     }
   })
+  if (options.files === false) return { ok: true, data: { taskId: task.id, assessmentId: a.id, number: a.number ?? '', supplierCode: a.supplier.code, domains, questions, files: [] } }
   // the certificates the slot's answers rest on, and the evidence files the uploader let the AI read
   const certificateTypes = answers.some((x) => x.evidenceDocumentId)
     ? new Set((await tx.supplierDocument.findMany({ where: { id: { in: answers.map((x) => x.evidenceDocumentId).filter((d): d is string => d !== null) } }, select: { documentTypeCode: true } })).map((d) => d.documentTypeCode))
     : new Set<string>()
-  const files = await filesFor(tx, a, codes, dateIn(ctx.now, RISK_TIMEZONE), certificateTypes)
+  const files = await filesFor(tx, a, codes, dateIn(ctx.now, RISK_TIMEZONE), { ...options, documentTypes: certificateTypes })
   return { ok: true, data: { taskId: task.id, assessmentId: a.id, number: a.number ?? '', supplierCode: a.supplier.code, domains, questions, files } }
 }
 
@@ -352,9 +377,15 @@ export async function portalRiskAiDraft(ctx: Ctx, assessmentId: string): Promise
   })
 }
 
-/** A path of the form answered, as the commands take it in aiAssist.confirmedPaths */
-export function confirmedPathsOf(codes: readonly string[]): string[] {
-  return [...new Set(codes)].map(riskAnswerPath)
+/**
+ * What a save of the portal's form does with the draft the page showed (BR-AI-17): a page that showed no draft saves the
+ * contact's own answers; a page that showed the draft still open saves with it; a page whose draft was replaced or hidden
+ * since (a newer draft, AI switched off) saves nothing — its radios may hold the AI's values, which must not go in as the
+ * contact's own
+ */
+export function draftForSave(shownAgentActionId: string, current: RiskAiDraftView | null): { readonly ok: true; readonly draft: RiskAiDraftView | null } | { readonly ok: false } {
+  if (shownAgentActionId === '') return { ok: true, draft: null }
+  return current && current.agentActionId === shownAgentActionId ? { ok: true, draft: current } : { ok: false }
 }
 
 // ---------- the summary a reviewer reads (written by the agent's job; read here without the AI) ----------
@@ -402,7 +433,7 @@ export async function riskSummaryOf(ctx: Ctx, taskId: string): Promise<RiskSumma
     if (!row) return null
     const o = (row.output ?? {}) as { sentences?: string[]; factKeys?: string[]; inconsistentQuestionCodes?: string[] }
     if (!o.sentences) return null
-    const source = await riskSummarySource(tx, systemCtx(ctx.organizationId, ctx.now, 'risk-ai-summary'), taskId)
+    const source = await riskSummarySource(tx, systemCtx(ctx.organizationId, ctx.now, 'risk-ai-summary'), taskId, { files: false })
     // the task closed or the assessment moved on: the words were for the file as it was
     if (!source.ok) return null
     const facts = riskFacts(source.data)

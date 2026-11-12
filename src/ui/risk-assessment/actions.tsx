@@ -29,6 +29,11 @@ import { Textarea } from '../shadcn/textarea'
 // S11-13 (FR-AI-306 AC2 · BR-AI-33): an answer the Risk Agent proposed shows under its question in the Dialog — what, the
 // words it read and from where, how sure, a warning when no certificate backs it — and a question not answered yet starts
 // from it; procurement ticks each one to confirm it (never all at once). The draft goes with the answers as aiAssist.
+// Beside an answer the AI proposed and nobody confirmed, a choice leaves the question unanswered (or clears the AI's
+// answer saved before): procurement is never made to keep a value it cannot vouch for.
+
+/** The Dialog's own value of "leave unanswered": it is sent as no answer (optionCode null), never as an option */
+const LEAVE_BLANK = '-'
 
 export interface FillQuestion {
   readonly code: string
@@ -51,13 +56,13 @@ export interface FillQuestion {
 /** The AI's draft the Dialog takes in (agentActionId), and the words of its box */
 export interface FillAi {
   readonly agentActionId: string
-  readonly words: { readonly title: string; readonly intro: string; readonly confirm: string; readonly confirmed: string; readonly pending: string }
+  readonly words: { readonly title: string; readonly intro: string; readonly confirm: string; readonly confirmed: string; readonly pending: string; readonly leaveBlank: string }
 }
 
 export type FillAiAssist = { readonly agentActionId: string; readonly confirmedPaths: string[] }
 
 export interface AssessmentActions {
-  readonly fill: (answers: { questionCode: string; optionCode: string }[], expectedVersion: number, key: string, aiAssist?: FillAiAssist) => Promise<RiskAdminOutcome>
+  readonly fill: (answers: { questionCode: string; optionCode: string | null }[], expectedVersion: number, key: string, aiAssist?: FillAiAssist) => Promise<RiskAdminOutcome>
   readonly submit: (expectedVersion: number, key: string) => Promise<RiskAdminOutcome>
   readonly cancel: (reason: string, expectedVersion: number, key: string) => Promise<RiskAdminOutcome>
 }
@@ -162,7 +167,7 @@ function FillDialog({
 }: {
   questions: readonly FillQuestion[]
   ai: FillAi | null
-  fill: (answers: { questionCode: string; optionCode: string }[], key: string, aiAssist?: FillAiAssist) => Promise<RiskAdminOutcome>
+  fill: (answers: { questionCode: string; optionCode: string | null }[], key: string, aiAssist?: FillAiAssist) => Promise<RiskAdminOutcome>
   onClose: () => void
   onSaved: () => void
 }) {
@@ -183,7 +188,10 @@ function FillDialog({
     // a tick counts for an answer kept as the AI proposed it; it is sent again even when unchanged
     const confirmed = questions.filter((q) => q.ai && !q.ai.confirmed && ticked.has(q.code) && chosen[q.code] === q.ai.optionCode).map((q) => q.code)
     // only what procurement chose or changed, never the answers from a certificate
-    const answers = questions.filter((q) => !q.locked && chosen[q.code] && (chosen[q.code] !== q.chosen || confirmed.includes(q.code))).map((q) => ({ questionCode: q.code, optionCode: chosen[q.code]! }))
+    // "leave unanswered" sends nothing for a question with no answer, and clears one saved before
+    const answers = questions
+      .filter((q) => !q.locked && chosen[q.code] && (chosen[q.code] === LEAVE_BLANK ? q.chosen !== null : chosen[q.code] !== q.chosen || confirmed.includes(q.code)))
+      .map((q) => ({ questionCode: q.code, optionCode: chosen[q.code] === LEAVE_BLANK ? null : chosen[q.code]! }))
     if (answers.length === 0) return onClose()
     const proposed = new Set(questions.filter((q) => q.ai).map((q) => q.code))
     const aiAssist = ai && answers.some((x) => proposed.has(x.questionCode)) ? { agentActionId: ai.agentActionId, confirmedPaths: confirmed.map((c) => `answers.${c}`) } : undefined
@@ -214,6 +222,14 @@ function FillDialog({
                     </Label>
                   </div>
                 ))}
+                {q.ai && ai && !q.ai.confirmed && !q.locked ? (
+                  <div className="flex min-h-11 items-center gap-3">
+                    <RadioGroupItem id={`${id}-${q.code}-blank`} value={LEAVE_BLANK} />
+                    <Label htmlFor={`${id}-${q.code}-blank`} className="text-base">
+                      {ai.words.leaveBlank}
+                    </Label>
+                  </div>
+                ) : null}
               </RadioGroup>
               {q.ai && ai && !q.locked ? (
                 <div role="group" aria-labelledby={`${id}-${q.code}-ai`} className="flex flex-col gap-1 border-l-4 border-info bg-surface py-2 pl-3">

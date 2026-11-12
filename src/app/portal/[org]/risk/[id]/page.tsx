@@ -6,7 +6,7 @@ import { RISK_EVIDENCE_FILES_PER_QUESTION } from '@/lib/constants'
 import { portalRiskAssessment, type PortalRiskAnswer, type PortalRiskQuestion } from '@/server/portal/queries-risk'
 import { portalQuestionSet } from '@/server/portal/risk-set'
 import { isUuid } from '@/server/queries/requests'
-import { portalRiskAiDraft, type RiskAiSuggestion } from '@/server/services/risk/ai-assist'
+import { portalRiskAiDraft, RISK_LEAVE_BLANK, type RiskAiSuggestion } from '@/server/services/risk/ai-assist'
 import { checkboxClass, textareaClass } from '@/ui/liff/requests/classes'
 import { PortalButton, PortalFrame, PortalNotice } from '@/ui/portal/frame'
 import { one, pageOrg, pageSession, Unavailable, type SearchParams } from '../../_lib/page'
@@ -21,7 +21,9 @@ import { one, pageOrg, pageSession, Unavailable, type SearchParams } from '../..
 // S11-13 (FR-AI-306 AC2 · BR-AI-33): an answer the Risk Agent proposed shows beside its question in a box "เติมโดย AI
 // โปรดตรวจ" with the words it read and the document they came from; a question not answered yet starts from it, and the
 // contact ticks each one to confirm it (confirm-ai-<code> with the draft's agentActionId) — never all at once. With AI
-// off no box shows, except an answer saved from the AI and not yet confirmed, which holds the send back.
+// off no box shows, except an answer saved from the AI and not yet confirmed, which holds the send back. Beside an answer
+// the AI proposed and nobody confirmed, a choice leaves the question unanswered (RISK_LEAVE_BLANK): radios cannot be
+// cleared, and a contact who does not know the answer must not be made to keep the AI's.
 
 type PortalT = Awaited<ReturnType<typeof getTranslations<'portal'>>>
 
@@ -36,6 +38,7 @@ const ERRORS = [
   'VALIDATION_FAILED',
   'RISK_ANSWERS_INCOMPLETE',
   'AI_REVIEW_PENDING',
+  'AI_DRAFT_CHANGED',
   'RATE_LIMITED',
   'PRIVACY_NOTICE_OUTDATED',
   'MODULE_DISABLED',
@@ -276,6 +279,12 @@ function Question({
                 <span>{label(o)}</span>
               </label>
             ))}
+            {suggestion && !suggestion.confirmed && !locked ? (
+              <label className="flex min-h-11 items-start gap-3 py-2">
+                <input type="radio" form={ANSWERS_FORM} name={`answer-${q.code}`} value={RISK_LEAVE_BLANK} className={choiceClass} />
+                <span>{t('risk.ai.leaveBlank')}</span>
+              </label>
+            ) : null}
             {locked ? (
               <label className="flex min-h-11 items-start gap-3 py-2">
                 <input type="checkbox" form={ANSWERS_FORM} name={`confirm-${q.code}`} value="1" className={choiceClass} />

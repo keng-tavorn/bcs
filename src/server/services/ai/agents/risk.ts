@@ -8,7 +8,7 @@ import { MS_PER_MINUTE } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { systemCtx, type Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
-import { riskAnswerPath, riskAssessmentOpen, riskDraftSource, riskFacts, riskSummarySource, RISK_ASSIST_TYPE, type RiskAiFile, type RiskFacts } from '../../risk/ai-assist'
+import { riskAnswerPath, riskAssessmentOpen, riskDraftSource, riskFacts, riskSummarySource, RISK_ASSIST_TYPE, type RiskAiFile, type RiskFacts, type RiskFileFits } from '../../risk/ai-assist'
 import { completeAgentAction, expireAgentAction, requestAgentAction } from '../actions'
 import { asDataValues } from '../data'
 import { aiRuntime, checkCallGates } from '../gate'
@@ -34,8 +34,8 @@ const QUOTE_MAX = 300
 const finishAs = (organizationId: string, now: Date, promptVersion: string, agentActionId: string, model: string) => (input: Omit<Parameters<typeof completeAgentAction>[3], 'agentActionId' | 'requestedModel'>) =>
   completeAgentAction(organizationId, now, promptVersion, { agentActionId, requestedModel: model, ...input })
 
-/** The files the adapter can take (type and size); others are left out of the call */
-const sendable = (files: readonly RiskAiFile[]) => files.filter((f) => (AI_FILE_MEDIA_TYPES as readonly string[]).includes(f.mimeType) && f.sizeBytes <= AI_LIMITS.maxFileBytes)
+/** The files the adapter can take (type and size): the risk service leaves the others out before it cuts to its limit */
+const fits: RiskFileFits = (f) => (AI_FILE_MEDIA_TYPES as readonly string[]).includes(f.mimeType) && f.sizeBytes <= AI_LIMITS.maxFileBytes
 
 const fileRefs = (files: readonly RiskAiFile[]) => files.map((f) => ({ label: f.label, kind: f.kind, ref: f.ref }))
 
@@ -65,11 +65,10 @@ export type RiskDraftRun = 'DRAFTED' | 'FAILED' | `SKIPPED_${string}`
 export async function draftRiskAnswers(organizationId: string, assessmentId: string, now: Date): Promise<RiskDraftRun> {
   const ctx = systemCtx(organizationId, now, 'risk-ai-draft')
   const db = forTenant(organizationId)
-  const read = await db.$transaction((tx) => riskDraftSource(tx, ctx, assessmentId))
+  const read = await db.$transaction((tx) => riskDraftSource(tx, ctx, assessmentId, { fits }))
   if (!read.ok) return `SKIPPED_${read.skip}`
   const source = read.data
-  const files = sendable(source.files)
-  if (files.length === 0) return 'SKIPPED_NO_FILES'
+  const files = source.files
   const recent = await db.agentAction.count({ where: { purpose: DRAFT, subjectType: RISK_ASSIST_TYPE, subjectId: assessmentId, createdAt: { gte: new Date(now.getTime() - MS_PER_MINUTE) } } })
   if (recent >= CALLS_PER_MINUTE_PER_ASSESSMENT) return 'SKIPPED_RATE_LIMITED'
 
@@ -134,13 +133,14 @@ export async function draftRiskAnswers(organizationId: string, assessmentId: str
 }
 
 /**
- * The drafts nobody took in when an assessment leaves DRAFT or RETURNED (sent, cancelled): expired SUBJECT_CLOSED, so
- * their content is purged on the retention of BR-AI-18 (AC4)
+ * The drafts still open when an assessment leaves DRAFT or RETURNED (sent, cancelled): expired SUBJECT_CLOSED, so their
+ * content is purged on the retention of BR-AI-18 (AC4) — those nobody took in, and one taken in whose answers still
+ * waited when the assessment was cancelled (nothing is left for them to hold back)
  */
 export async function closeRiskDrafts(organizationId: string, assessmentId: string, now: Date): Promise<number> {
   const db = forTenant(organizationId)
   if (await db.$transaction((tx) => riskAssessmentOpen(tx, assessmentId))) return 0
-  const open = await db.agentAction.findMany({ where: { purpose: DRAFT, subjectType: RISK_ASSIST_TYPE, subjectId: assessmentId, status: 'DRAFT', appliedAt: null }, select: { id: true } })
+  const open = await db.agentAction.findMany({ where: { purpose: DRAFT, subjectType: RISK_ASSIST_TYPE, subjectId: assessmentId, status: 'DRAFT' }, select: { id: true } })
   let closed = 0
   for (const a of open) if ((await expireAgentAction(organizationId, now, a.id, 'SUBJECT_CLOSED')).ok) closed += 1
   return closed
@@ -156,14 +156,14 @@ export type RiskSummaryRun = 'WRITTEN' | 'FAILED' | `SKIPPED_${string}`
 /** Job risk-ai-summary: the summary of one reviewer's task, once, key risk_summary:<taskId> (never in a LINE card) */
 export async function writeRiskSummary(organizationId: string, taskId: string, now: Date): Promise<RiskSummaryRun> {
   const ctx = systemCtx(organizationId, now, 'risk-ai-summary')
-  const read = await forTenant(organizationId).$transaction((tx) => riskSummarySource(tx, ctx, taskId))
+  const read = await forTenant(organizationId).$transaction((tx) => riskSummarySource(tx, ctx, taskId, { fits }))
   if (!read.ok) return `SKIPPED_${read.skip}`
   const source = read.data
   const key = `risk_summary:${taskId}`
   const before = await earlierRun(organizationId, ctx, key, SUMMARY)
   if (before && 'done' in before) return before.done === 'FAILED' ? 'FAILED' : 'SKIPPED_WRITTEN'
   if (before && 'refused' in before) return `SKIPPED_${before.refused}`
-  const files = sendable(source.files)
+  const files = source.files
   const started = before
     ? { ok: true as const, data: before.resume }
     : await requestAgentAction(ctx, { purpose: SUMMARY, subjectType: RISK_ASSIST_TYPE, subjectId: source.assessmentId, inputRefs: { taskId, assessmentId: source.assessmentId, files: fileRefs(files) }, idempotencyKey: key }, { idempotencyKey: key })

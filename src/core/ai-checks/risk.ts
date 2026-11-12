@@ -66,7 +66,8 @@ export function checkRiskDraft(input: { readonly questionSet: readonly RiskDraft
   for (const answer of input.answers) {
     const check = checkOne(answer, questions, evidence)
     if (check) checks.push(check)
-    // minConfidenceBp above every value: an answer of the AI is confirmed one by one whatever its confidence
+    // only the bp is taken from fieldConfidence: every answer of the AI is confirmed one by one whatever its confidence
+    // (mustConfirm below holds them all), so its threshold plays no part here
     confidenceBp[answer.questionCode] = fieldConfidence({ field: answer.questionCode, modelConfidence: answer.confidence, check: check?.result ?? 'PASS', minConfidenceBp: 0, critical: [] }).confidenceBp
     if (!mustConfirm.includes(answer.questionCode)) mustConfirm.push(answer.questionCode)
   }

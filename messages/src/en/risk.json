@@ -407,7 +407,8 @@
       },
       "confirm": "Checked: use the answer AI proposed for this question",
       "confirmed": "The answer AI proposed is confirmed",
-      "pending": "Waiting: the answer AI proposed for this question is not confirmed, so the assessment cannot be sent"
+      "pending": "Waiting: the answer AI proposed for this question is not confirmed, so the assessment cannot be sent",
+      "leaveBlank": "Leave this question unanswered (do not use the AI's answer)"
     }
   },
   "override": {

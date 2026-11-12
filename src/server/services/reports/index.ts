@@ -16,6 +16,8 @@ import { authorize, loadPrincipal } from '@/server/authz'
 import { makeCtx, systemCtx, type Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { loadBusinessCalendar } from '@/server/doa/policy'
+import { supplierSettingsOf } from '@/lib/org-settings'
+import { computeRiskKpi, type RiskKpi } from '@/server/queries/risk-kpi'
 import { computeSupplierKpi, type SupplierKpi } from '@/server/queries/supplier-kpi'
 import { reportTx } from './tx'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
@@ -254,7 +256,46 @@ const SUP_G7: ReportDefinition<KpiParams> = {
   },
 }
 
-export const REPORTS: Readonly<Record<string, ReportDefinition<KpiParams>>> = { KPI, WF_CYCLE, WF_BOTTLENECKS, WF_WRONG_DOA, WF_HEATMAP, SUP_G7 }
+// ---------- supplier risk (S11-11 · BR-RSK-15 · §11.4 G-9): the HIGH suppliers whose first PO was sent in the period ----------
+
+const riskKpiOf = async (tx: TenantTx, ctx: Ctx, params: KpiParams, departmentIds: readonly string[] | null): Promise<RiskKpi> => {
+  const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
+  const escalateBusinessDays = supplierSettingsOf(org.settings).applicationEscalateBusinessDays
+  return computeRiskKpi(tx, { ...periodOf(params), now: ctx.now, calendar: await loadBusinessCalendar(tx, ctx.organizationId), escalateBusinessDays }, departmentIds)
+}
+const SOURCE_TH = { ASSESSMENT: 'ประเมินครบก่อน PO แรก', OVERRIDE: 'อนุมัติข้าม', NOT_REQUIRED: 'ไม่ต้องประเมิน' } as const
+
+const RSK_G9: ReportDefinition<KpiParams> = {
+  code: 'RSK_G9',
+  module: 'RISK',
+  ...periodParams,
+  columns: [
+    { key: 'supplierCode', header: { th: 'รหัสผู้ขาย', en: 'Supplier code' } },
+    { key: 'supplier', header: { th: 'ผู้ขาย', en: 'Supplier' } },
+    { key: 'poNumber', header: { th: 'PO แรก', en: 'First PO' } },
+    { key: 'submittedAt', header: { th: 'ส่ง PO เมื่อ', en: 'PO sent' } },
+    { key: 'tier', header: { th: 'ระดับของด่าน', en: 'Gate tier' } },
+    { key: 'passedWith', header: { th: 'ผ่านด่านด้วย', en: 'Passed with' } },
+    { key: 'counted', header: { th: 'นับในตัวตั้ง G-9', en: 'In the G-9 numerator' } },
+    { key: 'source', header: { th: 'รหัสที่มา', en: 'Source (code)' }, fileOnly: true },
+  ],
+  async rows(tx, ctx, params, departmentIds) {
+    if (!(await requireModule(ctx, 'RISK', tx)).ok) return []
+    const r = await riskKpiOf(tx, ctx, params, departmentIds)
+    return r.g9.rows.map((x) => ({
+      supplierCode: x.supplierCode,
+      supplier: x.supplierName,
+      poNumber: x.poNumber ?? '',
+      submittedAt: x.submittedAt,
+      tier: x.tier,
+      passedWith: SOURCE_TH[x.source],
+      counted: x.source === 'ASSESSMENT' ? 'ใช่' : 'ไม่',
+      source: x.source,
+    }))
+  },
+}
+
+export const REPORTS: Readonly<Record<string, ReportDefinition<KpiParams>>> = { KPI, WF_CYCLE, WF_BOTTLENECKS, WF_WRONG_DOA, WF_HEATMAP, SUP_G7, RSK_G9 }
 
 /** The reports this organization offers: those of a module that is off are not (S7-16) */
 export async function offeredReports(tx: TenantTx, ctx: Ctx): Promise<Array<ReportDefinition<KpiParams>>> {
@@ -280,6 +321,26 @@ export async function supplierReport(ctx: Ctx, rawParams: unknown): Promise<Resu
     const scope = reportScope(allowed.data)
     if (scope === 'NONE') return err('FORBIDDEN', 'missing capability report.view', { capability: 'report.view' })
     return ok({ ...(await supplierKpiOf(tx, ctx, params.data, scope)), scope: scope === null ? ('ORG' as const) : ('DEPT' as const) })
+  })
+}
+
+/**
+ * /reports/risk (S11-11 · BR-RSK-15 · FR-RSK-204 AC2 · §11.4 G-9): G-9 with the HIGH suppliers it counts, the suppliers
+ * by tier, the assessments pending past their due time, the suppliers past their cycle, the overrides and the registry
+ * flags, within the reader's report.view scope (a head: the suppliers their departments have a PO with). The numbers
+ * come from src/server/queries/risk-kpi.ts, not AI.
+ */
+export async function riskReport(ctx: Ctx, rawParams: unknown): Promise<Result<RiskKpi & { scope: 'ORG' | 'DEPT' }>> {
+  const params = KpiParams.safeParse(rawParams)
+  if (!params.success) return err('VALIDATION_FAILED', 'invalid report parameters', { field: params.error.issues[0]?.path.join('.') ?? 'params' })
+  return reportTx(ctx, async (tx) => {
+    const on = await requireModule(ctx, 'RISK', tx)
+    if (!on.ok) return on
+    const allowed = await authorize(tx, ctx, 'report.view')
+    if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
+    const scope = reportScope(allowed.data)
+    if (scope === 'NONE') return err('FORBIDDEN', 'missing capability report.view', { capability: 'report.view' })
+    return ok({ ...(await riskKpiOf(tx, ctx, params.data, scope)), scope: scope === null ? ('ORG' as const) : ('DEPT' as const) })
   })
 }
 

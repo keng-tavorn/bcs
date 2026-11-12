@@ -36,6 +36,10 @@
     "SUP_G7": {
       "name": "New supplier onboarding time (G-7)",
       "description": "Business days new suppliers take from invitation to approval, filled in by the supplier or by procurement, with the applications waiting and the expired documents"
+    },
+    "RSK_G9": {
+      "name": "High-risk suppliers assessed before their first PO (G-9)",
+      "description": "The share of high-risk suppliers whose first PO passed the risk gate with a completed assessment, with the suppliers by tier, pending assessments, overrides and registry flags"
     }
   },
   "proposalReports": "The seven reports of the original proposal (R-01 to R-07) will be added once the customer confirms their list and definitions. The system does not build reports that have no definition yet.",

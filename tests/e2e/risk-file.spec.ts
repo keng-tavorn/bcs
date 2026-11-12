@@ -89,4 +89,18 @@ test.describe('@s11 the supplier risk file', () => {
     await dialog.getByRole('button', { name: 'เปิดแบบประเมิน' }).click()
     await expect(page).toHaveURL(/\/risk\/assessments\/[0-9a-f-]{36}$/)
   })
+
+  // S11-11 (FR-RSK-204 AC2 AC3 · BR-RSK-15): the report of the catalog opens its own page, with G-9, the suppliers by
+  // tier ("never assessed" apart from LOW), the other tables and the Excel export
+  test('[FR-RSK-204/AC2] /reports/risk: G-9, the suppliers by tier and the export', async ({ page }, testInfo) => {
+    const s = scene('setup', randomBytes(3).toString('hex'))
+    await signIn(page, `proc_officer.${s.tag}`)
+    await page.goto('/reports?report=RSK_G9')
+    await expect(page).toHaveURL(/\/reports\/risk/)
+    await expect(page.getByRole('heading', { name: 'รายงานความเสี่ยงคู่ค้า', level: 1 })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /G-9/ }).first()).toBeVisible()
+    await expect(page.getByText('ไม่เคยประเมิน', { exact: true }).filter({ visible: true }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'ส่งออก Excel' })).toBeVisible()
+    await shot(page, testInfo, 's11-11-risk-report')
+  })
 })

@@ -11130,6 +11130,10 @@
         "description": "The system's goal measures, computed from the event log and the documents: POs through BCS, approvals by the DOA, speed, budget control and approvals on LINE.",
         "name": "KPI G-1 to G-5"
       },
+      "RSK_G9": {
+        "description": "The share of high-risk suppliers whose first PO passed the risk gate with a completed assessment, with the suppliers by tier, pending assessments, overrides and registry flags",
+        "name": "High-risk suppliers assessed before their first PO (G-9)"
+      },
       "SUP_G7": {
         "description": "Business days new suppliers take from invitation to approval, filled in by the supplier or by procurement, with the applications waiting and the expired documents",
         "name": "New supplier onboarding time (G-7)"
@@ -12952,6 +12956,126 @@
       "OVERDUE": "Overdue",
       "REASSESS_REQUIRED": "Reassessment required"
     }
+  },
+  "riskReport": {
+    "back": "Back to reports",
+    "export": {
+      "hint": "An Excel file of the suppliers counted in G-9, for the same period and scope you see, with its checksum.",
+      "title": "Export"
+    },
+    "flagged": {
+      "caption": "Suppliers with a registry flag",
+      "columns": {
+        "flag": "Registry flag",
+        "flaggedAt": "Flagged",
+        "supplier": "Supplier"
+      },
+      "emptyHint": "Suppliers the registry reports an unusual status for show here.",
+      "emptyTitle": "No supplier with a registry flag",
+      "flag": {
+        "CEASED": "Ceased",
+        "NOT_FOUND": "Not found",
+        "VAT_CANCELLED": "Out of VAT"
+      },
+      "intro": "Suppliers the registry reports as ceased, out of VAT or not found, as of now.",
+      "title": "Suppliers with a registry flag ({count})"
+    },
+    "g9": {
+      "caption": "High-risk suppliers whose first PO was sent in this period, with what let the PO through",
+      "columns": {
+        "passedWith": "Passed with",
+        "po": "First PO",
+        "submittedAt": "PO sent",
+        "supplier": "Supplier"
+      },
+      "denominator": "High-risk suppliers with their first PO in this period",
+      "emptyHint": "Try a longer period: each supplier has its first PO only once.",
+      "emptyTitle": "No high-risk supplier had its first PO in this period",
+      "hint": "Counts the suppliers whose first PO (cancelled POs aside) was sent in this period and passed the gate at high risk. A supplier let through by an override counts as not assessed. Rounded down to 2 decimals.",
+      "listTitle": "Suppliers counted in G-9 ({count})",
+      "none": "No high-risk supplier had its first PO in this period yet",
+      "numerator": "Assessed before the first PO",
+      "ofSuppliers": "{count, plural, one {# supplier} other {# suppliers}}",
+      "rate": "Share",
+      "source": {
+        "ASSESSMENT": "Completed assessment",
+        "NOT_REQUIRED": "Not required",
+        "OVERRIDE": "Override"
+      },
+      "title": "High-risk suppliers assessed before their first PO (G-9)"
+    },
+    "intro": "High-risk suppliers assessed before their first PO (KPI G-9), the suppliers by tier, pending assessments, suppliers past their cycle, overrides and registry flags. The figures come from the system, not from AI.",
+    "moduleOff": "This organization has not switched on the supplier risk module, so this report is not available yet.",
+    "noNumber": "No number yet",
+    "overdue": {
+      "caption": "Suppliers past their assessment cycle",
+      "columns": {
+        "supplier": "Supplier",
+        "tier": "Tier",
+        "validUntil": "Valid until"
+      },
+      "emptyHint": "Suppliers whose assessment has expired show here.",
+      "emptyTitle": "No supplier past its cycle",
+      "intro": "Their latest assessment has expired and no new one is complete, as of today.",
+      "title": "Suppliers past their cycle ({count})"
+    },
+    "overrides": {
+      "caption": "Approved overrides with what they let out and who asked",
+      "columns": {
+        "expiresOn": "Valid until",
+        "override": "Number",
+        "requestedBy": "Requested by",
+        "status": "Status",
+        "supplier": "Supplier",
+        "used": "Used"
+      },
+      "emptyHint": "Approved overrides show here with their POs and the amount used.",
+      "emptyTitle": "No override yet",
+      "status": {
+        "EXPIRED": "Expired",
+        "OPEN": "Open"
+      },
+      "summary": "Open {open} · Expired {expired} · Used for a PO {used}",
+      "title": "Risk gate overrides",
+      "usedValue": "{count} PO · {amount} of {cap} baht"
+    },
+    "pending": {
+      "caption": "Assessments open past their due time",
+      "columns": {
+        "assessment": "Assessment",
+        "escalatedAt": "Overdue since",
+        "openedAt": "Opened",
+        "status": "Status",
+        "supplier": "Supplier"
+      },
+      "emptyHint": "Assessments open past their due time show here.",
+      "emptyTitle": "No pending assessment",
+      "intro": "Assessments open longer than the escalation time of supplier applications (business days), as of now, whatever the period.",
+      "status": {
+        "DRAFT": "Waiting for the supplier",
+        "IN_REVIEW": "Waiting for reviewers",
+        "RETURNED": "Returned for changes"
+      },
+      "title": "Pending assessments ({count})"
+    },
+    "periodLabel": "First PO sent between",
+    "run": "Show this period",
+    "tier": {
+      "HIGH": "High",
+      "LOW": "Low",
+      "MEDIUM": "Medium",
+      "none": "Never assessed"
+    },
+    "tiers": {
+      "caption": "Suppliers by risk tier",
+      "columns": {
+        "suppliers": "Suppliers",
+        "tier": "Tier"
+      },
+      "intro": "Active suppliers now, by their latest risk tier. Suppliers never assessed are apart from low risk.",
+      "title": "Suppliers by tier"
+    },
+    "title": "Supplier risk report"
   },
   "riskReview": {
     "decide": {

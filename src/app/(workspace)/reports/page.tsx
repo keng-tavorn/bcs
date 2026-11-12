@@ -17,7 +17,7 @@ import { ScheduleForm } from '@/ui/insight/schedule-form'
 import { downloadUrlAction } from '../../_lib/file-actions'
 import { getSession } from '../../_lib/session'
 import { dayText } from '../kpi/_present'
-import { DEFAULT_REPORT_DAYS, SUPPLIER_REPORT, columnViews, isNamed, periodFrom, rowViews } from './_present'
+import { DEFAULT_REPORT_DAYS, RISK_REPORT, SUPPLIER_REPORT, columnViews, isNamed, periodFrom, rowViews } from './_present'
 import { createScheduleAction } from './actions'
 import { tabOfReport } from './workflow/_present'
 
@@ -49,11 +49,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   if (workflowTab) redirect(`/reports/workflow?${new URLSearchParams({ ...pick(params, ['from', 'to']), tab: workflowTab }).toString()}`)
   // the supplier report (S7-16) has a page of its own too: G-7 and the tables it counts
   if (asked === SUPPLIER_REPORT) redirect(`/reports/suppliers?${new URLSearchParams(pick(params, ['from', 'to'])).toString()}`)
+  // and the supplier risk report (S11-11): G-9 and the tables beside it
+  if (asked === RISK_REPORT) redirect(`/reports/risk?${new URLSearchParams(pick(params, ['from', 'to'])).toString()}`)
   const reports = catalog.data.reports
-  const report = reports.find((r) => r.code === asked) ?? reports.find((r) => !tabOfReport(r.code) && r.code !== SUPPLIER_REPORT)
+  const report = reports.find((r) => r.code === asked) ?? reports.find((r) => !tabOfReport(r.code) && r.code !== SUPPLIER_REPORT && r.code !== RISK_REPORT)
   const hrefOf = (code: string) => {
     const tab = tabOfReport(code)
     if (code === SUPPLIER_REPORT) return '/reports/suppliers'
+    if (code === RISK_REPORT) return '/reports/risk'
     return tab ? `/reports/workflow?tab=${tab}` : `/reports?report=${code}`
   }
   const name = (code: string) => (isNamed(code) ? t(`catalog.${code}.name`) : code)

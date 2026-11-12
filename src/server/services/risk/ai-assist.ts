@@ -301,7 +301,13 @@ async function draftView(tx: TenantTx, assessmentId: string, aiOn: boolean): Pro
   const pending = new Set(chosen.pendingPaths)
   const confirmed = new Set(chosen.confirmedPaths)
   const suggestions: RiskAiSuggestion[] = []
-  for (const [path, optionCode] of Object.entries(chosen.proposed)) {
+  // in the order the agent answered (a JSON column does not keep the order of its keys)
+  const order = (output.answers ?? []).map((x) => x.questionCode)
+  const at = (path: string) => {
+    const i = order.indexOf(questionOfPath(path))
+    return i < 0 ? order.length : i
+  }
+  for (const [path, optionCode] of Object.entries(chosen.proposed).sort(([a], [b]) => at(a) - at(b) || a.localeCompare(b))) {
     const code = questionOfPath(path)
     if (!code) continue
     const read = (output.answers ?? []).find((x) => x.questionCode === code)

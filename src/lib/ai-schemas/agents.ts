@@ -168,6 +168,8 @@ export const RiskAnswerDraft = z.strictObject({
 export type RiskAnswerDraft = z.infer<typeof RiskAnswerDraft>
 
 export interface RiskDraftContext {
+  /** Today (YYYY-MM-DD, Bangkok): years in business count to it (RQ-GEN-01 · S11-14 found the model guessed its own year) */
+  readonly today: string
   /** The questions of the assessment the agent may answer, with their option codes and words */
   readonly questions: readonly { readonly code: string; readonly text: string; readonly options: readonly { readonly code: string; readonly label: string }[] }[]
   /** The files given, in order, by label: what each is (a document type, or the question a file was sent for) */
@@ -177,6 +179,8 @@ export interface RiskDraftContext {
 /** The data the Risk Agent reads beside the files: the questions it may answer and what each file is */
 export function riskDraftInputText(c: RiskDraftContext): string {
   return [
+    `Today: ${c.today}`,
+    '',
     'Questions you may answer (code: question — option codes):',
     ...c.questions.map((q) => `${q.code}: ${q.text} — ${q.options.map((o) => `${o.code} = ${o.label}`).join(' · ')}`),
     '',

@@ -1,0 +1,18 @@
+{
+  "promptVersion": "RISK_FILE_SUMMARY@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "sentences": [
+      "ใบ {{v:assessment}} ของผู้ขาย {{v:supplier}} ตอบแล้ว {{v:answeredCount}} จาก {{v:questionCount}} ข้อ",
+      "ยังไม่ได้ตอบ {{v:missingCount}} ข้อ"
+    ],
+    "inconsistentQuestionCodes": [
+      "RQ-PRM-01"
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

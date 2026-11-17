@@ -11,6 +11,7 @@ import { openAssists, registerAssistSubject } from '../ai/assist-contract'
 import { agentSwitchedOn } from '../ai/gate'
 import { requireModule } from '../modules'
 import { contextOf, evidenceAnswerableCodes, questionDefOf, questionsOf, RISK_TIMEZONE, type AssessmentRow } from './assessments'
+import { riskFacts, type RiskSummaryQuestion } from './ai-facts'
 import { storedOptions } from './questionnaire'
 import { riskReviewTask } from './reviews'
 
@@ -140,6 +141,8 @@ export interface RiskDraftSource {
   /** The questions the agent is asked: in the set, with no option chosen yet */
   readonly ask: readonly { readonly code: string; readonly text: string; readonly options: readonly { readonly code: string; readonly label: string }[] }[]
   readonly files: readonly RiskAiFile[]
+  /** Today in Bangkok, for a question counted from a date (RQ-GEN-01: years since the company was registered · S11-14) */
+  readonly today: string
 }
 
 export type DraftSkip = 'NOT_FOUND' | 'CLOSED' | 'PAYEE_TYPE_EXCLUDED' | 'SETTING_OFF' | 'MODULE_DISABLED' | 'NOTHING_TO_ANSWER' | 'NO_FILES'
@@ -179,6 +182,7 @@ export async function riskDraftSource(tx: TenantTx, ctx: Ctx, assessmentId: stri
       evidenceAvailable: [...new Set([...a.answers.filter((x) => x.source === 'EVIDENCE' && x.optionCode !== null).map((x) => x.questionCode), ...answerable])],
       ask,
       files,
+      today,
     },
   }
 }
@@ -197,14 +201,7 @@ export async function openRiskAssessmentIdOf(organizationId: string, supplierId:
 
 // ---------- RISK_FILE_SUMMARY: one reviewer's part ----------
 
-export interface RiskSummaryQuestion {
-  readonly code: string
-  readonly domain: string
-  /** The words of the option chosen, or null when unanswered */
-  readonly answer: string | null
-  readonly source: 'EXPLICIT' | 'EVIDENCE' | 'ON_BEHALF' | null
-  readonly files: number
-}
+export { riskFacts, type RiskFacts, type RiskSummaryQuestion } from './ai-facts'
 
 export interface RiskSummarySource {
   readonly taskId: string
@@ -389,28 +386,7 @@ export function draftForSave(shownAgentActionId: string, current: RiskAiDraftVie
 }
 
 // ---------- the summary a reviewer reads (written by the agent's job; read here without the AI) ----------
-
-export type RiskFacts = Readonly<Record<string, TextValue>>
-
-/** The facts of a reviewer's part, from code (BR-AI-03): codes, counts and the words of the options chosen */
-export function riskFacts(s: RiskSummarySource): RiskFacts {
-  const integer = (value: number): TextValue => ({ kind: 'integer', value })
-  const out: Record<string, TextValue> = {
-    assessment: { kind: 'ref', value: s.number },
-    supplier: { kind: 'ref', value: s.supplierCode },
-    questionCount: integer(s.questions.length),
-    answeredCount: integer(s.questions.filter((q) => q.answer !== null).length),
-    missingCount: integer(s.questions.filter((q) => q.answer === null).length),
-    evidenceCount: integer(s.questions.filter((q) => q.source === 'EVIDENCE').length),
-    fileCount: integer(s.questions.reduce((n, q) => n + q.files, 0)),
-  }
-  for (const q of s.questions) {
-    out[`${q.code}.code`] = { kind: 'ref', value: q.code }
-    out[`${q.code}.answer`] = { kind: 'text', value: q.answer ?? '-' }
-    if (q.source) out[`${q.code}.source`] = { kind: 'enum', value: q.source }
-  }
-  return out
-}
+// riskFacts lives in ./ai-facts (no database) so the evaluation set of S11-14 builds the facts with the same code
 
 export interface RiskSummaryDto {
   readonly agentActionId: string

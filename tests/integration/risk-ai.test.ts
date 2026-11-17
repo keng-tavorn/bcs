@@ -164,6 +164,8 @@ describe('[FR-AI-306/AC1] [BR-AI-34] the agent reads only what BR-AI-34 lets it,
     expect(sent[0]!.files).toEqual([expect.stringContaining('company certificate founded 2012')])
     expect(sent[0]!.text).toContain('RQ-GEN-01: ข้อ RQ-GEN-01 — A = ไม่น้อยกว่า 5 ปี')
     expect(sent[0]!.text).toContain('F1: COMPANY_CERT')
+    // years in business count to today in Bangkok (S11-14: the model counted to a year of its own)
+    expect(sent[0]!.text.split('\n', 1)[0]).toMatch(/^Today: \d{4}-\d{2}-\d{2}$/)
     expect(sent[0]!.text).not.toMatch(/ID_CARD|ISO_CERT/)
     const [draft] = await draftsOf(s.assessmentId)
     expect(draft).toMatchObject({ agent: 'RISK', level: 'L1', status: 'DRAFT', requestedByContactId: s.contactId, requestedById: null, appliedAt: null })

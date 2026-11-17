@@ -1,0 +1,20 @@
+{
+  "promptVersion": "RISK_ANSWER_DRAFT@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "answers": [
+      {
+        "questionCode": "RQ-GEN-01",
+        "optionCode": "B",
+        "sourceRef": "F1",
+        "quote": "",
+        "confidence": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

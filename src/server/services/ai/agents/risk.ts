@@ -1,17 +1,17 @@
 import { createHash } from 'node:crypto'
-import { checkAiText, checkRiskDraft, renderValue } from '@/core/ai-checks'
+import { checkAiText } from '@/core/ai-checks'
 import { AI_FILE_MEDIA_TYPES, getAiClient, type AiFileMediaType } from '@/integrations/ai'
 import { readObject } from '@/integrations/storage'
 import { AI_LIMITS, DECISION_ADVICE_WORDS, modelForPurpose, RISK_PROFILE } from '@/lib/ai-config'
-import { RiskAnswerDraft, riskDraftInputText, RiskSummaryText, riskSummaryInputText } from '@/lib/ai-schemas/agents'
+import { RiskAnswerDraft, riskDraftInputText, RiskSummaryText } from '@/lib/ai-schemas/agents'
 import { MS_PER_MINUTE } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { systemCtx, type Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
-import { riskAnswerPath, riskAssessmentOpen, riskDraftSource, riskFacts, riskSummarySource, RISK_ASSIST_TYPE, type RiskAiFile, type RiskFacts, type RiskFileFits } from '../../risk/ai-assist'
+import { riskAnswerPath, riskAssessmentOpen, riskDraftSource, riskFacts, riskSummarySource, RISK_ASSIST_TYPE, type RiskAiFile, type RiskFileFits } from '../../risk/ai-assist'
 import { completeAgentAction, expireAgentAction, requestAgentAction } from '../actions'
-import { asDataValues } from '../data'
 import { aiRuntime, checkCallGates } from '../gate'
+import { proposedRiskAnswers, riskSummaryRequestText } from './risk-calls'
 
 // The Risk Agent (S11-13 · FR-AI-306 · ADR-228 · BR-AI-33 BR-AI-34), started by the system only, through every gate of
 // BR-AI-11, with settings.risk.aiAssist on and never for a supplier who is a person, on the organization's credits:
@@ -96,23 +96,16 @@ export async function draftRiskAnswers(organizationId: string, assessmentId: str
     purpose: DRAFT,
     model,
     schema: RiskAnswerDraft,
-    text: riskDraftInputText({ questions: source.ask, files: files.map((f) => ({ label: f.label, kind: f.about })) }),
+    text: riskDraftInputText({ today: source.today, questions: source.ask, files: files.map((f) => ({ label: f.label, kind: f.about })) }),
     files: files.map((f, i) => ({ bytes: bytes[i]!, mediaType: f.mimeType as AiFileMediaType })),
   })
   if (!answer.ok) return ended(await finish({ outcome: 'FAILED', model: answer.model ?? null, errorCode: answer.errorCode, usage: answer.usage, latencyMs: answer.latencyMs }))
   // sent, cancelled or closed while the AI read: nobody would take the answers in
   if (!(await db.$transaction((tx) => riskAssessmentOpen(tx, assessmentId)))) return ended(await finish({ outcome: 'FAILED', model: answer.model, errorCode: 'SUBJECT_CLOSED', usage: answer.usage, latencyMs: answer.latencyMs }))
 
-  // one answer per question, the first the model gave; the words copied are cut to their limit
-  const seen = new Set<string>()
-  const answers = answer.output.answers.filter((a) => (seen.has(a.questionCode) ? false : (seen.add(a.questionCode), true)))
-  const verdict = checkRiskDraft({ questionSet: source.questionSet, evidenceAvailable: source.evidenceAvailable, answers })
-  // proposed for the form: only answers the commands can take — a question asked, an option it has (a WARN stays, to be
-  // looked at one by one); a question answered from a certificate is never proposed (EVIDENCE_LOCKED)
-  const askedSet = new Set(asked)
-  const failed = new Set(verdict.checks.filter((c) => c.result === 'FAIL').map((c) => c.questionCode))
-  const proposed: Record<string, string> = {}
-  for (const a of answers) if (askedSet.has(a.questionCode) && !failed.has(a.questionCode)) proposed[riskAnswerPath(a.questionCode)] = a.optionCode
+  // the words copied are cut to their limit
+  const { answers, verdict, proposed: byQuestion } = proposedRiskAnswers({ questionSet: source.questionSet, evidenceAvailable: source.evidenceAvailable, asked, answers: answer.output.answers })
+  const proposed: Record<string, string> = Object.fromEntries(Object.entries(byQuestion).map(([code, option]) => [riskAnswerPath(code), option]))
   const labels = new Set(files.map((f) => f.label))
   const done = await finish({
     outcome: 'DRAFT',
@@ -148,9 +141,6 @@ export async function closeRiskDrafts(organizationId: string, assessmentId: stri
 
 // ---------- RISK_FILE_SUMMARY (L0 · AC3) ----------
 
-const factsText = (facts: RiskFacts, files: readonly RiskAiFile[]) =>
-  riskSummaryInputText(asDataValues(Object.fromEntries(Object.entries(facts).map(([k, v]) => [k, renderValue(v)]))), files.map((f) => ({ label: f.label, kind: f.about })))
-
 export type RiskSummaryRun = 'WRITTEN' | 'FAILED' | `SKIPPED_${string}`
 
 /** Job risk-ai-summary: the summary of one reviewer's task, once, key risk_summary:<taskId> (never in a LINE card) */
@@ -173,7 +163,7 @@ export async function writeRiskSummary(organizationId: string, taskId: string, n
   const finish = finishAs(organizationId, now, promptVersion, agentActionId, model)
   const facts = riskFacts(source)
   const bytes = await Promise.all(files.map((f) => readObject(f.storageKey)))
-  const call = { purpose: SUMMARY, model, schema: RiskSummaryText, text: factsText(facts, files) }
+  const call = { purpose: SUMMARY, model, schema: RiskSummaryText, text: riskSummaryRequestText(facts, files) }
   const answer = files.length ? await getAiClient(getEnv()).extract({ ...call, files: files.map((f, i) => ({ bytes: bytes[i]!, mediaType: f.mimeType as AiFileMediaType })) }) : await getAiClient(getEnv()).write(call)
   if (!answer.ok) {
     const r = await finish({ outcome: 'FAILED', model: answer.model ?? null, errorCode: answer.errorCode, usage: answer.usage, latencyMs: answer.latencyMs })

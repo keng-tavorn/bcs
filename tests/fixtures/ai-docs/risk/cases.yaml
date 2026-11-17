@@ -1,0 +1,250 @@
+# The evaluation set of the Risk Agent, demo tier (S11-14 · FR-AI-306 AC5 · BR-AI-34 · ADR-146): 10 synthetic documents a
+# supplier sends with its risk questionnaire — 3 privacy (PDPA) papers, 3 information-security papers, 2 site-safety
+# papers and 2 company certificates — drawn by scripts/ai-docs-risk.ts as the file the AI reads, with the answers a person
+# checked. Every company, person, address and figure is invented; each page says it is synthetic.
+#
+# Each document is one call of RISK_ANSWER_DRAFT that asks all 12 questions of SIMEC's draft set (OQ-221 · ai-eval-risk.ts),
+# as for a supplier that handles personal data, enters systems and sites, and is HIGH at the start, with nothing answered.
+#   file      EVIDENCE <question> (a RISK_EVIDENCE file of an answer, sent as "evidence for <question>") · DOCUMENT
+#             COMPANY_CERT (a verified supplier document, sent by its type). The site-safety papers are evidence of
+#             RQ-PRM-01 as if the organization opened that question to the AI (aiReadable): the draft set keeps it closed.
+#   expect    the questions the document answers, with the option a person reads in it (scored: optionCode ≥ 90 %)
+#   mayAnswer a question the document touches but does not settle: leaving it out or giving this option are both right
+#             (a certificate still being worked towards); any other option counts as a false positive
+#   every other question asked has no support in the document: proposing any answer to it is a false positive (≤ 5 %)
+#   review    RISK_FILE_SUMMARY for the reviewer of the document's domain: what the supplier answered (GENERAL and the
+#             domain) and the questions whose answer this document contradicts (none for a certificate: the summary
+#             sends a certificate only when an answer rests on it, and no answer rests on a company certificate)
+#   layout    A4_TYPED (PDF) · A4_SCANNED (JPEG, grey and soft) · PHOTO (JPEG, tilted on a desk)
+#   quality   CLEAN · SKEWED · BLURRY · STAMPED (a stamp "สำเนาถูกต้อง" and a signature across the text)
+#   digits    ARABIC · THAI (๐–๙ in numbers and dates) · dates are Gregorian here, the documents print the Buddhist era
+today: '2026-11-17'
+cases:
+  - id: RK-01
+    group: PDPA
+    layout: A4_TYPED
+    quality: CLEAN
+    digits: ARABIC
+    file: { kind: EVIDENCE, question: RQ-PRV-02 }
+    supplier: บริษัท นนทบุรีดาต้าเซอร์วิส จำกัด
+    title: นโยบายคุ้มครองข้อมูลส่วนบุคคล
+    issuedOn: '2026-06-01'
+    sections:
+      - heading: วัตถุประสงค์และขอบเขต
+        body: บริษัทให้บริการประมวลผลเงินเดือนแทนลูกค้าองค์กร นโยบายนี้ใช้กับข้อมูลส่วนบุคคลทุกประเภทที่บริษัทประมวลผลในฐานะผู้ประมวลผลข้อมูลส่วนบุคคลตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562
+      - heading: เจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคล
+        body: บริษัทแต่งตั้งเจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคล (DPO) ติดต่อได้ที่ dpo@nonthaburi-data.example
+      - heading: ข้อตกลงกับลูกค้า
+        body: บริษัทยินดีลงนามข้อตกลงการประมวลผลข้อมูลส่วนบุคคล (DPA) กับลูกค้าทุกรายก่อนเริ่มงาน และประมวลผลข้อมูลตามคำสั่งของผู้ควบคุมข้อมูลเท่านั้น
+      - heading: สถานที่จัดเก็บข้อมูล
+        body: ข้อมูลทั้งหมดจัดเก็บในศูนย์ข้อมูลของบริษัทที่จังหวัดนนทบุรี และสำรองที่ศูนย์ข้อมูลสำรองในกรุงเทพมหานคร บริษัทไม่โอนหรือส่งข้อมูลส่วนบุคคลไปยังต่างประเทศ
+      - heading: ระยะเวลาเก็บรักษา
+        body: บริษัทเก็บข้อมูลไม่เกินระยะเวลาที่สัญญาและกฎหมายกำหนด แล้วทำลายด้วยวิธีที่กู้คืนไม่ได้ภายใน 30 วัน
+      - heading: การทบทวนนโยบาย
+        body: คณะกรรมการบริษัททบทวนนโยบายนี้อย่างน้อยปีละ 1 ครั้ง
+    expect: { RQ-PRV-02: Y, RQ-PRV-03: N }
+    review:
+      domain: PRIVACY
+      answers: { RQ-GEN-01: A, RQ-GEN-02: B, RQ-GEN-03: Y, RQ-PRV-01: B, RQ-PRV-02: Y, RQ-PRV-03: N }
+      inconsistent: []
+  - id: RK-02
+    group: PDPA
+    layout: A4_SCANNED
+    quality: CLEAN
+    digits: ARABIC
+    file: { kind: EVIDENCE, question: RQ-PRV-02 }
+    supplier: บริษัท สมุทรปราการคลาวด์โซลูชั่น จำกัด
+    title: นโยบายการคุ้มครองข้อมูลส่วนบุคคลของลูกค้า
+    issuedOn: '2026-03-15'
+    sections:
+      - heading: ขอบเขต
+        body: นโยบายนี้ใช้กับข้อมูลส่วนบุคคลที่ลูกค้าส่งให้บริษัทจัดเก็บและประมวลผลผ่านบริการระบบบัญชีออนไลน์ของบริษัท
+      - heading: ผู้ให้บริการภายนอกและการโอนข้อมูล
+        body: บริษัทใช้บริการคลาวด์สาธารณะที่มีศูนย์ข้อมูลตั้งอยู่ในประเทศสิงคโปร์ ข้อมูลส่วนบุคคลของลูกค้าจึงถูกโอนไปจัดเก็บและประมวลผลนอกราชอาณาจักร โดยมีมาตรการคุ้มครองตามมาตรา 28 และมาตรา 29
+      - heading: เงื่อนไขการให้บริการ
+        body: บริษัทให้บริการภายใต้ข้อกำหนดการให้บริการมาตรฐานของบริษัทเท่านั้น และไม่ลงนามข้อตกลงการประมวลผลข้อมูล (DPA) แยกตามแบบของลูกค้า
+      - heading: มาตรการรักษาความปลอดภัย
+        body: ข้อมูลถูกเข้ารหัสทั้งระหว่างส่งและขณะจัดเก็บ และจำกัดสิทธิ์เข้าถึงเฉพาะพนักงานที่จำเป็น
+      - heading: สิทธิของเจ้าของข้อมูล
+        body: เจ้าของข้อมูลใช้สิทธิผ่านลูกค้าผู้ควบคุมข้อมูล บริษัทช่วยลูกค้าตอบคำขอภายใน 15 วัน
+    expect: { RQ-PRV-02: N, RQ-PRV-03: Y }
+    review:
+      domain: PRIVACY
+      answers: { RQ-GEN-01: B, RQ-GEN-02: A, RQ-GEN-03: Y, RQ-PRV-01: A, RQ-PRV-02: Y, RQ-PRV-03: N }
+      inconsistent: [RQ-PRV-02, RQ-PRV-03]
+  - id: RK-03
+    group: PDPA
+    layout: PHOTO
+    quality: SKEWED
+    digits: ARABIC
+    file: { kind: EVIDENCE, question: RQ-PRV-02 }
+    supplier: บริษัท ปทุมธานีเพย์โรล จำกัด
+    title: ข้อตกลงการประมวลผลข้อมูลส่วนบุคคล (DPA)
+    issuedOn: '2026-08-20'
+    sections:
+      - heading: คู่สัญญา
+        body: ข้อตกลงนี้ทำขึ้นระหว่างลูกค้าในฐานะผู้ควบคุมข้อมูลส่วนบุคคล กับ บริษัท ปทุมธานีเพย์โรล จำกัด ในฐานะผู้ประมวลผลข้อมูลส่วนบุคคล
+      - heading: ขอบเขตการประมวลผล
+        body: ผู้ประมวลผลข้อมูลประมวลผลข้อมูลเงินเดือน ภาษี และประกันสังคมของพนักงานของผู้ควบคุมข้อมูล จำนวนประมาณ 4,500 คน
+      - heading: นโยบายคุ้มครองข้อมูล
+        body: ผู้ประมวลผลข้อมูลมีนโยบายคุ้มครองข้อมูลส่วนบุคคลที่ประกาศใช้แล้ว และจะปฏิบัติตามนโยบายดังกล่าวตลอดอายุข้อตกลง
+      - heading: สถานที่ประมวลผล
+        body: ผู้ประมวลผลข้อมูลประมวลผลและจัดเก็บข้อมูลภายในราชอาณาจักรไทยเท่านั้น และจะไม่โอนข้อมูลออกนอกประเทศ
+      - heading: การลงนาม
+        body: ผู้ประมวลผลข้อมูลได้อ่านและลงนามข้อตกลงนี้แล้ว ลงชื่อ ................................ กรรมการผู้มีอำนาจ
+    expect: { RQ-PRV-01: B, RQ-PRV-02: Y, RQ-PRV-03: N }
+    review:
+      domain: PRIVACY
+      answers: { RQ-GEN-01: A, RQ-GEN-02: B, RQ-GEN-03: N, RQ-PRV-01: A, RQ-PRV-02: Y, RQ-PRV-03: N }
+      inconsistent: [RQ-PRV-01]
+  - id: RK-04
+    group: INFOSEC
+    layout: A4_TYPED
+    quality: STAMPED
+    digits: ARABIC
+    file: { kind: EVIDENCE, question: RQ-IS-02 }
+    supplier: บริษัท ระยองซอฟต์แวร์ จำกัด
+    title: นโยบายความปลอดภัยสารสนเทศ
+    issuedOn: '2026-01-10'
+    sections:
+      - heading: วัตถุประสงค์
+        body: เพื่อคุ้มครองระบบและข้อมูลของลูกค้าที่บริษัทเข้าถึงระหว่างพัฒนาและดูแลระบบ
+      - heading: การควบคุมการเข้าถึง
+        body: ผู้ใช้ทุกคนที่เข้าระบบของลูกค้าต้องยืนยันตัวตนหลายขั้นตอน (MFA) ทุกครั้ง ไม่มีข้อยกเว้น และสิทธิ์ถูกทบทวนทุกไตรมาส
+      - heading: การรับมือเหตุการณ์
+        body: บริษัทมีแผนรับมือเหตุการณ์ด้านความปลอดภัยที่ซ้อมปีละ 2 ครั้ง และแจ้งลูกค้าที่ได้รับผลกระทบภายใน 24 ชั่วโมงนับจากตรวจพบ
+      - heading: การรับรองมาตรฐาน
+        body: บริษัทอยู่ระหว่างจัดทำระบบเพื่อขอรับรอง ISO/IEC 27001 คาดว่าจะยื่นตรวจในปี 2570 ปัจจุบันยังไม่ได้รับใบรับรอง
+      - heading: การสำรองข้อมูล
+        body: สำรองข้อมูลทุกวันและทดสอบกู้คืนทุกเดือน
+    expect: { RQ-IS-02: Y, RQ-IS-03: Y }
+    mayAnswer: { RQ-IS-01: N }
+    review:
+      domain: INFOSEC
+      answers: { RQ-GEN-01: A, RQ-GEN-02: C, RQ-GEN-03: Y, RQ-IS-01: N, RQ-IS-02: Y, RQ-IS-03: Y }
+      inconsistent: []
+  - id: RK-05
+    group: INFOSEC
+    layout: A4_SCANNED
+    quality: BLURRY
+    digits: ARABIC
+    file: { kind: EVIDENCE, question: RQ-IS-02 }
+    supplier: บริษัท ขอนแก่นไอทีเซอร์วิส จำกัด
+    title: ระเบียบการใช้งานระบบสารสนเทศ
+    issuedOn: '2025-11-01'
+    sections:
+      - heading: การยืนยันตัวตน
+        body: ผู้ใช้ทั่วไปเข้าระบบด้วยชื่อผู้ใช้และรหัสผ่านที่ต้องเปลี่ยนทุก 90 วัน การยืนยันตัวตนหลายขั้นตอน (MFA) ใช้กับบัญชีผู้ดูแลระบบเท่านั้น
+      - heading: การรับมือเหตุการณ์
+        body: บริษัทมีขั้นตอนรับมือเหตุการณ์ด้านความปลอดภัย และแจ้งลูกค้าที่ได้รับผลกระทบภายใน 7 วันทำการหลังการสอบสวนเสร็จสิ้น
+      - heading: อุปกรณ์ของพนักงาน
+        body: เครื่องคอมพิวเตอร์ของพนักงานติดตั้งโปรแกรมป้องกันไวรัสและเข้ารหัสดิสก์
+      - heading: การอบรม
+        body: พนักงานใหม่อบรมความตระหนักด้านความปลอดภัยภายในเดือนแรก
+    expect: { RQ-IS-02: N, RQ-IS-03: N }
+    review:
+      domain: INFOSEC
+      answers: { RQ-GEN-01: B, RQ-GEN-02: B, RQ-GEN-03: Y, RQ-IS-01: N, RQ-IS-02: Y, RQ-IS-03: Y }
+      inconsistent: [RQ-IS-02, RQ-IS-03]
+  - id: RK-06
+    group: INFOSEC
+    layout: PHOTO
+    quality: CLEAN
+    digits: THAI
+    file: { kind: EVIDENCE, question: RQ-IS-03 }
+    supplier: บริษัท เชียงใหม่เน็ตเวิร์ค จำกัด
+    title: แผนรับมือเหตุการณ์ด้านความปลอดภัยสารสนเทศ
+    issuedOn: '2026-04-01'
+    sections:
+      - heading: ทีมรับมือเหตุการณ์
+        body: ประกอบด้วยผู้จัดการฝ่ายเทคโนโลยี วิศวกรเครือข่าย 2 คน และฝ่ายกฎหมาย ติดต่อได้ตลอด 24 ชั่วโมง
+      - heading: ขั้นตอน
+        body: ตรวจพบ ประเมินความรุนแรง ควบคุมความเสียหาย กู้คืนระบบ และสรุปบทเรียนภายใน 14 วัน
+      - heading: การแจ้งลูกค้า
+        body: บริษัทแจ้งลูกค้าที่ได้รับผลกระทบภายใน 72 ชั่วโมงนับจากตรวจพบเหตุ ทางอีเมลและโทรศัพท์
+      - heading: การซ้อมแผน
+        body: ซ้อมแผนปีละ 1 ครั้ง ครั้งล่าสุดเมื่อวันที่ 15 มีนาคม 2569
+    expect: { RQ-IS-03: Y }
+    review:
+      domain: INFOSEC
+      answers: { RQ-GEN-01: A, RQ-GEN-02: A, RQ-GEN-03: Y, RQ-IS-01: N, RQ-IS-02: Y, RQ-IS-03: Y }
+      inconsistent: []
+  - id: RK-07
+    group: PREMISES
+    layout: A4_TYPED
+    quality: CLEAN
+    digits: ARABIC
+    file: { kind: EVIDENCE, question: RQ-PRM-01 }
+    supplier: ห้างหุ้นส่วนจำกัด สระบุรีงานโยธา
+    title: คู่มือความปลอดภัยสำหรับพนักงานที่เข้าปฏิบัติงานในพื้นที่ลูกค้า
+    issuedOn: '2026-02-01'
+    sections:
+      - heading: การอบรมก่อนเข้าพื้นที่
+        body: พนักงานทุกคนต้องผ่านการอบรมความปลอดภัยในการทำงาน หลักสูตร 6 ชั่วโมง ก่อนเข้าพื้นที่ของลูกค้าครั้งแรก
+      - heading: บัตรประจำตัว
+        body: พนักงานทุกคนสวมบัตรประจำตัวพนักงานที่มีรูปถ่ายตลอดเวลาที่อยู่ในพื้นที่ของลูกค้า
+      - heading: อุปกรณ์ป้องกันอันตราย
+        body: หมวกนิรภัย รองเท้านิรภัย และเสื้อสะท้อนแสงเป็นอุปกรณ์บังคับ
+      - heading: การรายงานอุบัติเหตุ
+        body: หัวหน้างานรายงานอุบัติเหตุและเหตุเกือบเกิดต่อเจ้าหน้าที่ความปลอดภัยของลูกค้าภายในวันเดียวกัน
+    expect: { RQ-PRM-01: Y }
+    review:
+      domain: PREMISES
+      answers: { RQ-GEN-01: A, RQ-GEN-02: B, RQ-GEN-03: Y, RQ-PRM-01: Y, RQ-PRM-02: N }
+      inconsistent: []
+  - id: RK-08
+    group: PREMISES
+    layout: A4_SCANNED
+    quality: STAMPED
+    digits: ARABIC
+    file: { kind: EVIDENCE, question: RQ-PRM-01 }
+    supplier: บริษัท ลพบุรีก่อสร้าง จำกัด
+    title: แผนความปลอดภัยในการทำงานของโครงการ
+    issuedOn: '2026-07-07'
+    sections:
+      - heading: การอบรม
+        body: พนักงานใหม่เข้าทำงานในพื้นที่ได้ทันที และจะได้รับการอบรมความปลอดภัยภายใน 30 วันหลังเริ่มงาน
+      - heading: บัตรประจำตัว
+        body: บริษัทออกบัตรประจำตัวให้เฉพาะหัวหน้างานและวิศวกร คนงานทั่วไปลงชื่อเข้าออกที่ป้อมยาม
+      - heading: ระบบการจัดการ
+        body: บริษัทอยู่ระหว่างจัดทำระบบการจัดการอาชีวอนามัยและความปลอดภัยตาม ISO 45001 และยังไม่ได้รับการรับรอง
+      - heading: ประกันภัย
+        body: บริษัททำประกันภัยความรับผิดต่อบุคคลภายนอก วงเงินคุ้มครอง 10,000,000 บาท กรมธรรม์มีผลถึงวันที่ 31 ธันวาคม 2569
+    expect: { RQ-PRM-01: N, RQ-GEN-03: Y }
+    mayAnswer: { RQ-PRM-02: N }
+    review:
+      domain: PREMISES
+      answers: { RQ-GEN-01: A, RQ-GEN-02: C, RQ-GEN-03: Y, RQ-PRM-01: Y, RQ-PRM-02: N }
+      inconsistent: [RQ-PRM-01]
+  - id: RK-09
+    group: COMPANY_CERT
+    layout: A4_TYPED
+    quality: CLEAN
+    digits: ARABIC
+    file: { kind: DOCUMENT, type: COMPANY_CERT }
+    supplier: บริษัท นครปฐมเทคโนโลยี จำกัด
+    title: หนังสือรับรอง
+    issuedOn: '2026-10-01'
+    certificate:
+      taxId: '0999998030015'
+      registrationDate: '2012-05-03'
+      address: 77 หมู่ 2 ต.ธรรมศาลา อ.เมือง จ.นครปฐม 73000
+      capital: '3000000'
+      directors: [นายธนพล รุ่งเรือง, นางสาวพิมพ์ชนก รุ่งเรือง]
+    expect: { RQ-GEN-01: A }
+  - id: RK-10
+    group: COMPANY_CERT
+    layout: PHOTO
+    quality: SKEWED
+    digits: THAI
+    file: { kind: DOCUMENT, type: COMPANY_CERT }
+    supplier: บริษัท ภูเก็ตดิจิทัลเอเจนซี่ จำกัด
+    title: หนังสือรับรอง
+    issuedOn: '2026-09-15'
+    certificate:
+      taxId: '0999998030112'
+      registrationDate: '2022-03-01'
+      address: 12/5 ถนนเทพกระษัตรี ต.รัษฎา อ.เมือง จ.ภูเก็ต 83000
+      capital: '1000000'
+      directors: [นายกิตติพัฒน์ ทะเลงาม]
+    expect: { RQ-GEN-01: B }

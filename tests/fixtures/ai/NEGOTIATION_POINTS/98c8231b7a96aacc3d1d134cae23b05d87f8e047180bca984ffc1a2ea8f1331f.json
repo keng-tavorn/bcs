@@ -4,9 +4,9 @@
   "recorded": "SCENE",
   "output": {
     "sentences": [
-      "{{v:incumbent.supplierName}} ผู้ขายรายเดิมเสนอ {{v:incumbent.net}} บาท สูงกว่ายอดต่ำสุด {{v:incumbent.gap}} บาท หรือ {{v:gapBp}} bp",
-      "คะแนนการส่งมอบของ {{v:score.2.supplierName}} คือ {{v:score.2.DELIVERY}} เทียบกับ {{v:score.1.DELIVERY}} ของ {{v:score.1.supplierName}}",
-      "จัดซื้ออาจขอให้ {{v:incumbent.supplierName}} พิจารณายืนราคาเท่ายอดต่ำสุด {{v:lowest.net}} บาท"
+      "{{v:incumbent.supplierName}} ผู้ขายรายเดิมเสนอ {{v:incumbent.net}} บาทก่อน VAT สูงกว่ายอดต่ำสุด {{v:incumbent.gap}} บาท หรือ {{v:gapBp}} bp",
+      "จัดซื้ออาจขอให้ {{v:incumbent.supplierName}} พิจารณายืนราคาเท่ายอดต่ำสุด {{v:lowest.net}} บาท",
+      "ใบที่ยื่นราคารวม VAT มี {{v:vatInclusiveCount}} ใบ จัดซื้ออาจขอให้ผู้ยื่นยืนยันราคาก่อน VAT ต่อบรรทัด"
     ]
   },
   "usage": {

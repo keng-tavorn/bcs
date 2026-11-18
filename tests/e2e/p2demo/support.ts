@@ -304,6 +304,16 @@ export async function expectG8(page: Page, g: G8Figures) {
   await expect(page.getByRole('heading', { name: `ผลมอบงานที่อนุมัติในช่วงนี้ (${g.awards})` })).toBeVisible()
 }
 
+/** A line's amount before VAT as baht text: quantity × unit price in satang (BigInt, no float · quantity up to 3 decimals) */
+export function lineAmount(quantity: string, unitPrice: string): string {
+  const [qWhole = '0', qFrac = ''] = quantity.split('.')
+  const milli = BigInt(qWhole) * 1000n + BigInt(qFrac.padEnd(3, '0').slice(0, 3) || '0')
+  const [pWhole = '0', pFrac = ''] = unitPrice.split('.')
+  const satang = BigInt(pWhole) * 100n + BigInt(pFrac.padEnd(2, '0').slice(0, 2) || '0')
+  const total = (satang * milli) / 1000n
+  return `${total / 100n}.${String(total % 100n).padStart(2, '0')}`
+}
+
 /** Money as the pages write it: "300950.00" → "300,950.00" */
 export const bahtText = (amount: string) => {
   const [whole = '0', cents = '00'] = amount.split('.')

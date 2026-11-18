@@ -14,7 +14,7 @@ import { bahtText, p2Expected, p2SceneOf, p2Sheet, s10, type RfxFacts } from './
 //     300,950.00 to 305,500.00 is 151 bp, and the incumbent nearest the lowest (S10-09: a supplier of a STEEL PO within
 //     the price window — SP0024 and SP0029 both, SP0024 the nearer) is 2,788.32 above it, 93 bp (scripts/s10.ts
 //     ai-answers files the recording under the key of the facts as played)
-//   - with module AI off, the three buttons are gone and the RFx's pages work as before; AI is switched back on after
+//   - with module AI off, the three buttons are gone and the RFx's pages work as before; AI is put back as it was
 
 test('@p2demo [FR-AI-305/AC1] [FR-AI-305/AC2] [FR-AI-305/AC3] [FR-AI-305/AC6] scene 14: the Sourcing Agent drafts an RFx, summarizes the bids of scene 9 and points to negotiate; without AI the buttons are gone', async ({ browser }) => {
   test.setTimeout(240_000)
@@ -29,6 +29,9 @@ test('@p2demo [FR-AI-305/AC1] [FR-AI-305/AC2] [FR-AI-305/AC3] [FR-AI-305/AC6] sc
   const incumbent = steel.invites.find((i) => i.supplierCode === negotiation.supplier)!.supplierName!
   const { rfxEventId: draftId } = s10<{ rfxEventId: string }>('ai-draft-rfx', userOf(p1, scene.actor).email)
 
+  // the scene plays with module AI on and puts it back as it found it (EG-1 is checked below with it off)
+  const before = s10<{ enabled: boolean }>('ai-module', 'state').enabled
+  if (!before) s10('ai-module', 'on')
   const page = await deskAs(browser, p1, scene.actor)
   try {
     // RFX_DRAFT (L1): proposed, confirmed, saved
@@ -44,6 +47,7 @@ test('@p2demo [FR-AI-305/AC1] [FR-AI-305/AC2] [FR-AI-305/AC3] [FR-AI-305/AC6] sc
     // BID_SUMMARY NEGOTIATION_POINTS (L0) on the RFQ of scene 9
     const filed = s10<{ filed: Array<{ key: string; written: boolean }> }>('ai-answers', steel.id).filed
     expect(filed.map((f) => f.key.split('/')[0])).toEqual(['BID_SUMMARY', 'NEGOTIATION_POINTS'])
+    for (const f of filed.filter((x) => x.written)) test.info().annotations.push({ type: 'recorded', description: `tests/fixtures/ai/${f.key}.json is new (facts of another year?): commit it` })
     await page.goto(`/sourcing/${steel.id}?tab=bids`)
     const ai = page.getByRole('region', { name: 'สรุปโดย AI' })
     await ai.getByRole('button', { name: 'สรุปข้อเสนอ' }).click()
@@ -56,6 +60,8 @@ test('@p2demo [FR-AI-305/AC1] [FR-AI-305/AC2] [FR-AI-305/AC3] [FR-AI-305/AC6] sc
     await expect(points).toContainText(incumbent, { timeout: 30_000 })
     await expect(points).toContainText(bahtText(negotiation.gap))
     await expect(points).toContainText(`${negotiation.gapBp} bp`)
+    // the recording of this script played (scripts/s10.ts ai-answers), not an older one
+    await expect(points).toContainText('ยืนยันราคาก่อน VAT ต่อบรรทัด')
 
     // EG-1: module AI off, the buttons are gone and the pages stay whole
     s10('ai-module', 'off')
@@ -66,7 +72,7 @@ test('@p2demo [FR-AI-305/AC1] [FR-AI-305/AC2] [FR-AI-305/AC3] [FR-AI-305/AC6] sc
     await expect(page.getByRole('button', { name: 'บันทึกข้อมูลทั่วไป' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'ร่าง RFx ด้วย AI' })).toHaveCount(0)
   } finally {
-    s10('ai-module', 'on')
+    s10('ai-module', before ? 'on' : 'off')
     await page.context().close()
   }
 })

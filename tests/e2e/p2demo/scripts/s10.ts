@@ -49,7 +49,8 @@ import { E2E_DB, E2E_P2DEMO } from '../../../support/e2e-env'
 //                         scene 14: a new RFQ DRAFT of the steel of scene 9 (a need: two lines, no supplier), made by the
 //                         member as /sourcing/new does, for the button "ร่าง RFx ด้วย AI" (RFX_DRAFT, recorded answer
 //                         tests/fixtures/ai/RFX_DRAFT/<key>.json · the key is its kind, category and lines only)
-//   ai-module <on|off>    module AI of SIMEC switched on or off (EG-1: what the scenes see without AI)
+//   ai-module <on|off|state>
+//                         module AI of SIMEC switched on or off (EG-1: what the scenes see without AI), or as it is
 
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the scene script of phase 2 runs in its e2e database only')
 if (!E2E_P2DEMO) throw new Error('the scene script of phase 2 runs in p2demo mode only (E2E_P2DEMO=1)')
@@ -225,11 +226,17 @@ if (mode === 'foreign-rfp') {
   for (const [purpose, sentences] of Object.entries(SCENE_9_ANSWERS) as Array<[keyof typeof SCENE_9_ANSWERS, readonly string[]]>) {
     const key = fixtureKey({ purpose, text })
     const file = path.join(process.cwd(), 'tests', 'fixtures', 'ai', `${key}.json`)
+    const answer = { promptVersion: PROMPT_VERSIONS[purpose], model: modelForPurpose(purpose, aiRuntime().modelEnv), recorded: 'SCENE', output: { sentences }, usage: { input: 0, output: 0 } }
+    const body = `${JSON.stringify(answer, null, 2)}\n`
+    // a recording on disk that is not this one is stale: the scene fails rather than play it or write over it
+    if (existsSync(file) && readFileSync(file, 'utf8').replace(/\r\n/g, '\n') !== body) {
+      throw new Error(`tests/fixtures/ai/${key}.json is not the recording of scene 14 in this script: delete it, run the scene again and commit the new file`)
+    }
+    // a key with no file (the facts' text holds the RFx's number, so a new Buddhist year has a new key): filed here, to commit
     const written = !existsSync(file)
     if (written) {
       mkdirSync(path.dirname(file), { recursive: true })
-      const answer = { promptVersion: PROMPT_VERSIONS[purpose], model: modelForPurpose(purpose, aiRuntime().modelEnv), recorded: 'SCENE', output: { sentences }, usage: { input: 0, output: 0 } }
-      writeFileSync(file, `${JSON.stringify(answer, null, 2)}\n`)
+      writeFileSync(file, body)
     }
     filed.push({ key, written })
   }
@@ -258,11 +265,16 @@ if (mode === 'foreign-rfp') {
   fail(made)
   out({ rfxEventId: (made as { data: { rfxEventId: string } }).data.rfxEventId })
 } else if (mode === 'ai-module') {
-  const [state] = args as ['on' | 'off']
-  const at = new Date()
-  const on = state === 'on'
-  await prisma.orgModule.update({ where: { organizationId_module: { organizationId, module: 'AI' } }, data: on ? { enabled: true, enabledAt: at, disabledAt: null } : { enabled: false, disabledAt: at } })
-  out({ module: 'AI', enabled: on })
+  const [state] = args as ['on' | 'off' | 'state']
+  const where = { organizationId_module: { organizationId, module: 'AI' as const } }
+  if (state === 'state') {
+    out({ module: 'AI', enabled: (await prisma.orgModule.findUnique({ where, select: { enabled: true } }))?.enabled ?? false })
+  } else {
+    const at = new Date()
+    const on = state === 'on'
+    await prisma.orgModule.update({ where, data: on ? { enabled: true, enabledAt: at, disabledAt: null } : { enabled: false, disabledAt: at } })
+    out({ module: 'AI', enabled: on })
+  }
 } else {
   throw new Error(`unknown mode ${mode ?? ''}`)
 }

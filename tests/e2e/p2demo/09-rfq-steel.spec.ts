@@ -9,6 +9,7 @@ import {
   bahtText,
   bidOnPhone,
   expectG8,
+  lineAmount,
   p2Expected,
   p2SceneOf,
   p2Sheet,
@@ -182,8 +183,11 @@ test('@p2demo [FR-SRC-202/AC3] [FR-SRC-202/AC5] [FR-SRC-203/AC2] [FR-SRC-203/AC3
   expect(winner).toBe(scene.supplier)
   const winnerName = nameOf.get(winner)!
   await page.goto(`/sourcing/${rfx.id}/award`)
-  for (const [i, net] of p2Expected<string[]>(scene, 'poNets').entries()) {
-    await page.getByLabel(new RegExp(`^รายการ ${i + 1} `)).selectOption({ label: `${winnerName} · ${bahtText(net)} บาท (ต่ำสุด)` })
+  // each line by its own quantity and the winner's price of that line (not by the order of the sheet's poNets)
+  const lineNets = rfx.lines.map((l) => lineAmount(l.quantity, rows.bids.find((b) => b.supplier === winner && b.lineNo === l.lineNo)!.unitPrice))
+  expect([...lineNets].sort()).toEqual([...p2Expected<string[]>(scene, 'poNets')].sort())
+  for (const [i, l] of rfx.lines.entries()) {
+    await page.getByLabel(new RegExp(`^รายการ ${l.lineNo} `)).selectOption({ label: `${winnerName} · ${bahtText(lineNets[i]!)} บาท (ต่ำสุด)` })
   }
   await page.getByRole('button', { name: 'บันทึกผล' }).click()
   await expect(page.getByText('บันทึกผลแล้ว')).toBeVisible()
@@ -218,7 +222,7 @@ test('@p2demo [FR-SRC-202/AC3] [FR-SRC-202/AC5] [FR-SRC-203/AC2] [FR-SRC-203/AC3
   // what the approval made (BR-RFX-13 · ADR-206): two draft POs by site, the preferred supplier, the e-mails
   const approved = s10<AwardFacts>('award', rfx.id)
   expect(approved.status).toBe('APPROVED')
-  expect(approved.pos.map((p) => p.net)).toEqual(p2Expected<string[]>(scene, 'poNets'))
+  expect(approved.pos.map((p) => p.net).sort()).toEqual([...p2Expected<string[]>(scene, 'poNets')].sort())
   expect(approved.pos.every((p) => p.status === 'DRAFT')).toBe(true)
   expect(approved.pos).toHaveLength(p2Expected<number>(scene, 'poCount'))
   expect(approved.preferred).toEqual([expect.objectContaining({ category: 'STEEL', supplier: winner })])

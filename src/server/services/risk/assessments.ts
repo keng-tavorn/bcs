@@ -188,7 +188,7 @@ export async function evidenceAnswerableCodes(tx: TenantTx, supplierId: string, 
 async function clearAnswer(tx: TenantTx, answer: { readonly id: string; readonly source: string }): Promise<void> {
   const files = { subjectType: 'RiskAnswer', subjectId: answer.id, kind: 'RISK_EVIDENCE' } as const
   if (answer.source !== 'EVIDENCE' && (await tx.fileLink.count({ where: files })) > 0) {
-    await tx.riskAnswer.update({ where: { id: answer.id }, data: { optionCode: null, points: 0, evidenceDocumentId: null } })
+    await tx.riskAnswer.update({ where: { id: answer.id }, data: { optionCode: null, points: 0, evidenceDocumentId: null, agentActionId: null } })
     return
   }
   await tx.fileLink.deleteMany({ where: files })
@@ -458,6 +458,9 @@ async function saveAnswers(tx: TenantTx, ctx: Ctx, input: z.infer<typeof AnswerI
   if (a.version !== input.expectedVersion) return fail('CONFLICT_VERSION', 'the assessment changed since it was opened', { currentVersion: a.version })
   const questions = questionsOf(a)
   const changed: string[] = []
+  // BR-AI-33: the answers the person kept as the AI proposed them (aiAssist.confirmedPaths answers.<code>; applyAiAssist
+  // below checks each against the draft and refuses the whole save otherwise)
+  const keptFromAi = new Set((input.aiAssist?.confirmedPaths ?? []).filter((p) => p.startsWith('answers.')).map((p) => p.slice('answers.'.length)))
   for (const item of input.answers) {
     const q = questions.find((x) => x.code === item.questionCode)
     if (!q) return fail('VALIDATION_FAILED', `${item.questionCode} is not a question of this assessment`, { reason: 'QUESTION_NOT_IN_SET', questionCode: item.questionCode })
@@ -483,6 +486,9 @@ async function saveAnswers(tx: TenantTx, ctx: Ctx, input: z.infer<typeof AnswerI
       // a confirmed evidence answer keeps its document (BR-RSK-05: it is checked again on every save and send)
       evidenceDocumentId: existing?.source === 'EVIDENCE' || (existing?.evidenceDocumentId && existing.optionCode === option.code) ? existing.evidenceDocumentId : null,
       evidenceAiReadable: item.evidenceAiReadable ?? existing?.evidenceAiReadable ?? false,
+      // the AI's value a person confirmed (RiskAnswer.agentActionId · BR-AI-33): set when confirmed now, kept while the
+      // answer stays that value, gone once the person chooses another
+      agentActionId: input.aiAssist && keptFromAi.has(q.code) ? input.aiAssist.agentActionId : existing?.agentActionId && existing.optionCode === option.code ? existing.agentActionId : null,
       ...by,
     }
     if (existing) await tx.riskAnswer.update({ where: { id: existing.id }, data: values })

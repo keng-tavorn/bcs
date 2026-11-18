@@ -256,6 +256,9 @@ describe('[FR-AI-306/AC2] [BR-AI-33] the proposed answers are checked, shown and
     ]
     ok(await answerRiskAssessment(s.portal(), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId), answers: both, aiAssist: aiAssist(['RQ-GEN-01']) }, key()))
     expect(await prisma.agentAction.findUniqueOrThrow({ where: { id: draft!.id } })).toMatchObject({ status: 'DRAFT', appliedByContactId: s.contactId, appliedById: null })
+    // BR-AI-33 (RiskAnswer.agentActionId): the answer the contact confirmed carries the AI's action; the one still waiting does not
+    const fromAi = async () => Object.fromEntries((await prisma.riskAnswer.findMany({ where: { assessmentId: s.assessmentId }, select: { questionCode: true, agentActionId: true } })).map((x) => [x.questionCode, x.agentActionId]))
+    expect(await fromAi()).toMatchObject({ 'RQ-GEN-01': draft!.id, 'RQ-IS-01': null })
     expect((await portalRiskAiDraft(s.portal(), s.assessmentId))!.suggestions.map((x) => [x.questionCode, x.confirmed, x.pending])).toEqual([
       ['RQ-GEN-01', true, false],
       ['RQ-IS-01', false, true],
@@ -270,6 +273,7 @@ describe('[FR-AI-306/AC2] [BR-AI-33] the proposed answers are checked, shown and
     // confirmed one by one: the action closes ACCEPTED by the contact, and the send goes on
     ok(await answerRiskAssessment(s.portal(), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId), answers: [{ questionCode: 'RQ-IS-01', optionCode: 'Y' }], aiAssist: aiAssist(['RQ-IS-01']) }, key()))
     expect(await prisma.agentAction.findUniqueOrThrow({ where: { id: draft!.id } })).toMatchObject({ status: 'ACCEPTED', appliedByContactId: s.contactId })
+    expect(await fromAi()).toMatchObject({ 'RQ-GEN-01': draft!.id, 'RQ-IS-01': draft!.id, 'RQ-GEN-03': null, 'RQ-PRV-02': null, 'RQ-IS-02': null })
     expect(await prisma.event.count({ where: { aggregateId: draft!.id, type: 'agent_action.accepted' } })).toBe(1)
     expect(await submitRiskAssessment(s.portal(), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId) }, key())).toMatchObject({ ok: true })
   })
@@ -288,6 +292,8 @@ describe('[FR-AI-306/AC2] [BR-AI-33] the proposed answers are checked, shown and
     ok(await fillRiskAssessmentOnBehalf(as('proc_officer'), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId), answers: [{ questionCode: 'RQ-GEN-01', optionCode: 'B' }], aiAssist: { agentActionId: draft!.id, confirmedPaths: [] } }, key()))
     // procurement chose B over the AI's A: the AI's value is no longer there to wait, RQ-IS-01 was never put in
     expect(await prisma.agentAction.findUniqueOrThrow({ where: { id: draft!.id } })).toMatchObject({ status: 'EDITED', appliedById: org.member.proc_officer, diff: { 'answers.RQ-GEN-01': { ai: 'A', final: 'B' }, 'answers.RQ-IS-01': { ai: 'Y', final: null } } })
+    // and the answer is procurement's own, not marked as the AI's (BR-AI-33)
+    expect(await prisma.riskAnswer.findFirstOrThrow({ where: { assessmentId: s.assessmentId, questionCode: 'RQ-GEN-01' } })).toMatchObject({ optionCode: 'B', agentActionId: null })
   })
 })
 

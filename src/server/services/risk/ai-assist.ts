@@ -1,4 +1,4 @@
-import { aiReadableEvidence, checkAiText, shouldDraftFor, type RiskCheckCode, type RiskDraftQuestion, type TextValue } from '@/core/ai-checks'
+import { aiReadableEvidence, checkAiText, shouldDraftFor, type RiskCheckCode, type RiskDraftQuestion } from '@/core/ai-checks'
 import { shouldReadDocument } from '@/core/ai-checks/supplier'
 import { questionsInSet } from '@/core/risk'
 import { dateIn } from '@/core/supplier-docs'

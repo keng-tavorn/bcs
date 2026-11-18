@@ -1,0 +1,22 @@
+{
+  "promptVersion": "RISK_ANSWER_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "answers": [
+      {
+        "questionCode": "RQ-IS-03",
+        "optionCode": "Y",
+        "sourceRef": "F1",
+        "quote": "บริษัทแจ้งลูกค้าที่ได้รับผลกระทบภายใน ๗๒ ชั่วโมงนับจากตรวจพบเหตุ ทางอีเมลและโทรศัพท์",
+        "confidence": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 2498,
+    "output": 399,
+    "cacheRead": 1109,
+    "cacheWrite": 0
+  }
+}

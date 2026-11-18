@@ -1,0 +1,23 @@
+{
+  "promptVersion": "RISK_FILE_SUMMARY@2",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "ผู้ขายตอบข้อ {{v:RQ-PRV-01.code}} ว่า {{v:RQ-PRV-01.answer}}",
+      "ผู้ขายตอบข้อ {{v:RQ-PRV-02.code}} ว่า {{v:RQ-PRV-02.answer}} และมีไฟล์แนบประกอบ",
+      "ผู้ขายตอบข้อ {{v:RQ-PRV-03.code}} ว่า {{v:RQ-PRV-03.answer}}",
+      "ไฟล์แนบระบุว่าข้อมูลประมวลผลเกินกว่าช่วงที่ตอบไว้ในข้อ {{v:RQ-PRV-01.code}}",
+      "ทุกข้อตอบครบ จำนวนที่ไม่มีคำตอบคือ {{v:missingCount}}"
+    ],
+    "inconsistentQuestionCodes": [
+      "RQ-PRV-01"
+    ]
+  },
+  "usage": {
+    "input": 2299,
+    "output": 331,
+    "cacheRead": 897,
+    "cacheWrite": 0
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "promptVersion": "RISK_FILE_SUMMARY@2",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "ผู้ตอบตอบครบทุกข้อ คือ {{v:answeredCount}} จาก {{v:questionCount}} ข้อ และไม่มีข้อที่ขาด",
+      "ข้อ {{v:RQ-GEN-01.code}} ตอบว่า {{v:RQ-GEN-01.answer}}",
+      "ข้อ {{v:RQ-PRV-01.code}} ตอบว่า {{v:RQ-PRV-01.answer}}",
+      "ข้อ {{v:RQ-PRV-02.code}} ตอบว่า {{v:RQ-PRV-02.answer}} และมีไฟล์แนบประกอบ ซึ่งสอดคล้องกับคำตอบ",
+      "ข้อ {{v:RQ-PRV-03.code}} ตอบว่า {{v:RQ-PRV-03.answer}} ซึ่งไฟล์แนบระบุว่าไม่โอนข้อมูลออกนอกประเทศ"
+    ],
+    "inconsistentQuestionCodes": []
+  },
+  "usage": {
+    "input": 2408,
+    "output": 366,
+    "cacheRead": 897,
+    "cacheWrite": 0
+  }
+}

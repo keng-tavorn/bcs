@@ -3,6 +3,7 @@
 
 import './templates'
 
+export * from './ai-assist'
 export * from './assessments'
 export * from './evidence'
 export * from './gate'

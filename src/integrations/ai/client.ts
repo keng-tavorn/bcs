@@ -70,12 +70,18 @@ const sha256 = (data: Uint8Array | string) => createHash('sha256').update(data).
 export const normalizeText = (text: string) => text.normalize('NFC').replace(/\s+/g, ' ').trim()
 
 /**
+ * A line `Today: …` a request carries for the model to count from (the Risk Agent's draft · S11-14). The fixture key leaves
+ * it out: a recorded answer is about the files and questions, and an e2e scene recorded one day must still find it the next.
+ */
+const TODAY_LINE = /^Today: [^\n]*(\n|$)/gm
+
+/**
  * The fixture key of a request: `<purpose>/<sha256>` of the one file when a file comes alone (the sha256 the evaluation
- * manifest lists), else of the normalized text, else of the files' hashes and the text together.
+ * manifest lists), else of the normalized text (without a `Today:` line), else of the files' hashes and the text together.
  */
 export function fixtureKey(request: Pick<AiRequest<unknown>, 'purpose' | 'text' | 'files'>): string {
   const files = request.files ?? []
-  const text = request.text === undefined ? '' : normalizeText(request.text)
+  const text = request.text === undefined ? '' : normalizeText(request.text.replace(TODAY_LINE, ''))
   let digest: string
   if (files.length === 1 && text === '') digest = sha256(files[0]!.bytes)
   else if (files.length === 0) digest = sha256(text)

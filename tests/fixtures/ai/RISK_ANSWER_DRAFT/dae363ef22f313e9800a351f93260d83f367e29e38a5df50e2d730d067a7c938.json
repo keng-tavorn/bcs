@@ -1,0 +1,29 @@
+{
+  "promptVersion": "RISK_ANSWER_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "answers": [
+      {
+        "questionCode": "RQ-PRV-02",
+        "optionCode": "Y",
+        "sourceRef": "F1",
+        "quote": "บริษัทยินดีลงนามข้อตกลงการประมวลผลข้อมูลส่วนบุคคล (DPA) กับลูกค้าทุกรายก่อนเริ่มงาน และประมวลผลข้อมูลตามคำสั่งของผู้ควบคุมข้อมูลเท่านั้น",
+        "confidence": 95
+      },
+      {
+        "questionCode": "RQ-PRV-03",
+        "optionCode": "N",
+        "sourceRef": "F1",
+        "quote": "บริษัทไม่โอนหรือส่งข้อมูลส่วนบุคคลไปยังต่างประเทศ",
+        "confidence": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 2611,
+    "output": 980,
+    "cacheRead": 1109,
+    "cacheWrite": 0
+  }
+}

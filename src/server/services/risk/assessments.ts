@@ -172,6 +172,15 @@ function evidenceFor(q: RiskQuestionDef, docs: readonly EvidenceDoc[], workScope
 }
 
 /**
+ * S11-13: the questions of a set that a document of the supplier answers today (BR-RSK-05) — the ones filled from evidence
+ * when the assessment opened and any a certificate verified since answers — as the Risk Agent's checks take them
+ */
+export async function evidenceAnswerableCodes(tx: TenantTx, supplierId: string, questions: readonly RiskQuestionDef[], workScopes: readonly string[], today: string): Promise<string[]> {
+  const byQuestion = await evidenceDocuments(tx, supplierId)
+  return questions.filter((q) => evidenceFor(q, byQuestion.get(q.code) ?? [], workScopes, today) !== null).map((q) => q.code)
+}
+
+/**
  * An answer cleared — by its person, or as evidence gone stale: a row with the supplier's files behind it keeps them (a
  * FileLink names its answer by id only) and loses its choice; any other row goes. An answer from a certificate cannot
  * lose its document and stay (risk_answer_shape), so its files lose their link, the files kept for the audit.

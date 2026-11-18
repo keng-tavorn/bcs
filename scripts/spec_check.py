@@ -1810,6 +1810,31 @@ def run_ai_rfx_draft(d):  # BR-AI-31 · GC-AI-99 (S10-16) · คำนวณอ�
         got = {"drafts": drafts}
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_ai_risk_verify(d):  # BR-AI-33 BR-AI-34 · GC-AI-100 ถึง 103 (S11-13) · คำนวณอิสระ: ตรวจทีละคำตอบ ความมั่นใจเป็น bp จำนวนเต็ม ขอบเขตข้อมูล
+    cap = {"FAIL": 0, "WARN": 5000, None: 10000}
+    out = []
+    for c in d["cases"]:
+        i = c["input"]
+        if c.get("fn") == "aiScope":
+            draft = [{"draft": False, "reason": "PAYEE_TYPE_EXCLUDED"} if x["payeeType"] == "INDIVIDUAL" else {"draft": False, "reason": "SETTING_OFF"} if not x["aiAssist"] else {"draft": True} for x in i["shouldDraftFor"]]
+            send = [{"send": False, "reason": "UPLOADER_NOT_CONSENTED"} if not x["evidenceAiReadable"] else {"send": False, "reason": "QUESTION_NOT_AI_READABLE"} if not x["questionAiReadable"] else {"send": True} for x in i["aiReadableEvidence"]]
+            got = {"shouldDraftFor": draft, "aiReadableEvidence": send}
+            out.append((c["id"], got == c["expect"], got)); continue
+        a = {**d["assessment"], **i.get("assessment", {})}
+        checks, conf, must = [], {}, []
+        for x in i["answers"]:
+            q, code = x["questionCode"], None
+            qd = d["questions"].get(q)
+            if q not in a["questionSet"]: code = ("QUESTION_NOT_IN_SET", "FAIL")
+            elif x["optionCode"] not in qd["options"]: code = ("OPTION_UNKNOWN", "FAIL")
+            elif x["optionCode"] == qd.get("evidenceOption") and q not in a["evidenceAvailable"]: code = ("EVIDENCE_MISSING", "WARN")
+            elif q in a["evidenceAvailable"] and x["optionCode"] != qd.get("evidenceOption"): code = ("EVIDENCE_CONFLICT", "FAIL")
+            if code: checks.append({"questionCode": q, "code": code[0], "result": code[1]})
+            conf[q] = min(max(0, min(100, int(x["confidence"]))) * 100, cap[code[1] if code else None])
+            if q not in must: must.append(q)
+        got = {"checks": checks, "confidenceBp": conf, "mustConfirm": must}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 def run_payment_run(d):  # BR-PAY-02 ถึง BR-PAY-07 BR-PAY-12 · คำนวณอิสระด้วยจำนวนเต็มสตางค์ (S9-02)
     cal, pol, out = d["calendar"], d["policy"], []
     names = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
@@ -2803,6 +2828,7 @@ RUNNERS = {
     "ai-intake-channel": run_ai_intake_channel,
     "ai-quotation-map": run_ai_quotation_map,
     "ai-rfx-draft": run_ai_rfx_draft,
+    "ai-risk-verify": run_ai_risk_verify,
     "ai-supplier-verify": run_ai_supplier_verify,
     "ai-text": run_ai_text,
     "ai-verify": run_ai_verify,

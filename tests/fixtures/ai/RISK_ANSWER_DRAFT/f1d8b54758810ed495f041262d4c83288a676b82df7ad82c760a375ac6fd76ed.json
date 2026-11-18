@@ -1,0 +1,36 @@
+{
+  "promptVersion": "RISK_ANSWER_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "answers": [
+      {
+        "questionCode": "RQ-IS-02",
+        "optionCode": "Y",
+        "sourceRef": "F1",
+        "quote": "ผู้ใช้ทุกคนที่เข้าระบบของลูกค้าต้องยืนยันตัวตนหลายขั้นตอน (MFA) ทุกครั้ง ไม่มีข้อยกเว้น",
+        "confidence": 95
+      },
+      {
+        "questionCode": "RQ-IS-03",
+        "optionCode": "Y",
+        "sourceRef": "F1",
+        "quote": "บริษัทมีแผนรับมือเหตุการณ์ด้านความปลอดภัยที่ซ้อมปีละ 2 ครั้ง และแจ้งลูกค้าที่ได้รับผลกระทบภายใน 24 ชั่วโมงนับจากตรวจพบ",
+        "confidence": 85
+      },
+      {
+        "questionCode": "RQ-IS-01",
+        "optionCode": "N",
+        "sourceRef": "F1",
+        "quote": "บริษัทอยู่ระหว่างจัดทำระบบเพื่อขอรับรอง ISO/IEC 27001 คาดว่าจะยื่นตรวจในปี 2570 ปัจจุบันยังไม่ได้รับใบรับรอง",
+        "confidence": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 2641,
+    "output": 1329,
+    "cacheRead": 1109,
+    "cacheWrite": 0
+  }
+}

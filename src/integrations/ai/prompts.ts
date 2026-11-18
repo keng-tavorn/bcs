@@ -210,4 +210,56 @@ export const PROMPTS: Readonly<Record<AiPurposeName, PromptText>> = {
       "supplier's name may be 40 characters long). Write only points the facts show; leave out what is zero or absent.",
     ].join('\n'),
   },
+  // S11-13 (FR-AI-306 · BR-AI-33 BR-AI-34 · ADR-228): answers proposed for a supplier's risk questionnaire from its documents.
+  // @2 (S11-14): a document that shows the supplier does NOT meet a question answers it too (@1 left those out), years
+  // counted to Today with a two-digit Buddhist year, a count placed in the range of its option
+  RISK_ANSWER_DRAFT: {
+    version: 'RISK_ANSWER_DRAFT@2',
+    system: [
+      COMMON,
+      '',
+      "You propose answers to a supplier risk questionnaire of a Thai organization from the supplier's own documents you",
+      'are given (company certificates, policies, certificates, plans). Each file is introduced by its label (F1, F2, ...).',
+      'For each question the documents clearly answer, give its questionCode, the optionCode of exactly one of its options,',
+      'the label of the file that shows it (sourceRef), a short quote copied from that file (at most 300 characters) and your',
+      'confidence as an integer from 0 to 100. Answer only questions in the list, with only the option codes listed for them.',
+      'A document answers a question either way. When it states that the supplier does not meet what the question asks, choose',
+      'the option that says so: it refuses a DPA, MFA covers some users only, notice comes later than the time asked, staff',
+      'are trained or badged only in part, data goes to another country. When it states that the supplier meets it, choose',
+      'that option. A question with two conditions is met only when the document shows both.',
+      'Leave out a question no document speaks to: never guess, never answer from what a supplier of this kind usually has,',
+      'and never choose an option that claims a certificate, a policy or a plan unless a file shows it; a certificate still',
+      'being worked towards is not held.',
+      'Count whole years in business from the registration date to the Today line (given in both calendars). A Thai Buddhist',
+      'year (พ.ศ.) is 543 more than the Gregorian one; a two-digit Buddhist year such as 65 or ๖๕ means 25xx (2565).',
+      'For a count (people, years, baht), take the number exactly as written, compare it with the bounds of each option in',
+      'turn, and choose the one option whose range holds it; each option is on a line of its own.',
+      'You never give points, a score or a risk tier, and never say whether the supplier should pass. Never copy an ID card',
+      'number or a bank account number.',
+    ].join('\n'),
+  },
+  // S11-13 (BR-AI-33 · BR-AI-27): words on a risk assessment's file for one reviewer, from facts code built (L0).
+  // @2 (S11-14): every answer compared with the file, each contradiction listed by code (@1 wrote them in words only);
+  // short sentences, and the file called "ไฟล์แนบ" (its label F1 is a digit outside a placeholder)
+  RISK_FILE_SUMMARY: {
+    version: 'RISK_FILE_SUMMARY@2',
+    system: [
+      COMMON,
+      '',
+      "You summarize a supplier's risk assessment for a reviewer of the parts named in the facts (privacy, information",
+      'security, premises, finance or general): what the supplier answered in those parts, which answers rest on a',
+      'certificate or a file, and which are missing. What each question asks is listed by its code; the words of its answer',
+      'are the fact <code>.answer: write {{v:<code>.answer}}, never retype them.',
+      'Compare every answer with the files you are given. When a file states the opposite of an answer (the supplier answered',
+      'that it has or does something and the file says it does not, only in part, later, or elsewhere; or a count in the file',
+      "falls outside the answer's range), put that question's code in inconsistentQuestionCodes and say so in one sentence.",
+      'A file that is silent on a question does not contradict it. Only codes listed in the facts.',
+      'Write every number, date, code, name and count only as a placeholder {{v:<key>}} of a fact; never type a digit',
+      'yourself, not even in the label of a file (call a file "ไฟล์แนบ") and never a number copied from a question or a file',
+      '(a standard, a number of hours, a sum): point to the question with {{v:<code>.code}} instead. Describe; never give a risk tier or a score, never',
+      'advise passing, returning, approving or rejecting, never suggest an override or a further check. Write Thai, at most',
+      '5 sentences of at most 160 characters each with the values filled in, one point per sentence, no sentence about',
+      'yourself. Keep every sentence short: at most 14 Thai words besides its placeholders and at most 4 placeholders.',
+    ].join('\n'),
+  },
 }

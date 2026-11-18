@@ -1,0 +1,22 @@
+{
+  "promptVersion": "RISK_ANSWER_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "answers": [
+      {
+        "questionCode": "RQ-PRM-01",
+        "optionCode": "Y",
+        "sourceRef": "F1",
+        "quote": "พนักงานทุกคนต้องผ่านการอบรมความปลอดภัยในการทำงาน หลักสูตร 6 ชั่วโมง ก่อนเข้าพื้นที่ของลูกค้าครั้งแรก",
+        "confidence": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 2611,
+    "output": 486,
+    "cacheRead": 1109,
+    "cacheWrite": 0
+  }
+}

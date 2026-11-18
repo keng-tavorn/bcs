@@ -179,10 +179,11 @@ export interface RiskDraftContext {
 /** The data the Risk Agent reads beside the files: the questions it may answer and what each file is */
 export function riskDraftInputText(c: RiskDraftContext): string {
   return [
-    `Today: ${c.today}`,
+    `Today: ${c.today} (พ.ศ. ${Number(c.today.slice(0, 4)) + 543})`,
     '',
-    'Questions you may answer (code: question — option codes):',
-    ...c.questions.map((q) => `${q.code}: ${q.text} — ${q.options.map((o) => `${o.code} = ${o.label}`).join(' · ')}`),
+    // one option a line: a label holding a number with a thousands comma read as two options on one line (S11-14)
+    'Questions you may answer (code: question, then its options as code = words):',
+    ...c.questions.flatMap((q) => [`${q.code}: ${q.text}`, ...q.options.map((o) => `  ${o.code} = ${o.label}`)]),
     '',
     'Files, in the order given:',
     ...c.files.map((f) => `${f.label}: ${f.kind}`),
@@ -194,8 +195,16 @@ export const RiskSummaryText = z.strictObject({ sentences: z.array(z.string()), 
 export type RiskSummaryText = z.infer<typeof RiskSummaryText>
 
 /** The facts of a reviewer's part of an assessment: the summary writes placeholders of these keys, never the values */
-export function riskSummaryInputText(facts: Readonly<Record<string, string | number | boolean>>, files: readonly { readonly label: string; readonly kind: string }[]): string {
+export function riskSummaryInputText(
+  facts: Readonly<Record<string, string | number | boolean>>,
+  questions: readonly { readonly code: string; readonly text: string }[],
+  files: readonly { readonly label: string; readonly kind: string }[],
+): string {
   return [
+    // what each code asks: the answers alone (มี · ไม่ใช่) cannot be compared with a file (S11-14)
+    'Questions of this part (code: question):',
+    ...questions.map((q) => `${q.code}: ${q.text}`),
+    '',
     'Facts of the risk assessment for this reviewer (key = value):',
     ...Object.entries(facts).map(([k, v]) => `${k} = ${String(v)}`),
     ...(files.length ? ['', 'Files, in the order given:', ...files.map((f) => `${f.label}: ${f.kind}`)] : []),

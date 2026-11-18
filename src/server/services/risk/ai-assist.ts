@@ -239,6 +239,7 @@ export async function riskSummarySource(tx: TenantTx, ctx: Ctx, taskId: string, 
     return {
       code: q.code,
       domain: q.domain,
+      text: stored.get(q.code)!.textTh,
       answer: answer ? option?.labelTh || answer.optionCode : null,
       source: answer ? answer.source : null,
       files: answer ? (links.find((l) => l.subjectId === answer.id)?._count._all ?? 0) : 0,

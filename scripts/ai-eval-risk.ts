@@ -2,13 +2,13 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { parse } from 'yaml'
 import { z } from 'zod'
-import { checkAiText, type RiskDraftQuestion } from '../../src/core/ai-checks'
-import { isValidThaiTaxId } from '../../src/core/thai/taxid'
-import { DECISION_ADVICE_WORDS, EVAL_THRESHOLDS_BP, RISK_PROFILE } from '../../src/lib/ai-config'
-import { riskDraftInputText, type RiskAnswerDraft, type RiskSummaryText } from '../../src/lib/ai-schemas/agents'
-import { proposedRiskAnswers, riskSummaryRequestText } from '../../src/server/services/ai/agents/risk-calls'
-import { riskFacts, type RiskFacts, type RiskSummaryQuestion } from '../../src/server/services/risk/ai-facts'
-import { ROOT } from './ai-eval-cases'
+import { checkAiText, type RiskDraftQuestion } from '../src/core/ai-checks'
+import { isValidThaiTaxId } from '../src/core/thai/taxid'
+import { DECISION_ADVICE_WORDS, EVAL_THRESHOLDS_BP, RISK_PROFILE } from '../src/lib/ai-config'
+import { riskDraftInputText, type RiskAnswerDraft, type RiskSummaryText } from '../src/lib/ai-schemas/agents'
+import { proposedRiskAnswers, riskSummaryRequestText } from '../src/server/services/ai/agents/risk-calls'
+import { riskFacts, type RiskFacts, type RiskSummaryQuestion } from '../src/server/services/risk/ai-facts'
+import { ROOT } from './lib/ai-eval-cases'
 
 // The evaluation set of the Risk Agent, demo tier (S11-14 · FR-AI-306 AC5 · BR-AI-34 · ADR-146): the cases of
 // tests/fixtures/ai-docs/risk/cases.yaml, one shape for the file generator (scripts/ai-docs-risk.ts), the evaluation
@@ -137,11 +137,11 @@ export function riskSummaryCall(c: RiskCase): { facts: RiskFacts; text: string; 
   const evidenceOf = c.file.kind === 'EVIDENCE' ? c.file.question : null
   const questions: RiskSummaryQuestion[] = RISK_QUESTIONS.filter((q) => q.domain === 'GENERAL' || q.domain === review.domain).map((q) => {
     const option = review.answers[q.code]
-    return { code: q.code, domain: q.domain, answer: option ? optionOf(q.code, option)!.labelTh : null, source: option ? 'EXPLICIT' : null, files: option && q.code === evidenceOf ? 1 : 0 }
+    return { code: q.code, domain: q.domain, text: q.textTh, answer: option ? optionOf(q.code, option)!.labelTh : null, source: option ? 'EXPLICIT' : null, files: option && q.code === evidenceOf ? 1 : 0 }
   })
   const n = Number(c.id.slice(3))
   const facts = riskFacts({ number: `RA-2569-${String(n).padStart(5, '0')}`, supplierCode: `SP09${String(n).padStart(2, '0')}`, questions })
-  return { facts, text: riskSummaryRequestText(facts, [{ label: 'F1', about: riskFileAbout(c) }]), answered: questions.filter((q) => q.answer !== null).map((q) => q.code) }
+  return { facts, text: riskSummaryRequestText(facts, questions, [{ label: 'F1', about: riskFileAbout(c) }]), answered: questions.filter((q) => q.answer !== null).map((q) => q.code) }
 }
 
 export interface RiskSummaryScore {

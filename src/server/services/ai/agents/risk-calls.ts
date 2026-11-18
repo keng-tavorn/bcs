@@ -1,6 +1,6 @@
 import { checkRiskDraft, renderValue, type RiskDraftQuestion, type RiskDraftVerdict } from '@/core/ai-checks'
 import { riskSummaryInputText, type RiskAnswerDraft } from '@/lib/ai-schemas/agents'
-import type { RiskFacts } from '../../risk/ai-facts'
+import type { RiskFacts, RiskSummaryQuestion } from '../../risk/ai-facts'
 import { asDataValues } from '../data'
 
 // What the Risk Agent sends and what it keeps of an answer (S11-13 · BR-AI-27 · BR-AI-33), by code and without the
@@ -30,6 +30,10 @@ export function proposedRiskAnswers(input: {
   return { answers, verdict, proposed }
 }
 
-/** The facts as the page shows them, each value redacted (BR-AI-18), and what each file given is */
-export const riskSummaryRequestText = (facts: RiskFacts, files: readonly { readonly label: string; readonly about: string }[]): string =>
-  riskSummaryInputText(asDataValues(Object.fromEntries(Object.entries(facts).map(([k, v]) => [k, renderValue(v)]))), files.map((f) => ({ label: f.label, kind: f.about })))
+/** The questions of the slot by their words, the facts as the page shows them, each value redacted (BR-AI-18), and what each file given is */
+export const riskSummaryRequestText = (facts: RiskFacts, questions: readonly Pick<RiskSummaryQuestion, 'code' | 'text'>[], files: readonly { readonly label: string; readonly about: string }[]): string =>
+  riskSummaryInputText(
+    asDataValues(Object.fromEntries(Object.entries(facts).map(([k, v]) => [k, renderValue(v)]))),
+    questions.map((q) => ({ code: q.code, text: q.text })),
+    files.map((f) => ({ label: f.label, kind: f.about })),
+  )

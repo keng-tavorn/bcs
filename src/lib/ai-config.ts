@@ -52,8 +52,8 @@ export const PROMPT_VERSIONS: Readonly<Record<AiPurposeName, string>> = {
   RFX_DRAFT: 'RFX_DRAFT@2',
   BID_SUMMARY: 'BID_SUMMARY@1',
   NEGOTIATION_POINTS: 'NEGOTIATION_POINTS@2',
-  RISK_ANSWER_DRAFT: 'RISK_ANSWER_DRAFT@1',
-  RISK_FILE_SUMMARY: 'RISK_FILE_SUMMARY@1',
+  RISK_ANSWER_DRAFT: 'RISK_ANSWER_DRAFT@2',
+  RISK_FILE_SUMMARY: 'RISK_FILE_SUMMARY@2',
 }
 
 export const AI_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] as const
@@ -73,9 +73,9 @@ const DEFAULT_MODEL: Readonly<Record<AiAgentName, AiModelId>> = {
   // TODO(OQ-209): S10-19 (OQ-145's way · docs/reports/ai-eval/sourcing-2026-11-12.md): Haiku passed the 10 synthetic RFx
   // on all three purposes once the draft stopped stating counts (RFX_DRAFT@2) and the points kept short (NEGOTIATION_POINTS@2)
   SOURCING: 'claude-haiku-5-5',
-  // TODO(OQ-145): S11-14 measures it on the 10 synthetic policies (ADR-146); Sonnet reads documents as the Supplier
-  // Onboarding Agent does until then
-  RISK: 'claude-sonnet-5-5',
+  // TODO(OQ-145): S11-14 (OQ-145's way · docs/reports/ai-eval/risk-2026-11-18.md): Haiku proposed the answers of the 10
+  // synthetic papers at every floor of BR-AI-34 twice; the summary is Sonnet's (DEFAULT_MODEL_OF_PURPOSE)
+  RISK: 'claude-haiku-5-5',
 }
 
 /** The .env variable that overrides one agent's model (spec Appendix B) */
@@ -93,6 +93,8 @@ export const MODEL_ENV_OF_AGENT: Readonly<Record<AiAgentName, string>> = {
 /** A purpose whose evaluation passed only on another model than its agent's (S13-14: Sonnet misread a blurred invoice) */
 const DEFAULT_MODEL_OF_PURPOSE: Readonly<Partial<Record<AiPurposeName, AiModelId>>> = {
   INVOICE_READ: 'claude-opus-5-5',
+  // S11-14: Haiku typed a number of the file into one summary in two runs of eight (ai-text has no room for one); Sonnet none
+  RISK_FILE_SUMMARY: 'claude-sonnet-5-5',
 }
 
 /**
@@ -201,13 +203,16 @@ export const EVAL_GATES: readonly EvalGate[] = [
   { agent: 'SOURCING', purpose: 'RFX_DRAFT', promptVersion: 'RFX_DRAFT@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: 'sourcing-2026-11-12.md' },
   { agent: 'SOURCING', purpose: 'BID_SUMMARY', promptVersion: 'BID_SUMMARY@1', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: 'sourcing-2026-11-12.md' },
   { agent: 'SOURCING', purpose: 'NEGOTIATION_POINTS', promptVersion: 'NEGOTIATION_POINTS@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: 'sourcing-2026-11-12.md' },
+  // S11-14 (FR-AI-306 AC5 · BR-AI-34): the 10 synthetic papers and certificates, every floor (the real tier waits for S11-20)
+  { agent: 'RISK', purpose: 'RISK_ANSWER_DRAFT', promptVersion: 'RISK_ANSWER_DRAFT@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: 'risk-2026-11-18.md' },
+  { agent: 'RISK', purpose: 'RISK_FILE_SUMMARY', promptVersion: 'RISK_FILE_SUMMARY@2', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: 'risk-2026-11-18.md' },
 ]
 
 /**
  * Purposes whose evaluation has not run yet, so no gate passes them: live mode refuses them (AI_NOT_EVALUATED) and only
- * fixture mode answers. The Risk Agent's two until the synthetic policies of S11-14 pass (OQ-228 · ADR-146).
+ * fixture mode answers. None since S11-14 gated the Risk Agent's two (a new purpose waits here for its set).
  */
-export const AWAITING_EVALUATION: readonly AiPurposeName[] = ['RISK_ANSWER_DRAFT', 'RISK_FILE_SUMMARY']
+export const AWAITING_EVALUATION: readonly AiPurposeName[] = []
 
 /** The tier an environment needs: production only trusts a REAL evaluation (BR-AI-11) */
 export const requiredGateTier = (appEnv: string): GateTier => (appEnv === 'production' ? 'REAL' : 'SYNTHETIC')

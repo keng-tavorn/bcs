@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { chromium } from '@playwright/test'
 import { ROOT } from './lib/ai-eval-cases'
-import { loadRiskCases, RISK_DOCS_DIR, type RiskCase } from './lib/ai-eval-risk'
+import { loadRiskCases, RISK_DOCS_DIR, type RiskCase } from './ai-eval-risk'
 
 // `pnpm exec tsx scripts/ai-docs-risk.ts` (S11-14 · ADR-146): draws the 10 documents of the Risk Agent's evaluation set
 // from tests/fixtures/ai-docs/risk/cases.yaml as the file a supplier sends — a typed A4 PDF, a grey scan or a photo of a

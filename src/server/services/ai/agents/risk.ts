@@ -163,7 +163,7 @@ export async function writeRiskSummary(organizationId: string, taskId: string, n
   const finish = finishAs(organizationId, now, promptVersion, agentActionId, model)
   const facts = riskFacts(source)
   const bytes = await Promise.all(files.map((f) => readObject(f.storageKey)))
-  const call = { purpose: SUMMARY, model, schema: RiskSummaryText, text: riskSummaryRequestText(facts, files) }
+  const call = { purpose: SUMMARY, model, schema: RiskSummaryText, text: riskSummaryRequestText(facts, source.questions, files) }
   const answer = files.length ? await getAiClient(getEnv()).extract({ ...call, files: files.map((f, i) => ({ bytes: bytes[i]!, mediaType: f.mimeType as AiFileMediaType })) }) : await getAiClient(getEnv()).write(call)
   if (!answer.ok) {
     const r = await finish({ outcome: 'FAILED', model: answer.model ?? null, errorCode: answer.errorCode, usage: answer.usage, latencyMs: answer.latencyMs })

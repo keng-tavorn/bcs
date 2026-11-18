@@ -6,6 +6,8 @@ import type { TextValue } from '@/core/ai-checks'
 export interface RiskSummaryQuestion {
   readonly code: string
   readonly domain: string
+  /** The question's words (sent with the facts so the summary knows what each answer answers; never a fact) */
+  readonly text: string
   /** The words of the option chosen, or null when unanswered */
   readonly answer: string | null
   readonly source: 'EXPLICIT' | 'EVIDENCE' | 'ON_BEHALF' | null

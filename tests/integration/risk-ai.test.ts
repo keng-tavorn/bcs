@@ -162,10 +162,10 @@ describe('[FR-AI-306/AC1] [BR-AI-34] the agent reads only what BR-AI-34 lets it,
     expect(await riskAiDraftRun(opened(s.assessmentId), step)).toBe('DRAFTED')
     expect(sent).toHaveLength(1)
     expect(sent[0]!.files).toEqual([expect.stringContaining('company certificate founded 2012')])
-    expect(sent[0]!.text).toContain('RQ-GEN-01: ข้อ RQ-GEN-01 — A = ไม่น้อยกว่า 5 ปี')
+    expect(sent[0]!.text).toContain('RQ-GEN-01: ข้อ RQ-GEN-01\n  A = ไม่น้อยกว่า 5 ปี\n')
     expect(sent[0]!.text).toContain('F1: COMPANY_CERT')
     // years in business count to today in Bangkok (S11-14: the model counted to a year of its own)
-    expect(sent[0]!.text.split('\n', 1)[0]).toMatch(/^Today: \d{4}-\d{2}-\d{2}$/)
+    expect(sent[0]!.text.split('\n', 1)[0]).toMatch(/^Today: \d{4}-\d{2}-\d{2} \(พ\.ศ\. \d{4}\)$/)
     expect(sent[0]!.text).not.toMatch(/ID_CARD|ISO_CERT/)
     const [draft] = await draftsOf(s.assessmentId)
     expect(draft).toMatchObject({ agent: 'RISK', level: 'L1', status: 'DRAFT', requestedByContactId: s.contactId, requestedById: null, appliedAt: null })
@@ -316,6 +316,8 @@ describe('[FR-AI-306/AC3] [BR-AI-27] a reviewer reads a summary of the slot\'s o
     const run = { data: { organizationId: org.organizationId, aggregateId: s.task.id } }
     expect(await riskAiSummaryRun(run, step)).toBe('WRITTEN')
     expect(sent[0]!.text).toContain('RQ-IS-02.answer = มี')
+    // what each question of the slot asks, so an answer can be compared with a file (S11-14); words only, never a fact
+    expect(sent[0]!.text).toMatch(/^Questions of this part \(code: question\):\nRQ-GEN-01: ข้อ RQ-GEN-01\n/)
     expect(sent[0]!.text).not.toContain('RQ-PRV-02')
     expect(await riskAiSummaryRun(run, step)).toBe('SKIPPED_WRITTEN')
     const summary = await riskSummaryOf(as('dm_it'), s.task.id)

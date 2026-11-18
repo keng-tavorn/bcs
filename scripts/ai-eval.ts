@@ -14,7 +14,7 @@ import { loadAgentCases, type AgentCases } from './lib/ai-eval-agents'
 import { AI_ANSWERS_DIR, AI_DOCS_DIR, loadEvalDocuments, ROOT, truthReading, type EvalDocument } from './lib/ai-eval-cases'
 import { loadSavingsCases, type SavingsCase } from './ai-eval-savings'
 import { draftHeadFilled, englishDescriptionCorrect, englishUnitCorrect, inventedNumbers, loadSourcingCases, scoreSummary, SOURCING_FLOORS, truthDraft, truthSummary, type SourcingCase } from './ai-eval-sourcing'
-import { loadRiskCases, RISK_DOCS_DIR, RISK_FLOORS, riskDraftText, riskSummaryCall, riskTruthDraft, riskTruthSummary, scoreRiskDraft, scoreRiskSummary, type RiskCase } from './lib/ai-eval-risk'
+import { loadRiskCases, RISK_DOCS_DIR, RISK_FLOORS, riskDraftText, riskSummaryCall, riskTruthDraft, riskTruthSummary, scoreRiskDraft, scoreRiskSummary, type RiskCase } from './ai-eval-risk'
 import { loadSupplierCases, SUPPLIER_DOCS_DIR, SUPPLIER_EVAL_FIELDS, supplierConfidenceOf, supplierFieldCorrect, supplierTruthReading, type SupplierCase } from './lib/ai-eval-supplier'
 
 // `pnpm ai:eval` — the evaluation set of §12.4, demo tier (S13-05, BR-AI-26, OQ-141, ADR-143 ADR-146):
@@ -328,7 +328,7 @@ const riskFile = (c: { id: string }, manifest: SupplierManifest): AiFile => {
 
 /**
  * S11-14 (FR-AI-306 AC5 · BR-AI-34): each synthetic paper or certificate read by the Risk Agent with the 12 questions of
- * the draft set (RISK_ANSWER_DRAFT), scored on what the form proposes (scripts/lib/ai-eval-risk.ts): the option of each
+ * the draft set (RISK_ANSWER_DRAFT), scored on what the form proposes (scripts/ai-eval-risk.ts): the option of each
  * question the document answers, and no answer to a question it does not; each paper summarized for the reviewer of its
  * domain (RISK_FILE_SUMMARY): the text through ai-text, no advice, and the questions the paper contradicts
  */
@@ -343,7 +343,7 @@ async function evalRisk(run: Run, client: AiClient, model: (a: AiAgentName, p?: 
       else {
         const s = scoreRiskDraft(c, r.output.answers)
         for (const x of s.optionCode) {
-          if (args.showWrong && !x.ok) console.error(`wrong ${c.id} ${x.code}: expected ${c.expect[x.code]} proposed ${x.got ?? 'nothing'}`)
+          if (args.showWrong && !x.ok) console.error(`wrong ${c.id} ${x.code}: expected ${c.expect[x.code]} proposed ${x.got ?? 'nothing'} ${JSON.stringify(r.output.answers.find((a) => a.questionCode === x.code) ?? null)}`)
           tally('RISK_ANSWER_DRAFT', 'optionCode', x.ok)
         }
         for (const x of s.noFalsePositive) {

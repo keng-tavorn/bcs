@@ -30,7 +30,9 @@ jobs:
       # The checks run like a developer machine: local services only, never a shared database (§4.12)
       APP_ENV: local
       CI: "true"
-      # tsc and next build of this codebase need more than Node's default heap on the runner (exit 134 otherwise)
+      # The other Node tools need more than Node's default heap on the runner. tsc and next build need about 4.8 GB
+      # (S11-27) and take 8 GB of their own whatever this says: `pnpm typecheck` passes the flag on the command line
+      # (package.json) and `pnpm build` rewrites NODE_OPTIONS for Next's type-check worker (scripts/build-app.mjs)
       NODE_OPTIONS: --max-old-space-size=4096
     steps:
       - uses: actions/checkout@v4

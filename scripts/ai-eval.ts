@@ -6,7 +6,7 @@ import { checkAiText, creditsForCall, fieldScore, matchField, normalizeAnswer, n
 import { amountToSatang } from '../src/core/money/dto'
 import { createFixtureClient, createLiveClient, fixtureKey, type AiCallResult, type AiClient, type AiFile, type AiRequest, type FixtureAnswer } from '../src/integrations/ai'
 import { AGENT_OF_PURPOSE, BRIEF_PROFILE, DECISION_ADVICE_WORDS, EVAL_THRESHOLDS_BP, modelFor, priceOf, PROMPT_VERSIONS, type AiAgentName, type AiPurposeName } from '../src/lib/ai-config'
-import { BriefText, DoaDraft, IntakeDraft, QuestionPlan, RfxDraftText } from '../src/lib/ai-schemas/agents'
+import { BriefText, DoaDraft, IntakeDraft, QuestionPlan, RfxDraftText, RiskAnswerDraft, RiskSummaryText } from '../src/lib/ai-schemas/agents'
 import { DocumentReading, isCriticalField } from '../src/lib/ai-schemas/document'
 import { SupplierDocumentReading } from '../src/lib/ai-schemas/supplier-document'
 import { companyNameKey } from '../src/core/thai/company-name'
@@ -14,10 +14,11 @@ import { loadAgentCases, type AgentCases } from './lib/ai-eval-agents'
 import { AI_ANSWERS_DIR, AI_DOCS_DIR, loadEvalDocuments, ROOT, truthReading, type EvalDocument } from './lib/ai-eval-cases'
 import { loadSavingsCases, type SavingsCase } from './ai-eval-savings'
 import { draftHeadFilled, englishDescriptionCorrect, englishUnitCorrect, inventedNumbers, loadSourcingCases, scoreSummary, SOURCING_FLOORS, truthDraft, truthSummary, type SourcingCase } from './ai-eval-sourcing'
+import { loadRiskCases, RISK_DOCS_DIR, RISK_FLOORS, riskDraftText, riskSummaryCall, riskTruthDraft, riskTruthSummary, scoreRiskDraft, scoreRiskSummary, type RiskCase } from './ai-eval-risk'
 import { loadSupplierCases, SUPPLIER_DOCS_DIR, SUPPLIER_EVAL_FIELDS, supplierConfidenceOf, supplierFieldCorrect, supplierTruthReading, type SupplierCase } from './lib/ai-eval-supplier'
 
 // `pnpm ai:eval` — the evaluation set of §12.4, demo tier (S13-05, BR-AI-26, OQ-141, ADR-143 ADR-146):
-//   pnpm ai:eval [--agent document|intake|brief|insight|doa|supplier|sourcing] [--purpose <purpose>] [--live] [--model <id>] [--record]
+//   pnpm ai:eval [--agent document|intake|brief|insight|doa|supplier|sourcing|risk] [--purpose <purpose>] [--live] [--model <id>] [--record]
 //                [--limit <n>] [--only <id,id>] [--save-answers] [--show-wrong]
 // Without --live it plays the recorded answers of tests/fixtures/ai (no key, no cost) to test the scoring; --live calls
 // Claude with ANTHROPIC_API_KEY from .env and costs money (S13-13 S13-14). --record writes the report under
@@ -26,7 +27,7 @@ import { loadSupplierCases, SUPPLIER_DOCS_DIR, SUPPLIER_EVAL_FIELDS, supplierCon
 // --live) keeps what Claude really answered as the recorded answers instead (S13-13 S13-14). --limit <n> runs only the
 // first n cases of each group, to try a key or a prompt cheaply; a limited run never passes.
 
-const AGENT_FLAG: Readonly<Record<string, AiAgentName>> = { document: 'DOCUMENT', intake: 'INTAKE', brief: 'APPROVAL_BRIEF', insight: 'INSIGHT', doa: 'DOA_DRAFTER', supplier: 'SUPPLIER_ONBOARDING', sourcing: 'SOURCING' }
+const AGENT_FLAG: Readonly<Record<string, AiAgentName>> = { document: 'DOCUMENT', intake: 'INTAKE', brief: 'APPROVAL_BRIEF', insight: 'INSIGHT', doa: 'DOA_DRAFTER', supplier: 'SUPPLIER_ONBOARDING', sourcing: 'SOURCING', risk: 'RISK' }
 
 interface Args {
   agents: AiAgentName[]
@@ -318,6 +319,55 @@ async function evalSourcing(run: Run, client: AiClient, model: (a: AiAgentName, 
   }
 }
 
+/** A document of the S11-14 set, as the file the Risk Agent reads */
+const riskFile = (c: { id: string }, manifest: SupplierManifest): AiFile => {
+  const m = manifest.get(c.id)
+  if (!m) throw new Error(`${c.id} has no file: run pnpm exec tsx scripts/ai-docs-risk.ts`)
+  return { bytes: readFileSync(path.join(RISK_DOCS_DIR, m.file)), mediaType: m.mediaType as AiFile['mediaType'] }
+}
+
+/**
+ * S11-14 (FR-AI-306 AC5 · BR-AI-34): each synthetic paper or certificate read by the Risk Agent with the 12 questions of
+ * the draft set (RISK_ANSWER_DRAFT), scored on what the form proposes (scripts/ai-eval-risk.ts): the option of each
+ * question the document answers, and no answer to a question it does not; each paper summarized for the reviewer of its
+ * domain (RISK_FILE_SUMMARY): the text through ai-text, no advice, and the questions the paper contradicts
+ */
+async function evalRisk(run: Run, client: AiClient, model: (a: AiAgentName, p?: AiPurposeName) => string, risk: { today: string; cases: readonly RiskCase[] }, args: Args, manifest: SupplierManifest) {
+  const wants = (p: AiPurposeName) => !args.purpose || args.purpose === p
+  const tally = (purpose: AiPurposeName, field: keyof typeof RISK_FLOORS, ok: boolean) => run.tally.add('RISK', purpose, 'RISK', field, ok, { threshold: RISK_FLOORS[field], critical: RISK_FLOORS[field] === 10_000 })
+  for (const c of first(risk.cases, args.limit)) {
+    const files = [riskFile(c, manifest)]
+    if (wants('RISK_ANSWER_DRAFT')) {
+      const r = await client.extract({ purpose: 'RISK_ANSWER_DRAFT', model: model('RISK', 'RISK_ANSWER_DRAFT'), schema: RiskAnswerDraft, text: riskDraftText(c, risk.today), files })
+      if (!r.ok) run.failures.push(`${c.id} RISK_ANSWER_DRAFT ${r.errorCode}`)
+      else {
+        const s = scoreRiskDraft(c, r.output.answers)
+        for (const x of s.optionCode) {
+          if (args.showWrong && !x.ok) console.error(`wrong ${c.id} ${x.code}: expected ${c.expect[x.code]} proposed ${x.got ?? 'nothing'} ${JSON.stringify(r.output.answers.find((a) => a.questionCode === x.code) ?? null)}`)
+          tally('RISK_ANSWER_DRAFT', 'optionCode', x.ok)
+        }
+        for (const x of s.noFalsePositive) {
+          if (args.showWrong && !x.ok) console.error(`false positive ${c.id} ${x.code}: proposed ${x.got} ${JSON.stringify(r.output.answers.find((a) => a.questionCode === x.code)?.quote ?? '')}`)
+          tally('RISK_ANSWER_DRAFT', 'noFalsePositive', x.ok)
+        }
+      }
+    }
+    if (c.review && wants('RISK_FILE_SUMMARY')) {
+      const r = await client.extract({ purpose: 'RISK_FILE_SUMMARY', model: model('RISK', 'RISK_FILE_SUMMARY'), schema: RiskSummaryText, text: riskSummaryCall(c).text, files })
+      if (!r.ok) {
+        run.failures.push(`${c.id} RISK_FILE_SUMMARY ${r.errorCode}`)
+        continue
+      }
+      const s = scoreRiskSummary(c, r.output)
+      const missed = s.inconsistent.filter((x) => !x.ok).map((x) => x.code)
+      if (args.showWrong && (!s.text || !s.noAdvice || missed.length)) console.error(`wrong ${c.id} RISK_FILE_SUMMARY${s.reason ? ` (${s.reason})` : ''}${missed.length ? ` inconsistent ${missed.join(',')} listed ${r.output.inconsistentQuestionCodes.join(',')}` : ''}: ${JSON.stringify(r.output.sentences)}`)
+      tally('RISK_FILE_SUMMARY', 'text', s.text)
+      tally('RISK_FILE_SUMMARY', 'noDecisionAdvice', s.noAdvice)
+      for (const x of s.inconsistent) tally('RISK_FILE_SUMMARY', 'inconsistent', x.ok)
+    }
+  }
+}
+
 /** The supplier's name as the Intake Agent matches it to the register (intake.ts: its legal form, case and spaces aside) */
 const sameName = (a: string | null, b: string) => a !== null && companyNameKey(a) === companyNameKey(b)
 
@@ -463,7 +513,9 @@ function report(metrics: readonly Metric[], run: Run, args: Args, models: Record
   return `${lines.join('\n')}\n`
 }
 
-async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, savings: readonly SavingsCase[], manifest: Map<string, { file: string; mediaType: string }>, supplier: { cases: readonly SupplierCase[]; manifest: SupplierManifest }, sourcing: readonly SourcingCase[]) {
+async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, savings: readonly SavingsCase[], manifest: Map<string, { file: string; mediaType: string }>, supplier: { cases: readonly SupplierCase[]; manifest: SupplierManifest }, sourcing: readonly SourcingCase[], risk: { today: string; cases: readonly RiskCase[]; manifest: SupplierManifest }, agents: readonly AiAgentName[]) {
+  // only the agents asked for (--agent): the answers of the others may be ones Claude gave (LIVE), never written over
+  const wants = (a: AiAgentName) => agents.includes(a)
   const save = (purpose: AiPurposeName, key: string, output: unknown, model: string) => {
     const answer: FixtureAnswer & { recorded: string } = { promptVersion: PROMPT_VERSIONS[purpose], model, recorded: 'TRUTH', output, usage: { input: 1800, output: 420 } }
     const file = path.join(AI_ANSWERS_DIR, `${key}.json`)
@@ -471,8 +523,8 @@ async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, sa
     writeFileSync(file, `${JSON.stringify(answer, null, 2)}\n`)
   }
   const model = (a: AiAgentName, p?: AiPurposeName) => modelFor(a, {}, p)
-  for (const d of docs) save(d.purpose, fixtureKey({ purpose: d.purpose, files: [docFile(d, manifest)] }), truthReading(d), model('DOCUMENT', d.purpose))
-  for (const c of cases.intake) {
+  if (wants('DOCUMENT')) for (const d of docs) save(d.purpose, fixtureKey({ purpose: d.purpose, files: [docFile(d, manifest)] }), truthReading(d), model('DOCUMENT', d.purpose))
+  if (wants('INTAKE')) for (const c of cases.intake) {
     const files = c.fileOf ? [docFile({ id: c.fileOf }, manifest)] : []
     const l = c.expect.lines[0]!
     const output: z.infer<typeof IntakeDraft> = {
@@ -486,21 +538,26 @@ async function writeAnswers(docs: readonly EvalDocument[], cases: AgentCases, sa
     }
     save('INTAKE', fixtureKey({ purpose: 'INTAKE', text: c.text, files }), output, model('INTAKE'))
   }
-  for (const c of cases.brief) {
+  if (wants('APPROVAL_BRIEF')) for (const c of cases.brief) {
     const sentences = ['คำขอ {{v:request.number}} ยอด {{v:route.amountGross}} บาท เข้าข้อ {{v:route.rule}}', `เรื่องที่ต้องดูประกอบ {{v:${c.mustMention[0]}}}`]
     save('BRIEF', fixtureKey({ purpose: 'BRIEF', text: c.text }), { sentences }, model('APPROVAL_BRIEF'))
   }
-  for (const c of cases.questions) save('QUESTION', fixtureKey({ purpose: 'QUESTION', text: c.text }), { tools: c.tools, sentences: ['ผลอยู่ในตารางด้านล่าง'] }, model('INSIGHT'))
-  for (const c of savings) {
+  if (wants('INSIGHT')) for (const c of cases.questions) save('QUESTION', fixtureKey({ purpose: 'QUESTION', text: c.text }), { tools: c.tools, sentences: ['ผลอยู่ในตารางด้านล่าง'] }, model('INSIGHT'))
+  if (wants('INSIGHT')) for (const c of savings) {
     const sentences = [`พบเรื่องของ {{v:${Object.hasOwn(c.facts, 'description') ? 'description' : 'item'}}}`, `ยอดที่คำนวณได้ {{v:${c.mustMention}}} บาท`]
     save('SAVINGS_NOTE', fixtureKey({ purpose: 'SAVINGS_NOTE', text: c.text }), { sentences }, model('INSIGHT'))
   }
-  for (const c of supplier.cases) save('SUPPLIER_DOC_READ', fixtureKey({ purpose: 'SUPPLIER_DOC_READ', files: [supplierFile(c, supplier.manifest)] }), supplierTruthReading(c), model('SUPPLIER_ONBOARDING', 'SUPPLIER_DOC_READ'))
-  for (const c of sourcing) {
+  if (wants('SUPPLIER_ONBOARDING')) for (const c of supplier.cases) save('SUPPLIER_DOC_READ', fixtureKey({ purpose: 'SUPPLIER_DOC_READ', files: [supplierFile(c, supplier.manifest)] }), supplierTruthReading(c), model('SUPPLIER_ONBOARDING', 'SUPPLIER_DOC_READ'))
+  if (wants('SOURCING')) for (const c of sourcing) {
     save('RFX_DRAFT', fixtureKey({ purpose: 'RFX_DRAFT', text: c.draftText }), truthDraft(c), model('SOURCING', 'RFX_DRAFT'))
     for (const p of ['BID_SUMMARY', 'NEGOTIATION_POINTS'] as const) save(p, fixtureKey({ purpose: p, text: c.factsText }), { sentences: truthSummary(c) }, model('SOURCING', p))
   }
-  for (const c of cases.doa) {
+  if (wants('RISK')) for (const c of risk.cases) {
+    const files = [riskFile(c, risk.manifest)]
+    save('RISK_ANSWER_DRAFT', fixtureKey({ purpose: 'RISK_ANSWER_DRAFT', text: riskDraftText(c, risk.today), files }), riskTruthDraft(c), model('RISK', 'RISK_ANSWER_DRAFT'))
+    if (c.review) save('RISK_FILE_SUMMARY', fixtureKey({ purpose: 'RISK_FILE_SUMMARY', text: riskSummaryCall(c).text, files }), riskTruthSummary(c), model('RISK', 'RISK_FILE_SUMMARY'))
+  }
+  if (wants('DOA_DRAFTER')) for (const c of cases.doa) {
     save('DOA_DRAFT', fixtureKey({ purpose: 'DOA_DRAFT', text: c.text, files: [docFile({ id: c.id }, manifest)] }), { rules: c.rules }, model('DOA_DRAFTER'))
   }
 }
@@ -520,8 +577,14 @@ async function main() {
     (JSON.parse(readFileSync(path.join(SUPPLIER_DOCS_DIR, 'manifest.json'), 'utf8')) as { files: Array<{ id: string; file: string; mediaType: string }> }).files.map((f) => [f.id, f]),
   )
   const sourcingCases = loadSourcingCases()
+  const risk = {
+    ...loadRiskCases(),
+    manifest: new Map(
+      (JSON.parse(readFileSync(path.join(RISK_DOCS_DIR, 'manifest.json'), 'utf8')) as { files: Array<{ id: string; file: string; mediaType: string }> }).files.map((f) => [f.id, f]),
+    ) as SupplierManifest,
+  }
   if (args.writeAnswers) {
-    await writeAnswers(docs, cases, savings, manifest, { cases: supplierCases, manifest: supplierManifest }, sourcingCases)
+    await writeAnswers(docs, cases, savings, manifest, { cases: supplierCases, manifest: supplierManifest }, sourcingCases, risk, args.agents)
     console.log('ai:eval wrote the recorded answers of fixture mode from the truth of every case')
     return
   }
@@ -539,6 +602,7 @@ async function main() {
   await evalAgents(run, client, model, cases, savings, args, manifest)
   if (args.agents.includes('SUPPLIER_ONBOARDING')) await evalSupplier(run, client, model, supplierCases, args, supplierManifest)
   if (args.agents.includes('SOURCING')) await evalSourcing(run, client, model, sourcingCases, args)
+  if (args.agents.includes('RISK')) await evalRisk(run, client, model, risk, args, risk.manifest)
   const metrics = run.tally.metrics()
   const purposes = (Object.keys(PROMPT_VERSIONS) as AiPurposeName[]).filter((p) => args.agents.includes(AGENT_OF_PURPOSE[p]) && (!args.purpose || p === args.purpose))
   const models = Object.fromEntries(purposes.map((p) => [p, model(AGENT_OF_PURPOSE[p], p)]))

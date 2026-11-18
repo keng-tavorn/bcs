@@ -1,0 +1,36 @@
+{
+  "promptVersion": "RISK_ANSWER_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "answers": [
+      {
+        "questionCode": "RQ-PRV-01",
+        "optionCode": "B",
+        "sourceRef": "F1",
+        "quote": "ผู้ประมวลผลข้อมูลส่วนบุคคลเงินเดือน ภาษี และประกันสังคมของพนักงานของผู้ควบคุมข้อมูล จำนวนประมาณ 4,500 คน",
+        "confidence": 80
+      },
+      {
+        "questionCode": "RQ-PRV-02",
+        "optionCode": "Y",
+        "sourceRef": "F1",
+        "quote": "ผู้ประมวลผลข้อมูลมีนโยบายคุ้มครองข้อมูลส่วนบุคคลที่ประกาศใช้แล้ว และจะปฏิบัติตามนโยบายดังกล่าวตลอดอายุข้อตกลง",
+        "confidence": 85
+      },
+      {
+        "questionCode": "RQ-PRV-03",
+        "optionCode": "N",
+        "sourceRef": "F1",
+        "quote": "ผู้ประมวลผลข้อมูลประมวลผลและจัดเก็บข้อมูลภายในราชอาณาจักรไทยเท่านั้น และจะไม่โอนข้อมูลออกนอกประเทศ",
+        "confidence": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 2499,
+    "output": 1234,
+    "cacheRead": 1109,
+    "cacheWrite": 0
+  }
+}

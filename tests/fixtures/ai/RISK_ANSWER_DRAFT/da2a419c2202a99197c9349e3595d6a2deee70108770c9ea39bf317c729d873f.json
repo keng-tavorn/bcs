@@ -1,0 +1,22 @@
+{
+  "promptVersion": "RISK_ANSWER_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "answers": [
+      {
+        "questionCode": "RQ-GEN-01",
+        "optionCode": "B",
+        "sourceRef": "F1",
+        "quote": "ได้จดทะเบียนเป็นนิติบุคคลประเภทบริษัทจำกัด เมื่อวันที่ ๑ มี.ค. ๖๕",
+        "confidence": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 2495,
+    "output": 432,
+    "cacheRead": 1109,
+    "cacheWrite": 0
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "promptVersion": "RISK_FILE_SUMMARY@2",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "ผู้ประเมินตอบครบทุกข้อ โดยมี {{v:answeredCount}} ข้อจาก {{v:questionCount}} ข้อ และไม่มีข้อที่ขาด",
+      "คำถาม {{v:RQ-PRV-02.code}} ตอบว่า {{v:RQ-PRV-02.answer}} และมีไฟล์แนบประกอบคำตอบนี้",
+      "คำถาม {{v:RQ-PRV-03.code}} ตอบว่า {{v:RQ-PRV-03.answer}} แต่ไฟล์แนบระบุว่าข้อมูลถูกโอนไปจัดเก็บนอกราชอาณาจักร",
+      "คำถาม {{v:RQ-PRV-02.code}} ตอบว่ายอมลงนามข้อตกลง แต่ไฟล์แนบระบุว่าบริษัทไม่ลงนามข้อตกลงประมวลผลข้อมูล"
+    ],
+    "inconsistentQuestionCodes": [
+      "RQ-PRV-03",
+      "RQ-PRV-02"
+    ]
+  },
+  "usage": {
+    "input": 2296,
+    "output": 386,
+    "cacheRead": 897,
+    "cacheWrite": 0
+  }
+}

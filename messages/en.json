@@ -140,6 +140,8 @@
           "QUESTION": "Answered a question",
           "QUOTATION_READ": "Read a quotation",
           "RFX_DRAFT": "Drafted an RFx",
+          "RISK_ANSWER_DRAFT": "Proposed questionnaire answers",
+          "RISK_FILE_SUMMARY": "Summarized a risk file",
           "SAVINGS_NOTE": "Explained a saving",
           "SUPPLIER_DOC_READ": "Supplier document reading"
         },
@@ -162,7 +164,8 @@
           "INVOICE": "Invoice",
           "PURCHASE_ORDER": "PO",
           "REQUEST": "Request",
-          "RFX_EVENT": "RFx"
+          "RFX_EVENT": "RFx",
+          "RISK_ASSESSMENT": "Risk assessment"
         },
         "system": "The system",
         "title": "History of the work",
@@ -203,6 +206,10 @@
         "INTAKE": {
           "description": "Picks the request type and drafts the request from what the requester wrote or attached; the requester confirms before sending",
           "name": "Request helper"
+        },
+        "RISK": {
+          "description": "Proposes answers to a risk questionnaire from the documents the supplier lets it read, for the supplier or procurement to confirm one by one, and summarizes the file for each reviewer's own part; never sets a risk tier, decides a review or asks for an override",
+          "name": "Risk"
         },
         "SOURCING": {
           "description": "Drafts an RFx's title, description and English line descriptions for procurement to check field by field, and after the close summarizes the bids and points to negotiate from figures the system calculated; never scores, awards or messages a supplier",
@@ -7871,6 +7878,11 @@
   },
   "liffRisk": {
     "review": {
+      "ai": {
+        "hint": "An assistant wrote this from the answers of the parts you review. Every number and code comes from the system. It helps you read; the decision is yours.",
+        "inconsistent": "Questions a document may contradict: {codes}",
+        "title": "Summary by AI"
+      },
       "back": "Home",
       "decide": {
         "backToChat": "Back to the chat",
@@ -9840,6 +9852,22 @@
       }
     },
     "risk": {
+      "ai": {
+        "checks": {
+          "EVIDENCE_MISSING": "No certificate in the system confirms this answer yet. Check it before you confirm."
+        },
+        "confidence": "AI confidence {percent}%",
+        "confirm": "I checked it: use the answer AI proposed for this question",
+        "confirmed": "The answer AI proposed is confirmed",
+        "intro": "AI proposed some answers from the documents you sent and let it read. You can always choose another answer, and you must tick each answer AI proposed before you send the assessment.",
+        "leaveBlank": "Leave this question unanswered (do not use the AI's answer)",
+        "pending": "The answer AI proposed is saved but not confirmed: tick it before you send",
+        "proposed": "AI proposes: {option}",
+        "quote": "In the document: “{quote}”",
+        "sourceDocument": "From the document {name}",
+        "sourceFile": "From the file {name}",
+        "title": "Filled in by AI — please check"
+      },
       "assessment": {
         "answer": "Answer: {option}",
         "back": "Back to the assessments",
@@ -9878,6 +9906,7 @@
         "PRIVACY": "Personal data"
       },
       "errors": {
+        "AI_DRAFT_CHANGED": "The answers the AI proposed changed while this page was open. Nothing was saved; check the answers again and save once more.",
         "AI_REVIEW_PENDING": "Some answers the AI assistant drafted have not been checked yet. Please check them before sending.",
         "CONFLICT_VERSION": "The assessment changed after you opened this page. The page now shows the latest version; please check the answers and try again.",
         "FAILED": "That did not work. Please try again.",
@@ -12605,6 +12634,22 @@
       }
     },
     "assessment": {
+      "ai": {
+        "checks": {
+          "EVIDENCE_MISSING": "No certificate in the system confirms this answer yet. Check it before you confirm."
+        },
+        "confidence": "AI confidence {percent}%",
+        "confirm": "Checked: use the answer AI proposed for this question",
+        "confirmed": "The answer AI proposed is confirmed",
+        "intro": "AI proposed some answers from the supplier's documents. Tick each one to confirm it, or choose another answer yourself.",
+        "leaveBlank": "Leave this question unanswered (do not use the AI's answer)",
+        "pending": "Waiting: the answer AI proposed for this question is not confirmed, so the assessment cannot be sent",
+        "proposed": "AI proposes: {option}",
+        "quote": "In the document: “{quote}”",
+        "sourceDocument": "From the document {name}",
+        "sourceFile": "From the file {name}",
+        "title": "Filled in by AI — please check"
+      },
       "answer": "Answer: {option} ({points} points)",
       "cancel": "Cancel the assessment",
       "cancelBody": "A cancelled assessment cannot be reopened; open a new one. Open reviewer tasks are cancelled too.",
@@ -12833,6 +12878,11 @@
       "working": "Saving…"
     },
     "detail": {
+      "ai": {
+        "hint": "An assistant wrote this from the answers of the parts you review. Every number and code comes from the system. It helps you read; the decision is yours.",
+        "inconsistent": "Questions a document may contradict: {codes}",
+        "title": "Summary by AI"
+      },
       "answer": "Answer: {option}",
       "assessment": "This assessment",
       "assessmentStatus": "Assessment status",

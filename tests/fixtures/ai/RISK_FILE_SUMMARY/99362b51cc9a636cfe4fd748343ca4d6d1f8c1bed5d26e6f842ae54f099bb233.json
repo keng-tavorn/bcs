@@ -1,0 +1,23 @@
+{
+  "promptVersion": "RISK_FILE_SUMMARY@2",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "ผู้ประเมินตอบครบทุกข้อในส่วนนี้ จำนวน {{v:answeredCount}} จาก {{v:questionCount}} ข้อ ไม่มีข้อที่ขาด",
+      "ข้อ {{v:RQ-IS-01.code}} ผู้ประเมินตอบว่า {{v:RQ-IS-01.answer}} ส่วนข้อ {{v:RQ-IS-02.code}} ตอบว่า {{v:RQ-IS-02.answer}}",
+      "ข้อ {{v:RQ-IS-03.code}} ตอบว่า {{v:RQ-IS-03.answer}} และมีไฟล์แนบหนึ่งไฟล์ประกอบข้อนี้",
+      "ไฟล์แนบระบุว่าแจ้งลูกค้าภายในเวลาที่ต่างจากที่ถามในข้อ {{v:RQ-IS-03.code}}",
+      "ข้อ {{v:RQ-GEN-01.code}} ถึง {{v:RQ-GEN-03.code}} เป็นคำตอบของผู้ประเมินเอง ไม่มีใบรับรองหรือไฟล์รองรับ"
+    ],
+    "inconsistentQuestionCodes": [
+      "RQ-IS-03"
+    ]
+  },
+  "usage": {
+    "input": 2277,
+    "output": 455,
+    "cacheRead": 897,
+    "cacheWrite": 0
+  }
+}

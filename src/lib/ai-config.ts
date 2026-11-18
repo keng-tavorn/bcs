@@ -2,10 +2,10 @@
 // purpose uses now, which model each agent asks for, what a token costs, and which (agent, purpose, prompt, model)
 // sets passed the evaluation. No I/O: the assist contract, the services and the adapter all read it (§4.10).
 
-export const AI_AGENTS = ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT', 'DOA_DRAFTER', 'SUPPLIER_ONBOARDING', 'SOURCING'] as const
+export const AI_AGENTS = ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT', 'DOA_DRAFTER', 'SUPPLIER_ONBOARDING', 'SOURCING', 'RISK'] as const
 export type AiAgentName = (typeof AI_AGENTS)[number]
 
-export const AI_PURPOSES = ['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT', 'SAVINGS_NOTE', 'SUPPLIER_DOC_READ', 'RFX_DRAFT', 'BID_SUMMARY', 'NEGOTIATION_POINTS'] as const
+export const AI_PURPOSES = ['QUOTATION_READ', 'DELIVERY_NOTE_READ', 'INVOICE_READ', 'INTAKE', 'BRIEF', 'QUESTION', 'DOA_DRAFT', 'SAVINGS_NOTE', 'SUPPLIER_DOC_READ', 'RFX_DRAFT', 'BID_SUMMARY', 'NEGOTIATION_POINTS', 'RISK_ANSWER_DRAFT', 'RISK_FILE_SUMMARY'] as const
 export type AiPurposeName = (typeof AI_PURPOSES)[number]
 
 /** A purpose of the database that this configuration serves (SUPPLIER_DOC_READ since S7-14 · ADR-189) */
@@ -28,6 +28,10 @@ export const AGENT_OF_PURPOSE: Readonly<Record<AiPurposeName, AiAgentName>> = {
   RFX_DRAFT: 'SOURCING',
   BID_SUMMARY: 'SOURCING',
   NEGOTIATION_POINTS: 'SOURCING',
+  // S11-13 (FR-AI-306 · ADR-228 · BR-AI-33 BR-AI-34): answers proposed for a risk assessment from the supplier's documents (L1),
+  // and words on the assessment's file for a reviewer of one domain (L0)
+  RISK_ANSWER_DRAFT: 'RISK',
+  RISK_FILE_SUMMARY: 'RISK',
 }
 
 /**
@@ -48,6 +52,8 @@ export const PROMPT_VERSIONS: Readonly<Record<AiPurposeName, string>> = {
   RFX_DRAFT: 'RFX_DRAFT@2',
   BID_SUMMARY: 'BID_SUMMARY@1',
   NEGOTIATION_POINTS: 'NEGOTIATION_POINTS@2',
+  RISK_ANSWER_DRAFT: 'RISK_ANSWER_DRAFT@2',
+  RISK_FILE_SUMMARY: 'RISK_FILE_SUMMARY@2',
 }
 
 export const AI_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] as const
@@ -67,6 +73,9 @@ const DEFAULT_MODEL: Readonly<Record<AiAgentName, AiModelId>> = {
   // TODO(OQ-209): S10-19 (OQ-145's way · docs/reports/ai-eval/sourcing-2026-11-12.md): Haiku passed the 10 synthetic RFx
   // on all three purposes once the draft stopped stating counts (RFX_DRAFT@2) and the points kept short (NEGOTIATION_POINTS@2)
   SOURCING: 'claude-haiku-5-5',
+  // TODO(OQ-145): S11-14 (OQ-145's way · docs/reports/ai-eval/risk-2026-11-18.md): Haiku proposed the answers of the 10
+  // synthetic papers at every floor of BR-AI-34 twice; the summary is Sonnet's (DEFAULT_MODEL_OF_PURPOSE)
+  RISK: 'claude-haiku-5-5',
 }
 
 /** The .env variable that overrides one agent's model (spec Appendix B) */
@@ -78,11 +87,14 @@ export const MODEL_ENV_OF_AGENT: Readonly<Record<AiAgentName, string>> = {
   DOA_DRAFTER: 'AI_MODEL_DOA_DRAFTER',
   SUPPLIER_ONBOARDING: 'AI_MODEL_SUPPLIER_ONBOARDING',
   SOURCING: 'AI_MODEL_SOURCING',
+  RISK: 'AI_MODEL_RISK',
 }
 
 /** A purpose whose evaluation passed only on another model than its agent's (S13-14: Sonnet misread a blurred invoice) */
 const DEFAULT_MODEL_OF_PURPOSE: Readonly<Partial<Record<AiPurposeName, AiModelId>>> = {
   INVOICE_READ: 'claude-opus-5-5',
+  // S11-14: Haiku typed a number of the file into one summary in two runs of eight (ai-text has no room for one); Sonnet none
+  RISK_FILE_SUMMARY: 'claude-sonnet-5-5',
 }
 
 /**
@@ -107,6 +119,7 @@ export const EFFORT_OF_AGENT: Readonly<Record<AiAgentName, 'low' | 'medium' | 'h
   DOA_DRAFTER: 'high',
   SUPPLIER_ONBOARDING: 'medium',
   SOURCING: 'medium',
+  RISK: 'medium',
 }
 
 /** Most tokens one answer may take; a structured result that hits it fails the schema (AI_OUTPUT_INVALID) */
@@ -118,6 +131,7 @@ export const MAX_OUTPUT_TOKENS: Readonly<Record<AiAgentName, number>> = {
   DOA_DRAFTER: 32_000,
   SUPPLIER_ONBOARDING: 8_000,
   SOURCING: 8_000,
+  RISK: 8_000,
 }
 
 /** Micro-USD per million tokens (1 credit = 1,000 micro-USD, BR-AI-23); cacheWrite is the 5-minute TTL (ADR-141) */
@@ -189,11 +203,14 @@ export const EVAL_GATES: readonly EvalGate[] = [
   { agent: 'SOURCING', purpose: 'RFX_DRAFT', promptVersion: 'RFX_DRAFT@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: 'sourcing-2026-11-12.md' },
   { agent: 'SOURCING', purpose: 'BID_SUMMARY', promptVersion: 'BID_SUMMARY@1', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: 'sourcing-2026-11-12.md' },
   { agent: 'SOURCING', purpose: 'NEGOTIATION_POINTS', promptVersion: 'NEGOTIATION_POINTS@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: 'sourcing-2026-11-12.md' },
+  // S11-14 (FR-AI-306 AC5 · BR-AI-34): the 10 synthetic papers and certificates, every floor (the real tier waits for S11-20)
+  { agent: 'RISK', purpose: 'RISK_ANSWER_DRAFT', promptVersion: 'RISK_ANSWER_DRAFT@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: 'risk-2026-11-18.md' },
+  { agent: 'RISK', purpose: 'RISK_FILE_SUMMARY', promptVersion: 'RISK_FILE_SUMMARY@2', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: 'risk-2026-11-18.md' },
 ]
 
 /**
  * Purposes whose evaluation has not run yet, so no gate passes them: live mode refuses them (AI_NOT_EVALUATED) and only
- * fixture mode answers. None now: the Sourcing Agent's three passed the synthetic RFx set of S10-19 (OQ-209).
+ * fixture mode answers. None since S11-14 gated the Risk Agent's two (a new purpose waits here for its set).
  */
 export const AWAITING_EVALUATION: readonly AiPurposeName[] = []
 
@@ -216,10 +233,12 @@ export const LEVEL_OF_AGENT: Readonly<Record<AiAgentName, 'L0' | 'L1'>> = {
   SUPPLIER_ONBOARDING: 'L1',
   // L1 for RFX_DRAFT; BID_SUMMARY and NEGOTIATION_POINTS are words only (L0 · LEVEL_OF_PURPOSE)
   SOURCING: 'L1',
+  // L1 for RISK_ANSWER_DRAFT; RISK_FILE_SUMMARY is words only (L0 · LEVEL_OF_PURPOSE)
+  RISK: 'L1',
 }
 
 /** A purpose whose result is words only, on an agent that otherwise drafts (BR-AI-32: the Sourcing Agent's summary) */
-export const LEVEL_OF_PURPOSE: Readonly<Partial<Record<AiPurposeName, 'L0'>>> = { BID_SUMMARY: 'L0', NEGOTIATION_POINTS: 'L0' }
+export const LEVEL_OF_PURPOSE: Readonly<Partial<Record<AiPurposeName, 'L0'>>> = { BID_SUMMARY: 'L0', NEGOTIATION_POINTS: 'L0', RISK_FILE_SUMMARY: 'L0' }
 
 /** Below this confidence a field is confirmed one by one (OQ-147, BR-AI-16) */
 export const DEFAULT_MIN_CONFIDENCE_BP = 9000 // TODO(OQ-147)
@@ -238,6 +257,9 @@ export const BRIEF_PROFILE = { maxSentences: 4, maxChars: 120 } as const
 
 /** Sourcing profile of BR-AI-27: the summary of an RFx's bids and its points to negotiate (S10-16 · BR-AI-32) */
 export const SOURCING_PROFILE = { maxSentences: 6, maxChars: 160 } as const
+
+/** Risk profile of BR-AI-27: the summary of a risk assessment's file for a reviewer of one domain (S11-13 · BR-AI-33) */
+export const RISK_PROFILE = { maxSentences: 5, maxChars: 160 } as const
 
 /** Words that advise a decision, which a text of the AI never carries (BR-AI-27 DECISION_ADVICE · compared ignoring case) */
 export const DECISION_ADVICE_WORDS = [

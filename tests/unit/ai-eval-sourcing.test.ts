@@ -86,8 +86,9 @@ describe('[FR-AI-305/AC5] the evaluation set of the Sourcing Agent, demo tier', 
     for (const c of cases) for (const l of c.lines) expect(c.factsText, `${c.id} line ${l.lineNo}`).not.toContain(l.description)
   })
 
-  it('[FR-AI-305/AC5] the gates are SYNTHETIC for the prompts and model in use, nothing awaits evaluation, and the report is in the repository', () => {
-    expect(AWAITING_EVALUATION).toEqual([])
+  it('[FR-AI-305/AC5] the gates are SYNTHETIC for the prompts and model in use, nothing of the agent awaits evaluation, and the report is in the repository', () => {
+    // the Risk Agent's purposes wait for S11-14's own set (OQ-228); none of the Sourcing Agent's does
+    expect(AWAITING_EVALUATION.filter((p) => (PURPOSES as readonly string[]).includes(p))).toEqual([])
     for (const purpose of PURPOSES) {
       const gate = EVAL_GATES.find((g) => g.purpose === purpose)
       expect(gate, purpose).toMatchObject({ agent: 'SOURCING', promptVersion: PROMPT_VERSIONS[purpose], model: modelForPurpose(purpose, {}), tier: 'SYNTHETIC' })

@@ -1,0 +1,64 @@
+{
+  "files": [
+    {
+      "id": "RK-01",
+      "file": "RK-01.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "28add8b922b16aa3d07547e4cbba5c7534cde6638b8269190c293086ab5f0faf"
+    },
+    {
+      "id": "RK-02",
+      "file": "RK-02.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "f7bab8895fd3d75e4d6ce2fe889685b8d3120fda980dea2b9bc284d567f9af17"
+    },
+    {
+      "id": "RK-03",
+      "file": "RK-03.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "9247873bdeaf600ab1accfb67cd455595aa7e3071c56a740b9c22e810fc42bba"
+    },
+    {
+      "id": "RK-04",
+      "file": "RK-04.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "3fc89263370bd6821266b3385a64c87ddc462c45002eff16b4c0feb880fa3763"
+    },
+    {
+      "id": "RK-05",
+      "file": "RK-05.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "a7db2a96c1a5eb19d3e58f1a2ef1de91a4f4aea8461c2c88c65879a3efecad07"
+    },
+    {
+      "id": "RK-06",
+      "file": "RK-06.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "37cf388c5e5504b749c236401fde24d50b4caedcae6e2ef53fa65a6b31c81be8"
+    },
+    {
+      "id": "RK-07",
+      "file": "RK-07.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "a2eaba2031469057c7bed5fb37c2b1ced8d835e755707f8726290e122dbc743e"
+    },
+    {
+      "id": "RK-08",
+      "file": "RK-08.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "11ddd9c482156bae8f59f2b3fa4a160eed88e87d50948d16de0ef9ff76868e68"
+    },
+    {
+      "id": "RK-09",
+      "file": "RK-09.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "91e2a576dfff429a2b97b3d6c112e730c09252b47359a21f2fcb6f582b21a0d9"
+    },
+    {
+      "id": "RK-10",
+      "file": "RK-10.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "c1dc70702cda7213b2b6c59a14c73803d682f24390d83524b1b50577ecff4a75"
+    }
+  ]
+}

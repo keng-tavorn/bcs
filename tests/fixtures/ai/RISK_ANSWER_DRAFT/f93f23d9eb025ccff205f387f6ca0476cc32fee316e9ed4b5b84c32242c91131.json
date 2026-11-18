@@ -1,0 +1,29 @@
+{
+  "promptVersion": "RISK_ANSWER_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "answers": [
+      {
+        "questionCode": "RQ-IS-02",
+        "optionCode": "N",
+        "sourceRef": "F1",
+        "quote": "ผู้ใช้ทั่วไปเข้าระบบด้วยชื่อผู้ใช้และรหัสผ่านที่ต้องเปลี่ยนทุก 90 วัน การยืนยันตัวตนหลายขั้นตอน (MFA) ใช้กับบัญชีผู้ดูแลระบบเท่านั้น",
+        "confidence": 92
+      },
+      {
+        "questionCode": "RQ-IS-03",
+        "optionCode": "N",
+        "sourceRef": "F1",
+        "quote": "บริษัทมีขั้นตอนรับมือเหตุการณ์ด้านความปลอดภัย และแจ้งลูกค้าที่ได้รับผลกระทบภายใน 7 วันทำการหลังการสอบสวนเสร็จสิ้น",
+        "confidence": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 2498,
+    "output": 1272,
+    "cacheRead": 1109,
+    "cacheWrite": 0
+  }
+}

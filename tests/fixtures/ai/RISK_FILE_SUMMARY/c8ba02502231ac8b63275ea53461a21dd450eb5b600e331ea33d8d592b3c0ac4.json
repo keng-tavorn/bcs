@@ -1,0 +1,24 @@
+{
+  "promptVersion": "RISK_FILE_SUMMARY@2",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "ผู้ประเมินตอบครบทุกข้อ คือ {{v:answeredCount}} จาก {{v:questionCount}} ข้อ และไม่มีข้อที่ขาด",
+      "ข้อ {{v:RQ-GEN-01.code}} ตอบว่า {{v:RQ-GEN-01.answer}} และข้อ {{v:RQ-GEN-02.code}} ตอบว่า {{v:RQ-GEN-02.answer}}",
+      "ข้อ {{v:RQ-IS-01.code}} ตอบว่า {{v:RQ-IS-01.answer}} ส่วนข้อ {{v:RQ-IS-02.code}} ตอบว่า {{v:RQ-IS-02.answer}}",
+      "ไฟล์แนบระบุว่า MFA ใช้กับบัญชีผู้ดูแลระบบเท่านั้น ไม่ใช่ผู้ใช้ทั่วไป จึงขัดกับข้อ {{v:RQ-IS-02.code}}",
+      "ข้อ {{v:RQ-IS-03.code}} ตอบว่า {{v:RQ-IS-03.answer}} แต่ไฟล์แนบระบุเวลาแจ้งลูกค้าต่างจากคำถามข้อนั้น"
+    ],
+    "inconsistentQuestionCodes": [
+      "RQ-IS-02",
+      "RQ-IS-03"
+    ]
+  },
+  "usage": {
+    "input": 2276,
+    "output": 495,
+    "cacheRead": 897,
+    "cacheWrite": 0
+  }
+}

@@ -55,6 +55,7 @@ export function aiRuntime(): AiRuntime {
       AI_MODEL_DOA_DRAFTER: env.AI_MODEL_DOA_DRAFTER,
       AI_MODEL_SUPPLIER_ONBOARDING: env.AI_MODEL_SUPPLIER_ONBOARDING,
       AI_MODEL_SOURCING: env.AI_MODEL_SOURCING,
+      AI_MODEL_RISK: env.AI_MODEL_RISK,
     },
     gates: EVAL_GATES,
   }

@@ -101,5 +101,6 @@ export function e2eEnv(env: NodeJS.ProcessEnv = process.env): Record<string, str
     AI_MODEL_DOA_DRAFTER: '',
     AI_MODEL_SUPPLIER_ONBOARDING: '',
     AI_MODEL_SOURCING: '',
+    AI_MODEL_RISK: '',
   }
 }

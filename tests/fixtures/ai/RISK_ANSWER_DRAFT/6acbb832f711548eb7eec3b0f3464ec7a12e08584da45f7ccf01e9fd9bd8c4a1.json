@@ -1,0 +1,36 @@
+{
+  "promptVersion": "RISK_ANSWER_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "answers": [
+      {
+        "questionCode": "RQ-PRM-01",
+        "optionCode": "N",
+        "sourceRef": "F1",
+        "quote": "บริษัทออกบัตรประจำตัวให้เฉพาะหัวหน้างานและวิศวกร คนงานทั่วไปลงชื่อเข้าออกที่ป้อมยาม",
+        "confidence": 85
+      },
+      {
+        "questionCode": "RQ-PRM-02",
+        "optionCode": "N",
+        "sourceRef": "F1",
+        "quote": "บริษัทอยู่ระหว่างจัดทำระบบการจัดการอาชีวอนามัยและความปลอดภัยตาม ISO 45001 และยังไม่ได้รับการรับรอง",
+        "confidence": 95
+      },
+      {
+        "questionCode": "RQ-GEN-03",
+        "optionCode": "Y",
+        "sourceRef": "F1",
+        "quote": "บริษัททำประกันภัยความรับผิดต่อบุคคลภายนอก วงเงินคุ้มครอง 10,000,000 บาท กรมธรรม์มีผลถึงวันที่ 31 ธันวาคม 2569",
+        "confidence": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 2499,
+    "output": 937,
+    "cacheRead": 1109,
+    "cacheWrite": 0
+  }
+}

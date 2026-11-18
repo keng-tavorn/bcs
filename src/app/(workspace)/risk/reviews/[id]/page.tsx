@@ -1,9 +1,10 @@
+import { Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
-import { riskReviewTask } from '@/server/services/risk'
+import { riskReviewTask, riskSummaryOf } from '@/server/services/risk'
 import { NoAccess } from '@/ui/admin-settings/no-access'
 import { STEP_BADGES, StatusBadge } from '@/ui/document/badges'
 import type { BadgeLook } from '@/ui/document/badge-looks'
@@ -30,6 +31,8 @@ export async function generateMetadata() {
 // so does a supplier's certificate an answer rests on, shown by its type, scope and expiry (S7's download with S11's
 // grant · S11-24). Whoever is not a holder of the task reads it
 // as missing (risk.review.view). On phones the decision comes first and its buttons stick to the bottom of the screen.
+// S11-13 (FR-AI-306 AC3): while AI is on, the summary the Risk Agent wrote of the slot's own part shows in a box of its own
+// above the questions, with the questions a file may contradict; every value in it came from code (BR-AI-27).
 
 const ASSESSMENT_STATUSES = ['DRAFT', 'IN_REVIEW', 'RETURNED', 'COMPLETED', 'SUPERSEDED', 'CANCELLED'] as const
 type AssessmentStatus = (typeof ASSESSMENT_STATUSES)[number]
@@ -57,7 +60,7 @@ export default async function RiskReviewTaskPage({ params }: { params: Promise<{
     getTranslations('adminSettings'),
     getLocale().then(localeOf),
   ])
-  const view = await riskReviewTask(ctx, id)
+  const [view, summary] = await Promise.all([riskReviewTask(ctx, id), riskSummaryOf(ctx, id)])
   if (!view.ok) {
     if (view.error.code === 'NOT_FOUND') notFound()
     return <NoAccess title={t('detail.title')} message={view.error.code === 'MODULE_DISABLED' ? tAdmin('moduleOff') : tCommon('forbidden')} homeLabel={tCommon('homeLink')} />
@@ -110,6 +113,23 @@ export default async function RiskReviewTaskPage({ params }: { params: Promise<{
             </div>
 
             <Panel title={t('detail.questions')} id="questions" className="lg:col-start-1 lg:row-span-3 lg:row-start-1">
+              {summary ? (
+                <section aria-labelledby="risk-ai-summary" className="flex flex-col gap-2 border-l-4 border-info bg-surface py-2 pl-3">
+                  <h3 id="risk-ai-summary" className="flex items-center gap-2 font-semibold">
+                    <Sparkles className="size-4 shrink-0 text-info" aria-hidden="true" />
+                    {t('detail.ai.title')}
+                  </h3>
+                  <ul className="flex list-disc flex-col gap-1 pl-5">
+                    {summary.sentences.map((line) => (
+                      <li key={line} className="break-words">
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                  {summary.inconsistentQuestionCodes.length ? <p className="font-medium text-warn-ink">{t('detail.ai.inconsistent', { codes: summary.inconsistentQuestionCodes.join(', ') })}</p> : null}
+                  <p className="text-sm text-ink-muted">{t('detail.ai.hint')}</p>
+                </section>
+              ) : null}
               <p className="text-ink-muted">{t('detail.questionsHint')}</p>
               {byDomain.length ? (
                 <div className="flex flex-col gap-5">

@@ -1,0 +1,21 @@
+{
+  "promptVersion": "RISK_FILE_SUMMARY@2",
+  "model": "claude-sonnet-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "sentences": [
+      "ผู้ประเมินตอบครบทุกข้อในส่วนนี้ จำนวน {{v:answeredCount}} จาก {{v:questionCount}} ข้อ",
+      "ข้อ {{v:RQ-GEN-01.code}} ตอบว่า {{v:RQ-GEN-01.answer}} และข้อ {{v:RQ-GEN-02.code}} ตอบว่า {{v:RQ-GEN-02.answer}}",
+      "ข้อ {{v:RQ-GEN-03.code}} ตอบว่า {{v:RQ-GEN-03.answer}} โดยไม่มีไฟล์หรือใบรับรองประกอบ",
+      "ข้อ {{v:RQ-PRM-01.code}} ตอบว่า {{v:RQ-PRM-01.answer}} และไฟล์แนบระบุว่าอบรมและมีบัตรประจำตัวตรงกับคำตอบ",
+      "ข้อ {{v:RQ-PRM-02.code}} ตอบว่า {{v:RQ-PRM-02.answer}} และไม่มีไฟล์ประกอบข้อนี้"
+    ],
+    "inconsistentQuestionCodes": []
+  },
+  "usage": {
+    "input": 2266,
+    "output": 422,
+    "cacheRead": 897,
+    "cacheWrite": 0
+  }
+}

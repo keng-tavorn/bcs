@@ -451,7 +451,7 @@
       "kind": "ให้คะแนนโดย",
       "kindPrice": "ระบบ (ราคา)",
       "kindQuality": "ผู้ประเมิน",
-      "removeCriterion": "เอาเกณฑ์ {code} ออก",
+      "removeCriterion": "เอาเกณฑ์ {name} ออก",
       "addCriterion": "เพิ่มเกณฑ์",
       "total": "รวม {percent}%",
       "rowInvalid": "ทุกเกณฑ์ต้องมีรหัส (ตัวพิมพ์ใหญ่อังกฤษ ไม่เกิน 20 ตัว) ชื่อไทย และน้ำหนัก 0 ถึง 100",

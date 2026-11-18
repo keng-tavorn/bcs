@@ -209,7 +209,7 @@ export function BidForm(props: BidFormProps) {
       <input type="hidden" name="currency" value={RFX_CURRENCY} />
       {props.bidId ? <input type="hidden" name="bidId" value={props.bidId} /> : null}
       {props.version !== null ? <input type="hidden" name="version" value={props.version} /> : null}
-      <p className="text-sm text-ink-muted" aria-live="polite">
+      <p className="text-base md:text-sm text-ink-muted" aria-live="polite">
         {fill(w.stepOf, { n: step + 1, total: steps.length, title: title(current) })}
       </p>
       <h2 ref={heading} tabIndex={-1} className="text-lg font-semibold outline-none">
@@ -233,7 +233,7 @@ export function BidForm(props: BidFormProps) {
                   <input type="checkbox" name="vatIncluded" value="1" checked={vatIncluded} onChange={(e) => setVatIncluded(e.target.checked)} className={`${checkboxClass} mt-0.5`} />
                   <span className="flex flex-col">
                     <span className="font-medium">{w.vatIncluded}</span>
-                    <span className="text-sm text-ink-muted">{w.vatIncludedHint}</span>
+                    <span className="text-base md:text-sm text-ink-muted">{w.vatIncludedHint}</span>
                   </span>
                 </label>
               ) : null}
@@ -245,8 +245,8 @@ export function BidForm(props: BidFormProps) {
                     <legend className="font-medium">
                       {l.lineNo}. {l.description}
                     </legend>
-                    <p className="tabular text-sm text-ink-muted">{fill(w.quantity, { quantity: l.quantity, uom: l.uom })}</p>
-                    <label htmlFor={id} className="text-sm font-medium">
+                    <p className="tabular text-base md:text-sm text-ink-muted">{fill(w.quantity, { quantity: l.quantity, uom: l.uom })}</p>
+                    <label htmlFor={id} className="text-base md:text-sm font-medium">
                       {w.unitPrice}
                     </label>
                     <div className="flex items-center gap-2">
@@ -266,7 +266,7 @@ export function BidForm(props: BidFormProps) {
                       <span className="shrink-0 text-ink-muted">{w.currency}</span>
                     </div>
                     {bad ? (
-                      <p id={`${id}-error`} className="text-sm text-danger">
+                      <p id={`${id}-error`} className="text-base md:text-sm text-danger">
                         {w.priceInvalid}
                       </p>
                     ) : null}
@@ -299,7 +299,7 @@ export function BidForm(props: BidFormProps) {
             {w.note}
           </label>
           <textarea id="note" name="note" defaultValue={props.note} maxLength={RFX_QUESTION_MAX} className={textareaClass} />
-          <p className="text-sm text-ink-muted">{w.validity}</p>
+          <p className="text-base md:text-sm text-ink-muted">{w.validity}</p>
         </div>
       )}
 
@@ -311,7 +311,7 @@ export function BidForm(props: BidFormProps) {
               <li key={f.id} className="flex items-center justify-between gap-3 py-3">
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate">{f.fileName}</span>
-                  <span className="text-sm text-ink-muted">{w.scan[f.scanStatus] ?? f.scanStatus}</span>
+                  <span className="text-base md:text-sm text-ink-muted">{w.scan[f.scanStatus] ?? f.scanStatus}</span>
                 </span>
                 <Button variant="secondary" disabled={fileBusy} onClick={() => void remove(f.id)} aria-label={`${w.fileRemove} ${f.fileName}`}>
                   {w.fileRemove}
@@ -365,10 +365,10 @@ export function BidForm(props: BidFormProps) {
             <dd className="text-right font-semibold">{formatSatang(amounts.gross)}</dd>
           </dl>
         ) : null}
-        {!props.rfi && props.vatRateBp === 0 ? <p className="text-sm text-ink-muted">{w.vatNotRegistered}</p> : null}
+        {!props.rfi && props.vatRateBp === 0 ? <p className="text-base md:text-sm text-ink-muted">{w.vatNotRegistered}</p> : null}
         {!props.rfi && props.vatRateBp === null ? <LiffNotice tone="warning">{w.vatRateMissing}</LiffNotice> : null}
         {missing.length && !props.allowPartial ? <LiffNotice tone="warning">{fill(w.missing, { lines: missing.join(', ') })}</LiffNotice> : null}
-        {props.rfi ? null : <p className="text-sm text-ink-muted">{w.validity}</p>}
+        {props.rfi ? null : <p className="text-base md:text-sm text-ink-muted">{w.validity}</p>}
       </div>
 
       <section aria-label={w.actions} className="sticky bottom-0 z-20 flex flex-col gap-2 border-t border-line bg-bg pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">

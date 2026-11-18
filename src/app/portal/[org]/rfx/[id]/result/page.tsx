@@ -92,7 +92,7 @@ export default async function PortalRfxResultPage({ params, searchParams }: { pa
                   <label htmlFor={inputId} className="font-medium">
                     {t('rfx.result.line', { lineNo: l.lineNo, description: line ? (textIn(locale, line.description, line.descriptionEn)) : '' })}
                   </label>
-                  <p id={`${inputId}-hint`} className="tabular text-sm text-ink-muted">
+                  <p id={`${inputId}-hint`} className="tabular text-base md:text-sm text-ink-muted">
                     {t('rfx.result.confirmLineHint', { quoted: formatSatang(amountToSatang(l.quotedUnitPrice)), max: formatSatang(amountToSatang(l.maxNetUnitPrice)) })}
                   </p>
                   <input id={inputId} name={`net:${l.rfxLineId}`} required inputMode="decimal" defaultValue={l.confirmedNetUnitPrice ?? l.maxNetUnitPrice} aria-describedby={`${inputId}-hint`} className={portalInputClass} />

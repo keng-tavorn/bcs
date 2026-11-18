@@ -451,7 +451,7 @@
       "kind": "Scored by",
       "kindPrice": "the system (price)",
       "kindQuality": "evaluators",
-      "removeCriterion": "Take criterion {code} out",
+      "removeCriterion": "Take criterion {name} out",
       "addCriterion": "Add a criterion",
       "total": "Total {percent}%",
       "rowInvalid": "Every criterion needs a code (capital letters, 20 at most), a Thai name and a weight from 0 to 100",

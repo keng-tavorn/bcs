@@ -574,7 +574,7 @@
       "amendment": "Revision {n} ({date}): {summary}",
       "reconfirm": "The RFx was amended after you bid. Please read it again and send your bid again before it closes.",
       "yourBid": "Your bid",
-      "bidSent": "Sent {count} times, last on {date}",
+      "bidSent": "Sent {count, plural, one {once} other {# times}}, last on {date}",
       "bidAmounts": "Before VAT {net} · VAT {vat} · Total {gross} THB",
       "bidValidUntil": "Your bid is valid until {date}",
       "bidDraft": "You have a draft bid that is not sent yet",

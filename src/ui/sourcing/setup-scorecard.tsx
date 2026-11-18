@@ -1,7 +1,7 @@
 'use client'
 
 import { CircleAlert, CircleCheck } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { useId, useState } from 'react'
 import { BASIS_POINTS_WHOLE } from '@/lib/constants'
 import { Notice } from '../form/notice'
@@ -54,6 +54,7 @@ export function SetupScorecard({
   readonly save: (input: ScorecardSaveInput, key: string) => Promise<RfxOutcome>
 }) {
   const t = useTranslations('sourcing.setup')
+  const locale = useLocale()
   const id = useId()
   const { act, pending, message, setMessage } = useRfxAct()
   const [rows, setRows] = useState<CriterionRow[]>([...initialCriteria])
@@ -113,8 +114,8 @@ export function SetupScorecard({
                 </NativeSelect>
               </div>
               {rows.length > 1 ? (
-                <Button type="button" variant="outline" className="min-h-11 self-end lg:min-h-10" onClick={() => setRows((all) => all.filter((_, j) => j !== i))}>
-                  {t('scorecard.removeCriterion', { code: r.code || String(i + 1) })}
+                <Button type="button" variant="outline" className="col-span-2 min-h-11 self-end whitespace-normal md:col-span-1 lg:min-h-10" onClick={() => setRows((all) => all.filter((_, j) => j !== i))}>
+                  {t('scorecard.removeCriterion', { name: (locale === 'en' ? r.nameEn || r.nameTh : r.nameTh) || r.code || String(i + 1) })}
                 </Button>
               ) : null}
             </li>

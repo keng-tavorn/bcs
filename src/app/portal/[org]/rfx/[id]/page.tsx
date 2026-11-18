@@ -165,7 +165,7 @@ export default async function PortalRfxPage({ params, searchParams }: { params: 
             <PortalButton type="submit" variant="danger">
               {t('rfx.detail.withdraw')}
             </PortalButton>
-            <p className="text-sm text-ink-muted">{t('rfx.detail.withdrawHint')}</p>
+            <p className="text-base md:text-sm text-ink-muted">{t('rfx.detail.withdrawHint')}</p>
           </form>
         ) : null}
         {mayDecline ? (
@@ -181,7 +181,7 @@ export default async function PortalRfxPage({ params, searchParams }: { params: 
             <PortalButton type="submit" variant="danger">
               {t('rfx.detail.decline')}
             </PortalButton>
-            <p className="text-sm text-ink-muted">{t('rfx.detail.declineHint')}</p>
+            <p className="text-base md:text-sm text-ink-muted">{t('rfx.detail.declineHint')}</p>
           </form>
         ) : null}
       </section>
@@ -194,7 +194,7 @@ export default async function PortalRfxPage({ params, searchParams }: { params: 
           <ul className="flex flex-col divide-y divide-line border-y border-line">
             {rfx.questions.map((x) => (
               <li key={x.id} className="flex flex-col gap-1 py-3">
-                {x.mine ? <span className="text-sm text-ink-muted">{t('rfx.questions.mine')}</span> : null}
+                {x.mine ? <span className="text-base md:text-sm text-ink-muted">{t('rfx.questions.mine')}</span> : null}
                 <span className="whitespace-pre-line">{x.question}</span>
                 <span className="whitespace-pre-line text-ink-muted">{x.answer ? t('rfx.questions.answer', { answer: x.answer }) : t('rfx.questions.waiting')}</span>
               </li>
@@ -213,7 +213,7 @@ export default async function PortalRfxPage({ params, searchParams }: { params: 
               {t('rfx.questions.question')}
             </label>
             <textarea id="question" name="question" required maxLength={RFX_QUESTION_MAX} aria-describedby="question-hint" className={textareaClass} />
-            <p id="question-hint" className="text-sm text-ink-muted">
+            <p id="question-hint" className="text-base md:text-sm text-ink-muted">
               {t('rfx.questions.hint')}
             </p>
             <PortalButton type="submit" variant="secondary">

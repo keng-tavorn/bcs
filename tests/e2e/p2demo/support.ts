@@ -123,14 +123,27 @@ export function applicationOf(sheet: P2Sheet, ref: string): P2Application {
 
 const SAFE_ARG = /^[A-Za-z0-9_.:@/+-]+$/
 
-/** Runs ./scripts/s7.ts against the run's database (it checks it is the p2demo one) and returns the JSON of its last line */
-export function s7<T>(...args: string[]): T {
+/**
+ * Runs a scene script of ./scripts/ (s7 s11 …) against the run's database (it checks it is the p2demo one) and returns the
+ * JSON of its last line
+ */
+export function p2Script<T>(name: string, ...args: string[]): T {
+  if (!/^[a-z0-9-]+$/.test(name)) throw new Error(`not a scene script of phase 2: ${name}`)
   for (const arg of args) if (!SAFE_ARG.test(arg)) throw new Error(`not an argument for a scene script: ${arg}`)
-  const r = spawnSync(`pnpm exec tsx tests/e2e/p2demo/scripts/s7.ts ${args.join(' ')}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv(), E2E_P2DEMO: '1' }, maxBuffer: 64 * 1024 * 1024 })
+  const r = spawnSync(`pnpm exec tsx tests/e2e/p2demo/scripts/${name}.ts ${args.join(' ')}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv(), E2E_P2DEMO: '1' }, maxBuffer: 64 * 1024 * 1024 })
   // the script may print a sign-in code or a session (secrets of this test database): on failure only stderr is shown
-  if (r.status !== 0) throw new Error(`scene script s7 ${args[0] ?? ''} failed:\n${r.stderr}`)
+  if (r.status !== 0) throw new Error(`scene script ${name} ${args[0] ?? ''} failed:\n${r.stderr}`)
   return JSON.parse(r.stdout.trim().split('\n').at(-1)!) as T
 }
+
+/** Runs ./scripts/s7.ts (the scenes of S7) */
+export const s7 = <T>(...args: string[]): T => p2Script<T>('s7', ...args)
+
+/** Runs ./scripts/s11.ts (the scenes of S11: 16 17 19 22) */
+export const s11 = <T>(...args: string[]): T => p2Script<T>('s11', ...args)
+
+/** Runs ./scripts/s11-status.ts (the scenes of S11 that read the supplier's status and the report: 18 20 21) */
+export const s11Status = <T>(...args: string[]): T => p2Script<T>('s11-status', ...args)
 
 /** A session of the portal the scene script opened for a contact, set on the browser as the sign-in would set it */
 export async function portalSessionOn(context: BrowserContext, org: string, email: string): Promise<void> {

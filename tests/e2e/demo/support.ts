@@ -824,9 +824,20 @@ export interface FakeLineMessage {
   readonly at: string
 }
 
-/** What the fake LINE server of the run answers on one of its test routes */
+/** A request that died on a socket the server had already closed (ECONNRESET · UND_ERR_SOCKET) */
+const resetSocket = (e: unknown) => e instanceof TypeError && /ECONNRESET|UND_ERR_SOCKET|other side closed/.test(String((e as { cause?: unknown }).cause ?? ''))
+
+/**
+ * What the fake LINE server of the run answers on one of its test routes. A scene script run with spawnSync (day(),
+ * tapPostback) blocks this process for seconds; meanwhile the server closes the idle keep-alive socket of the poll before,
+ * and the next fetch reuses it and is reset (S11-15 · scene 16 of phase 2: a reviewer's tap, then the next card). That one
+ * request goes again once, on a new socket; any other failure is the test's.
+ */
 export async function fakeLine<T>(route: string): Promise<T> {
-  const response = await fetch(`${E2E_FAKE_LINE_URL}${route}`)
+  const response = await fetch(`${E2E_FAKE_LINE_URL}${route}`).catch((e: unknown) => {
+    if (resetSocket(e)) return fetch(`${E2E_FAKE_LINE_URL}${route}`)
+    throw e
+  })
   if (!response.ok) throw new Error(`fake LINE ${route}: ${response.status}`)
   return (await response.json()) as T
 }

@@ -39,7 +39,7 @@ interface VersionFacts {
   readonly changeReason: string | null
   readonly submittedBy: string | null
   readonly approvedBy: string | null
-  readonly rules: ReadonlyArray<{ readonly code: string; readonly requestTypeCodes: readonly string[]; readonly when: unknown }>
+  readonly rules: ReadonlyArray<{ readonly code: string; readonly requestTypeCodes: readonly string[]; readonly when: unknown; readonly scope: string }>
   readonly events: ReadonlyArray<{ readonly type: string; readonly data: Record<string, unknown> }>
 }
 
@@ -192,7 +192,10 @@ test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] [FR-WF-103/AC3] scene 3: the secon
   const before = workflowOf(code)
   expect(before.versions.map((v) => [v.versionNo, v.status])).toEqual([[fromVersion, 'PUBLISHED']])
   expect(before.inEffectVersionNo).toBe(fromVersion)
-  expect(before.versions[0]!.rules).toHaveLength(ruleCount)
+  // the reviewers of requests (sheet Workflow_Reviewers); since S11-12 the version also holds the supplier-risk reviewers
+  // (scope RISK_ASSESSMENT · sheet Risk_Reviewers), on a tab of their own in the editor and counted with them in the list
+  const requestRules = (rules: readonly { readonly scope: string }[]) => rules.filter((r) => r.scope === 'REQUEST')
+  expect(requestRules(before.versions[0]!.rules)).toHaveLength(ruleCount)
   for (const r of draftRules) {
     const rule = before.versions[0]!.rules.find((x) => x.code === r.rule)
     expect(rule, `${v1} has rule ${r.rule}`).toBeTruthy()
@@ -208,7 +211,7 @@ test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] [FR-WF-103/AC3] scene 3: the secon
   const versions = page.getByRole('region', { name: th('adminWorkflow.list.title', { count: 1 }) })
   const v1Item = versions.getByRole('listitem').filter({ hasText: v1 })
   await expect(v1Item).toContainText(th('adminWorkflow.status.IN_EFFECT'))
-  await expect(v1Item).toContainText(th('adminWorkflow.rulesCount', { count: ruleCount }))
+  await expect(v1Item).toContainText(th('adminWorkflow.rulesCount', { count: before.versions[0]!.rules.length }))
   // The editor offers the first day of the month after the day the draft is made: the day now, or the next one should
   // the scene cross midnight before the draft is saved
   const dayOfDraft = todayInBangkok()
@@ -270,7 +273,8 @@ test('@p1demo [FR-WF-103/AC1] [FR-WF-103/AC2] [FR-WF-103/AC3] scene 3: the secon
   expect(pending).toMatchObject({ status: 'PENDING_APPROVAL', submittedBy: scene.actor, changeReason: reason })
   expect([dayOfDraft, todayInBangkok()].map(firstOfNextMonth), 'the editor\'s default start').toContain(pending.effectiveFrom)
   for (const r of draftRules) expect(pending.rules.find((x) => x.code === r.rule)?.when).toEqual({ field: r.field, op: r.op, value: r.to })
-  expect(pending.rules).toHaveLength(ruleCount)
+  expect(requestRules(pending.rules)).toHaveLength(ruleCount)
+  expect(pending.rules).toHaveLength(before.versions[0]!.rules.length)
   expect(sent.open).toEqual([expect.objectContaining({ versionNo: draftVersion, assignee: approver, ruleCode: approvalRule, doa: { code: sheet.doa.code, versionNo: sheet.doa.version } })])
   const task = sent.open[0]!
 

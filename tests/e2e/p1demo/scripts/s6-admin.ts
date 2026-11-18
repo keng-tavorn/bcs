@@ -130,7 +130,7 @@ async function main(command: string | undefined, args: readonly string[]): Promi
         changeReason: true,
         submittedById: true,
         approvedById: true,
-        rules: { orderBy: { sortOrder: 'asc' }, select: { code: true, requestTypeCodes: true, when: true } },
+        rules: { orderBy: { sortOrder: 'asc' }, select: { code: true, requestTypeCodes: true, when: true, scope: true } },
       },
     })
     const codeOf = await codesOf(versions.flatMap((v) => [v.submittedById, v.approvedById]))
@@ -154,7 +154,7 @@ async function main(command: string | undefined, args: readonly string[]): Promi
         changeReason: v.changeReason,
         submittedBy: codeOf(v.submittedById),
         approvedBy: codeOf(v.approvedById),
-        rules: v.rules.map((r) => ({ code: r.code, requestTypeCodes: r.requestTypeCodes, when: r.when })),
+        rules: v.rules.map((r) => ({ code: r.code, requestTypeCodes: r.requestTypeCodes, when: r.when, scope: r.scope })),
         events: events.filter((e) => e.aggregateId === v.id).map((e) => ({ type: e.type, data: e.data })),
       })),
       open,

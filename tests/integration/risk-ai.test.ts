@@ -289,8 +289,8 @@ describe('[FR-AI-306/AC2] [BR-AI-33] the proposed answers are checked, shown and
     expect(
       await fillRiskAssessmentOnBehalf(as('proc_officer'), { assessmentId: other.assessmentId, expectedVersion: await version(other.assessmentId), answers: [{ questionCode: 'RQ-GEN-01', optionCode: 'A' }], aiAssist: { agentActionId: draft!.id, confirmedPaths: ['answers.RQ-GEN-01'] } }, key()),
     ).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'SUBJECT_MISMATCH' } } })
-    ok(await fillRiskAssessmentOnBehalf(as('proc_officer'), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId), answers: [{ questionCode: 'RQ-GEN-01', optionCode: 'B' }], aiAssist: { agentActionId: draft!.id, confirmedPaths: [] } }, key()))
-    // procurement chose B over the AI's A: the AI's value is no longer there to wait, RQ-IS-01 was never put in
+    ok(await fillRiskAssessmentOnBehalf(as('proc_officer'), { assessmentId: s.assessmentId, expectedVersion: await version(s.assessmentId), answers: [{ questionCode: 'RQ-GEN-01', optionCode: 'B' }], aiAssist: { agentActionId: draft!.id, confirmedPaths: ['answers.RQ-GEN-01'] } }, key()))
+    // procurement chose B over the AI's A (its tick of the AI's value sent with it counts for nothing: the value is not the AI's): the AI's value is no longer there to wait, RQ-IS-01 was never put in
     expect(await prisma.agentAction.findUniqueOrThrow({ where: { id: draft!.id } })).toMatchObject({ status: 'EDITED', appliedById: org.member.proc_officer, diff: { 'answers.RQ-GEN-01': { ai: 'A', final: 'B' }, 'answers.RQ-IS-01': { ai: 'Y', final: null } } })
     // and the answer is procurement's own, not marked as the AI's (BR-AI-33)
     expect(await prisma.riskAnswer.findFirstOrThrow({ where: { assessmentId: s.assessmentId, questionCode: 'RQ-GEN-01' } })).toMatchObject({ optionCode: 'B', agentActionId: null })

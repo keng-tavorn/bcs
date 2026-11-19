@@ -241,3 +241,12 @@ export function decimalText(value: { toString(): string } | string): string {
   const s = String(value).trim().replace(/^\+/, '')
   return s.includes('.') ? s.replace(/0+$/, '').replace(/\.$/, '') : s
 }
+
+/**
+ * The values an AI action proposed, by path (answers.<code> …): what a person's tick may claim as kept as the AI wrote it.
+ * Empty when the action is not found through this tenant; applyAiAssist answers that case for the save (S11-15 review).
+ */
+export async function aiProposedValues(tx: TenantTx, agentActionId: string): Promise<Readonly<Record<string, string>>> {
+  const action = await tx.agentAction.findFirst({ where: { id: agentActionId }, select: { review: true } })
+  return action ? reviewOf(action.review).proposed : {}
+}

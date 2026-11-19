@@ -14,7 +14,7 @@ import { riskPolicyInEffect, riskTiersInEffect } from './tiers'
 // policy's registryFlagBlocks. The gate is weighed by poGate of core with what is known without a PO — the supplier's
 // tier (an inherent tier of a PO's work can only raise it), its assessment, its registry flag, and an approved override
 // for every PO of the supplier with nothing used against its cap yet — so S10 warns where S11's gate would refuse; the
-// gate itself stays at the PO (BR-RSK-09). S11-17 registers this function with registerSupplierRiskProvider.
+// gate itself stays at the PO (BR-RSK-09). S11-17: it is the provider of sourcing/risk-link.ts from the start.
 
 const OPEN_ASSESSMENT = ['DRAFT', 'IN_REVIEW', 'RETURNED'] as const
 const iso = (d: Date) => d.toISOString().slice(0, 10)

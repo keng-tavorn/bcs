@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs'
 import { z } from 'zod'
 import type { AppError, Result } from '@/core/result'
 import type { RiskDomain, RiskTierCode } from '@/core/risk'
+import { dateIn } from '@/core/supplier-docs'
 import { presignDownload, putObject } from '@/integrations/storage'
 import { newId } from '@/lib/ids'
 import { authorize, type Principal } from '@/server/authz'
@@ -12,6 +13,7 @@ import { supplierRiskStatusIn, type SupplierRiskStatusCode } from '@/server/quer
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { requireModule } from '../modules'
 import { isIndividualTaxId, maskTaxId } from '../suppliers/access'
+import { RISK_TIMEZONE } from './screening'
 
 // The supplier's risk file (S11-10 · FR-RSK-204 AC1 AC3 · BR-RSK-14 BR-RSK-20): every assessment of the supplier with its
 // answers and where each came from (the supplier, procurement for it, a certificate, an AI value a person confirmed), the
@@ -272,7 +274,8 @@ export async function supplierRiskFile(ctx: Ctx, supplierId: string): Promise<Re
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const DOWNLOAD_TTL_SECONDS = 300
-const thDate = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : '')
+/** The day of a moment as the organization lives it (Bangkok), not the UTC day (S11-17 review) */
+export const riskFileDate = (d: Date | null) => (d ? dateIn(d, RISK_TIMEZONE) : '')
 const baht = (satang: bigint) => `${satang / 100n}.${String(satang % 100n).padStart(2, '0')}`
 
 /** The workbook: one sheet per part of the file, codes and dates as the screen shows them, no free text of a supplier */
@@ -299,17 +302,17 @@ export async function riskFileWorkbook(file: SupplierRiskFile): Promise<{ bytes:
   sheet(
     'ใบประเมิน',
     ['เลขที่', 'สถานะ', 'ระดับตั้งต้น', 'คะแนน', 'ระดับ', 'เปิดเมื่อ', 'ส่งเมื่อ', 'เสร็จวันที่', 'ใช้ได้ถึง'],
-    file.assessments.map((a) => [a.number ?? '', a.status, a.inherentTier, a.pointsTotal ?? '', a.tier ?? '', thDate(a.openedAt), thDate(a.submittedAt), a.completedOn ?? '', a.validUntil ?? '']),
+    file.assessments.map((a) => [a.number ?? '', a.status, a.inherentTier, a.pointsTotal ?? '', a.tier ?? '', riskFileDate(a.openedAt), riskFileDate(a.submittedAt), a.completedOn ?? '', a.validUntil ?? '']),
   )
   sheet(
     'คำตอบ',
     ['ใบประเมิน', 'คำถาม', 'คำตอบ', 'ที่มา', 'AI เสนอ คนยืนยัน', 'คะแนน', 'ตอบเมื่อ'],
-    file.assessments.flatMap((a) => a.answers.map((x) => [a.number ?? '', x.questionCode, x.optionCode, x.source, x.aiConfirmed ? 'ใช่' : '', x.points, thDate(x.answeredAt)])),
+    file.assessments.flatMap((a) => a.answers.map((x) => [a.number ?? '', x.questionCode, x.optionCode, x.source, x.aiConfirmed ? 'ใช่' : '', x.points, riskFileDate(x.answeredAt)])),
   )
   sheet(
     'ผู้ตรวจ',
     ['ใบประเมิน', 'รอบ', 'ช่อง', 'ส่วน', 'สถานะ', 'ผู้ตรวจ', 'ตัดสินเมื่อ', 'เหตุผล'],
-    file.assessments.flatMap((a) => a.reviews.map((r) => [a.number ?? '', r.reviewRound, r.slotNo, r.riskDomains.join(' '), r.status, r.reviewerName, thDate(r.decidedAt), r.reason ?? ''])),
+    file.assessments.flatMap((a) => a.reviews.map((r) => [a.number ?? '', r.reviewRound, r.slotNo, r.riskDomains.join(' '), r.status, r.reviewerName, riskFileDate(r.decidedAt), r.reason ?? ''])),
   )
   sheet(
     'หลักฐาน',
@@ -327,7 +330,7 @@ export async function riskFileWorkbook(file: SupplierRiskFile): Promise<{ bytes:
   sheet(
     'ประเมินซ้ำ',
     ['เหตุ', 'สถานะ', 'ระดับ', 'กำหนด', 'เสร็จเมื่อ', 'ธงทะเบียน'],
-    file.reviews.map((r) => [r.reason, r.status, r.tier ?? '', thDate(r.dueAt), thDate(r.completedAt), r.registryFlag ?? '']),
+    file.reviews.map((r) => [r.reason, r.status, r.tier ?? '', riskFileDate(r.dueAt), riskFileDate(r.completedAt), r.registryFlag ?? '']),
   )
   sheet(
     'ไทม์ไลน์',

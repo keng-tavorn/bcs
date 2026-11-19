@@ -5,6 +5,8 @@ import { PORTAL_PRIVACY_NOTICE_VERSION } from '@/lib/portal-limits'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
+import { riskFileDate } from '@/server/services/risk/supplier-file'
+import { supplierRiskStatus as sourcingRiskOf } from '@/server/services/sourcing/risk-link'
 import { portalCtx } from '@/server/portal/session'
 import { answerRiskAssessment, exportSupplierRiskFile, openRiskAssessment, riskFileWorkbook, riskOverview, runRiskReviewDaily, submitRiskAssessment, supplierRiskBadges, supplierRiskFile, supplierRiskProvider, supplierRiskStatus } from '@/server/services/risk'
 import type { DoaOrg } from '../support/doa-org'
@@ -174,6 +176,12 @@ describe('[FR-RSK-204/AC3] the risk file as Excel by a POST (export.generated ·
     expect(book.getWorksheet('คำตอบ')!.rowCount).toBe(3)
   })
 
+  it('a moment in the workbook is its Bangkok day (S11-17 review): 06:30 in Bangkok is still the day before in UTC', () => {
+    expect(riskFileDate(new Date('2026-11-19T23:30:00Z'))).toBe('2026-11-20')
+    expect(riskFileDate(new Date('2026-11-20T16:59:00Z'))).toBe('2026-11-20')
+    expect(riskFileDate(null)).toBe('')
+  })
+
   it('a requester may not export it (deny): no file, no ExportJob', async () => {
     const before = await prisma.exportJob.count({ where: { organizationId: org.organizationId } })
     const r = await exportSupplierRiskFile(org.ctxOf('req_con', NOW), { supplierId: main.supplierId }, key())
@@ -199,6 +207,13 @@ describe('[BR-RSK-14] supplierRiskStatus for S10 and the other pages', () => {
     expect(await db.$transaction((tx) => supplierRiskProvider(tx, org.organizationId, person.supplierId, lapsed))).toMatchObject({ tier: 'HIGH', blocked: true })
     const fresh = await supplierWithContact('RF-03')
     expect(await db.$transaction((tx) => supplierRiskProvider(tx, org.organizationId, fresh.supplierId, NOW))).toMatchObject({ tier: null, blocked: false, status: 'NOT_ASSESSED' })
+  })
+
+  it('S10 reads this provider with nothing registered (S11-17): a page or job of sourcing that never loads services/risk still sees the risk', async () => {
+    const db = forTenant(org.organizationId)
+    const lapsed = new Date('2026-12-20T03:00:00Z')
+    expect(await db.$transaction((tx) => sourcingRiskOf(tx, org.organizationId, person.supplierId, lapsed))).toMatchObject({ tier: 'HIGH', blocked: true, registryFlagBlocks: true })
+    expect(await db.$transaction((tx) => sourcingRiskOf(tx, org.organizationId, person.supplierId, NOW))).toMatchObject({ tier: 'HIGH', blocked: false, status: 'CURRENT' })
   })
 })
 

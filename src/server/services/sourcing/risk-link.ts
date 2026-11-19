@@ -1,8 +1,12 @@
 import type { TenantTx } from '@/server/db/tenant'
+import { supplierRiskProvider } from '../risk/status'
 
 // The supplier risk an invite records when the RISK module is on (BR-RFX-03 · S10-04): S11 registers its provider here
 // (the registry keeps S10 from importing S11's service and S11 from editing S10's files). No provider, or RISK off → no
 // badge. A risk only warns at invite time; it never blocks an invite (the gate of S11 sits before the PO).
+// S11-17: S11's supplierRiskProvider is the provider from the start, not a call made when S11's module loads — a page or
+// job of S10 that never imports services/risk (/sourcing/[id], the award) would otherwise read no risk at all. The
+// provider says nothing with RISK off. Tests still register their own (registerSupplierRiskProvider).
 
 export interface SupplierRiskStatus {
   /** The tier S11 assigned, e.g. LOW MEDIUM HIGH, or null when the supplier has no assessment yet */
@@ -21,9 +25,9 @@ export interface SupplierRiskStatus {
 
 export type SupplierRiskProvider = (tx: TenantTx, organizationId: string, supplierId: string, now: Date) => Promise<SupplierRiskStatus | null>
 
-let provider: SupplierRiskProvider | null = null
+let provider: SupplierRiskProvider | null = supplierRiskProvider
 
-/** S11 calls this once when its module loads */
+/** Replaces the provider (tests: a fixed risk, or none with `async () => null`) */
 export function registerSupplierRiskProvider(next: SupplierRiskProvider): void {
   provider = next
 }

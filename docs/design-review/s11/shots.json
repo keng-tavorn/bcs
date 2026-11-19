@@ -1,0 +1,592 @@
+[
+  {
+    "375": {
+      "picture": "docs/design-review/s11/portal_risk-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/portal_risk-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_risk",
+    "who": "sp0141.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/risk",
+    "firstLoadJs": {
+      "total": 145099,
+      "note": "145099 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 2888 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/risk",
+    "h1": "แบบประเมินความเสี่ยงผู้ขาย",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/portal_risk_ai-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/portal_risk_ai-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_risk_ai",
+    "who": "sp0132.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/risk/01a1f533-0ef3-768e-aa39-d3afdead3918",
+    "firstLoadJs": {
+      "total": 148088,
+      "note": "148088 bytes of 200000: 11 script files 143202 bytes over the wire and inline page data 4886 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/risk/01a1f533-0ef3-768e-aa39-d3afdead3918",
+    "h1": "แบบประเมินความเสี่ยง RSA-2569-00021",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/portal_risk_sent-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/portal_risk_sent-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_risk_sent",
+    "who": "sp0141.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/risk/01a1f52a-9e03-74a0-ba8e-45ce18411c13",
+    "firstLoadJs": {
+      "total": 147259,
+      "note": "147259 bytes of 200000: 11 script files 143202 bytes over the wire and inline page data 4057 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/risk/01a1f52a-9e03-74a0-ba8e-45ce18411c13",
+    "h1": "แบบประเมินความเสี่ยง RSA-2569-00019",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/proc_officer_risk-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/proc_officer_risk-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_risk",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/risk",
+    "status": 200,
+    "landed": "/risk",
+    "h1": "ความเสี่ยงคู่ค้า"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/proc_officer_assessment_sent-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/proc_officer_assessment_sent-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_assessment_sent",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/risk/assessments/01a1f52a-9e03-74a0-ba8e-45ce18411c13",
+    "status": 200,
+    "landed": "/risk/assessments/01a1f52a-9e03-74a0-ba8e-45ce18411c13",
+    "h1": "แบบประเมิน RSA-2569-00019 · บริษัท โปรเฟสชั่นแนลบิลด์ซอฟต์แวร์ จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/proc_officer_assessment_fill_ai-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/proc_officer_assessment_fill_ai-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_assessment_fill_ai",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/risk/assessments/01a1f533-0ef3-768e-aa39-d3afdead3918",
+    "status": 200,
+    "landed": "/risk/assessments/01a1f533-0ef3-768e-aa39-d3afdead3918",
+    "h1": "แบบประเมิน RSA-2569-00021 · บริษัท โปรเฟสชั่นแนลบิลด์เซอร์วิส จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/reviewer_reviews-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/reviewer_reviews-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "reviewer_reviews",
+    "who": "dm_leg",
+    "kind": "web",
+    "path": "/risk/reviews",
+    "status": 200,
+    "landed": "/risk/reviews",
+    "h1": "งานตรวจแบบประเมินความเสี่ยง"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/reviewer_review-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/reviewer_review-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "reviewer_review",
+    "who": "dm_leg",
+    "kind": "web",
+    "path": "/risk/reviews/01a1f534-46ad-734e-acdd-6d072f8326f7",
+    "status": 200,
+    "landed": "/risk/reviews/01a1f534-46ad-734e-acdd-6d072f8326f7",
+    "h1": "ตรวจแบบประเมิน RSA-2569-00019 · บริษัท โปรเฟสชั่นแนลบิลด์ซอฟต์แวร์ จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/liff_reviewer_review-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/liff_reviewer_review-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "liff_reviewer_review",
+    "who": "dm_leg",
+    "kind": "liff",
+    "path": "/liff/risk/reviews/01a1f534-46ad-734e-acdd-6d072f8326f7",
+    "status": 200,
+    "landed": "/liff/risk/reviews/01a1f534-46ad-734e-acdd-6d072f8326f7",
+    "h1": "งานตรวจแบบประเมินความเสี่ยง"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/proc_officer_overrides-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/proc_officer_overrides-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_overrides",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/risk/overrides?tab=all",
+    "status": 200,
+    "landed": "/risk/overrides",
+    "h1": "การอนุมัติข้ามด่านความเสี่ยง"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/proc_officer_override-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/proc_officer_override-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_override",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/risk/overrides/01a1f531-18be-73cb-a908-fe343b690778",
+    "status": 200,
+    "landed": "/risk/overrides/01a1f531-18be-73cb-a908-fe343b690778",
+    "h1": "การอนุมัติข้าม RO-2569-00003"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/proc_officer_override_new-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/proc_officer_override_new-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_override_new",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/risk/overrides/new?supplierId=01a1f527-0a4b-758c-ae51-ed22daf67cf4",
+    "status": 200,
+    "landed": "/risk/overrides/new",
+    "h1": "ขออนุมัติข้ามด่านความเสี่ยง"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/task_override-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/task_override-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "task_override",
+    "who": "coo",
+    "kind": "web",
+    "path": "/tasks/01a1f531-1b0b-70e5-8075-784c3c0de237",
+    "status": 200,
+    "landed": "/tasks/01a1f531-1b0b-70e5-8075-784c3c0de237",
+    "h1": "การอนุมัติข้าม RO-2569-00003"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/liff_task_override-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/liff_task_override-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "liff_task_override",
+    "who": "coo",
+    "kind": "liff",
+    "path": "/liff/tasks/01a1f531-1b0b-70e5-8075-784c3c0de237",
+    "status": 200,
+    "landed": "/liff/tasks/01a1f531-1b0b-70e5-8075-784c3c0de237",
+    "h1": "งานอนุมัติ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/proc_officer_po_held-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/proc_officer_po_held-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_po_held",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/procurement/pos/01a1f531-e1d9-7112-a4fc-757ced936ec0",
+    "status": 200,
+    "landed": "/procurement/pos/01a1f531-e1d9-7112-a4fc-757ced936ec0",
+    "h1": "บริษัท วัฒนาโยธากิจสตีล จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/proc_officer_board_risk-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/proc_officer_board_risk-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_board_risk",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/board/pending?risk=gated",
+    "status": 200,
+    "landed": "/board/pending",
+    "h1": "เอกสารค้างที่ใคร"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/proc_officer_suppliers-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/proc_officer_suppliers-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_suppliers",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/suppliers",
+    "status": 200,
+    "landed": "/suppliers",
+    "h1": "ผู้ขาย"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/proc_officer_supplier_risk-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/proc_officer_supplier_risk-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_supplier_risk",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/suppliers/01a1f527-0a61-762b-be08-2d0f3f11311b?tab=risk",
+    "status": 200,
+    "landed": "/suppliers/01a1f527-0a61-762b-be08-2d0f3f11311b",
+    "h1": "ห้างหุ้นส่วนจำกัด นครชัยกิจแอดไวเซอรี่"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/proc_officer_risk_file-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/proc_officer_risk_file-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_officer_risk_file",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/risk/suppliers/01a1f527-0a61-762b-be08-2d0f3f11311b",
+    "status": 200,
+    "landed": "/risk/suppliers/01a1f527-0a61-762b-be08-2d0f3f11311b",
+    "h1": "แฟ้มความเสี่ยง · ห้างหุ้นส่วนจำกัด นครชัยกิจแอดไวเซอรี่"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/admin_risk_tiers-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/admin_risk_tiers-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "admin_risk_tiers",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/risk/tiers",
+    "status": 200,
+    "landed": "/admin/risk/tiers",
+    "h1": "เกณฑ์ระดับความเสี่ยงคู่ค้า"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/admin_risk_questionnaire-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/admin_risk_questionnaire-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "admin_risk_questionnaire",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/risk/questionnaire",
+    "status": 200,
+    "landed": "/admin/risk/questionnaire",
+    "h1": "แบบประเมินความเสี่ยงคู่ค้า"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/admin_risk_questionnaire_version-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/admin_risk_questionnaire_version-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "admin_risk_questionnaire_version",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/risk/questionnaire/01a1f527-043e-7282-a0ee-5982e20ab1d0",
+    "status": 200,
+    "landed": "/admin/risk/questionnaire/01a1f527-043e-7282-a0ee-5982e20ab1d0",
+    "h1": "RQ-SIMEC ฉบับที่ 1"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/admin_workflow_risk-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/admin_workflow_risk-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "admin_workflow_risk",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/workflows/01a1f527-04e6-72fd-b413-5895afe7fea5",
+    "status": 200,
+    "landed": "/admin/workflows/01a1f527-04e6-72fd-b413-5895afe7fea5",
+    "h1": "WF-SIMEC ฉบับ 1"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/dm_proc_reports_risk-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/dm_proc_reports_risk-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "dm_proc_reports_risk",
+    "who": "dm_proc",
+    "kind": "web",
+    "path": "/reports/risk",
+    "status": 200,
+    "landed": "/reports/risk",
+    "h1": "รายงานความเสี่ยงคู่ค้า"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s11/platform_tenant_modules-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s11/platform_tenant_modules-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "platform_tenant_modules",
+    "who": "platform",
+    "kind": "platform",
+    "path": "/platform/tenants/01a1f526-d863-70f9-bf89-4a612883b515/modules",
+    "status": 200,
+    "landed": "/platform/tenants/01a1f526-d863-70f9-bf89-4a612883b515/modules",
+    "h1": "โมดูลของ ตัวอย่าง E&C"
+  }
+]

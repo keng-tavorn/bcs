@@ -158,3 +158,29 @@ export async function portalSessionOn(context: BrowserContext, org: string, emai
 export function dayFromToday(days: number, at: Date = new Date()): string {
   return new Date(at.getTime() + 7 * 3_600_000 + days * 86_400_000).toISOString().slice(0, 10)
 }
+
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
+const plusDays = (from: string, days: number) => new Date(Date.parse(`${from}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
+
+/** Scene 17's override and payment as played on a day: what the scene asks for and checks */
+export interface OverrideDay {
+  readonly expiresOn: string
+  readonly payDate: string
+  /** the number the row expects, or null when the day is in another Buddhist year than the row's (a new year's count) */
+  readonly expectedNo: string | null
+  /** the number's shape in the day's year: RO-<พ.ศ.>-nnnnn */
+  readonly numberPattern: RegExp
+}
+
+/**
+ * The row's days of scene 17 (asked on requestedOn, last day expiresOn, the run paying on payDate) while today still lies
+ * between the asking and the last day; on any other day the same spans counted from today (the calendar offers no day
+ * before today, BR-RSK-10). The row's number holds in the row's year only: another year counts its overrides afresh.
+ */
+export function overrideOnDay(row: { readonly requestedOn: string; readonly expiresOn: string; readonly expectedNo: string }, rowPayDate: string, today: string = dayFromToday(0)): OverrideDay {
+  const inRow = row.requestedOn <= today && today <= row.expiresOn
+  const expiresOn = inRow ? row.expiresOn : plusDays(today, daysBetween(row.requestedOn, row.expiresOn))
+  const payDate = plusDays(expiresOn, daysBetween(row.expiresOn, rowPayDate))
+  const year = Number(today.slice(0, 4)) + 543
+  return { expiresOn, payDate, expectedNo: row.expectedNo.startsWith(`RO-${year}-`) ? row.expectedNo : null, numberPattern: new RegExp(`^RO-${year}-\\d{5}$`) }
+}

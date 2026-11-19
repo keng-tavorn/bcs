@@ -3,7 +3,7 @@ import { E2E_BASE_URL, E2E_PIN } from '../../support/e2e-env'
 import { actionsOf, cardTo, liffPathOf, lineUserOf, openLiffAs, th } from '../demo/support'
 import { budgetLineOf, day, p1Sheet, signInAs } from '../p1demo/support'
 import { expect, test } from '../fixtures'
-import { dayFromToday, p2Expected, p2SceneOf, p2Sheet, s11 } from './support'
+import { dayFromToday, overrideOnDay, p2Expected, p2SceneOf, p2Sheet, s11 } from './support'
 
 // Scene 17 of the day of phase 2 (S11-15 · S11 core "อนุมัติข้ามตาม DOA" · FR-RSK-203 AC1 AC2 AC3 AC5 · BR-RSK-09 BR-RSK-10
 // BR-RSK-11 · BR-DOA-28): an urgent IT purchase of the row's supplier (expectJson.po · its title that of the supplier's
@@ -26,6 +26,7 @@ interface ScenePo {
 interface Override {
   readonly reason: string
   readonly capGross: string
+  readonly requestedOn: string
   readonly expiresOn: string
   readonly expectedNo: string
   readonly amount: { readonly net: string; readonly vat: string }
@@ -49,6 +50,8 @@ test('@p2demo [FR-RSK-203/AC1] [FR-RSK-203/AC2] [FR-RSK-203/AC3] [FR-RSK-203/AC5
   const passed = p2Expected<{ event: string; tier: string; source: string }>(scene, 'passed')
   const parallel = p2Expected<{ status: string; riskStatus: string }>(scene, 'parallelAssessment')
   const payment = p2Expected<{ payDate: string; flag: string; overrideExpiresOn: string }>(scene, 'payment')
+  // the row's days while today lies between its asking and its last day, else the same spans from today (S11-15 review)
+  const on = overrideOnDay(asked, payment.payDate)
   const supplier = scene.supplier!
   const approver = scene.others[0]!
   expect(asked.approver).toBe(approver)
@@ -87,7 +90,7 @@ test('@p2demo [FR-RSK-203/AC1] [FR-RSK-203/AC2] [FR-RSK-203/AC3] [FR-RSK-203/AC5
   await form.getByRole('button', { name: th('risk.override.form.expiresOn') }).click()
   const calendar = page.getByRole('dialog', { name: th('risk.override.form.expiresOn') })
   // a day's button reads "วัน…ที่ 31 ธันวาคม 2026" (the calendar's Thai labels, the year as the calendar counts it)
-  const [y, m, d] = asked.expiresOn.split('-').map(Number) as [number, number, number]
+  const [y, m, d] = on.expiresOn.split('-').map(Number) as [number, number, number]
   const month = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(y, m - 1, 1)))
   const target = calendar.getByRole('button', { name: new RegExp(`ที่ ${d} ${month} ${y}$`) })
   for (let i = 0; i < 4 && !(await target.isVisible()); i++) await calendar.getByRole('button', { name: 'ไปเดือนถัดไป' }).click()
@@ -99,7 +102,9 @@ test('@p2demo [FR-RSK-203/AC1] [FR-RSK-203/AC2] [FR-RSK-203/AC3] [FR-RSK-203/AC5
 
   // FR-RSK-203 AC2 AC3: the DOA's route of RISK_OVERRIDE, the cap as its amount (no VAT), its rule and approver
   const sent = s11<{ id: string; number: string; status: string; capGrossSatang: string; expiresOn: string; route: { subjectType: string; rule: string; amountSatang: string; stepUpThresholdSatang: string | null }; tasks: Array<{ id: string; status: string; holder: string }> }>('override', supplier)
-  expect(sent).toMatchObject({ number: asked.expectedNo, status: 'PENDING_APPROVAL', capGrossSatang: satang(asked.capGross), expiresOn: asked.expiresOn })
+  expect(sent).toMatchObject({ status: 'PENDING_APPROVAL', capGrossSatang: satang(asked.capGross), expiresOn: on.expiresOn })
+  if (on.expectedNo) expect(sent.number).toBe(on.expectedNo)
+  else expect(sent.number).toMatch(on.numberPattern)
   expect(sent.route).toMatchObject({ subjectType: asked.documentType, rule: asked.rule, amountSatang: (BigInt(satang(asked.amount.net)) + BigInt(satang(asked.amount.vat))).toString() })
   expect(sent.route.stepUpThresholdSatang !== null && BigInt(sent.route.amountSatang) >= BigInt(sent.route.stepUpThresholdSatang)).toBe(asked.stepUp)
   const task = sent.tasks.find((t) => t.status === 'OPEN')!
@@ -147,6 +152,6 @@ test('@p2demo [FR-RSK-203/AC1] [FR-RSK-203/AC2] [FR-RSK-203/AC3] [FR-RSK-203/AC5
   expect([file.assessment.status, file.supplier.riskStatus]).toEqual([parallel.status, parallel.riskStatus])
   // FR-RSK-203 AC5 (S9): a run paying after the override's last day sees it expired and asks a reason
   expect(payment.overrideExpiresOn).toBe(asked.expiresOn)
-  expect(s11<{ overrides: Array<{ expiresOn: string }> }>('pay-flag', supplier, payment.payDate).overrides).toEqual([{ expiresOn: payment.overrideExpiresOn }])
-  expect(dayFromToday(0) <= asked.expiresOn).toBe(true)
+  expect(s11<{ overrides: Array<{ expiresOn: string }> }>('pay-flag', supplier, on.payDate).overrides).toEqual([{ expiresOn: on.expiresOn }])
+  expect(dayFromToday(0) <= on.expiresOn && on.expiresOn < on.payDate).toBe(true)
 })

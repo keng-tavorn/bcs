@@ -176,12 +176,15 @@ async function makePo(scene: number, requester: string, budgetLineCode: string, 
 
   // the reviewers of the workflow pass first (if any rule matched), then the DOA's approver approves
   const reviewers: Array<{ code: string | null; rules: string[] }> = []
-  for (;;) {
+  // a route of the workflow's reviewers and the DOA's steps closes in a few rounds; one that keeps a task open after its
+  // holder decided would loop for ever, so the script stops and names what is still open (S11-15 review)
+  for (let round = 0; ; round++) {
     const open = await prisma.approvalTask.findMany({
       where: { organizationId, status: 'OPEN', step: { route: { subjectType: 'REQUEST', subjectId: requestId, status: 'ACTIVE' } } },
       select: { id: true, assigneeMemberId: true, workflowRuleCodes: true, step: { select: { kind: true, route: { select: { ruleCode: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
     })
     if (open.length === 0) break
+    if (round >= 10) throw new Error(`scene ${scene}: request ${requestId} still has open tasks after ${round} rounds: ${(await Promise.all(open.map((t) => codeOf(t.assigneeMemberId)))).join(' ')}`)
     for (const task of open) {
       const code = (await codeOf(task.assigneeMemberId))!
       if (task.step.kind === 'REVIEW') {

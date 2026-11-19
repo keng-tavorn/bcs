@@ -38,6 +38,12 @@ interface Drafted {
   readonly actions: ReadonlyArray<{ readonly status: string; readonly output: { answers: Array<{ questionCode: string; optionCode: string }> } | null; readonly fieldConfidence: Record<string, number> | null; readonly verification: { checks: Array<{ questionCode: string; code: string; result: string }> } | null }>
 }
 
+/**
+ * The confidence the app keeps for a proposal: the model answers a whole percent (scripts/s11.ts ai-draft gives it the row's
+ * bp rounded so), the app turns it into bp and caps it by its check (BR-AI-16)
+ */
+const keptBp = (p: Proposal) => Math.min(Math.round(p.confidenceBp / 100) * 100, p.capBp ?? Number.POSITIVE_INFINITY)
+
 const { defaultBrowserType: _browser, ...pixel7 } = devices['Pixel 7']
 test.use({ ...pixel7, viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true })
 
@@ -78,7 +84,7 @@ test('@p2demo [FR-AI-306/AC1] [FR-AI-306/AC2] [FR-AI-306/AC3] [FR-AI-306/AC4] [F
   // AC4: proposals only — no points, no tier in what the AI wrote
   expect(Object.keys(draft.output!)).toEqual(['answers'])
   for (const p of proposals) {
-    expect(draft.fieldConfidence?.[`answers.${p.question}`], `${p.question}'s confidence`).toBe(p.capBp !== undefined ? Math.min(p.confidenceBp, p.capBp) : p.confidenceBp)
+    expect(draft.fieldConfidence?.[`answers.${p.question}`], `${p.question}'s confidence`).toBe(keptBp(p))
     const check = draft.verification?.checks.find((c) => c.questionCode === p.question)
     if (p.flag) expect(check).toMatchObject({ code: p.flag, result: p.severity })
     else expect(check).toBeUndefined()
@@ -90,7 +96,7 @@ test('@p2demo [FR-AI-306/AC1] [FR-AI-306/AC2] [FR-AI-306/AC3] [FR-AI-306/AC4] [F
   for (const p of proposals) {
     const box = page.locator(`#q-${p.question}`).getByRole('group', { name: th('portal.risk.ai.title') })
     await expect(box).toContainText(th('portal.risk.ai.proposed', { option: labelOf(p.question, p.option) }))
-    await expect(box).toContainText(th('portal.risk.ai.confidence', { percent: Math.floor((p.capBp !== undefined ? Math.min(p.confidenceBp, p.capBp) : p.confidenceBp) / 100) }))
+    await expect(box).toContainText(th('portal.risk.ai.confidence', { percent: Math.floor(keptBp(p) / 100) }))
     if (p.flag) await expect(box).toContainText(th(`portal.risk.ai.checks.${p.flag}`))
     await box.getByRole('checkbox', { name: th('portal.risk.ai.confirm') }).check()
   }

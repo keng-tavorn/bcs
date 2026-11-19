@@ -1,7 +1,7 @@
 import { exportedFile, sha256, sheetRows, shownChecksum } from '../insight-support'
 import { p1Sheet, signInAs } from '../p1demo/support'
 import { expect, test } from '../fixtures'
-import { dayFromToday, p2Expected, p2SceneOf, p2Sheet, s11Status } from './support'
+import { dayFromToday, overrideOnDay, p2Expected, p2SceneOf, p2Sheet, s11Status } from './support'
 
 // Scene 21 of the day of phase 2 (S11-15 · S11-11 · BR-RSK-15 · KPI G-9 · GC-RSK-69 to 72 · docs/sub-specs/S11.md "Demo
 // ของขั้น" 21): the actor opens /reports/risk for the row's period — from its first day to yesterday (DAY_BEFORE_DEMO),
@@ -79,9 +79,11 @@ test('@p2demo [FR-RSK-204/AC2] [FR-RSK-204/AC3] scene 21: G-9 of the seed is the
   }
 
   // the overrides: the seed's expired, and the one scene 17 had approved still open
-  const fromScene17 = p2Expected<{ expectedNo: string }>(p2SceneOf(sheet, 17), 'override').expectedNo
+  // scene 17's number: the row's in the row's year, any of the day's year otherwise (the seed's are all of the row's year)
+  const scene17 = p2SceneOf(sheet, 17)
+  const fromScene17 = overrideOnDay(p2Expected<{ requestedOn: string; expiresOn: string; expectedNo: string }>(scene17, 'override'), p2Expected<{ payDate: string }>(scene17, 'payment').payDate, facts.today)
   const open = facts.overrides.filter((o) => o.status === 'APPROVED' && o.expiresOn >= facts.today).map((o) => o.number)
-  if (open.includes(fromScene17)) expect(open).toHaveLength(overrides.openAfterScene17)
+  if (open.some((n) => (fromScene17.expectedNo ? n === fromScene17.expectedNo : fromScene17.numberPattern.test(n)))) expect(open).toHaveLength(overrides.openAfterScene17)
   const overridePanel = page.getByRole('region', { name: 'การอนุมัติข้ามด่านความเสี่ยง' })
   await expect(overridePanel).toContainText(`เปิดอยู่ ${open.length} รายการ · หมดอายุ ${overrides.expired.length} รายการ`)
   const overrideTable = page.getByRole('table', { name: 'การอนุมัติข้ามที่อนุมัติแล้ว พร้อมยอดที่ใช้และผู้ขอ' })

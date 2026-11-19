@@ -8,6 +8,7 @@ import { portalQuestionSet } from '@/server/portal/risk-set'
 import { isUuid } from '@/server/queries/requests'
 import { portalRiskAiDraft, RISK_LEAVE_BLANK, type RiskAiSuggestion } from '@/server/services/risk/ai-assist'
 import { checkboxClass, textareaClass } from '@/ui/liff/requests/classes'
+import { PortalFileInput } from '@/ui/portal/file-input'
 import { PortalButton, PortalFrame, PortalNotice } from '@/ui/portal/frame'
 import { one, pageOrg, pageSession, Unavailable, type SearchParams } from '../../_lib/page'
 
@@ -245,7 +246,7 @@ function Question({
   const locked = answer?.source === 'EVIDENCE'
   const marks = (
     <>
-      {q.required ? null : <p className="text-sm text-ink-muted">{t('risk.assessment.optional')}</p>}
+      {q.required ? null : <p className="text-base text-ink-muted md:text-sm">{t('risk.assessment.optional')}</p>}
       {help ? (
         <p id={`help-${q.code}`} className="whitespace-pre-line text-ink-muted">
           {help}
@@ -321,7 +322,7 @@ function Question({
               {answer.files.map((f) => (
                 <li key={f.fileId} className="flex flex-col">
                   <span className="break-all">{f.fileName}</span>
-                  <span className="text-sm text-ink-muted">{(SCANS as readonly string[]).includes(f.scanStatus) ? t(`risk.scan.${f.scanStatus as (typeof SCANS)[number]}`) : f.scanStatus}</span>
+                  <span className="text-base text-ink-muted md:text-sm">{(SCANS as readonly string[]).includes(f.scanStatus) ? t(`risk.scan.${f.scanStatus as (typeof SCANS)[number]}`) : f.scanStatus}</span>
                 </li>
               ))}
             </ul>
@@ -337,13 +338,13 @@ function Question({
               <label htmlFor={`file-${q.code}`} className="font-medium">
                 {t('risk.evidence.file')}
               </label>
-              <input id={`file-${q.code}`} name="file" type="file" required accept="application/pdf,image/jpeg,image/png,image/webp" className="text-base" />
+              <PortalFileInput id={`file-${q.code}`} name="file" required accept="application/pdf,image/jpeg,image/png,image/webp" chooseLabel={t('fileInput.choose')} noneLabel={t('fileInput.none')} />
               <label className="flex min-h-11 items-start gap-3 py-2">
                 {/* each file is its own consent (BR-AI-34): unticked unless the contact ticks it for this file */}
                 <input type="checkbox" name="aiReadable" value="1" aria-describedby={`ai-${q.code}`} className={choiceClass} />
                 <span>{t('risk.evidence.aiReadable')}</span>
               </label>
-              <p id={`ai-${q.code}`} className="text-sm text-ink-muted">
+              <p id={`ai-${q.code}`} className="text-base text-ink-muted md:text-sm">
                 {t('risk.evidence.aiHint')}
               </p>
               <PortalButton type="submit" variant="secondary">
@@ -353,7 +354,7 @@ function Question({
           ) : null}
         </div>
       ) : editable ? (
-        <p className="text-sm text-ink-muted">{t('risk.evidence.answerFirst')}</p>
+        <p className="text-base text-ink-muted md:text-sm">{t('risk.evidence.answerFirst')}</p>
       ) : null}
     </div>
   )
@@ -369,8 +370,8 @@ function AiSuggestion({ t, en, question: q, suggestion: s }: { readonly t: Porta
       </p>
       <p>{t('risk.ai.proposed', { option: option ? (en ? option.labelEn : option.labelTh) : s.optionCode })}</p>
       {s.quote ? <p className="break-words text-ink-muted">{t('risk.ai.quote', { quote: s.quote })}</p> : null}
-      {s.source ? <p className="break-all text-ink-muted">{s.source.kind === 'DOCUMENT' ? t('risk.ai.sourceDocument', { name: s.source.name }) : t('risk.ai.sourceFile', { name: s.source.name })}</p> : null}
-      <p className="text-sm text-ink-muted">{t('risk.ai.confidence', { percent: Math.floor(s.confidenceBp / 100) })}</p>
+      {s.source ? <p className="break-all text-ink-muted">{s.source.kind === 'DOCUMENT' ? t('risk.ai.sourceDocument', { name: en ? s.source.nameEn : s.source.name }) : t('risk.ai.sourceFile', { name: s.source.name })}</p> : null}
+      <p className="text-base text-ink-muted md:text-sm">{t('risk.ai.confidence', { percent: Math.floor(s.confidenceBp / 100) })}</p>
       {s.check?.code === 'EVIDENCE_MISSING' ? <p className="font-medium text-warn-ink">{t('risk.ai.checks.EVIDENCE_MISSING')}</p> : null}
       {s.confirmed ? (
         <p className="text-ink-muted">{t('risk.ai.confirmed')}</p>

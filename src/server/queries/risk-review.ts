@@ -159,8 +159,11 @@ export interface ReviewAnswerDto {
   readonly optionLabelTh: string
   readonly optionLabelEn: string
   readonly source: 'EXPLICIT' | 'EVIDENCE' | 'ON_BEHALF'
+  /** The AI proposed it and a person confirmed it (RiskAnswer.agentActionId · BR-AI-33) */
+  readonly fromAi: boolean
   readonly note: string | null
-  readonly evidenceDocument: { readonly id: string; readonly documentTypeCode: string; readonly scope: string | null; readonly expiresOn: Date } | null
+  /** The certificate the answer rests on: its type by name (S11-16: never its code on a screen) */
+  readonly evidenceDocument: { readonly id: string; readonly documentTypeCode: string; readonly typeNameTh: string; readonly typeNameEn: string; readonly scope: string | null; readonly expiresOn: Date } | null
   readonly files: readonly { readonly fileId: string; readonly fileName: string; readonly scanStatus: string }[]
 }
 
@@ -252,7 +255,7 @@ export async function riskReviewTaskPage(ctx: Ctx, taskId: string): Promise<Risk
     const codes = new Set(inSet.map((q) => q.code))
     const answers = a.answers.filter((x) => codes.has(x.questionCode) && x.optionCode !== null)
     const [docs, links] = await Promise.all([
-      tx.supplierDocument.findMany({ where: { id: { in: answers.map((x) => x.evidenceDocumentId).filter((d): d is string => d !== null) } }, select: { id: true, documentTypeCode: true, scope: true, expiresOn: true } }),
+      tx.supplierDocument.findMany({ where: { id: { in: answers.map((x) => x.evidenceDocumentId).filter((d): d is string => d !== null) } }, select: { id: true, documentTypeCode: true, scope: true, expiresOn: true, documentType: { select: { nameTh: true, nameEn: true } } } }).then((rows) => rows.map(({ documentType, ...d }) => ({ ...d, typeNameTh: documentType.nameTh, typeNameEn: documentType.nameEn }))),
       tx.fileLink.findMany({ where: { kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer', subjectId: { in: answers.map((x) => x.id) } }, select: { subjectId: true, file: { select: { id: true, fileName: true, scanStatus: true } } } }),
     ])
     const stored = new Map(a.questionnaire.questions.map((q) => [q.code, q]))
@@ -271,6 +274,7 @@ export async function riskReviewTaskPage(ctx: Ctx, taskId: string): Promise<Risk
               optionLabelTh: option?.labelTh ?? answer.optionCode!,
               optionLabelEn: option?.labelEn ?? answer.optionCode!,
               source: answer.source,
+              fromAi: answer.agentActionId !== null,
               note: answer.note,
               evidenceDocument: answer.evidenceDocumentId ? (docs.find((d) => d.id === answer.evidenceDocumentId) ?? null) : null,
               files: links.filter((l) => l.subjectId === answer.id).map((l) => ({ fileId: l.file.id, fileName: l.file.fileName, scanStatus: l.file.scanStatus })),

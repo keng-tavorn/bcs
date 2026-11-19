@@ -44,6 +44,7 @@
         "EVIDENCE": "Answered with a supporting document",
         "ON_BEHALF": "Filled in by procurement for the supplier"
       },
+      "fromAi": "Proposed by AI, checked and confirmed by the supplier",
       "note": "Note: {note}",
       "evidence": "Document {type}, expires {date}",
       "evidenceScope": "Document scope: {scope}",

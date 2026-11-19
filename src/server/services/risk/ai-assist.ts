@@ -270,8 +270,8 @@ export interface RiskAiSuggestion {
   /** The check that did not pass (ai-risk-verify), if any */
   readonly check: { readonly code: RiskCheckCode; readonly result: 'WARN' | 'FAIL' } | null
   readonly quote: string | null
-  /** Where it was read: a document by its type, or an evidence file by its name */
-  readonly source: { readonly kind: 'DOCUMENT' | 'EVIDENCE'; readonly name: string } | null
+  /** Where it was read: a document by its type's name (S11-16: never its code), or an evidence file by its name */
+  readonly source: { readonly kind: 'DOCUMENT' | 'EVIDENCE'; readonly name: string; readonly nameEn: string } | null
   readonly confirmed: boolean
   /** Saved as it was proposed and not confirmed yet: it holds the send back (AI_REVIEW_PENDING) */
   readonly pending: boolean
@@ -311,7 +311,7 @@ async function draftView(tx: TenantTx, assessmentId: string, aiOn: boolean): Pro
   const docIds = refs.filter((f) => f.kind === 'DOCUMENT' && typeof f.ref === 'string').map((f) => f.ref as string)
   const fileIds = refs.filter((f) => f.kind === 'EVIDENCE' && typeof f.ref === 'string').map((f) => f.ref as string)
   const [docs, files] = await Promise.all([
-    docIds.length ? tx.supplierDocument.findMany({ where: { id: { in: docIds } }, select: { id: true, documentTypeCode: true } }) : [],
+    docIds.length ? tx.supplierDocument.findMany({ where: { id: { in: docIds } }, select: { id: true, documentType: { select: { nameTh: true, nameEn: true } } } }) : [],
     fileIds.length ? tx.fileObject.findMany({ where: { id: { in: fileIds } }, select: { id: true, fileName: true } }) : [],
   ])
   const sourceOf = (label: unknown): RiskAiSuggestion['source'] => {
@@ -319,10 +319,10 @@ async function draftView(tx: TenantTx, assessmentId: string, aiOn: boolean): Pro
     if (!ref || typeof ref.ref !== 'string') return null
     if (ref.kind === 'DOCUMENT') {
       const d = docs.find((x) => x.id === ref.ref)
-      return d ? { kind: 'DOCUMENT', name: d.documentTypeCode } : null
+      return d ? { kind: 'DOCUMENT', name: d.documentType.nameTh, nameEn: d.documentType.nameEn } : null
     }
     const f = files.find((x) => x.id === ref.ref)
-    return f ? { kind: 'EVIDENCE', name: f.fileName } : null
+    return f ? { kind: 'EVIDENCE', name: f.fileName, nameEn: f.fileName } : null
   }
   const pending = new Set(chosen.pendingPaths)
   const confirmed = new Set(chosen.confirmedPaths)

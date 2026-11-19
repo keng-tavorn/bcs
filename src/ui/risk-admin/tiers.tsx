@@ -4,6 +4,7 @@ import { useFailureText, useRun } from './run'
 import { useSay } from './say'
 import { useId, useState, type FormEvent } from 'react'
 import { StatusBadge } from '../document/badges'
+import { TierBadge } from '../risk-review/badges'
 import type { BadgeLook } from '../document/badge-looks'
 import { Notice } from '../form/notice'
 import {
@@ -73,7 +74,6 @@ export interface TierActions {
 
 const IN_EFFECT: BadgeLook = { tone: 'ok', icon: 'CircleCheck' }
 const WAITING: BadgeLook = { tone: 'warn', icon: 'Hourglass' }
-const TIER_LOOK: Record<RiskTierCodeUi, BadgeLook> = { LOW: { tone: 'neutral', icon: 'CircleDot' }, MEDIUM: { tone: 'warn', icon: 'Gauge' }, HIGH: { tone: 'danger', icon: 'Lock' } }
 const CONTROL = 'h-11 bg-bg text-base lg:h-10 md:text-base'
 const FIELDS = ['minPoints', 'reviewMonths', 'reminderDaysBefore', 'blocksPo', 'requiresExplicitAnswers'] as const
 
@@ -133,7 +133,7 @@ export function TiersPanel({ tiers, actions }: { tiers: readonly TierRowUi[]; ac
           {tiers.map((row) => (
             <TableRow key={row.code}>
               <TableCell className="align-top">
-                <StatusBadge look={TIER_LOOK[row.code]} label={row.name} />
+                <TierBadge tier={row.code} label={row.name} />
               </TableCell>
               {FIELDS.map((f) => (
                 <TableCell key={f} className={`tabular align-top ${f === 'blocksPo' || f === 'requiresExplicitAnswers' ? '' : 'text-right'}`}>
@@ -148,7 +148,7 @@ export function TiersPanel({ tiers, actions }: { tiers: readonly TierRowUi[]; ac
       <ul aria-label={t('list')} className="flex flex-col divide-y divide-line border-y border-line md:hidden">
         {tiers.map((row) => (
           <li key={row.code} className="flex flex-col gap-1.5 py-3">
-            <StatusBadge look={TIER_LOOK[row.code]} label={row.name} />
+            <TierBadge tier={row.code} label={row.name} />
             <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
               {FIELDS.map((f) => (
                 <div key={f} className="contents">

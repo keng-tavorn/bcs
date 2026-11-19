@@ -111,10 +111,11 @@ function Questions({ view, t, locale }: { readonly view: RiskReviewTaskPage; rea
                     <>
                       <p className="font-medium break-words">{locale === 'en' ? q.answer.optionLabelEn : q.answer.optionLabelTh}</p>
                       <p className="text-ink-muted">{t(`questions.source.${q.answer.source}`)}</p>
+                      {q.answer.fromAi ? <p className="text-ink-muted">{t('questions.fromAi')}</p> : null}
                       {q.answer.note ? <p className="break-words whitespace-pre-line text-ink-muted">{t('questions.note', { note: q.answer.note })}</p> : null}
                       {q.answer.evidenceDocument ? (
                         <p className="break-words text-ink-muted">
-                          {t('questions.evidence', { type: q.answer.evidenceDocument.documentTypeCode, date: dateOf(q.answer.evidenceDocument.expiresOn) })}
+                          {t('questions.evidence', { type: locale === 'en' ? q.answer.evidenceDocument.typeNameEn : q.answer.evidenceDocument.typeNameTh, date: dateOf(q.answer.evidenceDocument.expiresOn) })}
                           {q.answer.evidenceDocument.scope ? ` · ${t('questions.evidenceScope', { scope: q.answer.evidenceDocument.scope })}` : ''}
                         </p>
                       ) : null}

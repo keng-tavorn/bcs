@@ -21,7 +21,10 @@ export interface RiskAnswerView {
   readonly note: string | null
   readonly answeredAt: Date
   readonly byName: string | null
-  readonly evidenceDocument: { readonly id: string; readonly documentTypeCode: string; readonly scope: string | null; readonly expiresOn: Date } | null
+  /** The AI proposed it and a person confirmed it (RiskAnswer.agentActionId · BR-AI-33) */
+  readonly fromAi: boolean
+  /** The certificate the answer rests on: its type by name (S11-16: never its code on a screen) */
+  readonly evidenceDocument: { readonly id: string; readonly documentTypeCode: string; readonly typeNameTh: string; readonly typeNameEn: string; readonly scope: string | null; readonly expiresOn: Date } | null
   readonly files: readonly { readonly fileId: string; readonly fileName: string; readonly scanStatus: string }[]
 }
 
@@ -110,7 +113,7 @@ export async function riskAssessmentView(ctx: Ctx, assessmentId: string): Promis
     const [members, contacts, docs, links] = await Promise.all([
       tx.member.findMany({ where: { id: { in: memberIds } }, select: { id: true, displayNameTh: true } }),
       tx.supplierContact.findMany({ where: { id: { in: contactIds } }, select: { id: true, nameTh: true } }),
-      tx.supplierDocument.findMany({ where: { id: { in: docIds } }, select: { id: true, documentTypeCode: true, scope: true, expiresOn: true } }),
+      tx.supplierDocument.findMany({ where: { id: { in: docIds } }, select: { id: true, documentTypeCode: true, scope: true, expiresOn: true, documentType: { select: { nameTh: true, nameEn: true } } } }).then((rows) => rows.map(({ documentType, ...d }) => ({ ...d, typeNameTh: documentType.nameTh, typeNameEn: documentType.nameEn }))),
       tx.fileLink.findMany({ where: { kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer', subjectId: { in: a.answers.map((x) => x.id) } }, select: { subjectId: true, file: { select: { id: true, fileName: true, scanStatus: true } } } }),
     ])
     const stored = new Map(a.questionnaire.questions.map((q) => [q.code, q]))
@@ -135,6 +138,7 @@ export async function riskAssessmentView(ctx: Ctx, assessmentId: string): Promis
               points: answer.points,
               note: answer.note,
               answeredAt: answer.answeredAt,
+              fromAi: answer.agentActionId !== null,
               byName: answer.answeredByMemberId ? (members.find((m) => m.id === answer.answeredByMemberId)?.displayNameTh ?? null) : answer.answeredByContactId ? (contacts.find((c) => c.id === answer.answeredByContactId)?.nameTh ?? null) : null,
               evidenceDocument: answer.evidenceDocumentId ? (docs.find((d) => d.id === answer.evidenceDocumentId) ?? null) : null,
               files: links.filter((l) => l.subjectId === answer.id).map((l) => ({ fileId: l.file.id, fileName: l.file.fileName, scanStatus: l.file.scanStatus })),

@@ -7932,6 +7932,7 @@
         "evidence": "Document {type}, expires {date}",
         "evidenceScope": "Document scope: {scope}",
         "files": "{count} attached file(s)",
+        "fromAi": "Proposed by AI, checked and confirmed by the supplier",
         "hint": "Only the general part and the parts you review are shown",
         "noAnswer": "No answer yet",
         "note": "Note: {note}",
@@ -12626,6 +12627,7 @@
     },
     "assessment": {
       "ai": {
+        "answerConfirmed": "Proposed by AI, checked and confirmed by the person who answered",
         "checks": {
           "EVIDENCE_MISSING": "No certificate in the system confirms this answer yet. Check it before you confirm."
         },
@@ -13161,6 +13163,7 @@
       "dueAt": "Review by",
       "evidenceDocument": "Certificate {type}, scope {scope}, valid until {date}",
       "file": "File {name} · {scan}",
+      "fromAi": "Proposed by AI, checked and confirmed by the supplier",
       "heading": "Review assessment {number} · {supplier}",
       "intro": "You review {domains} · review round {round}",
       "noQuestions": "This assessment has no questions in your part. Decide from what the work is.",

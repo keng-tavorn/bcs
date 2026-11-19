@@ -105,7 +105,10 @@ export default async function RiskReportPage({ searchParams }: { searchParams: P
     { key: 'tier', header: t('tiers.columns.tier'), numeric: false },
     { key: 'suppliers', header: t('tiers.columns.suppliers'), numeric: true },
   ]
-  const tierRows: ReportRowView[] = r.tiers.map((x) => ({ id: x.tier ?? 'NONE', cells: { tier: { text: tierText(x.tier) }, suppliers: { text: String(x.suppliers) } } }))
+  // S11-16 (§9.9: every number leads to its list): a tier's count opens /risk with that tier (every status); "never
+  // assessed" opens the suppliers not assessed yet
+  const tierHref = (tier: string | null) => (has(TIERS, tier) ? `/risk?tier=${tier}` : '/risk?status=NOT_ASSESSED')
+  const tierRows: ReportRowView[] = r.tiers.map((x) => ({ id: x.tier ?? 'NONE', cells: { tier: { text: tierText(x.tier) }, suppliers: { text: String(x.suppliers), ...(x.suppliers > 0 ? { href: tierHref(x.tier) } : {}) } } }))
   const pendingColumns: ReportColumnView[] = [
     { key: 'assessment', header: t('pending.columns.assessment'), numeric: false },
     { key: 'supplier', header: t('pending.columns.supplier'), numeric: false },
@@ -179,11 +182,27 @@ export default async function RiskReportPage({ searchParams }: { searchParams: P
           <dl aria-label={t('g9.title')} className="grid gap-3 md:grid-cols-3">
             <div className="flex flex-col gap-1 rounded-md border border-line p-3">
               <dt className="text-base text-ink-muted md:text-sm">{t('g9.rate')}</dt>
-              <dd className={r.g9.bp === null ? 'text-ink-muted' : 'text-xl font-semibold text-ink tabular'}>{r.g9.bp === null ? t('g9.none') : formatBpPercent(r.g9.bp, { signed: false })}</dd>
+              <dd className={r.g9.bp === null ? 'text-ink-muted' : 'text-xl font-semibold text-ink tabular'}>
+                {r.g9.bp === null ? (
+                  t('g9.none')
+                ) : (
+                  <a href="#g9-suppliers" className="text-ink underline-offset-4 hover:underline">
+                    {formatBpPercent(r.g9.bp, { signed: false })}
+                  </a>
+                )}
+              </dd>
             </div>
             <div className="flex flex-col gap-1 rounded-md border border-line p-3">
               <dt className="text-base text-ink-muted md:text-sm">{t('g9.numerator')}</dt>
-              <dd className="text-xl font-semibold text-ink tabular">{t('g9.ofSuppliers', { count: r.g9.numerator })}</dd>
+              <dd className="text-xl font-semibold text-ink tabular">
+                {r.g9.numerator > 0 ? (
+                  <a href="#g9-suppliers" className="text-ink underline-offset-4 hover:underline">
+                    {t('g9.ofSuppliers', { count: r.g9.numerator })}
+                  </a>
+                ) : (
+                  t('g9.ofSuppliers', { count: 0 })
+                )}
+              </dd>
             </div>
             <div className="flex flex-col gap-1 rounded-md border border-line p-3">
               <dt className="text-base text-ink-muted md:text-sm">{t('g9.denominator')}</dt>

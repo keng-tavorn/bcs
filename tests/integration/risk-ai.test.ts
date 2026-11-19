@@ -238,11 +238,12 @@ describe('[FR-AI-306/AC2] [BR-AI-33] the proposed answers are checked, shown and
     expect(draft!.review).toEqual({ requiredPaths: ['answers.RQ-GEN-01', 'answers.RQ-IS-01'], confirmedPaths: [], proposed: { 'answers.RQ-GEN-01': 'A', 'answers.RQ-IS-01': 'Y' } })
     expect(JSON.stringify(draft!.output)).not.toMatch(/"(points|tier|score)"/)
 
+    // the document by its type's name, never its code (S11-16)
     const view = (await portalRiskAiDraft(s.portal(), s.assessmentId))!
     expect(view).toMatchObject({ agentActionId: draft!.id, applied: false })
     expect(view.suggestions).toEqual([
-      { questionCode: 'RQ-GEN-01', optionCode: 'A', confidenceBp: 9600, check: null, quote: 'จดทะเบียนเมื่อวันที่ 3 พฤษภาคม 2555', source: { kind: 'DOCUMENT', name: 'COMPANY_CERT' }, confirmed: false, pending: false },
-      { questionCode: 'RQ-IS-01', optionCode: 'Y', confidenceBp: 5000, check: { code: 'EVIDENCE_MISSING', result: 'WARN' }, quote: 'ISO 27001', source: { kind: 'DOCUMENT', name: 'COMPANY_CERT' }, confirmed: false, pending: false },
+      { questionCode: 'RQ-GEN-01', optionCode: 'A', confidenceBp: 9600, check: null, quote: 'จดทะเบียนเมื่อวันที่ 3 พฤษภาคม 2555', source: { kind: 'DOCUMENT', name: 'หนังสือรับรอง', nameEn: 'Company certificate' }, confirmed: false, pending: false },
+      { questionCode: 'RQ-IS-01', optionCode: 'Y', confidenceBp: 5000, check: { code: 'EVIDENCE_MISSING', result: 'WARN' }, quote: 'ISO 27001', source: { kind: 'DOCUMENT', name: 'หนังสือรับรอง', nameEn: 'Company certificate' }, confirmed: false, pending: false },
     ])
     // another supplier's contact sees nothing of it
     const other = await supplierWithContact()

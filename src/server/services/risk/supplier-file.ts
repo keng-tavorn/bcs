@@ -66,6 +66,8 @@ export interface RiskFileAssessment {
 export interface RiskFileDocument {
   readonly id: string
   readonly documentTypeCode: string
+  readonly typeNameTh: string
+  readonly typeNameEn: string
   readonly scope: string | null
   readonly expiresOn: string
   readonly status: string
@@ -154,7 +156,7 @@ async function fileOf(tx: TenantTx, supplierId: string, reasons: boolean, canMan
   const numberOf = new Map(assessments.map((a) => [a.id, a.number]))
 
   const docIds = [...new Set(answers.map((x) => x.evidenceDocumentId).filter((d): d is string => d !== null))]
-  const docs = await tx.supplierDocument.findMany({ where: { id: { in: docIds } }, orderBy: [{ documentTypeCode: 'asc' }, { expiresOn: 'desc' }], select: { id: true, documentTypeCode: true, scope: true, expiresOn: true, status: true } })
+  const docs = await tx.supplierDocument.findMany({ where: { id: { in: docIds } }, orderBy: [{ documentTypeCode: 'asc' }, { expiresOn: 'desc' }], select: { id: true, documentTypeCode: true, scope: true, expiresOn: true, status: true, documentType: { select: { nameTh: true, nameEn: true } } } })
   const links = await tx.fileLink.findMany({
     where: { kind: 'RISK_EVIDENCE', subjectType: 'RiskAnswer', subjectId: { in: answers.map((x) => x.id) } },
     select: { subjectId: true, file: { select: { id: true, fileName: true, scanStatus: true } } },
@@ -217,6 +219,8 @@ async function fileOf(tx: TenantTx, supplierId: string, reasons: boolean, canMan
     documents: docs.map((d) => ({
       id: d.id,
       documentTypeCode: d.documentTypeCode,
+      typeNameTh: d.documentType.nameTh,
+      typeNameEn: d.documentType.nameEn,
       scope: d.scope,
       expiresOn: iso(d.expiresOn)!,
       status: d.status,
@@ -311,7 +315,7 @@ export async function riskFileWorkbook(file: SupplierRiskFile): Promise<{ bytes:
     'หลักฐาน',
     ['ชนิด', 'เอกสารหรือไฟล์', 'ขอบเขต', 'หมดอายุ', 'สถานะ', 'ใช้ตอบ'],
     [
-      ...file.documents.map((d) => ['เอกสารผู้ขาย', d.documentTypeCode, d.scope ?? '', d.expiresOn, d.status, d.usedBy.map((u) => `${u.assessmentNumber ?? ''} ${u.questionCode}`).join(', ')]),
+      ...file.documents.map((d) => ['เอกสารผู้ขาย', d.typeNameTh, d.scope ?? '', d.expiresOn, d.status, d.usedBy.map((u) => `${u.assessmentNumber ?? ''} ${u.questionCode}`).join(', ')]),
       ...file.files.map((f) => ['ไฟล์ประกอบคำตอบ', f.fileName, '', '', f.scanStatus, `${f.assessmentNumber ?? ''} ${f.questionCode}`]),
     ],
   )

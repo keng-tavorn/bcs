@@ -79,7 +79,7 @@ export default async function RiskAssessmentPage({ params }: { params: Promise<{
               proposed: t('ai.proposed', { option: option ? (en ? option.labelEn : option.labelTh) : s.optionCode }),
               details: [
                 ...(s.quote ? [t('ai.quote', { quote: s.quote })] : []),
-                ...(s.source ? [s.source.kind === 'DOCUMENT' ? t('ai.sourceDocument', { name: s.source.name }) : t('ai.sourceFile', { name: s.source.name })] : []),
+                ...(s.source ? [s.source.kind === 'DOCUMENT' ? t('ai.sourceDocument', { name: en ? s.source.nameEn : s.source.name }) : t('ai.sourceFile', { name: s.source.name })] : []),
                 t('ai.confidence', { percent: Math.floor(s.confidenceBp / 100) }),
               ],
               warning: s.check?.code === 'EVIDENCE_MISSING' ? t('ai.checks.EVIDENCE_MISSING') : null,
@@ -120,8 +120,9 @@ export default async function RiskAssessmentPage({ params }: { params: Promise<{
                             <>
                               <span>{t('answer', { option: option ? (en ? option.labelEn : option.labelTh) : q.answer.optionCode, points: q.answer.points })}</span>
                               <span className="text-ink-muted">{t(`source.${source ?? 'EXPLICIT'}`, { by: q.answer.byName ?? '-' })}</span>
+                              {q.answer.fromAi ? <span className="text-ink-muted">{t('ai.answerConfirmed')}</span> : null}
                               {q.answer.evidenceDocument ? (
-                                <span className="text-ink-muted">{t('evidenceDocument', { type: q.answer.evidenceDocument.documentTypeCode, scope: q.answer.evidenceDocument.scope ?? '-', date: day(locale, q.answer.evidenceDocument.expiresOn) })}</span>
+                                <span className="text-ink-muted">{t('evidenceDocument', { type: en ? q.answer.evidenceDocument.typeNameEn : q.answer.evidenceDocument.typeNameTh, scope: q.answer.evidenceDocument.scope ?? '-', date: day(locale, q.answer.evidenceDocument.expiresOn) })}</span>
                               ) : null}
                               {q.answer.evidenceDocument && a.canViewEvidence ? <OpenFileButton label={t('openDocument')} open={openEvidenceDocumentAction.bind(null, a.id, q.answer.evidenceDocument.id)} /> : null}
                               {q.answer.note ? <span className="text-ink-muted">{t('note', { note: q.answer.note })}</span> : null}

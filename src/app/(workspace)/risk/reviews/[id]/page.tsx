@@ -127,7 +127,7 @@ export default async function RiskReviewTaskPage({ params }: { params: Promise<{
                     ))}
                   </ul>
                   {summary.inconsistentQuestionCodes.length ? <p className="font-medium text-warn-ink">{t('detail.ai.inconsistent', { codes: summary.inconsistentQuestionCodes.join(', ') })}</p> : null}
-                  <p className="text-sm text-ink-muted">{t('detail.ai.hint')}</p>
+                  <p className="text-base text-ink-muted md:text-sm">{t('detail.ai.hint')}</p>
                 </section>
               ) : null}
               <p className="text-ink-muted">{t('detail.questionsHint')}</p>
@@ -146,12 +146,13 @@ export default async function RiskReviewTaskPage({ params }: { params: Promise<{
                               <>
                                 <span>{t('detail.answer', { option: en ? q.answer.optionLabelEn : q.answer.optionLabelTh })}</span>
                                 <span className="text-ink-muted">{t(`detail.source.${q.answer.source}`)}</span>
+                                {q.answer.fromAi ? <span className="text-ink-muted">{t('detail.fromAi')}</span> : null}
                                 {q.answer.evidenceDocument ? (
                                   <span className="flex flex-col text-ink-muted">
                                     <span className="break-words">
-                                      {t('detail.evidenceDocument', { type: q.answer.evidenceDocument.documentTypeCode, scope: q.answer.evidenceDocument.scope ?? '-', date: day(locale, q.answer.evidenceDocument.expiresOn) })}
+                                      {t('detail.evidenceDocument', { type: locale === 'en' ? q.answer.evidenceDocument.typeNameEn : q.answer.evidenceDocument.typeNameTh, scope: q.answer.evidenceDocument.scope ?? '-', date: day(locale, q.answer.evidenceDocument.expiresOn) })}
                                     </span>
-                                    <OpenFileButton label={t('detail.openDocument', { type: q.answer.evidenceDocument.documentTypeCode })} open={openReviewEvidenceDocumentAction.bind(null, a.id, q.answer.evidenceDocument.id)} />
+                                    <OpenFileButton label={t('detail.openDocument', { type: locale === 'en' ? q.answer.evidenceDocument.typeNameEn : q.answer.evidenceDocument.typeNameTh })} open={openReviewEvidenceDocumentAction.bind(null, a.id, q.answer.evidenceDocument.id)} />
                                   </span>
                                 ) : null}
                                 {q.answer.note ? <span className="break-words text-ink-muted">{t('detail.note', { note: q.answer.note })}</span> : null}

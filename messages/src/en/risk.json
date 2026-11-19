@@ -408,7 +408,8 @@
       "confirm": "Checked: use the answer AI proposed for this question",
       "confirmed": "The answer AI proposed is confirmed",
       "pending": "Waiting: the answer AI proposed for this question is not confirmed, so the assessment cannot be sent",
-      "leaveBlank": "Leave this question unanswered (do not use the AI's answer)"
+      "leaveBlank": "Leave this question unanswered (do not use the AI's answer)",
+      "answerConfirmed": "Proposed by AI, checked and confirmed by the person who answered"
     }
   },
   "override": {

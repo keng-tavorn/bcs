@@ -138,7 +138,7 @@ export async function RiskFileView({ file, locale, actions }: { file: SupplierRi
           <ul aria-label={t('evidence')} className="flex flex-col divide-y divide-line">
             {file.documents.map((d) => (
               <li key={d.id} className="flex flex-col gap-1 py-3">
-                <span className="font-medium">{t('documentRow', { type: d.documentTypeCode, scope: d.scope ?? t('noScope'), date: day(locale, d.expiresOn) })}</span>
+                <span className="font-medium">{t('documentRow', { type: locale === 'en' ? d.typeNameEn : d.typeNameTh, scope: d.scope ?? t('noScope'), date: day(locale, d.expiresOn) })}</span>
                 <span className="text-ink-muted">{t('usedFor', { list: d.usedBy.map((u) => `${u.assessmentNumber ?? t('draftNumber')} ${u.questionCode}`).join(', ') })}</span>
               </li>
             ))}

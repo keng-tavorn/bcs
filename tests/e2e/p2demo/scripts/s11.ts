@@ -52,6 +52,12 @@ import { E2E_DB, E2E_P2DEMO } from '../../../support/e2e-env'
 //                           job risk-ai-summary for each OPEN review task of the assessment (review_task.assigned), the
 //                           model answering with the sentences of scene 22's row
 //   agent <on|off>          the organization's admin switches the Risk Agent on or off (ai_agent.update)
+//   ai-propose <exceptAssessmentId|->
+//                           for the screen review of S11-16 (scripts/design-review/s11-pages.spec.ts): job risk-ai-draft
+//                           on the first assessment still open (other than the one given) whose supplier has a portal
+//                           contact and files the AI may read, the model proposing the first option of the first three
+//                           questions it is asked (the checks and caps are the app's). An assessment with a draft nobody
+//                           took in yet is reused. Prints the assessment, its supplier, the contact and the job's result
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the scene script of phase 2 runs in its e2e database only')
 if (!E2E_P2DEMO) throw new Error('the scene script of phase 2 runs in p2demo mode only (E2E_P2DEMO=1)')
 setDefaultOutboxSender(null)
@@ -352,6 +358,28 @@ async function aiSummary(assessmentId: string) {
   out(results)
 }
 
+/** For the screen review (S11-16): proposals of the AI on an open assessment, so the portal's box and the dialog's ticks show */
+async function aiPropose(except: string | null) {
+  const { riskAiDraftRun } = await import('@/server/jobs/risk-ai')
+  const { riskDraftSource } = await import('@/server/services/risk/ai-assist')
+  const { systemCtx } = await import('@/server/context')
+  const { forTenant } = await import('@/server/db/tenant')
+  const open = await prisma.riskAssessment.findMany({ where: { organizationId, status: { in: ['DRAFT', 'RETURNED'] }, ...(except ? { id: { not: except } } : {}) }, orderBy: { createdAt: 'asc' }, select: { id: true, supplierId: true } })
+  for (const a of open) {
+    const contact = await prisma.supplierContact.findFirst({ where: { organizationId, supplierId: a.supplierId, status: 'ACTIVE', portalEnabled: true }, orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }], select: { email: true } })
+    if (!contact) continue
+    const pending = await prisma.agentAction.findFirst({ where: { organizationId, purpose: 'RISK_ANSWER_DRAFT', subjectType: 'RISK_ASSESSMENT', subjectId: a.id, status: 'DRAFT', appliedAt: null }, select: { id: true } })
+    if (pending) return out({ assessment: a.id, supplierId: a.supplierId, contact: contact.email, result: 'SKIPPED_DRAFTED' })
+    const source = await forTenant(organizationId).$transaction((tx) => riskDraftSource(tx, systemCtx(organizationId, systemClock.now(), 'design-review'), a.id))
+    if (!source.ok) continue
+    const label = source.data.files[0]!.label
+    await rowClient({ answers: source.data.ask.slice(0, 3).map((q) => ({ questionCode: q.code, optionCode: q.options[0]!.code, sourceRef: label, quote: '', confidence: 80 })) })
+    const result = await riskAiDraftRun({ name: 'bcs/risk_assessment.opened', data: { organizationId, aggregateId: a.id } }, { run: (_id, fn) => fn() })
+    if (result === 'DRAFTED') return out({ assessment: a.id, supplierId: a.supplierId, contact: contact.email, result })
+  }
+  out({ assessment: null, supplierId: null, contact: null, result: 'NONE' })
+}
+
 if (mode === 'po') {
   const [scene, requester, budgetLineCode, siteCode, historyRef] = args
   if (!/^\d+$/.test(scene ?? '') || !requester || !budgetLineCode || !siteCode) throw new Error('po <scene> <requester> <budgetLineCode> <siteCode|-> [historyRef]')
@@ -374,6 +402,8 @@ if (mode === 'po') {
   await aiDraft(args[0])
 } else if (mode === 'ai-summary' && args[0]) {
   await aiSummary(args[0])
+} else if (mode === 'ai-propose' && args[0]) {
+  await aiPropose(args[0] === '-' ? null : args[0])
 } else if (mode === 'agent' && (args[0] === 'on' || args[0] === 'off')) {
   // the organization's admin switches the Risk Agent on or off (/admin/ai · ai_agent.update · FR-AI-306 AC6)
   const { updateAgentSetting } = await import('@/server/services/ai/settings')

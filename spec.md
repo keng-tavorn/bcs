@@ -7231,6 +7231,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-138** `[go-live]` ประวัติการทำงานบน `/admin/ai` ไม่มีชื่อ purpose `SAVINGS_NOTE` (พบตอนถ่ายวิดีโอ demo 2026-11-06 · NEW-136 กับ NEW-125 มาจากคนละสาย): เพิ่ม `admin.ai.activity.purposes.SAVINGS_NOTE` ทั้งไทยและอังกฤษ และให้ `src/ui/admin/ai-report.tsx` ใช้ชนิด `AiPurposeName` แทน cast เป็น `'QUESTION'` เพื่อให้ TypeScript ฟ้องเมื่อ purpose ใหม่ไม่มีข้อความ — เสร็จ 2026-11-06 · 8c72966b
   - เสร็จเมื่อ: `messages/th.json` และ `en.json` มี `admin.ai.activity.purposes.SAVINGS_NOTE` (ที่ `t(`purposes.${purpose}`)` ของประวัติอ่าน) · ไม่มี key แล้ว `tsc` ล้มที่ `ai-report.tsx` · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
+- [ ] **NEW-139** `[demo]` e2e ของอีเมลถึงผู้ขายล้มบนจอมือถือใน CI ของ main (พบในสาย l1 2026-11-20 · CI แดง 3 รอบติดตั้งแต่ 2026-11-12 ที่ `exception-helper.spec.ts` [mobile] อ่านอีเมลถึงผู้ขายได้ 0 ฉบับ): ฉาก e2e ใช้ `sweepSupplierNotices` แทน job `supplier-notice-send` ซึ่งหยิบ notice ที่ `PENDING` เก่าสุด 50 ฉบับของทั้งฐาน และแอป e2e ไม่รัน job นั้น จึงมี notice ค้างจาก spec อื่นทั้งชุด พอถึงโครงการ mobile อีเมลของ spec นั้นจึงเลยลำดับที่ 50 · แก้ให้ `s8-scene` และ `pay-scene` รับ `notices <อีเมล…>` แล้วส่งเฉพาะ notice ถึงอีเมลเหล่านั้นด้วย `sendSupplierNotice` ตัวเดียวกับ job (`tests/support/supplier-notices.ts`) · `exception-helper` `s8` และ `s9` (2 จุด) ส่งอีเมลของผู้ขายในฉาก · โค้ดของแอปไม่เปลี่ยน
+  - เสร็จเมื่อ: `pnpm test:e2e tests/e2e/exception-helper.spec.ts tests/e2e/s8.spec.ts tests/e2e/s9.spec.ts` ผ่านทั้ง desktop และ mobile · `pnpm verify` ผ่าน (ผลของ CI บน main ดูหลังส่งเข้า main)
+  - แยกงาน: ทำเองได้ (สาย l1 · ส่งเข้า main ครั้งถัดไปพร้อมงานของสาย หรือเมื่อผู้ใช้พิมพ์ `ส่งเข้า main ได้`)
 
 ### 16.12 S16 · หน้าจอใหม่แบบใกล้ Zip ในโทนเขียว (รอบเส้นชัย A2)
 

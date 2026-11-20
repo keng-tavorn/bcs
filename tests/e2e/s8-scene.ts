@@ -3,10 +3,10 @@ import nodemailer from 'nodemailer'
 import { deriveSeedBackupCodes, deriveSeedTotpSecret } from '@/lib/totp'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
 import { prisma } from '@/server/db/client'
-import { sweepSupplierNotices } from '@/server/notifications/supplier-notices'
 import { etaxXml } from '../support/etax-files'
 import { AP_NOW, apOrg, codedDraft, ok, receive, sentPo, submit } from '../support/ap'
 import { E2E_DB } from '../support/e2e-env'
+import { sendNoticesTo } from '../support/supplier-notices'
 
 // Run by tests/e2e/s8.spec.ts against the e2e database only (S8-13 · e2e @s8): a phase-1 organization of its own per
 // run (createP1Org through tests/support/ap.ts: PAY AI BCS_GO on, a supplier, account codes), every member able to sign
@@ -21,7 +21,8 @@ import { E2E_DB } from '../support/e2e-env'
 //                   the supplier's address is the run's own
 //   ai-invoice <tag> a PO received in full, for FINANCE to read the supplier's invoice with the AI (S13-20: the AI
 //                   scene tests/e2e/ai-document-scene.ts with SCENE_ORG switches the Document Agent on and answers)
-//   notices         sends the supplier e-mails waiting (the job supplier-notice-send, which the e2e app does not run)
+//   notices <e-mail…> sends the supplier e-mails waiting for those addresses (the job supplier-notice-send, which the
+//                   e2e app does not run · tests/support/supplier-notices.ts)
 // Prints one JSON line. The demo organization (PAY off) is never touched.
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the S8 scene runs in the e2e database only')
 const password = process.env.SEED_DEV_PASSWORD
@@ -50,7 +51,7 @@ async function organization(runTag: string) {
 }
 
 if (mode === 'notices') {
-  console.log(JSON.stringify({ sent: await sweepSupplierNotices(new Date(Date.now() + 2 * 60_000)) }))
+  console.log(JSON.stringify({ sent: await sendNoticesTo(process.argv.slice(3)) }))
 } else if (mode === 'inbox') {
   const ap = await organization(tag!)
   const inbox = `inbox-${tag}@s8.bcs.local`

@@ -165,7 +165,7 @@ test.describe('@pay payment runs and bank accounts on the web (S9-09)', () => {
     await shot(page, testInfo, 'completed')
 
     // the payment advice: the paid suppliers get theirs (the job that sends supplier e-mails runs in the scene)
-    payScene('notices')
+    payScene('notices', paid!.email, flagged!.email, failed!.email)
     for (const s of [paid!, flagged!]) {
       const advice = (await messagesTo(s.email)).filter((m) => m.Subject.includes('Payment advice'))
       expect(advice, s.code).toHaveLength(1)
@@ -232,7 +232,7 @@ test.describe('@pay payment runs and bank accounts on the web (S9-09)', () => {
     await cfo.context().close()
 
     // the supplier hears of it at the register address
-    payScene('notices')
+    payScene('notices', supplier.email)
     const told = (await messagesTo(supplier.email)).filter((m) => m.Subject.includes('Your bank account for payments was recorded'))
     expect(told).toHaveLength(1)
     expect(told[0]!.Text).toContain('3031')

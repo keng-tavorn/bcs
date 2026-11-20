@@ -7,7 +7,6 @@ import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/prov
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { seedDevPins } from '@/server/seed/pins'
-import { sweepSupplierNotices } from '@/server/notifications/supplier-notices'
 // the payment advice and the bank account notice are S9's templates: registered by importing their file
 import '@/server/notifications/supplier-templates-pay'
 import { seedLineChannel } from '@/server/services/line-channel'
@@ -15,6 +14,7 @@ import { issueLineLinkCode, linkLineAccount } from '@/server/services/line-link'
 import { AP_NOW } from '../support/ap'
 import { E2E_DB, E2E_PIN } from '../support/e2e-env'
 import { payOrg, paySupplier, readyInvoice, sentRun } from '../support/pay'
+import { sendNoticesTo } from '../support/supplier-notices'
 
 // Run by tests/e2e/liff-pay.spec.ts against the e2e database only (S9-06 · e2e @pay): a phase-1 organization of its own
 // per run (payOrg of tests/support/pay.ts: PAY on, SERVICE withheld, a payer account CB-01), its LINE channel from the
@@ -29,7 +29,8 @@ import { payOrg, paySupplier, readyInvoice, sentRun } from '../support/pay'
 //                          third whose registry was reported ceased after its invoice was ready; each with a register phone
 //   payday <runId>         the bank paid today: the run's pay date set to today (Bangkok) so results can be recorded on
 //                          any day the e2e runs (the run was approved for a later Friday)
-//   notices                sends the supplier e-mails waiting (the job supplier-notice-send, which the e2e app does not run)
+//   notices <e-mail…>      sends the supplier e-mails waiting for those addresses (the job supplier-notice-send,
+//                          which the e2e app does not run · tests/support/supplier-notices.ts)
 // Prints one JSON line. No other organization is touched.
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the payment scene runs in the e2e database only')
 const [mode, arg] = process.argv.slice(2)
@@ -108,7 +109,7 @@ if (mode === 'liff') {
   await prisma.paymentRun.update({ where: { id: arg! }, data: { payDate: new Date(`${today}T00:00:00Z`) } })
   console.log(JSON.stringify({ payDate: today }))
 } else if (mode === 'notices') {
-  console.log(JSON.stringify({ sent: await sweepSupplierNotices(new Date(Date.now() + 2 * 60_000)) }))
+  console.log(JSON.stringify({ sent: await sendNoticesTo(process.argv.slice(3)) }))
 } else if (mode === 'decided') {
   const run = await prisma.paymentRun.findUniqueOrThrow({ where: { id: arg! }, select: { status: true } })
   const decided = await prisma.event.findFirst({ where: { type: 'approval_task.decided', data: { path: ['subjectId'], equals: arg! } }, orderBy: { seq: 'desc' }, select: { data: true } })

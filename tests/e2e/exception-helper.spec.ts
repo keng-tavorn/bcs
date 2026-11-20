@@ -67,7 +67,7 @@ test.describe('@s8 the helper of a difference', () => {
     await expect(history.getByRole('listitem').filter({ hasText: 'ส่งอีเมลถามผู้ขายเรื่องรายการไม่ตรง' })).toContainText('ผู้ใช้ fin_officer')
 
     // The job supplier-notice-send (not run by the e2e app) sends the e-mail: the supplier reads FINANCE's words
-    s8Scene('notices')
+    s8Scene('notices', made.supplierEmail)
     const asked = async () => (await messagesTo(made.supplierEmail)).filter((m) => m.Subject.startsWith('คำถามเรื่องใบแจ้งหนี้'))
     await expect.poll(async () => (await asked()).length, { timeout: 20_000 }).toBe(1)
     const [mail] = await asked()

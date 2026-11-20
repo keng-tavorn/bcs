@@ -109,6 +109,9 @@ test('[FR-SRC-201/AC1] [FR-SRC-202/AC5] scene 9 inside: the pool opens an RFQ, i
   await expect(page.getByLabel('เพิ่มผู้ประเมิน').locator('option', { hasText: 'ผู้สร้าง RFx' })).toBeDisabled()
   await page.getByRole('button', { name: 'บันทึก Scorecard' }).click()
   await expect(page.getByText('บันทึก Scorecard แล้ว')).toBeVisible()
+  // the form stays busy until the page is read again (use-rfx-act.ts): the shot waits for its button back, or axe can
+  // read the button while it fades in from disabled (S11-17: failed twice in a full run on a busy machine)
+  await expect(page.getByRole('button', { name: 'บันทึก Scorecard', exact: true })).toBeEnabled()
   await shot(page, testInfo, 'sourcing-edit-scorecard')
 
   // the close (an hour after the earliest by default), then review and open

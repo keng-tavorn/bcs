@@ -111,6 +111,9 @@ test('[FR-SRC-201/AC1] [FR-SRC-202/AC5] scene 9 inside: the pool opens an RFQ, i
   await expect(page.getByLabel('เพิ่มผู้ประเมิน').locator('option', { hasText: 'ผู้สร้าง RFx' })).toBeDisabled()
   await page.getByRole('button', { name: 'บันทึก Scorecard' }).click()
   await expect(page.getByText('บันทึก Scorecard แล้ว')).toBeVisible()
+  // the message shows before the page is read again (the form stays busy until then · use-rfx-act.ts): wait for the
+  // button to be back, or axe may read it fading in from its disabled look
+  await expect(page.getByRole('button', { name: 'บันทึก Scorecard' })).toBeEnabled()
   await shot(page, testInfo, 'sourcing-edit-scorecard')
 
   // the close (an hour after the earliest by default), then review and open

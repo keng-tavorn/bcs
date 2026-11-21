@@ -25,6 +25,7 @@ import {
 import { rfxCloseHandler } from '@/server/jobs/rfx'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
+import { thaiTaxId } from '../support/tax-id'
 
 // S10-04 (FR-SRC-201 AC1 AC2 AC3 AC5 AC6 · BR-RFX-01 to 05 16 18 · INV-RFX-03): the life of an RFx on real Postgres —
 // made from lines of the pool or a need, its invites and scorecard, opened with a number, links and e-mails, amended,
@@ -60,7 +61,7 @@ beforeAll(async () => {
 const proc = () => org.ctxOf('proc_officer', MON)
 
 async function supplier(name: string, extra: Record<string, unknown> = {}) {
-  const s = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `S10-${randomUUID().slice(0, 6)}`, nameTh: name, taxId: null, isForeign: true, branchCode: '00000', portalEnabled: true, ...extra } })
+  const s = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `S10-${randomUUID().slice(0, 6)}`, nameTh: name, taxId: thaiTaxId(), branchCode: '00000', portalEnabled: true, ...extra } })
   await prisma.supplierContact.create({ data: { organizationId: org.organizationId, supplierId: s.id, nameTh: `ผู้ติดต่อ ${name}`, email: `c-${randomUUID().slice(0, 8)}@supplier.test`, isPrimary: true } })
   return s
 }

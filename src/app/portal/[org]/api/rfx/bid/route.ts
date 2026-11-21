@@ -45,6 +45,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
   const action = field(form, 'action')
   const content = {
     rfxEventId,
+    // the form's locked currency field (THB): anything else is refused by the service, never converted (NG-9)
+    ...(field(form, 'currency') ? { currency: field(form, 'currency') } : {}),
     priceIncludesVat: field(form, 'vatIncluded') === '1',
     ...(intOf(field(form, 'deliveryDays')) !== undefined ? { deliveryDays: intOf(field(form, 'deliveryDays')) } : {}),
     ...(/^\d{4}-\d{2}-\d{2}$/.test(field(form, 'promisedDeliveryOn')) ? { promisedDeliveryOn: field(form, 'promisedDeliveryOn') } : {}),

@@ -17,6 +17,7 @@ import type { InputWorkbook } from './workbook'
 import { apSettingsFromSheet } from './ap-profile'
 import { s17SettingsFromSheet } from './settings-s17'
 import { s7SettingsFromSheet } from './settings-s7'
+import { s10SettingsFromSheet } from './settings-s10'
 import { s11SettingsFromSheet } from './settings-s11'
 
 // Demo organization loader (spec Appendix A, S1-13): sheets Org and Users of docs/inputs/BCS_inputs_v1_demo.xlsx
@@ -99,8 +100,8 @@ export function parseDemoOrgInput(workbook: InputWorkbook, settingsYaml: string)
   // The Express columns are whatever the person filling in the workbook wrote, never a guess (§7.13, §17.3)
   const withExpress = { ...settings.data, express: expressLayoutFromSheet(workbook, settings.data.express) }
   // S8-12: the thresholds and terms of tier-2 invoices of sheet Settings; S6: the keys of the S6 rows; S17: the chat and the BCS Go app (phase 1; the demo sheet has none)
-  // S7-13: the supplier portal · S11-12: supplier risk (phase 2 · the demo sheet has none)
-  return { org: org.data, settings: s11SettingsFromSheet(workbook, s7SettingsFromSheet(workbook, s17SettingsFromSheet(workbook, s6SettingsFromSheet(workbook, apSettingsFromSheet(workbook, withExpress))))), users }
+  // S7-13: the supplier portal · S10: sourcing · S11-12: supplier risk (phase 2 · the demo sheet has none)
+  return { org: org.data, settings: s11SettingsFromSheet(workbook, s10SettingsFromSheet(workbook, s7SettingsFromSheet(workbook, s17SettingsFromSheet(workbook, s6SettingsFromSheet(workbook, apSettingsFromSheet(workbook, withExpress)))))), users }
 }
 
 export function loadOrgSettingsYaml(path: string = ORG_SETTINGS_DEMO_PATH): string {

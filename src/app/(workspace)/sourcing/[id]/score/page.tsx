@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { notFound } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { amountToSatang } from '@/core/money/dto'
@@ -64,7 +65,7 @@ export default async function ScorePage({ params }: { params: Promise<{ id: stri
           <div className="flex min-w-0 flex-col gap-4">
             {cardStatus === 'REVEALED' && s.ranking ? (
               <Panel title={t('ranking')} id="ranking">
-                <div className="overflow-x-auto">
+                <div className="hidden overflow-x-auto md:block">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -106,6 +107,30 @@ export default async function ScorePage({ params }: { params: Promise<{ id: stri
                     </TableBody>
                   </Table>
                 </div>
+                {/* below 768 px a list (§9.9): every figure of a supplier under its name, nothing cut off */}
+                <ul className="flex flex-col gap-3 md:hidden">
+                  {s.ranking.map((r) => (
+                    <li key={r.bidId} className="flex flex-col gap-1 border-b border-line pb-3 last:border-b-0">
+                      <span className="font-medium break-words">
+                        {r.rank}. {supplierOf.get(r.bidId)?.supplierName ?? '-'}
+                      </span>
+                      <dl className="tabular grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
+                        <dt className="text-ink-muted">{t('net')}</dt>
+                        <dd className="text-right">{supplierOf.get(r.bidId) ? baht(supplierOf.get(r.bidId)!.net) : '-'}</dd>
+                        <dt className="text-ink-muted">{t('priceScore')}</dt>
+                        <dd className="text-right">{formatScore(r.priceBp)}</dd>
+                        {quality.map((c) => (
+                          <Fragment key={c.code}>
+                            <dt className="text-ink-muted">{name(c)}</dt>
+                            <dd className="text-right">{r.criteria[c.code] !== undefined ? formatScore(r.criteria[c.code]!) : '-'}</dd>
+                          </Fragment>
+                        ))}
+                        <dt className="font-semibold">{t('total')}</dt>
+                        <dd className="text-right font-semibold">{formatScore(r.totalBp)}</dd>
+                      </dl>
+                    </li>
+                  ))}
+                </ul>
               </Panel>
             ) : null}
             {!SCORING.has(s.rfx.status) && s.rfx.status !== 'AWARDED' ? <Notice tone="info">{t('notClosed')}</Notice> : null}
@@ -133,7 +158,7 @@ export default async function ScorePage({ params }: { params: Promise<{ id: stri
                 {s.criteria.map((c) => (
                   <li key={c.code} className="flex flex-col">
                     <span className="tabular">{t('weight', { name: name(c), percent: formatScore(c.weightBp) })}</span>
-                    {c.kind === 'PRICE' ? <span className="text-sm text-ink-muted">{t('priceComputed')}</span> : null}
+                    {c.kind === 'PRICE' ? <span className="text-base text-ink-muted md:text-sm">{t('priceComputed')}</span> : null}
                   </li>
                 ))}
               </ul>

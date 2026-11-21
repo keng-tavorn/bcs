@@ -4,6 +4,7 @@ import { prisma } from '@/server/db/client'
 import { portalCtx } from '@/server/portal/session'
 import { answerQuestion, askQuestion, closeRfxAt, concludeRfx, createRfx, inviteToRfx, openRfx as openRfxCommand, setScorecard } from '@/server/services/sourcing'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { thaiTaxId } from '../support/tax-id'
 
 // S10-05 (FR-SRC-201 AC4 · BR-RFX-02 · BR-RFX-04): suppliers ask until the question cut-off; procurement answers to every
 // invite without naming who asked (ALL) or to the asker alone with a reason (ASKER), and may word the question again
@@ -28,7 +29,7 @@ const proc = (now = MON) => org.ctxOf('proc_officer', now)
 const version = async (id: string) => (await prisma.rfxEvent.findUniqueOrThrow({ where: { id } })).version
 
 async function supplier(name: string) {
-  const s = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `Q-${randomUUID().slice(0, 6)}`, nameTh: name, taxId: null, isForeign: true, branchCode: '00000', portalEnabled: true } })
+  const s = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: `Q-${randomUUID().slice(0, 6)}`, nameTh: name, taxId: thaiTaxId(), branchCode: '00000', portalEnabled: true } })
   const contact = await prisma.supplierContact.create({ data: { organizationId: org.organizationId, supplierId: s.id, nameTh: `ติดต่อ ${name}`, email: `q-${randomUUID().slice(0, 8)}@supplier.test`, isPrimary: true } })
   return { supplier: s, contact }
 }

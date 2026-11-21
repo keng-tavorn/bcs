@@ -100,6 +100,8 @@ export async function createRfxAction(input: NewRfxInput, key: string): Promise<
 }
 
 export interface GeneralInput {
+  /** The RFx in Thai and English (TH_EN · BR-FORM-11) */
+  readonly bilingual: boolean
   readonly title: string
   readonly titleEn: string
   readonly description: string
@@ -127,6 +129,7 @@ export async function updateRfxAction(rfxEventId: string, version: number, input
         titleEn: text(input.titleEn),
         description: input.description.trim(),
         descriptionEn: text(input.descriptionEn),
+        locale: input.bilingual ? 'TH_EN' : 'TH',
         allowPartialBids: input.allowPartialBids,
         allowVatInclusiveBids: input.allowVatInclusiveBids,
         sealed: input.sealed,

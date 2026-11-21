@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { StatusBadge } from '../../document/badges'
 import { FALLBACK_BADGE, PO_BADGES, REQUEST_BADGES, type BadgeLook } from '../../document/badge-looks'
 import { Notice } from '../../form/notice'
@@ -394,7 +394,8 @@ export function ScoresTab({ d, locale }: { readonly d: RfxDetailView; readonly l
             <StatusBadge look={SCORECARD_STATUS_LOOK[status]} label={t(`status.${status}`)} />
             {s.ranking ? (
               s.ranking.length ? (
-                <div className="overflow-x-auto">
+                <>
+                <div className="hidden overflow-x-auto md:block">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -432,6 +433,29 @@ export function ScoresTab({ d, locale }: { readonly d: RfxDetailView; readonly l
                     </TableBody>
                   </Table>
                 </div>
+                {/* below 768 px a list (§9.9): every score of a supplier under its name, nothing cut off */}
+                <ul className="flex flex-col gap-3 md:hidden">
+                  {s.ranking.map((r) => (
+                    <li key={r.bidId} className="flex flex-col gap-1 border-b border-line pb-3 last:border-b-0">
+                      <span className="font-medium break-words">
+                        {r.rank}. {r.supplierName || '-'}
+                      </span>
+                      <dl className="tabular grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
+                        <dt className="text-ink-muted">{t('priceScore')}</dt>
+                        <dd className="text-right">{percentText(r.priceBp)}</dd>
+                        {quality.map((c) => (
+                          <Fragment key={c.code}>
+                            <dt className="text-ink-muted">{nameIn(locale, c.name)}</dt>
+                            <dd className="text-right">{r.criteria[c.code] !== undefined ? percentText(r.criteria[c.code]!) : '-'}</dd>
+                          </Fragment>
+                        ))}
+                        <dt className="font-semibold">{t('total')}</dt>
+                        <dd className="text-right font-semibold">{percentText(r.totalBp)}</dd>
+                      </dl>
+                    </li>
+                  ))}
+                </ul>
+                </>
               ) : (
                 <p className="text-ink-muted">{t('noRanking')}</p>
               )

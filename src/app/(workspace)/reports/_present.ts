@@ -21,7 +21,7 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 const DAY = z.iso.date()
 
 /** Reports the screen has words for; a report without them shows its code */
-export const NAMED_REPORTS = ['KPI', 'WF_CYCLE', 'WF_BOTTLENECKS', 'WF_WRONG_DOA', 'WF_HEATMAP', 'SUP_G7', 'RSK_G9'] as const
+export const NAMED_REPORTS = ['KPI', 'WF_CYCLE', 'WF_BOTTLENECKS', 'WF_WRONG_DOA', 'WF_HEATMAP', 'SUP_G7', 'SRC_G8', 'RSK_G9'] as const
 export type NamedReport = (typeof NAMED_REPORTS)[number]
 export const isNamed = (code: string): code is NamedReport => (NAMED_REPORTS as readonly string[]).includes(code)
 
@@ -31,6 +31,24 @@ export const SUPPLIER_REPORT = 'SUP_G7'
 export const SUPPLIER_REPORT_DAYS = 90
 /** The supplier risk report (S11-11 · G-9): its own page /reports/risk, on the same 90 days (a first PO is rare) */
 export const RISK_REPORT = 'RSK_G9'
+
+/** The sourcing report (S10-15 · G-8): its own page /reports/sourcing */
+export const SOURCING_REPORT = 'SRC_G8'
+
+/** The reports with a page of their own, by code */
+export const OWN_PAGES: Readonly<Record<string, string>> = { [SUPPLIER_REPORT]: '/reports/suppliers', [SOURCING_REPORT]: '/reports/sourcing', [RISK_REPORT]: '/reports/risk' }
+
+/**
+ * The sourcing report's period from the address, or the Thai quarter of today up to today (G-8 is a quarter's · BR-RFX-15)
+ */
+export function quarterPeriodFrom(params: Params, now: Date): { from: string; to: string; invalid: boolean } {
+  const today = dayIn(now, THAI_TIME_ZONE)
+  const month = Number(today.slice(5, 7))
+  const quarterStart = `${today.slice(0, 4)}-${String(month - ((month - 1) % 3)).padStart(2, '0')}-01`
+  const asked = periodFrom(params, now, 1)
+  if (one(params.from) === undefined && one(params.to) === undefined) return { from: quarterStart, to: today, invalid: false }
+  return asked.invalid ? { from: quarterStart, to: today, invalid: true } : asked
+}
 
 /** The period from the address, or the last `days` days; `invalid` when the address asked for a period that cannot be */
 export function periodFrom(params: Params, now: Date, days: number): { from: string; to: string; invalid: boolean } {

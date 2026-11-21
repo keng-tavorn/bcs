@@ -9,11 +9,12 @@ import { moduleRequiredDocumentTypes } from '@/core/doa'
 // is not switched on — the seed stops instead (the same check as organization.set_module, on the version in effect). The phase-1 sheet Org has no list of modules, so the list is here; the
 // lanes never seed modules again. A second run changes nothing.
 
-// SUPPLIER (S7-13 · phase 2) once the DOA has SA-01: the supplier portal of the synthetic organization
+// SUPPLIER (S7-13 · phase 2) once the DOA has SA-01: the supplier portal of the synthetic organization; SOURCING (S10-14)
+// after it once the DOA has RA-01 to RA-03 (sourcing needs the supplier portal on · BR-DOA-24)
 // RISK (S11-12 · phase 2) after SUPPLIER, once the DOA has RO-01 RO-02 and the organization's risk tiers, gate policy and
 // questionnaire are in effect (BR-RSK-16): only when the caller seeded the risk sheets and says how to check them
 // (`riskReady`); a seed of parts of the workbook without them (tests) leaves RISK off
-export const P1_SEED_MODULES = ['PAY', 'AI', 'BCS_GO', 'SUPPLIER', 'RISK'] as const
+export const P1_SEED_MODULES = ['PAY', 'AI', 'BCS_GO', 'SUPPLIER', 'SOURCING', 'RISK'] as const
 
 /** Why RISK cannot be switched on yet, in words for the person running the seed; null when it can */
 export type RiskReady = (tx: TenantTx, now: Date) => Promise<string | null>

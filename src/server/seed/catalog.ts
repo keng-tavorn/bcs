@@ -72,12 +72,15 @@ export async function seedCatalog(organizationId: string, items: readonly Catalo
  * The lines of the seeded history that are catalogue items (S6-10): the history makes its requests through the services
  * with the item's name and unit, so a line whose (description, uom) is an item's (nameTh, uom) is that item. Lines already
  * linked are left as they are; nothing else of the requests changes.
+ * S10-14: a line so linked is in its item's category too, as a line picked from the catalogue in the form is (an RFx
+ * takes the pool's lines of one category · BR-RFX-01); a line that has a category keeps it.
  */
 export async function linkHistoryToCatalog(organizationId: string): Promise<{ lines: number }> {
   return forTenant(organizationId).$transaction(async (tx) => {
     let lines = 0
-    for (const item of await tx.catalogItem.findMany({ select: { id: true, nameTh: true, uom: true } })) {
+    for (const item of await tx.catalogItem.findMany({ select: { id: true, nameTh: true, uom: true, categoryCode: true } })) {
       lines += (await tx.requestLine.updateMany({ where: { description: item.nameTh, uom: item.uom, catalogItemId: null }, data: { catalogItemId: item.id } })).count
+      if (item.categoryCode) await tx.requestLine.updateMany({ where: { catalogItemId: item.id, categoryCode: null }, data: { categoryCode: item.categoryCode } })
     }
     return { lines }
   })

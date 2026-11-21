@@ -4,7 +4,9 @@ import { sourcingFacts } from '@/server/services/ai/agents/sourcing-facts'
 import { bidSpread, type ComparisonFacts } from '@/server/services/sourcing'
 
 // S10-16 (BR-AI-32 · FR-AI-305 AC2 AC3): the distances of the bids in bp of the lowest complete one, and the facts the
-// Sourcing Agent writes about — scene 9: SP0023 300,950.00 (lowest) · SP0029 the incumbent 305,500.00 · SP0024 with VAT.
+// Sourcing Agent writes about — a hand-made case on scene 9's bids: SP0023 300,950.00 (lowest) · SP0029 the only
+// incumbent 305,500.00 · SP0024 with VAT. In the phase-1 data both SP0024 and SP0029 sold STEEL on a PO in the window, so
+// the demo's incumbent is SP0024, the nearer (ADR-210 · the last case of the first describe).
 
 const bid = (supplierCode: string, supplier: string, net: string, extra: Partial<ComparisonFacts['bids'][number]> = {}): ComparisonFacts['bids'][number] => ({
   supplierCode,
@@ -40,6 +42,10 @@ const scene9: ComparisonFacts = {
 describe('[FR-AI-305/AC3] [BR-AI-32] spreadBp and gapBp in bp of the lowest complete bid', () => {
   it('scene 9: (305,500 − 300,950) × 10000 ÷ 300,950 = 151.19 → 151 for both; a partial bid is neither lowest nor highest', () => {
     expect(bidSpread(scene9)).toEqual({ spreadBp: 151, incumbent: { supplierCode: 'SP0029', gapBp: 151 } })
+  })
+  it('two incumbents (the demo of scene 9 · ADR-210): the one nearest the lowest, SP0024 (303,738.32 − 300,950) × 10000 ÷ 300,950 = 92.65 → 93', () => {
+    const both = { ...scene9, bids: scene9.bids.map((b) => (b.supplierCode === 'SP0024' ? { ...b, tags: [...b.tags, 'INCUMBENT' as const] } : b)) }
+    expect(bidSpread(both)).toEqual({ spreadBp: 151, incumbent: { supplierCode: 'SP0024', gapBp: 93 } })
   })
   it('no incumbent, or the incumbent is the lowest: no gap; no complete bid: nothing', () => {
     expect(bidSpread({ ...scene9, bids: scene9.bids.map((b) => ({ ...b, tags: b.tags.filter((t) => t !== 'INCUMBENT') })) }).incumbent).toBeNull()

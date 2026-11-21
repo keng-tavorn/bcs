@@ -91,12 +91,13 @@ async function poolLine(tag: string, quantity: string, site: string, quotes: rea
   for (const [n, amount] of quotes.entries()) {
     quotations.push({ supplierName: `ร้านเหล็กเสนอราคา ${n + 1}`, amount, includesVat: false, fileId: await upload(requester.id, `quotation-${n + 1}-${tag}.pdf`), selected: n === 0 })
   }
-  // the reason a requester gives for no preferred supplier (BR-FORM-12): an award of an earlier run (scene 9 on the other
-  // project) leaves STEEL a preferred supplier, and a request without the reason would then be refused at submit; with
-  // none in effect the reason is cleared at submit (S11-17)
+  // S10-31: an earlier run's award (the desktop project before mobile, in the same e2e database) leaves STEEL a preferred
+  // supplier, and a request of the category with no supplier then needs a reason (BR-FORM-12 · S10-13). The reason is
+  // sent every run: submit clears it when the category has no preferred supplier, so a fresh database is unchanged.
+  const preferredSupplierOverrideReason = 'ขอเปิดจัดหาเทียบราคาใหม่จากหลายผู้ขาย'
   const draft = ok(
     'draft',
-    await createDraft(ctxOf(requester.id), { requestTypeCode: 'BUY_GOODS', priceIncludesVat: false, title: `เหล็กเส้น ${site} ${tag}`, budgetLineId: room.id, deliverySiteId: siteRow.id, quotations, preferredSupplierOverrideReason: 'ให้ฝ่ายจัดซื้อเปิด RFQ เทียบราคาก่อน', lines: [{ description, quantity, uom: 'ตัน', unitPrice: '23800.00', categoryCode: 'STEEL' }] }, key()),
+    await createDraft(ctxOf(requester.id), { requestTypeCode: 'BUY_GOODS', priceIncludesVat: false, title: `เหล็กเส้น ${site} ${tag}`, budgetLineId: room.id, deliverySiteId: siteRow.id, preferredSupplierOverrideReason, quotations, lines: [{ description, quantity, uom: 'ตัน', unitPrice: '23800.00', categoryCode: 'STEEL' }] }, key()),
   )
   ok('submit', await submitRequest(ctxOf(requester.id), { requestId: draft.requestId }, key()))
   await approveAll(draft.requestId)

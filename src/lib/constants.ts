@@ -284,6 +284,8 @@ export const SOURCING_DEFAULT_WEIGHTS_BP = {
 } as const // TODO(OQ-206)
 /** S10: the longest description of an RFx (characters), and of an amendment's summary or a criterion's guidance */
 export const RFX_LONG_TEXT_MAX = 4_000
+/** The one currency of an RFx and its bids: baht, never converted (NG-9 · BR-FORM-11 · FR-INT-201 AC4) */
+export const RFX_CURRENCY = 'THB'
 /** S10-12: the most suppliers and members the setup form of an RFx lists to pick from, and the most catalogue items */
 export const SOURCING_CHOICES_MAX = 2_000
 export const SOURCING_CATALOG_MAX = 1_000

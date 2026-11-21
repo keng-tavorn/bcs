@@ -20,6 +20,8 @@ import { parseBudget, parseCatalogItems, parseCostCenters, parseGlAccounts, pars
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { parseSupplierPortal, seedSupplierPortalBase } from '@/server/seed/supplier-portal'
 import { seedSupplierPortalHistory, type SupplierPortalHistoryReport } from './supplier-portal'
+import { parseSourcing } from '@/server/seed/sourcing'
+import { seedSourcingHistory, type SourcingHistoryReport } from './sourcing'
 import { parseRiskSheets } from '@/server/seed/risk'
 import { riskReady, seedRiskAfterHistory, seedRiskBeforeHistory, seedRiskConfig, type RiskHistoryReport } from './risk'
 import { seedAccountCodes } from '@/server/seed/account-codes'
@@ -143,6 +145,16 @@ export async function seedSupplierPortalFromInputs(organizationId: string, clock
 }
 
 /**
+ * S10-14: the sourcing of the past (the foreign supplier, the RFx played back in time) after the supplier portal; null for
+ * a workbook without the sheets of S10 (the demo)
+ */
+export async function seedSourcingFromInputs(organizationId: string, env: Env, clock: Clock, profile: InputProfile): Promise<SourcingHistoryReport | null> {
+  const workbook = await loadInputWorkbook(INPUT_WORKBOOKS[profile])
+  const sheets = parseSourcing(workbook)
+  return sheets ? seedSourcingHistory(organizationId, sheets, clock.now(), { pin: env.SEED_DEV_PIN ?? null, historyTitles: new Map(parseHistory(workbook).map((r) => [r.ref, r.title])) }) : null
+}
+
+/**
  * S11-12: the supplier-risk history that comes after the requests and the portal (overrides expired on their day, the
  * assessments still open, the registry flags of today); null for a workbook without the risk sheets (the demo)
  */
@@ -173,6 +185,9 @@ export async function seedDemoHistoryPartFromInputs(organizationId: string, env:
     // S7-13: the supplier portal's history with the last part
     const sheets = parseSupplierPortal(workbook)
     if (sheets) await seedSupplierPortalHistory(organizationId, sheets, now)
+    // S10-14: and the sourcing after it (its foreign supplier is an application of the portal)
+    const sourcing = parseSourcing(workbook)
+    if (sourcing) await seedSourcingHistory(organizationId, sourcing, now, { pin: env.SEED_DEV_PIN ?? null, historyTitles: new Map(rows.map((r) => [r.ref, r.title])) })
     if (risk) await seedRiskAfterHistory(organizationId, risk, workbook, now)
   }
   return report

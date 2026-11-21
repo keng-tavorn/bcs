@@ -5,7 +5,7 @@ import { messagesTo } from '../support/mailpit'
 import { E2E_BASE_URL, e2eEnv } from '../support/e2e-env'
 import { expectNoBlockingAxe, expectNoSideways } from './budgets-support'
 import { expect, test } from './fixtures'
-import { FIRST_LOAD_JS_BUDGET_BYTES, weighFirstLoad } from './liff-support'
+import { FIRST_LOAD_JS_BUDGET_BYTES, weighFirstLoad, pointerAway } from './liff-support'
 
 // S10-07 (FR-SRC-202 AC1 AC2 · BR-RFX-04 07 08 · BR-FORM-11): the supplier's contact on a phone (375 px) with the AI off
 // opens the RFx from its invite's link (the six-digit code, then straight to the RFx), asks a question and reads the
@@ -41,6 +41,7 @@ async function codeOf(contactId: string, email: string): Promise<string> {
 
 /** A picture at the phone's 375 px and at 1440 px (§9.9 step 4), the page checked at both */
 async function shot(page: Page, testInfo: TestInfo, name: string) {
+  await pointerAway(page) // at rest, not over the button it just pressed (drawn hovered otherwise)
   await expectNoBlockingAxe(page)
   await expectNoSideways(page)
   await page.screenshot({ path: testInfo.outputPath(`${name}-375.png`), fullPage: true })

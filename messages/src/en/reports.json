@@ -37,6 +37,10 @@
       "name": "New supplier onboarding time (G-7)",
       "description": "Business days new suppliers take from invitation to approval, filled in by the supplier or by procurement, with the applications waiting and the expired documents"
     },
+    "SRC_G8": {
+      "name": "Sourcing savings (G-8)",
+      "description": "Savings of the awards against the requests they came from, by kind of baseline and by quarter, with the business days from opening an RFx to approving its award"
+    },
     "RSK_G9": {
       "name": "High-risk suppliers assessed before their first PO (G-9)",
       "description": "The share of high-risk suppliers whose first PO passed the risk gate with a completed assessment, with the suppliers by tier, pending assessments, overrides and registry flags"

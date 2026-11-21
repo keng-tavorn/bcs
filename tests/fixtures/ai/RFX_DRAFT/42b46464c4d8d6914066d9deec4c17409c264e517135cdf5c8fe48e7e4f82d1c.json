@@ -1,0 +1,27 @@
+{
+  "promptVersion": "RFX_DRAFT@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "SCENE",
+  "output": {
+    "title": "ขอใบเสนอราคาเหล็กข้ออ้อย DB12 SD40 สำหรับสองไซต์",
+    "titleEn": "Request for quotation: deformed steel bar DB12 SD40 for two sites",
+    "description": "ขอเชิญเสนอราคาเหล็กข้ออ้อย DB12 SD40 ตามรายการ โดยระบุราคาต่อตันเป็นบาทและระยะเวลาส่งมอบ",
+    "descriptionEn": "Suppliers are invited to quote deformed steel bar DB12 SD40 as listed, with a price per tonne in Thai baht and the delivery time.",
+    "lines": [
+      {
+        "lineNo": 1,
+        "descriptionEn": "Deformed steel bar DB12 SD40",
+        "uomEn": "tonne"
+      },
+      {
+        "lineNo": 2,
+        "descriptionEn": "Deformed steel bar DB12 SD40",
+        "uomEn": "tonne"
+      }
+    ]
+  },
+  "usage": {
+    "input": 0,
+    "output": 0
+  }
+}

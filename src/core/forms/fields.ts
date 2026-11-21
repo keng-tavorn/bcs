@@ -49,7 +49,8 @@ export interface FieldDef {
   readonly optionLabels?: Readonly<Record<string, FormText>>
 }
 
-const FormTextSchema = z.strictObject({ th: z.string().trim().min(1).max(FORM_TEXT_MAX_LENGTH), en: z.string().trim().min(1).max(FORM_TEXT_MAX_LENGTH) })
+/** FormText as stored: both languages, never one alone (no automatic translation, FR-INT-201 AC1) */
+export const FormTextSchema = z.strictObject({ th: z.string().trim().min(1).max(FORM_TEXT_MAX_LENGTH), en: z.string().trim().min(1).max(FORM_TEXT_MAX_LENGTH) })
 
 /** A field definition as stored in FormVersion.schema; checked when a form version is saved. */
 export const FieldDefSchema = z

@@ -762,7 +762,7 @@ def s11_rows():
              expectJson={'route': '/reports/risk', 'period': {'from': '2026-01-01', 'to': 'DAY_BEFORE_DEMO'},
                          'g9': {'bp': 7500, 'numerator': 3, 'denominator': 4, 'high': ['SP0132', 'SP0141', 'SP0158', 'SP0165'], 'assessed': ['SP0132', 'SP0158', 'SP0165'], 'override': ['SP0141']},
                          'afterScene16': {'bp': 8000, 'numerator': 4, 'denominator': 5},
-                         'tiers': {'HIGH': 7, 'MEDIUM': 9, 'LOW': 0}, 'neverAssessed': 183,
+                         'tiers': {'HIGH': 7, 'MEDIUM': 9, 'LOW': 0}, 'neverAssessed': 184,
                          'overrides': {'expired': seed_overrides, 'openAfterScene17': 1}, 'export': 'XLSX'},
              minutes=3,
              stepsTh='cfo เปิด /reports/risk ช่วง 1 ม.ค. 2569 ถึงวันก่อนวัน demo → ผู้ขายความเสี่ยงสูงที่ประเมินครบก่อน PO แรก 75.00% (3 จาก 4 ราย) → จำนวนผู้ขายต่อระดับ และแถว ไม่เคยประเมิน → การอนุมัติข้ามที่หมดอายุ → ส่งออก Excel',

@@ -137,6 +137,9 @@ if (mode === 'supplier') {
         formData: r.formData as Record<string, string>,
         ...(budget ? { budgetLineId: budget.id } : {}),
         ...(r.deliverySiteId ? { deliverySiteId: r.deliverySiteId } : {}),
+        // the supplier of the last PO may not be the category's preferred one any more (S10's approved awards make one ·
+        // BR-FORM-12): the requester says why; submit clears the reason when the category has none
+        preferredSupplierOverrideReason: 'สั่งซ้ำจากผู้ขายรายเดิมของงานนี้ (ฉากทดสอบ)',
         lines: [{ description: line.description, quantity: '1', uom: line.uom, unitPrice: satangToAmount(line.unitPriceSatang), vatable: line.vatable, ...(line.categoryCode ? { categoryCode: line.categoryCode } : {}), ...(serviceEnd ? { serviceEndDate: serviceEnd } : {}) }],
       },
       opts(),

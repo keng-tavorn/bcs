@@ -2081,10 +2081,12 @@ if PROFILE == 'p1':
         if a['status'] == 'COMPLETED': RA_DONE.setdefault(a['sup'], []).append(a)
     tier_now = {s: max(v, key=lambda a: (a['done'], a['ref']))['tier'] for s, v in RA_DONE.items()}
     tier_count = {t: sum(1 for v in tier_now.values() if v == t) for t in RK_TIER}
-    # the report counts every active supplier of the organization: those of sheet Suppliers and the new ones of the
-    # applications S7's seed approves (NEW · APPROVED), none of them assessed (BR-RSK-14)
+    # the report counts every active supplier of the organization: those of sheet Suppliers, the new ones of the
+    # applications S7's seed approves (NEW · APPROVED) and the foreign ones of S10's sheet RFx_Suppliers (approved through
+    # S7's application by the seed), none of them assessed (BR-RSK-14)
     APPROVED_NEW = len([1 for _, d in table('Supplier_Applications') if s_(d['kind']) == 'NEW' and s_(d['status']) == 'APPROVED'])
-    never = len([c for c in SUP if c not in tier_now]) + APPROVED_NEW
+    RFX_NEW = len(list(table('RFx_Suppliers')))
+    never = len([c for c in SUP if c not in tier_now]) + APPROVED_NEW + RFX_NEW
     rk_status = {}
     for a in RA: rk_status[a['status']] = rk_status.get(a['status'], 0) + 1
     check(not ra_, 'ความเสี่ยงคู่ค้า: ใบประเมิน (Risk_Assessments)', f'{len(RA)} ใบ (' + ' '.join(f'{k} {v}' for k, v in sorted(rk_status.items())) + ') · คะแนน ระดับ วันครบรอบ และผู้ตรวจตรงตัวคำนวณ · '

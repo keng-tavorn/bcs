@@ -11,6 +11,11 @@ export type PortalLocale = 'th' | 'en'
 
 export const contactLocale = (contact: { readonly locale: string }): PortalLocale => (contact.locale === 'en' ? 'en' : 'th')
 
+/** BR-FORM-11 · OQ-211: what an English-reading contact sees of the RFx's own text — its English, or the Thai marked "(TH)"
+ * when the RFx has no English (never blank, never translated by the system) */
+export const THAI_ONLY_MARK = '(TH)'
+export const textIn = (locale: PortalLocale, th: string, en: string | null | undefined): string => (locale !== 'en' ? th : en?.trim() ? en : `${th} ${THAI_ONLY_MARK}`)
+
 export const RFX_KINDS = ['RFQ', 'RFP', 'RFI'] as const
 export const rfxKindOf = (kind: string): (typeof RFX_KINDS)[number] => ((RFX_KINDS as readonly string[]).includes(kind) ? (kind as (typeof RFX_KINDS)[number]) : 'RFQ')
 

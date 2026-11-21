@@ -445,6 +445,27 @@ function RuleForm({ rule, rules, fields, onSave, onClose }: RuleDialogProps) {
         error={errors.id ? t(`ruleErrors.${errors.id}`) : undefined}
         className="max-w-sm"
       />
+      {/* FR-INT-201 AC1: the rule's name in both languages, or none (the id is shown then) */}
+      <div className="flex min-w-0 flex-col gap-2">
+        <p className="text-base text-ink-muted md:text-sm">{t('ruleDialog.labelHint')}</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          {(['labelTh', 'labelEn'] as const).map((key) => (
+            <Field
+              key={key}
+              id={`${id}-${key}`}
+              label={t(`ruleDialog.${key}`)}
+              value={draft[key]}
+              maxLength={200}
+              onChange={(e) => {
+                const value = e.currentTarget.value
+                setDraft((d) => ({ ...d, [key]: value }))
+                setErrors(({ label: _label, ...rest }) => rest)
+              }}
+              error={errors.label ? t(`ruleErrors.${errors.label}`) : undefined}
+            />
+          ))}
+        </div>
+      </div>
       <section aria-labelledby={`${id}-when`} className="flex flex-col gap-2 border-t border-line pt-3">
         <h3 id={`${id}-when`} className="font-semibold">
           {t('ruleDialog.when')}

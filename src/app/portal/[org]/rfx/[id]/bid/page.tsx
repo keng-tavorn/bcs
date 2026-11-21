@@ -5,7 +5,7 @@ import { isUuid } from '@/server/queries/requests'
 import { BidForm, type BidFormWords } from '@/ui/portal/bid-form'
 import { PortalFrame, PortalNotice } from '@/ui/portal/frame'
 import { one, pageOrg, pageSession, Unavailable, type SearchParams } from '../../../_lib/page'
-import { contactLocale, fileErrorWords, rfxErrorText, type PortalT } from '../../_lib/words'
+import { contactLocale, fileErrorWords, rfxErrorText, textIn, type PortalT } from '../../_lib/words'
 
 // /portal/[org]/rfx/[id]/bid (S10-07 · FR-SRC-202 AC2 · BR-RFX-07 08): the contact of an ACTIVE supplier bids, step by step
 // (BidForm: prices, delivery and note, files, check and send), or answers an RFI (its answer and files); a bid already
@@ -67,7 +67,6 @@ export default async function PortalBidPage({ params, searchParams }: { params: 
   const locale = contactLocale(session.state.contact)
   const [t, q, rfx] = await Promise.all([getTranslations({ locale, namespace: 'portal' }), searchParams, portalRfx(session.state.ctx, id)])
   if (!rfx) redirect(`/portal/${org.code}/rfx?error=NOT_FOUND`)
-  const en = locale === 'en'
   const base = `/portal/${org.code}`
   const number = rfx.number ?? t('rfx.list.noNumber')
   const rfi = rfx.kind === 'RFI'
@@ -92,7 +91,8 @@ export default async function PortalBidPage({ params, searchParams }: { params: 
     <PortalFrame organization={org.nameTh} title={title}>
       {one(q.saved) ? <PortalNotice tone="success">{t('rfx.notices.saved')}</PortalNotice> : null}
       {error ? <PortalNotice tone="danger">{rfxErrorText(t, error, one(q.reason), one(q.lines))}</PortalNotice> : null}
-      <p>{en && rfx.titleEn ? rfx.titleEn : rfx.title}</p>
+      <p>{textIn(locale, rfx.title, rfx.titleEn)}</p>
+      {rfi ? null : <p className="text-ink-muted">{t('rfx.detail.pricesInBaht')}</p>}
       <BidForm
         action={`${base}/api/rfx/bid`}
         fileAction={`${base}/api/rfx/file`}
@@ -111,9 +111,9 @@ export default async function PortalBidPage({ params, searchParams }: { params: 
           return {
             id: l.id,
             lineNo: l.lineNo,
-            description: en && l.descriptionEn ? l.descriptionEn : l.description,
+            description: textIn(locale, l.description, l.descriptionEn),
             quantity: l.quantity,
-            uom: en && l.uomEn ? l.uomEn : l.uom,
+            uom: textIn(locale, l.uom, l.uomEn),
             unitPrice: mine?.unitPrice ?? '',
             notOffered: mine !== undefined && !mine.offered,
           }

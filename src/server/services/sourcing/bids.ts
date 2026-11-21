@@ -5,7 +5,7 @@ import type { AppError, Result } from '@/core/result'
 import { bidValidUntil, compareBids } from '@/core/sourcing'
 import { BID_MACHINE, transition, type BidCommand } from '@/core/state-machines'
 import { rateFor, taxDateOf } from '@/core/vat'
-import { RFX_QUESTION_MAX, RFX_SUMMARY_MAX, SETTINGS_MAX_DAYS } from '@/lib/constants'
+import { RFX_CURRENCY, RFX_QUESTION_MAX, RFX_SUMMARY_MAX, SETTINGS_MAX_DAYS } from '@/lib/constants'
 import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
@@ -46,6 +46,8 @@ const BidLineInput = z.strictObject({
 })
 const BidContent = {
   rfxEventId: z.uuid(),
+  /** Baht only (NG-9 · BR-FORM-11): a bid in another currency is refused, never converted (CURRENCY) */
+  currency: z.string().trim().max(3).optional(),
   priceIncludesVat: z.boolean().default(false),
   deliveryDays: z.int().min(0).max(SETTINGS_MAX_DAYS).optional(),
   promisedDeliveryOn: z.iso.date().optional(),
@@ -81,10 +83,11 @@ function bidStep(status: string, command: BidCommand): Fail | null {
 
 export const open = (rfx: { status: string; closesAt: Date | null }, now: Date) => rfx.status === 'OPEN' && rfx.closesAt !== null && now.getTime() < rfx.closesAt.getTime()
 
-type Content = { priceIncludesVat: boolean; deliveryDays?: number; promisedDeliveryOn?: string; note?: string; lines: z.infer<typeof BidLineInput>[] }
+type Content = { currency?: string; priceIncludesVat: boolean; deliveryDays?: number; promisedDeliveryOn?: string; note?: string; lines: z.infer<typeof BidLineInput>[] }
 
 /** Writes the bid's header and lines as given (a draft, or the values of a submit); RFx lines of another RFx are refused */
 async function writeContent(tx: TenantTx, ctx: Ctx, rfx: { id: string; kind: string }, bidId: string, content: Content): Promise<Fail | null> {
+  if (content.currency !== undefined && content.currency !== RFX_CURRENCY) return fail('VALIDATION_FAILED', 'prices are in Thai baht only', { field: 'currency', reason: 'CURRENCY' })
   const lines = await tx.rfxLine.findMany({ where: { rfxEventId: rfx.id }, select: { id: true } })
   const known = new Set(lines.map((l) => l.id))
   if (content.lines.some((l) => !known.has(l.rfxLineId))) return fail('VALIDATION_FAILED', 'a line of another RFx', { field: 'lines', reason: 'LINE' })

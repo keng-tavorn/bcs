@@ -1,0 +1,17 @@
+{
+  "promptVersion": "BID_SUMMARY@1",
+  "model": "claude-haiku-5-5",
+  "recorded": "SCENE",
+  "output": {
+    "sentences": [
+      "RFx {{v:rfx.number}} มีผู้ยื่น {{v:bidCount}} ราย ยื่นราคารวม VAT {{v:vatInclusiveCount}} ราย ซึ่งตารางปรับเป็นก่อน VAT แล้ว",
+      "ยอดก่อน VAT ต่ำสุด {{v:lowest.net}} บาท ของ {{v:lowest.supplierName}} และสูงสุด {{v:highest.net}} บาท ของ {{v:highest.supplierName}}",
+      "ยอดต่ำสุดกับสูงสุดห่างกัน {{v:spreadBp}} bp ของยอดต่ำสุด",
+      "ราคาที่ระบบติดธงผิดปกติ {{v:flagCount}} รายการ"
+    ]
+  },
+  "usage": {
+    "input": 0,
+    "output": 0
+  }
+}

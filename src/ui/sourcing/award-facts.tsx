@@ -145,7 +145,7 @@ export async function AwardFacts({ award, comparison = true }: { award: AwardFac
       ) : null}
       {comparison && award.bids.length ? (
         <Section id="award-comparison" title={t('comparisonTitle')}>
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -174,6 +174,23 @@ export async function AwardFacts({ award, comparison = true }: { award: AwardFac
               </TableBody>
             </Table>
           </div>
+          {/* below 768 px a list (§9.9): the amount and the score under the supplier's name, nothing cut off */}
+          <ul className="flex flex-col gap-3 md:hidden">
+            {award.bids.map((b) => (
+              <li key={b.supplierCode} className="flex flex-col gap-1 border-b border-line pb-3 last:border-b-0 last:pb-0">
+                <span className="break-words font-medium text-ink">
+                  {b.rank ?? '-'}. {supplier(b)}
+                  {b.winner ? <span className="ml-2 text-ok-ink">· {t('winnerMark')}</span> : null}
+                </span>
+                <dl className="tabular grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-ink">
+                  <dt className="text-ink-muted">{t('net')}</dt>
+                  <dd className="text-right">{baht(b.net)}</dd>
+                  <dt className="text-ink-muted">{t('total')}</dt>
+                  <dd className="text-right">{b.totalBp === null ? '-' : scoreText(b.totalBp)}</dd>
+                </dl>
+              </li>
+            ))}
+          </ul>
         </Section>
       ) : null}
       {award.priceFlags.length ? (

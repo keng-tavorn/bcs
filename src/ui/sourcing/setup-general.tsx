@@ -35,6 +35,8 @@ export interface GeneralLine {
 }
 
 export interface GeneralValues {
+  /** The RFx in Thai and English (TH_EN): needed to invite a foreign supplier or an English-reading contact (BR-FORM-11 · S10-17) */
+  readonly bilingual: boolean
   readonly kind: 'RFQ' | 'RFP' | 'RFI'
   readonly title: string
   readonly titleEn: string
@@ -58,6 +60,8 @@ export interface GeneralAiDraft {
 }
 
 export interface GeneralSave {
+  /** TH_EN when true (BR-FORM-11 · S10-17) */
+  readonly bilingual: boolean
   readonly kind?: 'RFQ' | 'RFP'
   readonly title: string
   readonly titleEn: string
@@ -142,6 +146,7 @@ export function SetupGeneral({
   function submit() {
     if (!v.title.trim() || !v.description.trim()) return setMessage({ tone: 'danger', text: t('new.generalMissing') })
     if (!v.sealed && initial.sealed && v.unsealReason.trim().length < 3) return setMessage({ tone: 'danger', text: t('errors.UNSEAL_REASON') })
+    if (v.bilingual && (!v.titleEn.trim() || !v.descriptionEn.trim())) return setMessage({ tone: 'danger', text: t('errors.ENGLISH_MISSING') })
     const lines = v.lines
       .filter((l) => {
         const was = initial.lines.find((x) => x.id === l.id)
@@ -151,6 +156,7 @@ export function SetupGeneral({
     // saving confirms what may be confirmed together; the kind and each line's English only by their own box (BR-AI-16)
     const aiAssist = draft ? { agentActionId: draft.agentActionId, confirmedPaths: proposedPaths.filter((p) => !required.has(p) || confirmed.has(p)) } : undefined
     const input: GeneralSave = {
+      bilingual: v.bilingual,
       title: v.title,
       titleEn: v.titleEn,
       description: v.description,
@@ -211,6 +217,17 @@ export function SetupGeneral({
           </NativeSelect>
         </div>
       ) : null}
+      <div className="flex items-start gap-3">
+        <Checkbox id={`${id}-bilingual`} className="mt-1" checked={v.bilingual} onCheckedChange={(c) => set({ bilingual: c === true })} aria-describedby={`${id}-bilingual-hint`} />
+        <div className="flex flex-col gap-1">
+          <Label htmlFor={`${id}-bilingual`} className="font-normal">
+            {t('field.bilingual')}
+          </Label>
+          <p id={`${id}-bilingual-hint`} className="text-base text-ink-muted md:text-sm">
+            {t('field.bilingualHint')}
+          </p>
+        </div>
+      </div>
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Label htmlFor={`${id}-title`}>{t('field.title')}</Label>

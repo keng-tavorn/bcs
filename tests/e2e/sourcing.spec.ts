@@ -5,7 +5,7 @@ import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { E2E_PIN, e2eEnv } from '../support/e2e-env'
 import { expectNoBlockingAxe, expectNoSideways } from './budgets-support'
 import { expect, test } from './fixtures'
-import { anotherPhone, newLineUserId, openAsLineUser } from './liff-support'
+import { anotherPhone, newLineUserId, openAsLineUser, pointerAway } from './liff-support'
 
 // S10-12 (FR-SRC-201 AC1 · FR-SRC-202 AC5 · FR-SRC-204 AC2 · BR-RFX-01 03 06 08 · BR-SOD-14): the internal side of scene 9
 // on the new screens. proc_officer ticks two steel lines of the pool and presses "เปิด RFx จากบรรทัดที่เลือก", makes the
@@ -45,8 +45,10 @@ async function signIn(page: Page, code: string) {
   await expect(page.getByRole('heading', { level: 1 })).toContainText('สวัสดี')
 }
 
-/** A picture at 1440 px and at the phone's 375 px (§9.9 step 4), the page checked at both */
+/** A picture at 1440 px and at the phone's 375 px (§9.9 step 4), the page checked at both with the pointer at rest (a
+ * button it just pressed is drawn hovered under it otherwise, and axe reads that colour) */
 async function shot(page: Page, testInfo: TestInfo, name: string) {
+  await pointerAway(page)
   for (const [width, height] of [
     [1440, 900],
     [375, 812],
@@ -109,6 +111,9 @@ test('[FR-SRC-201/AC1] [FR-SRC-202/AC5] scene 9 inside: the pool opens an RFQ, i
   await expect(page.getByLabel('เพิ่มผู้ประเมิน').locator('option', { hasText: 'ผู้สร้าง RFx' })).toBeDisabled()
   await page.getByRole('button', { name: 'บันทึก Scorecard' }).click()
   await expect(page.getByText('บันทึก Scorecard แล้ว')).toBeVisible()
+  // the message shows before the page is read again (the form stays busy until then · use-rfx-act.ts): wait for the
+  // button to be back, or axe may read it fading in from its disabled look
+  await expect(page.getByRole('button', { name: 'บันทึก Scorecard' })).toBeEnabled()
   await shot(page, testInfo, 'sourcing-edit-scorecard')
 
   // the close (an hour after the earliest by default), then review and open

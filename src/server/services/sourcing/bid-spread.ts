@@ -23,8 +23,9 @@ const bpOver = (value: Satang, lowest: Satang): number => Number(roundHalfUpDiv(
 
 /**
  * BR-AI-32's two distances, both in bp of the lowest complete bid (as priceScoreBp): the highest complete bid's (spreadBp)
- * and the incumbent nearest the lowest that is not the lowest itself (gapBp). Scene 9: (305,500 − 300,950) × 10000 ÷
- * 300,950 = 151.19 → 151 for both.
+ * and the incumbent nearest the lowest that is not the lowest itself (gapBp). Scene 9: spread (305,500 − 300,950) × 10000
+ * ÷ 300,950 = 151.19 → 151; SP0024 and SP0029 both sold STEEL on a PO within the window, so the incumbent is SP0024,
+ * the nearer: (303,738.32 − 300,950) × 10000 ÷ 300,950 = 92.65 → 93 (S10-18).
  */
 export function bidSpread(table: ComparisonFacts): Pick<RfxBidFacts, 'spreadBp' | 'incumbent'> {
   const complete = table.bids.filter((b) => !b.partial)

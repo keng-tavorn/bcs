@@ -67,6 +67,9 @@ export const SETUP_ERROR_KEYS = [
   'AI_NOT_EVALUATED',
   'RATE_LIMITED',
   'AI_DRAFT_WAITING',
+  // S10-17 (BR-FORM-11 · NG-9)
+  'LOCALE_REQUIRED',
+  'CURRENCY',
   'OTHER',
 ] as const
 export type SetupErrorKey = (typeof SETUP_ERROR_KEYS)[number]

@@ -1,5 +1,6 @@
 import { DECIMAL_COMPARE_SCALE } from '../money/constants'
 import { vatFromGross, type Satang } from '../money/math'
+import type { FormText } from './fields'
 import { satangOf } from './money-text'
 
 // Dynamic forms (spec §7.9, BR-FORM-01 to BR-FORM-06): conditions decide which fields show and which attachments a
@@ -34,6 +35,8 @@ export interface AttachmentRule {
   readonly id: string
   readonly when: Condition
   readonly require: Requirement
+  /** What the rule asks for in words, shown to requesters in their language (FR-INT-201 AC1); optional */
+  readonly label?: FormText
 }
 
 export interface VisibilityRule {

@@ -1,0 +1,911 @@
+[
+  {
+    "375": {
+      "picture": "docs/design-review/s10/portal_home-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/portal_home-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_home",
+    "who": "sp0023.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/home",
+    "firstLoadJs": {
+      "total": 145500,
+      "note": "145500 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 3289 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/home",
+    "h1": "สวัสดี คุณคำปั่น พลอยงาม",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/portal_rfx-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/portal_rfx-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_rfx",
+    "who": "sp0023.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/rfx",
+    "firstLoadJs": {
+      "total": 145075,
+      "note": "145075 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 2864 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/rfx",
+    "h1": "RFx you are invited to",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/portal_rfx_open-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/portal_rfx_open-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_rfx_open",
+    "who": "nordic@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/rfx/01a1edc8-2c45-76d3-9fbd-15d4886f3d74",
+    "firstLoadJs": {
+      "total": 146653,
+      "note": "146653 bytes of 200000: 11 script files 142636 bytes over the wire and inline page data 4017 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/rfx/01a1edc8-2c45-76d3-9fbd-15d4886f3d74",
+    "h1": "RFX-2569-00005 Office firewall for two sites with installation (second round)",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/portal_rfx_open_bid-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/portal_rfx_open_bid-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_rfx_open_bid",
+    "who": "nordic@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/rfx/01a1edc8-2c45-76d3-9fbd-15d4886f3d74/bid",
+    "firstLoadJs": {
+      "total": 153074,
+      "note": "153074 bytes of 200000: 11 script files 148457 bytes over the wire and inline page data 4617 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, 1-vp02y79a6-7.js 6246, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/rfx/01a1edc8-2c45-76d3-9fbd-15d4886f3d74/bid",
+    "h1": "Bid for RFX-2569-00005",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/portal_rfx_awarded-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/portal_rfx_awarded-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_rfx_awarded",
+    "who": "sp0023.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/rfx/01a1edb9-20ad-7600-9893-e56008d53569",
+    "firstLoadJs": {
+      "total": 146128,
+      "note": "146128 bytes of 200000: 11 script files 142636 bytes over the wire and inline page data 3492 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/rfx/01a1edb9-20ad-7600-9893-e56008d53569",
+    "h1": "RFX-2569-00004 Deformed steel bar DB12 SD40, 13 tonnes, two sites",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/portal_rfx_result_won-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/portal_rfx_result_won-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_rfx_result_won",
+    "who": "sp0023.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/rfx/01a1edb9-20ad-7600-9893-e56008d53569/result",
+    "firstLoadJs": {
+      "total": 145350,
+      "note": "145350 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 3139 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/rfx/01a1edb9-20ad-7600-9893-e56008d53569/result",
+    "h1": "Result of RFX-2569-00004",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/portal_rfx_result_lost-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/portal_rfx_result_lost-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "portal_rfx_result_lost",
+    "who": "sp0029.1@supplier.simec.local",
+    "kind": "portal",
+    "path": "/portal/simec/rfx/01a1edb9-20ad-7600-9893-e56008d53569/result",
+    "firstLoadJs": {
+      "total": 145196,
+      "note": "145196 bytes of 200000: 10 script files 142211 bytes over the wire and inline page data 2985 bytes gzip; largest 2c2eiewleiwjb.js 73471, 14-ug9lg91a26.js 42999, 2vk5-8cz8uasd.js 8616, turbopack-0vaa-shxulea1.js 4323, 03qww-mw8jhdd.js 3707, 0u-wiy8f8gl1e.js 3538, 2rvfx-1941blh.js 2007, 424ted2akcn_u.js 1864; no tailwind-merge",
+      "merge": 0
+    },
+    "landed": "/portal/simec/rfx/01a1edb9-20ad-7600-9893-e56008d53569/result",
+    "h1": "ผล RFX-2569-00004",
+    "status": 200
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_sourcing-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_sourcing-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_sourcing",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing",
+    "status": 200,
+    "landed": "/sourcing",
+    "h1": "จัดหา"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_sourcing_rfi-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_sourcing_rfi-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_sourcing_rfi",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing?kind=RFI",
+    "status": 200,
+    "landed": "/sourcing",
+    "h1": "จัดหา"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_pool-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_pool-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_pool",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/procurement/pool",
+    "status": 200,
+    "landed": "/procurement/pool",
+    "h1": "กองรอจัดซื้อ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_sourcing_new-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_sourcing_new-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_sourcing_new",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/new",
+    "status": 200,
+    "landed": "/sourcing/new",
+    "h1": "เปิด RFx ใหม่"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_sourcing_draft_general-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_sourcing_draft_general-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_sourcing_draft_general",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edc9-d587-771b-b917-d7b3c50c2239/edit?step=general",
+    "status": 200,
+    "landed": "/sourcing/01a1edc9-d587-771b-b917-d7b3c50c2239/edit",
+    "h1": "ตั้งร่าง RFx: ขอใบเสนอราคาเหล็กข้ออ้อย DB12 SD40 สำหรับสองไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_sourcing_draft_lines-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_sourcing_draft_lines-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_sourcing_draft_lines",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edc9-d587-771b-b917-d7b3c50c2239/edit?step=lines",
+    "status": 200,
+    "landed": "/sourcing/01a1edc9-d587-771b-b917-d7b3c50c2239/edit",
+    "h1": "ตั้งร่าง RFx: ขอใบเสนอราคาเหล็กข้ออ้อย DB12 SD40 สำหรับสองไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_sourcing_draft_suppliers-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_sourcing_draft_suppliers-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_sourcing_draft_suppliers",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edc9-d587-771b-b917-d7b3c50c2239/edit?step=suppliers",
+    "status": 200,
+    "landed": "/sourcing/01a1edc9-d587-771b-b917-d7b3c50c2239/edit",
+    "h1": "ตั้งร่าง RFx: ขอใบเสนอราคาเหล็กข้ออ้อย DB12 SD40 สำหรับสองไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_sourcing_draft_scorecard-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_sourcing_draft_scorecard-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_sourcing_draft_scorecard",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edc9-d587-771b-b917-d7b3c50c2239/edit?step=scorecard",
+    "status": 200,
+    "landed": "/sourcing/01a1edc9-d587-771b-b917-d7b3c50c2239/edit",
+    "h1": "ตั้งร่าง RFx: ขอใบเสนอราคาเหล็กข้ออ้อย DB12 SD40 สำหรับสองไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_sourcing_draft_schedule-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_sourcing_draft_schedule-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_sourcing_draft_schedule",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edc9-d587-771b-b917-d7b3c50c2239/edit?step=schedule",
+    "status": 200,
+    "landed": "/sourcing/01a1edc9-d587-771b-b917-d7b3c50c2239/edit",
+    "h1": "ตั้งร่าง RFx: ขอใบเสนอราคาเหล็กข้ออ้อย DB12 SD40 สำหรับสองไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_sourcing_draft_review-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_sourcing_draft_review-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_sourcing_draft_review",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edc9-d587-771b-b917-d7b3c50c2239/edit?step=review",
+    "status": 200,
+    "landed": "/sourcing/01a1edc9-d587-771b-b917-d7b3c50c2239/edit",
+    "h1": "ตั้งร่าง RFx: ขอใบเสนอราคาเหล็กข้ออ้อย DB12 SD40 สำหรับสองไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_rfq_overview-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_rfq_overview-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_rfq_overview",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569?tab=overview",
+    "status": 200,
+    "landed": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569",
+    "h1": "RFX-2569-00004 เหล็กข้ออ้อย DB12 SD40 13 ตัน 2 ไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_rfq_lines-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_rfq_lines-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_rfq_lines",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569?tab=lines",
+    "status": 200,
+    "landed": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569",
+    "h1": "RFX-2569-00004 เหล็กข้ออ้อย DB12 SD40 13 ตัน 2 ไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_rfq_suppliers-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_rfq_suppliers-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_rfq_suppliers",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569?tab=suppliers",
+    "status": 200,
+    "landed": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569",
+    "h1": "RFX-2569-00004 เหล็กข้ออ้อย DB12 SD40 13 ตัน 2 ไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_rfq_questions-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_rfq_questions-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_rfq_questions",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569?tab=questions",
+    "status": 200,
+    "landed": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569",
+    "h1": "RFX-2569-00004 เหล็กข้ออ้อย DB12 SD40 13 ตัน 2 ไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_rfq_revisions-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_rfq_revisions-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_rfq_revisions",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569?tab=revisions",
+    "status": 200,
+    "landed": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569",
+    "h1": "RFX-2569-00004 เหล็กข้ออ้อย DB12 SD40 13 ตัน 2 ไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_rfq_bids-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_rfq_bids-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_rfq_bids",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569?tab=bids",
+    "status": 200,
+    "landed": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569",
+    "h1": "RFX-2569-00004 เหล็กข้ออ้อย DB12 SD40 13 ตัน 2 ไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_rfq_scores-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_rfq_scores-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_rfq_scores",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569?tab=scores",
+    "status": 200,
+    "landed": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569",
+    "h1": "RFX-2569-00004 เหล็กข้ออ้อย DB12 SD40 13 ตัน 2 ไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_rfq_awards-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_rfq_awards-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_rfq_awards",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569?tab=awards",
+    "status": 200,
+    "landed": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569",
+    "h1": "RFX-2569-00004 เหล็กข้ออ้อย DB12 SD40 13 ตัน 2 ไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/evaluator_rfq_score-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/evaluator_rfq_score-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "evaluator_rfq_score",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569/score",
+    "status": 200,
+    "landed": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569/score",
+    "h1": "ให้คะแนน RFX-2569-00004"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_rfq_award-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_rfq_award-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_rfq_award",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569/award",
+    "status": 200,
+    "landed": "/sourcing/01a1edb9-20ad-7600-9893-e56008d53569/award",
+    "h1": "ผลมอบงาน AWD-2569-00003"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_rfp_award-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_rfp_award-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_rfp_award",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/sourcing/01a1edb9-05ad-77a8-b229-c6a97c843582/award",
+    "status": 200,
+    "landed": "/sourcing/01a1edb9-05ad-77a8-b229-c6a97c843582/award",
+    "h1": "ผลมอบงาน AWD-2569-00001"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_rfi-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_rfi-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_rfi",
+    "who": "proc_sub1",
+    "kind": "web",
+    "path": "/sourcing/01a1edb9-1bb7-73ac-9304-c6d0c593d134",
+    "status": 200,
+    "landed": "/sourcing/01a1edb9-1bb7-73ac-9304-c6d0c593d134",
+    "h1": "RFX-2569-00003 สำรวจผู้รับเหมาช่วงงานโครงสร้างเหล็ก"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_open-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_open-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_open",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/sourcing/01a1edc8-2c45-76d3-9fbd-15d4886f3d74",
+    "status": 200,
+    "landed": "/sourcing/01a1edc8-2c45-76d3-9fbd-15d4886f3d74",
+    "h1": "RFX-2569-00005 ไฟร์วอลล์สำนักงาน 2 ไซต์ พร้อมติดตั้ง"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_open_print-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_open_print-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_open_print",
+    "who": "proc_officer",
+    "kind": "web",
+    "path": "/sourcing/01a1edc8-2c45-76d3-9fbd-15d4886f3d74/print",
+    "status": 200,
+    "landed": "/sourcing/01a1edc8-2c45-76d3-9fbd-15d4886f3d74/print",
+    "h1": "RFX-2569-00005 ไฟร์วอลล์สำนักงาน 2 ไซต์ พร้อมติดตั้ง"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/task_award-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/task_award-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "task_award",
+    "who": "dm_proc",
+    "kind": "web",
+    "path": "/tasks/01a1edc5-1b6a-77ef-9100-061d5e7fa2e1",
+    "status": 200,
+    "landed": "/tasks/01a1edc5-1b6a-77ef-9100-061d5e7fa2e1",
+    "h1": "เหล็กข้ออ้อย DB12 SD40 13 ตัน 2 ไซต์"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/liff_task_award-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/liff_task_award-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "liff_task_award",
+    "who": "dm_proc",
+    "kind": "liff",
+    "path": "/liff/tasks/01a1edc5-1b6a-77ef-9100-061d5e7fa2e1",
+    "status": 200,
+    "landed": "/liff/tasks/01a1edc5-1b6a-77ef-9100-061d5e7fa2e1",
+    "h1": "งานอนุมัติ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_po_from_award-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_po_from_award-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_po_from_award",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/procurement/pos/01a1edc5-a492-74a1-8af0-3af31c45cc91",
+    "status": 200,
+    "landed": "/procurement/pos/01a1edc5-a492-74a1-8af0-3af31c45cc91",
+    "h1": "บริษัท ชลบุรีภัณฑ์สตีล จำกัด"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/proc_preferred-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/proc_preferred-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "proc_preferred",
+    "who": "proc_mat1",
+    "kind": "web",
+    "path": "/suppliers/preferred",
+    "status": 200,
+    "landed": "/suppliers/preferred",
+    "h1": "ผู้ขายที่แนะนำ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/requester_request_new-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/requester_request_new-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "requester_request_new",
+    "who": "it_02",
+    "kind": "web",
+    "path": "/requests/new/BUY_GOODS",
+    "status": 200,
+    "landed": "/requests/new/BUY_GOODS",
+    "h1": "คำขอใหม่: ซื้อของ"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/dm_proc_reports_sourcing-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/dm_proc_reports_sourcing-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "dm_proc_reports_sourcing",
+    "who": "dm_proc",
+    "kind": "web",
+    "path": "/reports/sourcing",
+    "status": 200,
+    "landed": "/reports/sourcing",
+    "h1": "รายงานการจัดหา"
+  },
+  {
+    "375": {
+      "picture": "docs/design-review/s10/admin_request-type_form-375.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "1440": {
+      "picture": "docs/design-review/s10/admin_request-type_form-1440.png",
+      "axe": [],
+      "sideways": 0,
+      "smallText": [],
+      "smallTextCount": 0
+    },
+    "name": "admin_request-type_form",
+    "who": "admin",
+    "kind": "web",
+    "path": "/admin/request-types/BUY_GOODS/form",
+    "status": 200,
+    "landed": "/admin/request-types/BUY_GOODS/form",
+    "h1": "ตัวสร้างฟอร์มของ ซื้อของ"
+  }
+]

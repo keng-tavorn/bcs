@@ -124,7 +124,7 @@ test.describe('@s8 tier-2 invoices (S8-13)', () => {
     await look(page, testInfo, 's8-rejected')
 
     // the job supplier-notice-send (not run by the e2e app) sends it: the supplier reads the invoice and the reason
-    s8Scene('notices', made.supplierEmail)
+    s8Scene('notices')
     // the e-mail of the submission ("received") came first; the rejection follows it with the reason
     const reason = 'ราคาไม่ตรงกับที่ตกลงไว้ในใบสั่งซื้อ'
     const rejection = async () => (await messagesTo(made.supplierEmail)).filter((m) => m.Text.includes(reason))

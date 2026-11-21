@@ -122,6 +122,20 @@ export default async function EditRfxPage({ params, searchParams }: { params: Pr
   )
 }
 
+/** BR-FORM-11: a foreign invitee needs TH_EN, and TH_EN opens with all its English (rfx.open checks it again) */
+function englishChecks(t: T, s: RfxSetupDto): Array<{ ok: boolean; text: string }> {
+  const r = s.rfx
+  if (r.englishMissing === null) return s.invites.some((i) => i.foreign) ? [{ ok: false, text: t('review.bilingualNeeded') }] : []
+  const missing = r.englishMissing
+  if (!missing.length) return [{ ok: true, text: t('review.english') }]
+  const word = (path: string) => {
+    const m = /^lines\.(\d+)\.(descriptionEn|uomEn)$/.exec(path)
+    if (m) return t(m[2] === 'uomEn' ? 'review.englishLineUnit' : 'review.englishLineItem', { no: Number(m[1]) })
+    return t(path === 'titleEn' ? 'review.englishTitle' : 'review.englishDescription')
+  }
+  return [{ ok: false, text: t('review.englishMissing', { fields: missing.map(word).join(', ') }) }]
+}
+
 async function StepBody({ t, s, step, locale, id, closesAt, detailHref, hrefOf, ctx }: { t: T; s: RfxSetupDto; step: SetupStep; locale: 'th' | 'en'; id: string; closesAt: string | null; detailHref: string; hrefOf: (k: SetupStep) => string; ctx: NonNullable<ReturnType<typeof ctxFromSession>> }) {
   const r = s.rfx
   const v = r.version
@@ -148,6 +162,7 @@ async function StepBody({ t, s, step, locale, id, closesAt, detailHref, hrefOf, 
         <SetupGeneral
           key={`${v}:${draft?.agentActionId ?? 'none'}`}
           initial={{
+            bilingual: r.locale === 'TH_EN',
             kind: r.kind as 'RFQ' | 'RFP' | 'RFI',
             title: r.title,
             titleEn: r.titleEn ?? '',
@@ -271,6 +286,7 @@ async function StepBody({ t, s, step, locale, id, closesAt, detailHref, hrefOf, 
     { ok: s.lines.length > 0, text: s.lines.length > 0 ? t('review.lines', { count: s.lines.length }) : t('errors.NO_LINES') },
     { ok: live > 0 && !short, text: live > 0 ? (short ? t('review.invitesShort', { count: live, min: r.minInvites }) : t('review.invites', { count: live, min: r.minInvites })) : t('errors.NO_INVITES') },
     ...(r.kind === 'RFI' ? [] : [{ ok: scorecardReady(s), text: scorecardReady(s) ? t('review.scorecard') : t('errors.SCORECARD_INCOMPLETE') }]),
+    ...englishChecks(t, s),
     {
       ok: s.schedule !== null && !s.schedule.tooSoon,
       text: s.schedule

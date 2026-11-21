@@ -420,8 +420,10 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
 
           <aside className="flex min-w-0 flex-col gap-4 lg:gap-6">
             {brief ? <AiBrief brief={brief} /> : null}
-            {/* The decision in its own card; on phones its buttons stay fixed to the bottom of the screen */}
-            <Panel>
+            {/* The decision in its own card; on phones its buttons stay fixed to the bottom of the screen. A task that is no
+                longer open has no decision to draw (both panels render nothing): the card hides while it is empty, and shows
+                again with the outcome once the holder decides here (S10-20) */}
+            <Panel className="has-[>[data-slot=card-content]:empty]:hidden">
               {policyTask ? (
                 <PolicyDecision taskId={task.id} open={open} locale={locale} boundary={boundary} decide={decidePolicyTaskAction} hasPasskey={hasPasskey} passkeyOptions={passkeyOptionsAction} />
               ) : (

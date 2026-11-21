@@ -6766,11 +6766,15 @@
     "preview": {
       "amount": "Try a total with VAT (baht)",
       "amountHint": "The preview uses this amount as both the total with VAT and the amount before VAT",
+      "en": "English",
       "hidden": "{count, plural, one {# question is} other {# questions are}} hidden and show when the answers meet their condition",
       "intro": "The real form as drafted on this page. Answer the questions or enter an amount to see the questions conditions show and the files to attach. Nothing is saved.",
+      "language": "Preview in",
+      "languageHint": "Switch to check the form's own text in each language; the system's buttons and hints stay in the language of this page",
       "noFields": "No questions yet; requesters fill in the items or services only",
       "noRules": "The answers now need no files under the rules",
       "rulesTitle": "Files to attach for the answers now",
+      "th": "Thai",
       "title": "Form preview"
     },
     "problemsTitle": "The draft could not be saved. Fix these, then save again.",
@@ -6805,6 +6809,9 @@
       "id": "Rule id",
       "idHint": "E.g. ATT-DPA, with no spaces",
       "kind": "Kind of file",
+      "labelEn": "Rule name in English",
+      "labelHint": "Requesters see this name in their language instead of the rule id. Enter both languages or leave both empty; nothing is translated for you.",
+      "labelTh": "Rule name in Thai",
       "min": "At least (files)",
       "removeFileNamed": "Remove file {n}",
       "require": "Attach",
@@ -6816,9 +6823,11 @@
       "ID_REQUIRED": "Enter the rule id",
       "ID_TAKEN": "Another rule of the form has this id. Use another one.",
       "KIND": "Choose the kind of file",
+      "LABEL_BOTH": "Enter the rule name in both languages, or leave both empty",
       "MIN": "Enter the number of files as a whole number from 1"
     },
     "ruleLine": "Applies when {when} · attach {require}",
+    "ruleNames": "Name requesters see: {th} · {en}",
     "rulesTitle": "Attachment rules",
     "save": "Save draft",
     "saveFirst": "Save the draft before you publish. The changes and checks above are those of the draft as last saved.",
@@ -9716,7 +9725,7 @@
         "bid": "Bid",
         "bidAmounts": "Before VAT {net} · VAT {vat} · Total {gross} THB",
         "bidDraft": "You have a draft bid that is not sent yet",
-        "bidSent": "Sent {count} times, last on {date}",
+        "bidSent": "Sent {count, plural, one {once} other {# times}}, last on {date}",
         "bidValidUntil": "Your bid is valid until {date}",
         "closed": "Closed for bids",
         "closesAt": "Bids close {date}",
@@ -9733,6 +9742,7 @@
         "lines": "Lines",
         "noFiles": "No documents attached",
         "notActive": "Your supplier account is not active yet, so you cannot bid. Please contact the buyer.",
+        "pricesInBaht": "Prices in Thai Baht (THB) only. No other currency is accepted or converted.",
         "questionCutoff": "Questions until {date}",
         "reconfirm": "The RFx was amended after you bid. Please read it again and send your bid again before it closes.",
         "remaining": "{days} days {hours} hours left",
@@ -11157,6 +11167,10 @@
       "KPI": {
         "description": "The system's goal measures, computed from the event log and the documents: POs through BCS, approvals by the DOA, speed, budget control and approvals on LINE.",
         "name": "KPI G-1 to G-5"
+      },
+      "SRC_G8": {
+        "description": "Savings of the awards against the requests they came from, by kind of baseline and by quarter, with the business days from opening an RFx to approving its award",
+        "name": "Sourcing savings (G-8)"
       },
       "SUP_G7": {
         "description": "Business days new suppliers take from invitation to approval, filled in by the supplier or by procurement, with the applications waiting and the expired documents",
@@ -13367,6 +13381,7 @@
           "HIGH": "Above the reference by {percent}%",
           "LOW": "Unusually below the reference ({percent}%)"
         },
+        "foreignWarning": "Foreign supplier: VAT 0 in this table · the true cost adds the VAT the buyer remits itself (P.P.36); the withholding tax (P.N.D.54) and the payment are made outside BCS",
         "individual": "Individual supplier {code}",
         "line": "Line",
         "lineOf": "{no}. {description}",
@@ -13471,6 +13486,7 @@
         "FORBIDDEN": "You may not do this. Ask your administrator if you think you should",
         "INVALID_STATE_TRANSITION": "This cannot be done in the current status. Refresh the page to see the latest status",
         "INVITES_WAITING": "Some suppliers have not answered yet (neither bid nor declined), so it cannot close early",
+        "LOCALE_REQUIRED": "An RFx in Thai and English keeps its English title and description: it invites suppliers who read English",
         "MODULE_DISABLED": "Sourcing (RFx) is not turned on for your organization",
         "NOT_FOUND": "This item no longer exists. Refresh the page and try again",
         "NOT_RFI": "Only a request for information (RFI) is concluded; an RFQ or RFP ends with an award",
@@ -13551,6 +13567,32 @@
         "validity": "Prices valid {days} days",
         "vatExclusiveOnly": "Prices before VAT",
         "vatInclusiveAllowed": "Prices with VAT accepted"
+      },
+      "print": {
+        "back": "Back to the RFx",
+        "baht": "Prices in Thai Baht",
+        "button": "Print",
+        "closesAt": "Bids close",
+        "description": "Description",
+        "draft": "Draft",
+        "english": "English",
+        "field": "Field",
+        "item": "Item",
+        "kind": "Kind",
+        "kindName": {
+          "RFI": "Request for information (RFI)",
+          "RFP": "Request for proposal (RFP)",
+          "RFQ": "Request for quotation (RFQ)"
+        },
+        "lineNo": "No.",
+        "lines": "Items",
+        "link": "Print the RFx",
+        "metaTitle": "Print the RFx",
+        "number": "Number",
+        "quantity": "Quantity",
+        "revision": "Revision",
+        "thai": "Thai",
+        "title": "Title"
       },
       "questions": {
         "answeredBy": "Answered by {name} on {at}",
@@ -13885,7 +13927,9 @@
         "CLOSE_TOO_SOON_AT": "The close is earlier than the system allows. The earliest close is {earliest}.",
         "CONFLICT": "Someone changed this RFx first. Reload the page to see it now and try again.",
         "CONFLICT_VERSION": "Someone changed this RFx first. Reload the page to see it now and try again.",
+        "CURRENCY": "An RFx and its bids are in Thai baht only; nothing is converted",
         "DUPLICATE_CODE": "Two criteria have the same code. Give every criterion its own code.",
+        "ENGLISH_MISSING": "A Thai and English document needs its English title and description",
         "FEWER_INVITES_REASON": "Fewer suppliers than the minimum are invited. Give the reason the award's approver will see.",
         "FORBIDDEN": "You may not do this. Only procurement manages RFx.",
         "INVALID_STATE_TRANSITION": "The RFx is in a state that no longer allows this. Reload the page to see its status.",
@@ -13893,6 +13937,7 @@
         "LINE_HAS_SUPPLIER": "A line has its supplier already: order it from them, or take the supplier off before opening an RFx",
         "LINE_IN_RFX": "A line is in another RFx that has not ended. Take that line out and try again.",
         "LINE_NOT_IN_POOL": "A line left the procurement pool (ordered or cancelled). Pick the lines again in the pool.",
+        "LOCALE_REQUIRED": "An RFx that invites a foreign supplier or a contact who reads English must be in Thai and English, with the English of the title, the description and every line (item and unit) typed before it opens",
         "MEMBER": "An evaluator is not an active member. Pick someone else.",
         "MIXED_CATEGORY": "The ticked lines are of different categories. One RFx takes lines of one category.",
         "MODULE_DISABLED": "Sourcing is not switched on for this organization",
@@ -13923,6 +13968,8 @@
       "field": {
         "allowPartialBids": "Take bids that do not offer every line",
         "allowVatInclusiveBids": "Take prices with VAT (the comparison brings them to before VAT)",
+        "bilingual": "Thai and English document",
+        "bilingualHint": "Needed to invite a foreign supplier or a contact who reads English. The title, the description and every line need their English before the RFx opens. Nothing is translated for you.",
         "catalogItem": "Catalogue item (optional)",
         "category": "Category",
         "description": "Details and scope (Thai)",
@@ -14004,8 +14051,15 @@
         "MANUAL": "typed in"
       },
       "review": {
+        "bilingualNeeded": "A foreign supplier is invited: choose \"Thai and English document\" under General and type all the English",
         "checks": "What is checked before opening",
         "closes": "Closes {closes} · questions close {cutoff}",
+        "english": "The English is complete",
+        "englishDescription": "description",
+        "englishLineItem": "item of line {no}",
+        "englishLineUnit": "unit of line {no}",
+        "englishMissing": "English still missing: {fields}",
+        "englishTitle": "title",
         "fewerReason": "Why fewer suppliers than the minimum are invited",
         "fewerReasonHint": "The award's approver sees this reason",
         "invites": "{count} invited, the minimum of {min} is met",
@@ -14057,7 +14111,7 @@
         "onePrice": "Keep exactly one price criterion",
         "pickEvaluator": "Add an evaluator",
         "priceOnly": "This scorecard has price only: the system scores it at the close and needs no evaluator",
-        "removeCriterion": "Take criterion {code} out",
+        "removeCriterion": "Take criterion {name} out",
         "removeEvaluator": "Take {name} out",
         "rowInvalid": "Every criterion needs a code (capital letters, 20 at most), a Thai name and a weight from 0 to 100",
         "save": "Save the scorecard",
@@ -14109,6 +14163,88 @@
         "warnRisk": "Risk not cleared; its purchase orders will stop at the risk gate"
       }
     }
+  },
+  "sourcingReport": {
+    "amount": "THB {amount}",
+    "amountBp": "THB {amount} ({percent})",
+    "awards": {
+      "caption": "Awards approved in this period, with their baseline, awarded amount, savings and business days",
+      "columns": {
+        "award": "Award",
+        "awarded": "Awarded before VAT",
+        "baseline": "Baseline before VAT",
+        "days": "Business days",
+        "decidedAt": "Approved",
+        "kind": "Baseline",
+        "rfx": "RFx",
+        "savings": "Savings",
+        "winners": "Winners"
+      },
+      "emptyHint": "Try a longer period, or see the RFx still open below.",
+      "emptyTitle": "No award approved in this period",
+      "only": "Showing only the awards with this baseline: {kind}.",
+      "showAll": "Show every award",
+      "title": "Awards approved in this period ({count})"
+    },
+    "back": "Back to reports",
+    "days": "{value} business days",
+    "export": {
+      "hint": "The file has the rows of the awards table, with the file's checksum.",
+      "title": "Export to Excel"
+    },
+    "intro": "Savings from sourcing (KPI G-8) against the requests they came from, by kind of baseline and by quarter, the time from opening an RFx to approving its award, and the RFx still open. The figures come from the system, not from AI.",
+    "kind": {
+      "ESTIMATE": "Estimate baseline",
+      "MIXED": "Mixed baseline",
+      "QUOTATION": "Quotation baseline"
+    },
+    "moduleOff": "This organization has not switched on the sourcing module, so this report is not available yet.",
+    "noAward": "No award of this kind",
+    "noNumber": "No number yet",
+    "noneYet": "No award approved in this period yet",
+    "notComputable": "Cannot be computed",
+    "open": {
+      "bids": "{bids} / {invited}",
+      "caption": "RFx still open by their close",
+      "columns": {
+        "bids": "Bids / invited",
+        "closesAt": "Closes",
+        "kind": "Kind",
+        "rfx": "RFx",
+        "status": "Status"
+      },
+      "emptyHint": "A new RFx shows here until its award is approved or it is cancelled.",
+      "emptyTitle": "No RFx open",
+      "intro": "RFx open for bids, closed or being evaluated, the nearest close first, whatever the period.",
+      "noClose": "Not set",
+      "title": "RFx still open ({count})"
+    },
+    "periodInvalid": "The dates chosen cannot be used (the start must not be after the end), so this quarter up to today is shown instead",
+    "periodLabel": "Award approval dates",
+    "quarter": "Q{q} {year}",
+    "quarters": {
+      "caption": "Savings of each quarter by the award's approval date, by kind of baseline",
+      "columns": {
+        "ESTIMATE": "Estimate baseline",
+        "MIXED": "Mixed baseline",
+        "QUOTATION": "Quotation baseline",
+        "awards": "Awards",
+        "baseline": "Baseline before VAT",
+        "quarter": "Quarter",
+        "savings": "Savings"
+      },
+      "title": "By quarter"
+    },
+    "run": "Show this period",
+    "summary": {
+      "baseline": "Total baseline before VAT",
+      "hint": "Savings = baseline − awarded amount, both before VAT; negative when the award costs more than the baseline · The baseline is the quotation selected in the request, else the requester's estimate, and a reference price for an RFx raised from a need · Business days on the organization’s calendar, one decimal; with an even count, the lower middle value.",
+      "median": "Median business days from opening the RFx to approving the award",
+      "title": "Savings in this period (G-8)",
+      "total": "Total savings",
+      "withoutBaseline": "{count} award(s) have no baseline (an RFx from a need without a reference price): left out of the savings, counted in the business days"
+    },
+    "title": "Sourcing report"
   },
   "supplierApplicationTask": {
     "branch": "Branch",

@@ -515,6 +515,8 @@ export interface RuleStatus {
   /** Why it applies now (its `when`) */
   readonly when: FormDefinition['rules'][number]['when']
   readonly met: boolean
+  /** The rule's name in both languages, when the form gives one (FR-INT-201 AC1) */
+  readonly label?: FormDefinition['rules'][number]['label']
 }
 
 /** FR-INT-005 AC1: the attachment rules that apply to the request as it is now, each met or not (BR-FORM-03) */
@@ -522,7 +524,13 @@ export function applicableRules(form: FormDefinition, input: FormInput): RuleSta
   const visible = visibleInput(form, input)
   return form.rules
     .filter((rule) => evaluateCondition(rule.when, visible))
-    .map((rule) => ({ id: rule.id, require: rule.require, when: rule.when, met: evaluateForm({ visibility: form.visibility, rules: [rule] }, input).ok }))
+    .map((rule) => ({
+      id: rule.id,
+      require: rule.require,
+      when: rule.when,
+      met: evaluateForm({ visibility: form.visibility, rules: [rule] }, input).ok,
+      ...(rule.label ? { label: rule.label } : {}),
+    }))
 }
 
 // ---------- what still needs doing before sending ----------

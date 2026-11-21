@@ -3,7 +3,7 @@
 import { CircleAlert, Info } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { evaluateCondition, type Condition, type FormInput, type Requirement } from '@/core/forms'
-import type { FieldDef } from '@/core/forms/fields'
+import type { FieldDef, FormText } from '@/core/forms/fields'
 import { fieldLabel, optionLabel } from './field-input'
 import { showMoney } from './money'
 import type { ScreenLocale } from './types'
@@ -29,6 +29,11 @@ function valueOf(field: string, value: unknown, fields: readonly FieldDef[], loc
   const def = fields.find((f) => f.id === field)
   const one = (v: unknown) => (def && typeof v === 'string' ? optionLabel(def, v, locale) : String(v))
   return Array.isArray(value) ? value.map(one).join(t('orJoin')) : one(value)
+}
+
+/** A rule's name in the reader's language when the form gives one (FR-INT-201 AC1); null: show its id */
+export function ruleLabel(rule: { readonly label?: FormText }, locale: ScreenLocale): string | null {
+  return rule.label?.[locale] ?? null
 }
 
 /** A condition in words: "ยอดรวม VAT มากกว่า 100,000.00 บาท" */

@@ -1,0 +1,16 @@
+{
+  "promptVersion": "NEGOTIATION_POINTS@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "SCENE",
+  "output": {
+    "sentences": [
+      "{{v:incumbent.supplierName}} ผู้ขายรายเดิมเสนอ {{v:incumbent.net}} บาทก่อน VAT สูงกว่ายอดต่ำสุด {{v:incumbent.gap}} บาท หรือ {{v:gapBp}} bp",
+      "จัดซื้ออาจขอให้ {{v:incumbent.supplierName}} พิจารณายืนราคาเท่ายอดต่ำสุด {{v:lowest.net}} บาท",
+      "ใบที่ยื่นราคารวม VAT มี {{v:vatInclusiveCount}} ใบ จัดซื้ออาจขอให้ผู้ยื่นยืนยันราคาก่อน VAT ต่อบรรทัด"
+    ]
+  },
+  "usage": {
+    "input": 0,
+    "output": 0
+  }
+}

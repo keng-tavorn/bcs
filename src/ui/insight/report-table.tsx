@@ -93,11 +93,11 @@ export function ReportTable({ caption, columns, rows, rowHeader = 1, lead = 2 }:
                 </>
               ) : null}
             </p>
-            <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1">
+            <dl className="grid grid-cols-[minmax(6rem,1fr)_minmax(0,auto)] gap-x-4 gap-y-1">
               {rest.map((c) => (
                 <div key={c.key} className="contents">
                   <dt className="text-ink-muted">{c.header}</dt>
-                  <dd className={c.numeric ? 'money' : ''}>
+                  <dd className={cn('min-w-0 break-words', c.numeric ? 'money' : '')}>
                     <Cell cell={r.cells[c.key]} />
                   </dd>
                 </div>

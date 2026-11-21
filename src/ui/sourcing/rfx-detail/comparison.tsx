@@ -138,6 +138,8 @@ export function ComparisonView({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-base text-ink-muted md:text-sm">{t('compareIntro')}</p>
+      {/* BR-FORM-11 · OQ-205: a foreign supplier's VAT 0 is not its true cost — the buyer remits VAT itself, outside BCS */}
+      {bids.some((b) => b.tags.includes('FOREIGN')) ? <Notice tone="warning">{t('foreignWarning')}</Notice> : null}
       <ExportButton actions={actions} />
       {/* a computer: lines down, bids across; the frame scrolls, never the page */}
       <div className="hidden overflow-x-auto md:block">

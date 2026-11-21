@@ -88,8 +88,9 @@ export function e2eEnv(env: NodeJS.ProcessEnv = process.env): Record<string, str
     // the run's database by name, so a scene script started with another mode's flag still finds it (S7-17)
     BCS_E2E_DB: E2E_DB,
     // AI in fixture mode (ADR-142): nothing shows while an organization keeps the AI module off, as the demo's does; the
-    // AI specs switch it on for themselves (tests/e2e/ai-document-scene.ts) and play the background job there
-    AI_ENABLED: 'true',
+    // AI specs switch it on for themselves (tests/e2e/ai-document-scene.ts) and play the background job there.
+    // E2E_AI_ENABLED=false runs the server with AI off for the whole system, to play a scene both ways (S10-16: scene 9)
+    AI_ENABLED: env.E2E_AI_ENABLED === 'false' ? 'false' : 'true',
     AI_MODE: 'fixture',
     // The recorded answers belong to the models the agents ask for by default (OQ-145): a model chosen in this computer's
     // .env would find none of them (AI_MODEL_MISMATCH), so e2e asks for the defaults, as CI does (.env.example leaves these blank)

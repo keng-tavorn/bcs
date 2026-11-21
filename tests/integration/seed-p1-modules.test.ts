@@ -75,8 +75,8 @@ describe('[FR-PLT-007/AC4] S11-12: RISK of the phase-1 seed', () => {
     const p1 = await seededOrg('p1')
     const workbook = await loadInputWorkbook(INPUT_WORKBOOKS.p1)
     const db = forTenant(p1.organizationId)
-    // a run without the check of the risk sheets (a part of the seed) leaves RISK off
-    expect(await seedP1Modules(p1.organizationId, NOW)).toEqual({ enabled: 4 })
+    // a run without the check of the risk sheets (a part of the seed) switches PAY AI BCS_GO SUPPLIER SOURCING on and leaves RISK off
+    expect(await seedP1Modules(p1.organizationId, NOW)).toEqual({ enabled: 5 })
     expect(await db.orgModule.findFirst({ where: { module: 'RISK' } })).toBeNull()
     // the check names what is missing, and the seed stops
     await expect(seedP1Modules(p1.organizationId, NOW, { riskReady })).rejects.toThrow(/RISK_TIER_NOT_CONFIGURED/)
